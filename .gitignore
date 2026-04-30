@@ -1,0 +1,7 @@
+FanControlLabels.json
+*.user
+*.suo
+bin/
+obj/
+*.log
+*.tmp
