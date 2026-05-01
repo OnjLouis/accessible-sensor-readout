@@ -6,7 +6,7 @@ It is designed around keyboard and screen-reader use. The app shows sensor categ
 
 ## What It Does
 
-- Reads temperatures, fan RPM, storage health/SMART-style data, and selected hardware counters.
+- Reads temperatures, fan RPM, storage health/SMART-style data, storage capacity counters, and selected hardware counters.
 - Uses FanControl for live fan sensors and fan control changes.
 - Uses bundled LibreHardwareMonitor libraries for extra hardware and storage readings.
 - Lets you label fan headers with friendly names.
@@ -80,6 +80,8 @@ Sensor Readout starts FanControl if it is not already running. When fan settings
 The all-fan buttons apply only to visible fan controls. Stopped or unpopulated motherboard headers are hidden unless `Show stopped` is enabled.
 
 Fan labels are saved in `FanControlLabels.json` beside the executable. Labels only change the friendly names shown in Sensor Readout; they do not change FanControl's own configuration.
+
+Fan controls are handled from the top fan control target box. They are not listed as a separate sensor category on the left, because the left side is reserved for read-only sensor data.
 
 ## Reports
 

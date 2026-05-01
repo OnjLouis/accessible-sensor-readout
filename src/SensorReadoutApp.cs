@@ -411,7 +411,7 @@ public sealed class SensorReadoutForm : Form
         var row = GetSelectedFanControlTarget();
         if (row == null || row.Type != "Fan Control")
         {
-            statusLabel.Text = "Select a row from Fan controls, or select a fan speed row that has a matching control.";
+            statusLabel.Text = "Select a fan control target from the top box.";
             LogFanControlAction(statusLabel.Text);
             return;
         }
@@ -1212,7 +1212,7 @@ public sealed class SensorReadoutForm : Form
             {
                 Type = type,
                 Hardware = hardware.Name ?? "",
-                Name = isStorage && sensorType != "Temperature" ? sensor.Name + " (" + sensorType + ")" : sensor.Name,
+                Name = isStorage ? CleanStorageSensorName(sensor.Name, sensorType) : sensor.Name,
                 Identifier = sensor.Identifier == null ? "" : sensor.Identifier.ToString(),
                 Value = value,
                 DisplayValue = isStorage ? FormatLibreHardwareMonitorStorageValue(sensorType, sensor.Name, value) : null,
@@ -1357,9 +1357,9 @@ public sealed class SensorReadoutForm : Form
 
         if (sensorType == "Data")
         {
-            if (!string.IsNullOrWhiteSpace(sensorName) && sensorName.IndexOf("Space", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (IsLibreHardwareMonitorGigabyteCounter(sensorName))
             {
-                return FormatBytes(value);
+                return FormatGigabytes(value);
             }
 
             return Math.Round(value, 1).ToString("0.0");
@@ -1376,6 +1376,63 @@ public sealed class SensorReadoutForm : Form
         }
 
         return Math.Round(value, 1).ToString("0.0");
+    }
+
+    private static string CleanStorageSensorName(string sensorName, string sensorType)
+    {
+        if (string.IsNullOrWhiteSpace(sensorName))
+        {
+            return sensorType == "Temperature" ? "Temperature" : "Storage reading";
+        }
+
+        if (sensorType == "Level" && sensorName.Equals("Life", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Life remaining";
+        }
+
+        if (sensorName.Equals("Data Read", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Data read";
+        }
+
+        if (sensorName.Equals("Data Written", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Data written";
+        }
+
+        if (sensorName.Equals("Free Space", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Free space";
+        }
+
+        if (sensorName.Equals("Total Space", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Total space";
+        }
+
+        if (sensorName.Equals("Power On Count", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Power on count";
+        }
+
+        if (sensorName.Equals("Power On Hours", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Power on hours";
+        }
+
+        return sensorName;
+    }
+
+    private static bool IsLibreHardwareMonitorGigabyteCounter(string sensorName)
+    {
+        if (string.IsNullOrWhiteSpace(sensorName))
+        {
+            return false;
+        }
+
+        return sensorName.IndexOf("Space", StringComparison.OrdinalIgnoreCase) >= 0
+            || sensorName.Equals("Data Read", StringComparison.OrdinalIgnoreCase)
+            || sensorName.Equals("Data Written", StringComparison.OrdinalIgnoreCase);
     }
 
     private void UpdateDeviceList()
@@ -1425,9 +1482,8 @@ public sealed class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|Temperature", DisplayName = "All temperatures", Type = "Temperature" };
         yield return new DeviceFilter { Key = "type|Fan", DisplayName = "All fans", Type = "Fan" };
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = "SMART data", Type = "SMART" };
-        yield return new DeviceFilter { Key = "type|Fan Control", DisplayName = "Fan controls", Type = "Fan Control" };
 
-        foreach (var hardware in rows.Select(r => r.Hardware).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct().OrderBy(h => h))
+        foreach (var hardware in rows.Where(r => r.Type != "Fan Control").Select(r => r.Hardware).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct().OrderBy(h => h))
         {
             yield return new DeviceFilter
             {
@@ -1481,7 +1537,7 @@ public sealed class SensorReadoutForm : Form
     {
         if (filter == null || filter.Key == "all")
         {
-            return rows;
+            return rows.Where(r => r.Type != "Fan Control");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Type))
@@ -1491,7 +1547,7 @@ public sealed class SensorReadoutForm : Form
 
         if (!string.IsNullOrWhiteSpace(filter.Hardware))
         {
-            return rows.Where(r => r.Hardware == filter.Hardware);
+            return rows.Where(r => r.Type != "Fan Control" && r.Hardware == filter.Hardware);
         }
 
         return rows;
@@ -1644,6 +1700,23 @@ public sealed class SensorReadoutForm : Form
         }
 
         return Math.Round(bytes, unit == 0 ? 0 : 1).ToString(unit == 0 ? "0" : "0.0") + " " + units[unit];
+    }
+
+    private static string FormatGigabytes(double gigabytes)
+    {
+        if (gigabytes <= 0)
+        {
+            return "";
+        }
+
+        if (gigabytes >= 1024)
+        {
+            var terabytes = gigabytes / 1024;
+            return Math.Round(terabytes, 2).ToString("0.##") + " TB";
+        }
+
+        var rounded = Math.Round(gigabytes, 1);
+        return rounded.ToString(Math.Abs(rounded % 1) < 0.05 ? "0" : "0.0") + " GB";
     }
 }
 
