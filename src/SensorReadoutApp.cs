@@ -1352,7 +1352,7 @@ public sealed class SensorReadoutForm : Form
 
         if (sensorType == "Throughput")
         {
-            return Math.Round(value, 1).ToString("0.0") + " MB/s";
+            return FormatBytesPerSecond(value);
         }
 
         if (sensorType == "Data")
@@ -1700,6 +1700,24 @@ public sealed class SensorReadoutForm : Form
         }
 
         return Math.Round(bytes, unit == 0 ? 0 : 1).ToString(unit == 0 ? "0" : "0.0") + " " + units[unit];
+    }
+
+    private static string FormatBytesPerSecond(double bytesPerSecond)
+    {
+        if (bytesPerSecond < 0)
+        {
+            return "";
+        }
+
+        var units = new[] { "B/s", "KB/s", "MB/s", "GB/s" };
+        var unit = 0;
+        while (bytesPerSecond >= 1024 && unit < units.Length - 1)
+        {
+            bytesPerSecond /= 1024;
+            unit++;
+        }
+
+        return Math.Round(bytesPerSecond, unit == 0 ? 0 : 1).ToString(unit == 0 ? "0" : "0.0") + " " + units[unit];
     }
 
     private static string FormatGigabytes(double gigabytes)
