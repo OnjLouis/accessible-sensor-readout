@@ -1,10 +1,33 @@
 param(
     [switch]$SkipDotNet,
-    [switch]$SkipFanControl,
-    [switch]$SkipLibreHardwareMonitor
+    [switch]$SkipPawnIO,
+    [switch]$IncludeLibreHardwareMonitor
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+if (-not (Test-IsAdministrator)) {
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        "`"$PSCommandPath`""
+    )
+
+    if ($SkipDotNet) { $arguments += '-SkipDotNet' }
+    if ($SkipPawnIO) { $arguments += '-SkipPawnIO' }
+    if ($IncludeLibreHardwareMonitor) { $arguments += '-IncludeLibreHardwareMonitor' }
+
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -Verb RunAs
+    exit
+}
 
 function Install-WingetPackage {
     param(
@@ -26,13 +49,13 @@ if (-not $SkipDotNet) {
     Install-WingetPackage -Id 'Microsoft.DotNet.Framework.Runtime' -Name '.NET Framework Runtime'
 }
 
-if (-not $SkipFanControl) {
-    Install-WingetPackage -Id 'Rem0o.FanControl' -Name 'FanControl'
+if (-not $SkipPawnIO) {
+    Install-WingetPackage -Id 'namazso.PawnIO' -Name 'PawnIO driver'
 }
 
-if (-not $SkipLibreHardwareMonitor) {
+if ($IncludeLibreHardwareMonitor) {
     Install-WingetPackage -Id 'LibreHardwareMonitor.LibreHardwareMonitor' -Name 'LibreHardwareMonitor'
 }
 
 Write-Host ''
-Write-Host 'Done. Start FanControl once and complete its first-run hardware setup before using AccessibleSensorReadout.'
+Write-Host 'Done. Start Sensor Readout as administrator so it can read motherboard sensors and control supported fans.'

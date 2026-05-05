@@ -1,4 +1,6 @@
-FanControlLabels.json
+portable/*.json
+release-stage/
+*.zip
 *.user
 *.suo
 bin/

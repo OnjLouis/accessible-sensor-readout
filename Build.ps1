@@ -1,5 +1,5 @@
 param(
-    [string]$OutputPath = "$PSScriptRoot\portable\AccessibleSensorReadout.exe"
+    [string]$OutputPath = "$PSScriptRoot\portable\Sensor Readout.exe"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,10 +19,6 @@ $references = @(
     'System.Drawing.dll',
     'System.Windows.Forms.dll',
     'System.Management.dll',
-    (Join-Path $portable 'FanControl.IPC.dll'),
-    (Join-Path $portable 'Google.Protobuf.dll'),
-    (Join-Path $portable 'Grpc.Core.Api.dll'),
-    (Join-Path $portable 'GrpcDotNetNamedPipes.dll'),
     (Join-Path $portable 'LibreHardwareMonitorLib.dll'),
     (Join-Path $portable 'Newtonsoft.Json.dll')
 ) -join ','
