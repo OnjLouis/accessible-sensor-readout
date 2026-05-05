@@ -4,14 +4,16 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Management;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 using Newtonsoft.Json;
 
 [assembly: System.Reflection.AssemblyTitle("Sensor Readout")]
-[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
 
 public sealed class SensorRow
 {
@@ -48,6 +50,8 @@ public sealed class AppSettings
     public bool RefreshWhileFocused = true;
     public int RefreshIntervalSeconds = 8;
     public bool TrayStatusEnabled = true;
+    public bool RunAtStartup = false;
+    public bool StartMinimizedToTray = false;
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -63,14 +67,34 @@ public sealed class ReadingTreeItem
     public readonly List<ReadingTreeItem> Children = new List<ReadingTreeItem>();
 }
 
+public sealed class NetworkSnapshot
+{
+    public long BytesReceived;
+    public long BytesSent;
+    public DateTime TimestampUtc;
+}
+
+public sealed class GitHubReleaseInfo
+{
+    [JsonProperty("tag_name")]
+    public string TagName;
+
+    [JsonProperty("html_url")]
+    public string HtmlUrl;
+}
+
 public sealed class PreferencesForm : Form
 {
     private readonly CheckBox autoRefreshCheckBox;
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;
+    private readonly CheckBox runAtStartupCheckBox;
+    private readonly CheckBox startMinimizedCheckBox;
     private readonly NumericUpDown refreshSecondsBox;
     private readonly ComboBox loggingLevelBox;
-    private readonly CheckedListBox trayItemsList;
+    private readonly ListBox trayAvailableList;
+    private readonly ListBox traySelectedList;
+    private readonly Label traySelectionStatusLabel;
     private readonly CheckedListBox hiddenItemsList;
     private readonly List<SensorRow> rows;
     private readonly List<string> hiddenReadingKeys;
@@ -78,6 +102,8 @@ public sealed class PreferencesForm : Form
     public bool AutoRefreshEnabled { get { return autoRefreshCheckBox.Checked; } }
     public bool RefreshWhileFocused { get { return refreshWhileFocusedCheckBox.Checked; } }
     public bool TrayStatusEnabled { get { return trayStatusCheckBox.Checked; } }
+    public bool RunAtStartup { get { return runAtStartupCheckBox.Checked; } }
+    public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public int RefreshIntervalSeconds { get { return Convert.ToInt32(refreshSecondsBox.Value); } }
     public string LoggingLevel { get { return Convert.ToString(loggingLevelBox.SelectedItem) ?? "Off"; } }
     public List<string> TrayItemKeys { get; private set; }
@@ -87,14 +113,14 @@ public sealed class PreferencesForm : Form
     {
         Text = "Sensor Readout Preferences";
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(620, 520);
+        Size = new Size(760, 620);
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
         hiddenReadingKeys = new List<string>(settings.HiddenReadingKeys ?? new List<string>());
 
         rows = latestRows
-            .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance")
+            .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance" || r.Type == "Network")
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
@@ -108,7 +134,7 @@ public sealed class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 11,
             Padding = new Padding(10)
         };
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -117,7 +143,10 @@ public sealed class PreferencesForm : Form
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         autoRefreshCheckBox = new CheckBox
@@ -142,6 +171,39 @@ public sealed class PreferencesForm : Form
             Checked = settings.TrayStatusEnabled,
             AutoSize = true,
             AccessibleName = "Show status in notification area"
+        };
+
+        runAtStartupCheckBox = new CheckBox
+        {
+            Text = "Run at Windows startup",
+            Checked = settings.RunAtStartup,
+            AutoSize = true,
+            AccessibleName = "Run at Windows startup"
+        };
+
+        startMinimizedCheckBox = new CheckBox
+        {
+            Text = "Start minimized to notification area",
+            Checked = settings.StartMinimizedToTray,
+            AutoSize = true,
+            AccessibleName = "Start minimized to notification area"
+        };
+
+        runAtStartupCheckBox.CheckedChanged += delegate
+        {
+            if (runAtStartupCheckBox.Checked)
+            {
+                startMinimizedCheckBox.Checked = true;
+                trayStatusCheckBox.Checked = true;
+            }
+        };
+
+        startMinimizedCheckBox.CheckedChanged += delegate
+        {
+            if (startMinimizedCheckBox.Checked)
+            {
+                trayStatusCheckBox.Checked = true;
+            }
         };
 
         var intervalPanel = new FlowLayoutPanel
@@ -189,25 +251,66 @@ public sealed class PreferencesForm : Form
 
         var trayLabel = new Label
         {
-            Text = "Notification area items. Check up to four readings for the tray tooltip. If none are checked, Sensor Readout shows the first temperature readings.",
+            Text = "Notification area items. Maximum four readings. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.",
             AutoSize = true,
             Dock = DockStyle.Fill
         };
 
-        trayItemsList = new CheckedListBox
+        var selectedKeys = settings.TrayItemKeys ?? new List<string>();
+        trayAvailableList = new ListBox
         {
             Dock = DockStyle.Fill,
-            CheckOnClick = true,
             IntegralHeight = false,
-            AccessibleName = "Notification area readings"
+            AccessibleName = "Available notification area readings",
+            AccessibleDescription = "Press Control Right Arrow to add the selected reading to the notification area."
         };
-        var selectedKeys = settings.TrayItemKeys ?? new List<string>();
-        foreach (var row in rows)
+        traySelectedList = new ListBox
         {
-            var item = new TrayItemChoice(row);
-            var index = trayItemsList.Items.Add(item);
-            trayItemsList.SetItemChecked(index, selectedKeys.Contains(item.Key));
+            Dock = DockStyle.Fill,
+            IntegralHeight = false,
+            AccessibleName = "Selected notification area readings in display order",
+            AccessibleDescription = "Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
+        };
+        trayAvailableList.KeyDown += TrayAvailableListKeyDown;
+        traySelectedList.KeyDown += TraySelectedListKeyDown;
+        var trayChoices = rows
+            .Select(r => new TrayItemChoice(r))
+            .OrderBy(i => i.Hardware)
+            .ThenBy(i => SensorReadoutForm.ReadingSortIndex(i.Name))
+            .ThenBy(i => i.Name)
+            .ThenBy(i => i.Type)
+            .ToList();
+        foreach (var key in selectedKeys)
+        {
+            var selectedChoice = trayChoices.FirstOrDefault(i => i.Key == key);
+            if (selectedChoice != null && !ContainsTrayChoice(traySelectedList, selectedChoice.Key))
+            {
+                traySelectedList.Items.Add(selectedChoice);
+            }
         }
+        traySelectionStatusLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            AccessibleName = "Notification area selection status"
+        };
+
+        foreach (var item in trayChoices)
+        {
+            if (!ContainsTrayChoice(traySelectedList, item.Key))
+            {
+                trayAvailableList.Items.Add(item);
+            }
+        }
+        if (trayAvailableList.Items.Count > 0)
+        {
+            trayAvailableList.SelectedIndex = 0;
+        }
+        if (traySelectedList.Items.Count > 0)
+        {
+            traySelectedList.SelectedIndex = 0;
+        }
+        SetTraySelectionStatus("Tray order has " + traySelectedList.Items.Count + " of 4 readings.");
 
         hiddenItemsList = new CheckedListBox
         {
@@ -271,7 +374,7 @@ public sealed class PreferencesForm : Form
 
         okButton.Click += delegate
         {
-            TrayItemKeys = trayItemsList.CheckedItems
+            TrayItemKeys = traySelectedList.Items
                 .Cast<TrayItemChoice>()
                 .Take(4)
                 .Select(i => i.Key)
@@ -286,11 +389,14 @@ public sealed class PreferencesForm : Form
         main.Controls.Add(autoRefreshCheckBox, 0, 0);
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 1);
         main.Controls.Add(trayStatusCheckBox, 0, 2);
-        main.Controls.Add(intervalPanel, 0, 3);
-        main.Controls.Add(loggingPanel, 0, 4);
-        main.Controls.Add(trayLabel, 0, 5);
-        main.Controls.Add(trayItemsList, 0, 6);
-        main.Controls.Add(buttons, 0, 7);
+        main.Controls.Add(runAtStartupCheckBox, 0, 3);
+        main.Controls.Add(startMinimizedCheckBox, 0, 4);
+        main.Controls.Add(intervalPanel, 0, 5);
+        main.Controls.Add(loggingPanel, 0, 6);
+        main.Controls.Add(trayLabel, 0, 7);
+        main.Controls.Add(BuildTraySelectionPanel(), 0, 8);
+        main.Controls.Add(traySelectionStatusLabel, 0, 9);
+        main.Controls.Add(buttons, 0, 10);
         generalTab.Controls.Add(main);
         tabs.TabPages.Add(generalTab);
         tabs.TabPages.Add(hiddenTab);
@@ -298,27 +404,220 @@ public sealed class PreferencesForm : Form
         Controls.Add(tabs);
     }
 
+    private Control BuildTraySelectionPanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+        var availablePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        availablePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        availablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        availablePanel.Controls.Add(new Label { Text = "Available readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        availablePanel.Controls.Add(trayAvailableList, 0, 1);
+
+        var selectedPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        selectedPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        selectedPanel.Controls.Add(new Label { Text = "Tray order", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        selectedPanel.Controls.Add(traySelectedList, 0, 1);
+
+        var buttons = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(8, 24, 8, 0)
+        };
+        var addButton = new Button { Text = "&Add", AutoSize = true, AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow." };
+        addButton.Click += delegate { AddSelectedTrayChoice(); };
+        var removeButton = new Button { Text = "&Remove", AutoSize = true, AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow." };
+        removeButton.Click += delegate { RemoveSelectedTrayChoice(); };
+        var upButton = new Button { Text = "&Up", AutoSize = true, AccessibleDescription = "Move selected tray reading up. Shortcut Control Up Arrow." };
+        upButton.Click += delegate { MoveSelectedTrayChoice(-1); };
+        var downButton = new Button { Text = "&Down", AutoSize = true, AccessibleDescription = "Move selected tray reading down. Shortcut Control Down Arrow." };
+        downButton.Click += delegate { MoveSelectedTrayChoice(1); };
+        buttons.Controls.Add(addButton);
+        buttons.Controls.Add(removeButton);
+        buttons.Controls.Add(upButton);
+        buttons.Controls.Add(downButton);
+
+        panel.Controls.Add(availablePanel, 0, 0);
+        panel.Controls.Add(buttons, 1, 0);
+        panel.Controls.Add(selectedPanel, 2, 0);
+        return panel;
+    }
+
+    private void AddSelectedTrayChoice()
+    {
+        var item = trayAvailableList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            SetTraySelectionStatus("Select an available reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        if (traySelectedList.Items.Count >= 4)
+        {
+            SetTraySelectionStatus("The notification area can show up to four readings.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var index = trayAvailableList.SelectedIndex;
+        trayAvailableList.Items.Remove(item);
+        traySelectedList.Items.Add(item);
+        traySelectedList.SelectedItem = item;
+        if (trayAvailableList.Items.Count > 0)
+        {
+            trayAvailableList.SelectedIndex = Math.Max(0, Math.Min(index, trayAvailableList.Items.Count - 1));
+        }
+        SetTraySelectionStatus("Added " + item + " to tray order.");
+    }
+
+    private void RemoveSelectedTrayChoice()
+    {
+        var item = traySelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            SetTraySelectionStatus("Select a tray reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var index = traySelectedList.SelectedIndex;
+        traySelectedList.Items.Remove(item);
+        AddAvailableTrayChoiceSorted(item);
+        if (traySelectedList.Items.Count > 0)
+        {
+            traySelectedList.SelectedIndex = Math.Max(0, Math.Min(index, traySelectedList.Items.Count - 1));
+        }
+        trayAvailableList.SelectedItem = item;
+        SetTraySelectionStatus("Removed " + item + " from tray order.");
+    }
+
+    private void MoveSelectedTrayChoice(int direction)
+    {
+        var index = traySelectedList.SelectedIndex;
+        var target = index + direction;
+        if (index < 0 || target < 0 || target >= traySelectedList.Items.Count)
+        {
+            SetTraySelectionStatus("Cannot move the selected tray reading further.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var item = traySelectedList.Items[index];
+        traySelectedList.Items.RemoveAt(index);
+        traySelectedList.Items.Insert(target, item);
+        traySelectedList.SelectedIndex = target;
+        SetTraySelectionStatus("Moved " + item + (direction < 0 ? " up." : " down."));
+    }
+
+    private void TrayAvailableListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Control && e.KeyCode == Keys.Right)
+        {
+            AddSelectedTrayChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void TraySelectedListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Control && e.KeyCode == Keys.Left)
+        {
+            RemoveSelectedTrayChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Up)
+        {
+            MoveSelectedTrayChoice(-1);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Down)
+        {
+            MoveSelectedTrayChoice(1);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void SetTraySelectionStatus(string message)
+    {
+        if (traySelectionStatusLabel != null)
+        {
+            traySelectionStatusLabel.Text = message;
+        }
+    }
+
+    private void AddAvailableTrayChoiceSorted(TrayItemChoice choice)
+    {
+        var insertIndex = 0;
+        while (insertIndex < trayAvailableList.Items.Count &&
+            TrayItemChoice.Compare((TrayItemChoice)trayAvailableList.Items[insertIndex], choice) <= 0)
+        {
+            insertIndex++;
+        }
+
+        trayAvailableList.Items.Insert(insertIndex, choice);
+    }
+
+    private static bool ContainsTrayChoice(ListBox list, string key)
+    {
+        return list.Items.Cast<TrayItemChoice>().Any(i => i.Key == key);
+    }
+
     private sealed class TrayItemChoice
     {
         public readonly string Key;
+        public readonly string Type;
+        public readonly string Hardware;
+        public readonly string Name;
         private readonly string label;
 
         public TrayItemChoice(SensorRow row)
         {
             Key = SensorReadoutForm.RowSettingsKey(row);
-            label = row.Type + ", " + SensorReadoutForm.TrayChoiceLabel(row);
+            Type = SensorReadoutForm.DisplayTypeName(row.Type);
+            Hardware = SensorReadoutForm.ShortHardwareName(row.Hardware);
+            Name = SensorReadoutForm.CleanSensorName(row.Name);
+            label = SensorReadoutForm.TrayChoiceLabel(row);
         }
 
         public override string ToString()
         {
             return label;
         }
+
+        public static int Compare(TrayItemChoice left, TrayItemChoice right)
+        {
+            var result = string.Compare(left.Hardware, right.Hardware, StringComparison.OrdinalIgnoreCase);
+            if (result != 0) return result;
+            result = SensorReadoutForm.ReadingSortIndex(left.Name).CompareTo(SensorReadoutForm.ReadingSortIndex(right.Name));
+            if (result != 0) return result;
+            result = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+            if (result != 0) return result;
+            return string.Compare(left.Type, right.Type, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }
 
 public sealed class SensorReadoutForm : Form
 {
-    private const string AppVersion = "1.0.0";
+    private const string AppVersion = "1.1.0";
+    private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string FanActionLogName = "SensorReadoutFanActions.log";
     private const long MaxLogBytes = 262144;
     private const int RefreshIntervalMs = 8000;
@@ -329,6 +628,8 @@ public sealed class SensorReadoutForm : Form
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ListBox deviceList;
     private readonly TreeView readingTree;
+    private readonly ProgressBar selectedMeterProgressBar;
+    private readonly Label selectedMeterValueLabel;
     private readonly Label statusLabel;
     private readonly Button refreshButton;
     private readonly CheckBox pauseCheckBox;
@@ -343,16 +644,28 @@ public sealed class SensorReadoutForm : Form
     private readonly List<SensorRow> latestRows = new List<SensorRow>();
     private readonly object lhmLock = new object();
     private Computer lhmComputer;
-    private string selectedFilterKey = "all";
+    private string selectedFilterKey = "type|Temperature";
     private bool updatingFanControlBox;
     private bool refreshInProgress;
     private bool minimizingToTray;
+    private readonly bool startMinimizedRequested;
     private string lastReadingTreeSignature = "";
     private string lastReadingTreeShapeSignature = "";
+    private readonly Dictionary<string, NetworkSnapshot> networkSnapshots = new Dictionary<string, NetworkSnapshot>(StringComparer.OrdinalIgnoreCase);
 
     public SensorReadoutForm()
+        : this(false)
+    {
+    }
+
+    public SensorReadoutForm(bool startMinimized)
     {
         settings = LoadSettings();
+        startMinimizedRequested = startMinimized;
+        if ((startMinimizedRequested || settings.StartMinimizedToTray) && !settings.TrayStatusEnabled)
+        {
+            settings.TrayStatusEnabled = true;
+        }
         Text = "Sensor Readout " + AppVersion;
         KeyPreview = true;
         StartPosition = FormStartPosition.CenterScreen;
@@ -404,11 +717,11 @@ public sealed class SensorReadoutForm : Form
         editMenu.DropDownItems.Add("Hide selected\tDel", null, delegate { HideSelectedTreeNode(); });
 
         var viewMenu = new ToolStripMenuItem("&View");
-        viewMenu.DropDownItems.Add("Overview\tCtrl+1", null, delegate { SelectCategoryByKey("all"); });
-        viewMenu.DropDownItems.Add("Temperatures\tCtrl+2", null, delegate { SelectCategoryByKey("type|Temperature"); });
-        viewMenu.DropDownItems.Add("Fans\tCtrl+3", null, delegate { SelectCategoryByKey("type|Fan"); });
-        viewMenu.DropDownItems.Add("SMART\tCtrl+4", null, delegate { SelectCategoryByKey("type|SMART"); });
-        viewMenu.DropDownItems.Add("Performance\tCtrl+5", null, delegate { SelectCategoryByKey("type|Performance"); });
+        viewMenu.DropDownItems.Add("Performance\tCtrl+0", null, delegate { SelectCategoryByKey("type|Performance"); });
+        viewMenu.DropDownItems.Add("Temperatures\tCtrl+1", null, delegate { SelectCategoryByKey("type|Temperature"); });
+        viewMenu.DropDownItems.Add("Fans\tCtrl+2", null, delegate { SelectCategoryByKey("type|Fan"); });
+        viewMenu.DropDownItems.Add("SMART\tCtrl+3", null, delegate { SelectCategoryByKey("type|SMART"); });
+        viewMenu.DropDownItems.Add("Network\tCtrl+4", null, delegate { SelectCategoryByKey("type|Network"); });
 
         var optionsMenu = new ToolStripMenuItem("&Options");
         autoRefreshMenuItem = new ToolStripMenuItem("Auto refresh")
@@ -456,7 +769,10 @@ public sealed class SensorReadoutForm : Form
 
         var helpMenu = new ToolStripMenuItem("&Help");
         helpMenu.DropDownItems.Add("Manual\tF1", null, delegate { ShowManual(); });
+        helpMenu.DropDownItems.Add("Check for updates...", null, delegate { CheckForUpdates(); });
+        helpMenu.DropDownItems.Add("Project on GitHub", null, delegate { OpenProjectPage(); });
         helpMenu.DropDownItems.Add("Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
+        helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("About Sensor Readout", null, delegate { ShowAbout(); });
 
         menuStrip.Items.Add(fileMenu);
@@ -545,8 +861,8 @@ public sealed class SensorReadoutForm : Form
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
-            AccessibleName = "Category",
-            AccessibleDescription = "Choose which readings to show"
+            AccessibleName = "Reading section",
+            AccessibleDescription = "Choose a section such as Temperatures, Fans, SMART, Performance, or Network"
         };
         deviceList.SelectedIndexChanged += delegate
         {
@@ -590,10 +906,32 @@ public sealed class SensorReadoutForm : Form
                 e.Handled = true;
             }
         };
+        readingTree.AfterSelect += delegate { UpdateSelectedMeterProgress(); };
         readingTree.Nodes.Add(new TreeNode("Please wait, collecting sensor data") { Name = "startup" });
+
+        selectedMeterValueLabel = new Label
+        {
+            Dock = DockStyle.Bottom,
+            Height = 24,
+            Text = "Selected meter value",
+            Padding = new Padding(0, 4, 0, 0)
+        };
+        selectedMeterProgressBar = new ProgressBar
+        {
+            Dock = DockStyle.Bottom,
+            Height = 24,
+            Minimum = 0,
+            Maximum = 100,
+            TabStop = true,
+            AccessibleRole = AccessibleRole.ProgressBar,
+            AccessibleName = "Selected meter",
+            AccessibleDescription = "Selected meter value"
+        };
 
         splitContainer.Panel1.Controls.Add(deviceList);
         splitContainer.Panel2.Controls.Add(readingTree);
+        splitContainer.Panel2.Controls.Add(selectedMeterProgressBar);
+        splitContainer.Panel2.Controls.Add(selectedMeterValueLabel);
         deviceList.Items.Add(new DeviceFilter { Key = "loading", DisplayName = "Please wait, collecting sensor data" });
         deviceList.SelectedIndex = 0;
 
@@ -626,6 +964,14 @@ public sealed class SensorReadoutForm : Form
             CheckPrerequisitesOnFirstRun();
             RefreshSensors();
             timer.Start();
+            if (startMinimizedRequested || settings.StartMinimizedToTray)
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    WindowState = FormWindowState.Minimized;
+                    MinimizeToTray();
+                });
+            }
         };
 
         Resize += delegate
@@ -707,14 +1053,121 @@ public sealed class SensorReadoutForm : Form
 
     private void ShowAbout()
     {
-        MessageBox.Show(
-            this,
-            "Sensor Readout " + AppVersion + Environment.NewLine + Environment.NewLine +
-            "Created by Codex." + Environment.NewLine +
-            "Ideas by Andre Louis.",
-            "About Sensor Readout",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        using (var dialog = new Form())
+        {
+            dialog.Text = "About Sensor Readout";
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.ShowInTaskbar = false;
+            dialog.Size = new Size(560, 330);
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(12)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var text = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                AccessibleName = "About Sensor Readout text",
+                Text =
+                    "Sensor Readout " + AppVersion + Environment.NewLine + Environment.NewLine +
+                    "Project page:" + Environment.NewLine +
+                    ProjectUrl + Environment.NewLine + Environment.NewLine +
+                    "Created by Codex." + Environment.NewLine +
+                    "Ideas by Andre Louis." + Environment.NewLine + Environment.NewLine +
+                    "Bundled and referenced components:" + Environment.NewLine +
+                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, and Microsoft .NET Framework support libraries."
+            };
+
+            var buttons = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+            var okButton = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
+            var projectButton = new Button { Text = "Project page", AutoSize = true, AccessibleName = "Open project page" };
+            projectButton.Click += delegate { OpenProjectPage(); };
+            buttons.Controls.Add(okButton);
+            buttons.Controls.Add(projectButton);
+
+            dialog.AcceptButton = okButton;
+            dialog.CancelButton = okButton;
+            layout.Controls.Add(text, 0, 0);
+            layout.Controls.Add(buttons, 0, 1);
+            dialog.Controls.Add(layout);
+            dialog.ShowDialog(this);
+        }
+    }
+
+    private void OpenProjectPage()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = ProjectUrl, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Could not open project page", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void CheckForUpdates()
+    {
+        try
+        {
+            using (var client = new WebClient())
+            {
+                client.Headers.Add("User-Agent", "Sensor Readout " + AppVersion);
+                var json = client.DownloadString(ProjectUrl.Replace("https://github.com/", "https://api.github.com/repos/") + "/releases/latest");
+                var release = JsonConvert.DeserializeObject<GitHubReleaseInfo>(json);
+                var latest = (release == null ? "" : release.TagName) ?? "";
+                var latestVersion = latest.Trim().TrimStart('v', 'V');
+                if (string.IsNullOrWhiteSpace(latestVersion))
+                {
+                    MessageBox.Show(this, "Could not read the latest release version.", "Check for updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                Version current;
+                Version remote;
+                if (Version.TryParse(AppVersion, out current) && Version.TryParse(latestVersion, out remote) && remote > current)
+                {
+                    var result = MessageBox.Show(
+                        this,
+                        "Sensor Readout " + latest + " is available." + Environment.NewLine + Environment.NewLine + "Open the release page?",
+                        "Update available",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+                    if (result == DialogResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo { FileName = string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl, UseShellExecute = true });
+                    }
+                    return;
+                }
+
+                MessageBox.Show(this, "Sensor Readout is up to date. Current version: " + AppVersion + ".", "Check for updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (WebException ex)
+        {
+            MessageBox.Show(this, "Could not check for updates. GitHub releases may not exist yet, or the network request failed." + Environment.NewLine + Environment.NewLine + ex.Message, "Check for updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Check for updates", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void CheckPrerequisitesOnFirstRun()
@@ -765,31 +1218,70 @@ public sealed class SensorReadoutForm : Form
         }
     }
 
-    private bool SelectCategoryByShortcut(Keys keyCode)
+    private static void SetRunAtStartup(bool enabled, bool startMinimized)
     {
-        if (keyCode == Keys.D1 || keyCode == Keys.NumPad1)
+        var shortcutPath = GetStartupShortcutPath();
+        if (!enabled)
         {
-            return SelectCategoryByKey("all");
+            if (System.IO.File.Exists(shortcutPath))
+            {
+                System.IO.File.Delete(shortcutPath);
+            }
+
+            return;
         }
 
-        if (keyCode == Keys.D2 || keyCode == Keys.NumPad2)
+        var shellType = Type.GetTypeFromProgID("WScript.Shell");
+        if (shellType == null)
+        {
+            throw new InvalidOperationException("Windows Script Host is not available.");
+        }
+
+        var shell = Activator.CreateInstance(shellType);
+        var shortcut = shellType.InvokeMember(
+            "CreateShortcut",
+            System.Reflection.BindingFlags.InvokeMethod,
+            null,
+            shell,
+            new object[] { shortcutPath });
+        var shortcutType = shortcut.GetType();
+        shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { Application.ExecutablePath });
+        shortcutType.InvokeMember("Arguments", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { startMinimized ? "--minimized" : "" });
+        shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { AppDomain.CurrentDomain.BaseDirectory });
+        shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { "Sensor Readout" });
+        shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+    }
+
+    private static string GetStartupShortcutPath()
+    {
+        return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Sensor Readout.lnk");
+    }
+
+    private bool SelectCategoryByShortcut(Keys keyCode)
+    {
+        if (keyCode == Keys.D0 || keyCode == Keys.NumPad0)
+        {
+            return SelectCategoryByKey("type|Performance");
+        }
+
+        if (keyCode == Keys.D1 || keyCode == Keys.NumPad1)
         {
             return SelectCategoryByKey("type|Temperature");
         }
 
-        if (keyCode == Keys.D3 || keyCode == Keys.NumPad3)
+        if (keyCode == Keys.D2 || keyCode == Keys.NumPad2)
         {
             return SelectCategoryByKey("type|Fan");
         }
 
-        if (keyCode == Keys.D4 || keyCode == Keys.NumPad4)
+        if (keyCode == Keys.D3 || keyCode == Keys.NumPad3)
         {
             return SelectCategoryByKey("type|SMART");
         }
 
-        if (keyCode == Keys.D5 || keyCode == Keys.NumPad5)
+        if (keyCode == Keys.D4 || keyCode == Keys.NumPad4)
         {
-            return SelectCategoryByKey("type|Performance");
+            return SelectCategoryByKey("type|Network");
         }
 
         return false;
@@ -824,10 +1316,24 @@ public sealed class SensorReadoutForm : Form
             settings.RefreshWhileFocused = dialog.RefreshWhileFocused;
             settings.RefreshIntervalSeconds = dialog.RefreshIntervalSeconds;
             settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
+            settings.RunAtStartup = dialog.RunAtStartup;
+            settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
+            if (settings.RunAtStartup || settings.StartMinimizedToTray)
+            {
+                settings.TrayStatusEnabled = true;
+            }
             settings.LoggingLevel = dialog.LoggingLevel;
             settings.TrayItemKeys = dialog.TrayItemKeys;
             settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
             SaveSettings(settings);
+            try
+            {
+                SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not update Windows startup shortcut: " + ex.Message, "Sensor Readout startup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
 
             if (settings.TrayStatusEnabled)
             {
@@ -1191,10 +1697,11 @@ public sealed class SensorReadoutForm : Form
 
         rows.AddRange(GetSystemPerformanceRows());
         rows.AddRange(GetStoragePerformanceRows(rows));
+        rows.AddRange(GetNetworkRows());
         rows = ApplyFanLabelsToReadings(rows);
 
         return ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Fan Control")
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Network" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList())
@@ -2288,6 +2795,71 @@ public sealed class SensorReadoutForm : Form
             .ToList();
     }
 
+    private IEnumerable<SensorRow> GetNetworkRows()
+    {
+        var rows = new List<SensorRow>();
+        foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            try
+            {
+                if (adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                    adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
+                {
+                    continue;
+                }
+
+                var name = string.IsNullOrWhiteSpace(adapter.Name) ? adapter.Description : adapter.Name;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    name = "Network adapter";
+                }
+
+                var stats = adapter.GetIPv4Statistics();
+                var now = DateTime.UtcNow;
+                var id = string.IsNullOrWhiteSpace(adapter.Id) ? name : adapter.Id;
+                NetworkSnapshot previous;
+                var receiveRate = 0.0;
+                var sendRate = 0.0;
+                if (networkSnapshots.TryGetValue(id, out previous))
+                {
+                    var seconds = Math.Max(0.001, (now - previous.TimestampUtc).TotalSeconds);
+                    receiveRate = Math.Max(0, stats.BytesReceived - previous.BytesReceived) / seconds;
+                    sendRate = Math.Max(0, stats.BytesSent - previous.BytesSent) / seconds;
+                }
+
+                networkSnapshots[id] = new NetworkSnapshot
+                {
+                    BytesReceived = stats.BytesReceived,
+                    BytesSent = stats.BytesSent,
+                    TimestampUtc = now
+                };
+
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Status", DisplayValue = adapter.OperationalStatus.ToString(), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Link speed", DisplayValue = FormatBitsPerSecond(adapter.Speed), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Receive rate", Value = (float)receiveRate, DisplayValue = FormatBytesPerSecond(receiveRate), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Send rate", Value = (float)sendRate, DisplayValue = FormatBytesPerSecond(sendRate), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data received", DisplayValue = FormatBytes(stats.BytesReceived), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data sent", DisplayValue = FormatBytes(stats.BytesSent), Source = "Windows Network" });
+
+                var addresses = adapter.GetIPProperties().UnicastAddresses
+                    .Where(a => a.Address != null && a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    .Select(a => a.Address.ToString())
+                    .Where(a => !string.IsNullOrWhiteSpace(a))
+                    .Distinct()
+                    .ToList();
+                if (addresses.Count > 0)
+                {
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "IP address", DisplayValue = string.Join(", ", addresses.ToArray()), Source = "Windows Network" });
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return rows;
+    }
+
     private static string SensorDeduplicationKey(SensorRow row)
     {
         var type = row.Type ?? "";
@@ -2575,7 +3147,7 @@ public sealed class SensorReadoutForm : Form
             if (selectedIndex < 0)
             {
                 selectedIndex = 0;
-                selectedFilterKey = filters.Count > 0 ? filters[0].Key : "all";
+                selectedFilterKey = filters.Count > 0 ? filters[0].Key : "type|Temperature";
             }
 
             if (filters.Count > 0)
@@ -2591,11 +3163,11 @@ public sealed class SensorReadoutForm : Form
 
     private static IEnumerable<DeviceFilter> BuildFilters(List<SensorRow> rows)
     {
-        yield return new DeviceFilter { Key = "all", DisplayName = "Overview" };
+        yield return new DeviceFilter { Key = "type|Performance", DisplayName = "Performance", Type = "Performance" };
         yield return new DeviceFilter { Key = "type|Temperature", DisplayName = "Temperatures", Type = "Temperature" };
         yield return new DeviceFilter { Key = "type|Fan", DisplayName = "Fans", Type = "Fan" };
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = "SMART", Type = "SMART" };
-        yield return new DeviceFilter { Key = "type|Performance", DisplayName = "Performance", Type = "Performance" };
+        yield return new DeviceFilter { Key = "type|Network", DisplayName = "Network", Type = "Network" };
     }
 
     private void UpdateReadingList()
@@ -2663,6 +3235,7 @@ public sealed class SensorReadoutForm : Form
 
             lastReadingTreeSignature = signature;
             lastReadingTreeShapeSignature = shapeSignature;
+            UpdateSelectedMeterProgress();
         }
         finally
         {
@@ -2764,6 +3337,122 @@ public sealed class SensorReadoutForm : Form
         return index >= 0 && index < siblings.Count ? siblings[index] : null;
     }
 
+    private void UpdateSelectedMeterProgress()
+    {
+        if (selectedMeterProgressBar == null || selectedMeterValueLabel == null)
+        {
+            return;
+        }
+
+        var row = GetSelectedReadingRow();
+        if (row == null || !IsMeterRow(row))
+        {
+            selectedMeterProgressBar.Value = 0;
+            selectedMeterProgressBar.AccessibleName = "Selected meter";
+            selectedMeterProgressBar.AccessibleDescription = "Selected reading is not a percentage meter";
+            selectedMeterValueLabel.Text = "No meter for selected reading.";
+            return;
+        }
+
+        var percent = ClampPercent(ExtractPercent(row));
+        var value = (int)Math.Round(percent);
+        var label = MeterLabel(row);
+        selectedMeterProgressBar.Value = value;
+        selectedMeterProgressBar.AccessibleName = label;
+        selectedMeterProgressBar.AccessibleDescription = label + ", " + value + " percent";
+        selectedMeterValueLabel.Text = label + ": " + value + "%";
+    }
+
+    private static string MeterLabel(SensorRow row)
+    {
+        var name = CleanSensorName(row.Name);
+        var hardware = ShortHardwareName(row.Hardware);
+        if (string.IsNullOrWhiteSpace(hardware) || hardware.Equals("System", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        return hardware + ", " + name;
+    }
+
+    private static bool IsMeterRow(SensorRow row)
+    {
+        if (row == null || row.Type == "Fan Control")
+        {
+            return false;
+        }
+
+        var percent = ExtractPercent(row);
+        if (!percent.HasValue || percent.Value < 0 || percent.Value > 100)
+        {
+            return false;
+        }
+
+        var name = CleanSensorName(row.Name);
+        return name.IndexOf("usage", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("activity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("space used", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("used space", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("life remaining", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("load", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static float ClampPercent(float? value)
+    {
+        if (!value.HasValue || float.IsNaN(value.Value) || float.IsInfinity(value.Value))
+        {
+            return 0;
+        }
+
+        return Math.Max(0, Math.Min(100, value.Value));
+    }
+
+    private static float? ExtractPercent(SensorRow row)
+    {
+        if (row == null)
+        {
+            return null;
+        }
+
+        var text = row.DisplayValue ?? "";
+        var parsed = ExtractPercent(text);
+        if (parsed.HasValue)
+        {
+            return parsed.Value;
+        }
+
+        if (row.Value.HasValue)
+        {
+            return row.Value.Value;
+        }
+
+        return null;
+    }
+
+    private static float? ExtractPercent(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var percentIndex = text.IndexOf('%');
+        if (percentIndex < 0)
+        {
+            return null;
+        }
+
+        var start = percentIndex - 1;
+        while (start >= 0 && (char.IsDigit(text[start]) || text[start] == '.' || text[start] == '-'))
+        {
+            start--;
+        }
+
+        var number = text.Substring(start + 1, percentIndex - start - 1);
+        float value;
+        return float.TryParse(number, out value) ? value : (float?)null;
+    }
+
     private static Dictionary<string, string> BuildTreeTextMap(IEnumerable<ReadingTreeItem> items)
     {
         var map = new Dictionary<string, string>();
@@ -2842,24 +3531,15 @@ public sealed class SensorReadoutForm : Form
             return new List<ReadingTreeItem> { new ReadingTreeItem { Key = "empty", Text = "No readings available." } };
         }
 
-        if (filter == null || filter.Key == "all")
-        {
-            return rows
-                .GroupBy(r => r.Type)
-                .OrderBy(g => TypeSortIndex(g.Key))
-                .ThenBy(g => g.Key)
-                .Select(typeGroup =>
-                {
-                    var typeItem = new ReadingTreeItem { Key = "type|" + typeGroup.Key, Text = DisplayTypeName(typeGroup.Key) };
-                    AddHardwareGroups(typeItem, typeGroup);
-                    return typeItem;
-                })
-                .ToList();
-        }
-
         if (!string.IsNullOrWhiteSpace(filter.Type))
         {
             var typeItem = new ReadingTreeItem { Key = "type|" + filter.Type, Text = DisplayTypeName(filter.Type) };
+            if (filter.Type == "Performance")
+            {
+                AddPerformanceGroups(typeItem, rows);
+                return typeItem.Children;
+            }
+
             AddHardwareGroups(typeItem, rows);
             return typeItem.Children;
         }
@@ -2924,6 +3604,64 @@ public sealed class SensorReadoutForm : Form
             AddReadingRows(hardwareItem, hardwareGroup);
             parent.Children.Add(hardwareItem);
         }
+    }
+
+    private static void AddPerformanceGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        var systemRows = rows
+            .Where(r => IsSystemPerformanceHardware(r.Hardware))
+            .ToList();
+        if (systemRows.Count > 0)
+        {
+            var systemItem = new ReadingTreeItem { Key = "performance|system", Text = "System" };
+            foreach (var hardwareGroup in systemRows
+                .GroupBy(r => ShortHardwareName(r.Hardware))
+                .OrderBy(g => PerformanceHardwareSortIndex(g.Key))
+                .ThenBy(g => g.Key))
+            {
+                var hardwareItem = new ReadingTreeItem
+                {
+                    Key = "hardware|performance|system|" + hardwareGroup.Key,
+                    Text = hardwareGroup.Key
+                };
+                AddReadingRows(hardwareItem, hardwareGroup);
+                systemItem.Children.Add(hardwareItem);
+            }
+
+            parent.Children.Add(systemItem);
+        }
+
+        var storageRows = rows
+            .Where(r => !IsSystemPerformanceHardware(r.Hardware))
+            .ToList();
+        if (storageRows.Count > 0)
+        {
+            var storageItem = new ReadingTreeItem { Key = "performance|storage", Text = "Storage" };
+            AddHardwareGroups(storageItem, storageRows);
+            parent.Children.Add(storageItem);
+        }
+    }
+
+    private static bool IsSystemPerformanceHardware(string hardware)
+    {
+        return string.Equals(hardware, "CPU", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(hardware, "Memory", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(hardware, "System", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int PerformanceHardwareSortIndex(string hardware)
+    {
+        if (string.Equals(hardware, "CPU", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (string.Equals(hardware, "Memory", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        return 2;
     }
 
     private static void AddReadingRows(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
@@ -2999,9 +3737,9 @@ public sealed class SensorReadoutForm : Form
 
     private static IEnumerable<SensorRow> ApplyFilter(IEnumerable<SensorRow> rows, DeviceFilter filter)
     {
-        if (filter == null || filter.Key == "all")
+        if (filter == null)
         {
-            return rows.Where(r => r.Type != "Fan Control");
+            return rows.Where(r => r.Type == "Temperature");
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Type))
@@ -3019,30 +3757,35 @@ public sealed class SensorReadoutForm : Form
 
     public static int TypeSortIndex(string type)
     {
-        if (type == "Temperature")
+        if (type == "Performance")
         {
             return 0;
         }
 
-        if (type == "Fan")
+        if (type == "Temperature")
         {
             return 1;
         }
 
-        if (type == "SMART")
+        if (type == "Fan")
         {
             return 2;
         }
 
-        if (type == "Performance")
+        if (type == "SMART")
         {
             return 3;
         }
 
-        return 4;
+        if (type == "Network")
+        {
+            return 4;
+        }
+
+        return 5;
     }
 
-    private static string DisplayTypeName(string type)
+    public static string DisplayTypeName(string type)
     {
         if (type == "Temperature")
         {
@@ -3064,10 +3807,15 @@ public sealed class SensorReadoutForm : Form
             return "Performance";
         }
 
-        return string.IsNullOrWhiteSpace(type) ? "Overview" : type;
+        if (type == "Network")
+        {
+            return "Network";
+        }
+
+        return string.IsNullOrWhiteSpace(type) ? "Readings" : type;
     }
 
-    private static int ReadingSortIndex(string name)
+    public static int ReadingSortIndex(string name)
     {
         var clean = CleanSensorName(name);
         if (clean.Equals("Health", StringComparison.OrdinalIgnoreCase)) return 0;
@@ -3087,10 +3835,17 @@ public sealed class SensorReadoutForm : Form
         if (clean.Equals("Free space", StringComparison.OrdinalIgnoreCase)) return 21;
         if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 22;
         if (clean.Equals("Size", StringComparison.OrdinalIgnoreCase)) return 22;
+        if (clean.Equals("Status", StringComparison.OrdinalIgnoreCase)) return 30;
+        if (clean.Equals("IP address", StringComparison.OrdinalIgnoreCase)) return 31;
+        if (clean.Equals("Link speed", StringComparison.OrdinalIgnoreCase)) return 32;
+        if (clean.Equals("Receive rate", StringComparison.OrdinalIgnoreCase)) return 33;
+        if (clean.Equals("Send rate", StringComparison.OrdinalIgnoreCase)) return 34;
+        if (clean.Equals("Data received", StringComparison.OrdinalIgnoreCase)) return 35;
+        if (clean.Equals("Data sent", StringComparison.OrdinalIgnoreCase)) return 36;
         return 100;
     }
 
-    private static string ShortHardwareName(string hardware)
+    public static string ShortHardwareName(string hardware)
     {
         if (string.IsNullOrWhiteSpace(hardware))
         {
@@ -3149,7 +3904,7 @@ public sealed class SensorReadoutForm : Form
         return value;
     }
 
-    private static string CleanSensorName(string name)
+    public static string CleanSensorName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -3217,7 +3972,119 @@ public sealed class SensorReadoutForm : Form
             return "";
         }
 
-        return CleanSensorName(row.Name) + " on " + ShortHardwareName(row.Hardware);
+        return ShortHardwareName(row.Hardware) + " - " + ShortTrayName(row.Name) + ": " + DisplayTypeName(row.Type);
+    }
+
+    private static string ShortTrayReadingText(SensorRow row)
+    {
+        if (row == null)
+        {
+            return "";
+        }
+
+        var hardware = ShortTrayHardware(row.Hardware);
+        var name = ShortTrayName(row.Name);
+        if (row.Type == "Temperature")
+        {
+            return name + " " + FormatValue(row);
+        }
+
+        if (row.Type == "Network")
+        {
+            return hardware + " " + name + " " + FormatValue(row);
+        }
+
+        if (row.Type == "Performance" || row.Type == "SMART")
+        {
+            if (string.Equals(hardware, "CPU", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(hardware, "Memory", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(hardware, "System", StringComparison.OrdinalIgnoreCase))
+            {
+                return name + " " + FormatValue(row);
+            }
+
+            return hardware + " " + name + " " + FormatValue(row);
+        }
+
+        return name + " " + FormatValue(row);
+    }
+
+    private static string ShortTrayHardware(string hardware)
+    {
+        var text = ShortHardwareName(hardware);
+        if (text.IndexOf("Ethernet", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "Eth";
+        }
+
+        if (text.IndexOf("Wi-Fi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            text.IndexOf("Wireless", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "WiFi";
+        }
+
+        if (text.StartsWith("VMware Network Adapter ", StringComparison.OrdinalIgnoreCase))
+        {
+            return text.Replace("VMware Network Adapter ", "VM");
+        }
+
+        if (text.StartsWith("NVIDIA ", StringComparison.OrdinalIgnoreCase))
+        {
+            return "GPU";
+        }
+
+        return text;
+    }
+
+    private static string ShortTrayName(string name)
+    {
+        var text = CleanSensorName(name);
+        if (text.Equals("CPU package", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CPU";
+        }
+
+        if (text.Equals("GPU Core", StringComparison.OrdinalIgnoreCase))
+        {
+            return "GPU";
+        }
+
+        if (text.StartsWith("Temperature #", StringComparison.OrdinalIgnoreCase))
+        {
+            return "T" + text.Substring("Temperature #".Length);
+        }
+
+        if (text.Equals("Receive rate", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Rx";
+        }
+
+        if (text.Equals("Send rate", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Tx";
+        }
+
+        if (text.Equals("Data received", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Rx total";
+        }
+
+        if (text.Equals("Data sent", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Tx total";
+        }
+
+        if (text.Equals("CPU usage", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CPU";
+        }
+
+        if (text.Equals("Memory used", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Mem";
+        }
+
+        return text.Replace(" Activity", "").Replace(" activity", "");
     }
 
     private static AppSettings LoadSettings()
@@ -3274,6 +4141,15 @@ public sealed class SensorReadoutForm : Form
         value.FanLabels = new Dictionary<string, string>(value.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds));
         value.LoggingLevel = NormalizeLoggingLevel(value.LoggingLevel);
+        if (value.RunAtStartup)
+        {
+            value.StartMinimizedToTray = true;
+            value.TrayStatusEnabled = true;
+        }
+        else if (value.StartMinimizedToTray)
+        {
+            value.TrayStatusEnabled = true;
+        }
     }
 
     private static string NormalizeLoggingLevel(string level)
@@ -3341,8 +4217,9 @@ public sealed class SensorReadoutForm : Form
         }
 
         var selectedKeys = settings.TrayItemKeys ?? new List<string>();
-        var selectedRows = latestRows
-            .Where(r => selectedKeys.Contains(RowSettingsKey(r)))
+        var selectedRows = selectedKeys
+            .Select(key => latestRows.FirstOrDefault(r => RowSettingsKey(r) == key))
+            .Where(r => r != null)
             .Take(4)
             .ToList();
 
@@ -3358,7 +4235,7 @@ public sealed class SensorReadoutForm : Form
 
         var text = selectedRows.Count == 0
             ? "Sensor Readout"
-            : string.Join("; ", selectedRows.Select(r => CleanSensorName(r.Name) + " " + FormatValue(r)).ToArray());
+            : string.Join("; ", selectedRows.Select(ShortTrayReadingText).ToArray());
 
         trayIcon.Text = ShortenTrayText(text, selectedRows.Count > 1);
         SetTrayIcon(selectedRows.FirstOrDefault());
@@ -3563,6 +4440,25 @@ public sealed class SensorReadoutForm : Form
         return Math.Round(bytesPerSecond, unit == 0 ? 0 : 1).ToString(unit == 0 ? "0" : "0.0") + " " + units[unit];
     }
 
+    private static string FormatBitsPerSecond(long bitsPerSecond)
+    {
+        if (bitsPerSecond <= 0)
+        {
+            return "0 bps";
+        }
+
+        var value = (double)bitsPerSecond;
+        var units = new[] { "bps", "Kbps", "Mbps", "Gbps", "Tbps" };
+        var unit = 0;
+        while (value >= 1000 && unit < units.Length - 1)
+        {
+            value /= 1000;
+            unit++;
+        }
+
+        return Math.Round(value, unit == 0 ? 0 : 1).ToString(unit == 0 ? "0" : "0.0") + " " + units[unit];
+    }
+
     private static string FormatGigabytes(double gigabytes)
     {
         if (gigabytes <= 0)
@@ -3599,7 +4495,7 @@ public sealed class SensorReadoutForm : Form
 public static class Program
 {
     [STAThread]
-    public static void Main()
+    public static void Main(string[] args)
     {
         bool createdNew;
         using (var mutex = new System.Threading.Mutex(true, @"Local\OnjSensorReadoutApp", out createdNew))
@@ -3616,7 +4512,22 @@ public static class Program
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new SensorReadoutForm());
+            Application.Run(new SensorReadoutForm(ShouldStartMinimized(args)));
         }
+    }
+
+    private static bool ShouldStartMinimized(string[] args)
+    {
+        if (args == null)
+        {
+            return false;
+        }
+
+        return args.Any(a =>
+            string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a, "-minimized", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a, "/minimized", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a, "--tray", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a, "/tray", StringComparison.OrdinalIgnoreCase));
     }
 }
