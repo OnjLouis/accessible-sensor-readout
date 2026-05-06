@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.1.0.
+Current version: 1.2.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -8,10 +8,13 @@ It shows high-level categories on the left, readings grouped by device in a tree
 
 Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://github.com/OnjLouis/accessible-sensor-readout)
 
+Sensor Readout can be found [on GitHub](https://github.com/OnjLouis/accessible-sensor-readout).
+
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, and selected hardware counters.
-- Shows a Performance category for CPU usage, memory usage, and storage read/write activity.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, memory usage, and storage read/write activity.
+- Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, and total traffic.
 - Links back to the project page from the README, Help menu, and About dialog.
 - Uses bundled LibreHardwareMonitor libraries for sensor access.
@@ -22,8 +25,16 @@ Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://gi
 - Returns one fan or all fans to automatic/default control.
 - Saves TXT or HTML sensor reports.
 - Supports configurable automatic refresh.
+- Defaults to a 5-second refresh interval on new configurations.
 - Can run at Windows startup and start minimized to the notification area.
-- Uses a per-computer configuration file, such as `Desktop.json`, `Laptop.json`, or `Family-PC.json`, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other's settings.
+- Uses a per-computer configuration file in `Config`, such as `Desktop.json`, `Laptop.json`, or `Family-PC.json`, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other's settings.
+- Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.
+- Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
+- Can show temperatures in Celsius or Fahrenheit.
+- Converts Samsung storage data counters to readable GB/TB values when LibreHardwareMonitor exposes them as raw SMART units.
+- Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.
+- Can speak the notification area status through NVDA using bundled 64-bit NVDA Controller Client DLLs.
+- Supports simple user-editable language files in the `langs` folder.
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
 
@@ -47,6 +58,7 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit)
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit)
 - [BlackSharp.Core on NuGet](https://www.nuget.org/packages/BlackSharp.Core/)
+- [NVDA Controller Client](https://github.com/nvaccess/nvda/tree/master/extras/controllerClient)
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
 ## Winget Install Commands
@@ -84,34 +96,31 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 
 ## Keyboard Shortcuts
 
-- `F5`: Refresh now.
-- `Ctrl+S`: Save report.
-- `Ctrl+C`: Copy the selected reading or tree branch.
-- `F2`: Rename the selected fan reading.
-- `Del`: Hide the selected reading or tree branch.
-- `Ctrl+L`: Open fan controls.
-- `Ctrl+,`: Preferences.
-- `F1`: Open the manual.
-- `Help` > `Check for updates...`: Check GitHub Releases for a newer version.
-- `Help` > `Project on GitHub`: Open the project page.
-- `Ctrl+0`: Show Performance.
-- `Ctrl+1`: Show Temperatures.
-- `Ctrl+2`: Show Fans.
-- `Ctrl+3`: Show SMART.
-- `Ctrl+4`: Show Network.
-- `Esc`: Close the Fan Controls dialog.
-- `Alt+L`: Save the label for the selected fan control.
-- `Alt+M`: Apply the manual percentage to the selected fan control.
-- `Alt+A`: Return the selected fan control to automatic/default.
-- `Alt+R`: Return all fan controls to automatic/default.
-- `Alt+7`: Set all visible fan controls to 75%.
-- `Alt+X`: Set all visible fan controls to maximum.
-- `Alt+S`: Show or hide stopped fan headers.
-- `Alt+P`: Pause automatic updates.
-- In Preferences, notification area readings:
-  - `Ctrl+Right`: Add the selected available reading to the tray order.
-  - `Ctrl+Left`: Remove the selected tray reading.
-  - `Ctrl+Up` / `Ctrl+Down`: Move the selected tray reading earlier or later.
+| Shortcut | Action |
+| --- | --- |
+| `F5` | Refresh now. |
+| `Ctrl+S` | Save report. |
+| `Ctrl+C` | Copy the selected reading or tree branch. |
+| `F2` | Rename the selected fan reading. |
+| `Del` | Hide the selected reading or tree branch. |
+| `Ctrl+L` | Open fan controls. |
+| `Ctrl+,` | Open Preferences. |
+| `F1` | Open the manual. |
+| `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. |
+| `Ctrl+F1` | Open the project page. |
+| `Ctrl+0` to `Ctrl+4` | Show Performance, Temperatures, Fans, SMART, or Network. |
+| `Esc` | Close the Fan Controls dialog. |
+| `Alt+L` | Save the label for the selected fan control. |
+| `Alt+M` | Apply the manual percentage to the selected fan control. |
+| `Alt+A` | Return the selected fan control to automatic/default. |
+| `Alt+R` | Return all fan controls to automatic/default. |
+| `Alt+7` | Set all visible fan controls to 75%. |
+| `Alt+X` | Set all visible fan controls to maximum. |
+| `Alt+S` | Show or hide stopped fan headers. |
+| `Alt+P` | Pause automatic updates. |
+| `Ctrl+Right` | In Preferences, add the selected available reading to the tray order. |
+| `Ctrl+Left` | In Preferences, remove the selected tray reading. |
+| `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray reading earlier or later. |
 
 ## Preferences
 
@@ -162,7 +171,7 @@ Open fan controls from `Options` > `Fan controls...` or press `Ctrl+L`.
 
 The all-fan buttons apply only to visible fan controls. Stopped or unpopulated motherboard headers are hidden unless `Show stopped` is enabled.
 
-Fan labels are saved in the per-computer configuration file beside the executable. Labels only change friendly names shown in Sensor Readout.
+Fan labels are saved in the per-computer configuration file in `Config`. Labels only change friendly names shown in Sensor Readout.
 
 ## Reports
 
@@ -186,10 +195,31 @@ Source:
 - `src\SensorReadoutApp.cs`
 - `src\SensorReadoutApp.exe.manifest`
 
-Configuration created by the app:
+Configuration and logging created by the app:
 
-- `<ComputerName>.json`: refresh, notification area, hidden-item, fan-label, and logging preferences.
-- `SensorReadoutFanActions.log`: optional fan adjustment log, created only when logging is enabled.
+- `Config\<ComputerName>.json`: refresh, notification area, hidden-item, fan-label, and logging preferences.
+- `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and NVDA speech messages, created only when logging is enabled.
+
+Language files:
+
+- Put `.txt` or `.ini` files in the `langs` folder beside `Sensor Readout.exe`.
+- On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.
+- Use simple `key=value` lines. Lines starting with `#` or `;` are comments.
+- Set `language.name=Display name` so the language has a clear name in menus.
+- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.md`, then falls back to `README-en.md`.
+- Set `number.decimalSeparator=,` if the language should display decimal values with a comma, such as `1,1 TB`.
+- Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
+- `langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
+- The decimal separator can also be changed from Preferences without editing a language file.
+- Bundled manuals live in the `docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, and `README-it.html`.
+
+Optional NVDA speech:
+
+- The speak-tray-status hotkey uses NVDA's controller client when available.
+- `nvdaControllerClient.dll` and `nvdaControllerClient64.dll` are bundled beside `Sensor Readout.exe` for the 64-bit app.
+- If the DLL is missing or NVDA is not running, the hotkey fails safely and shows a status message when the main window is visible.
+- When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through NVDA. The default comes from `speech.startupActive` in the selected language file.
+- Preferences includes a simple language editor tab for editing existing language-file entries without opening a separate text editor.
 
 ## Notes
 
@@ -198,6 +228,36 @@ Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip
 The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.
 
 ## Changelog
+
+### 1.2.0
+
+- New: Multilingual interface support with English, German, Spanish, French, and Italian language files.
+- New: Language editor in Preferences for editing translated text, creating new language files from English, and changing the NVDA startup message.
+- New: HTML manuals in the `docs` folder, with `F1` opening the manual for the selected language.
+- New: Temperature-unit control for Celsius or Fahrenheit.
+- New: Decimal-separator control with language default, period, and comma choices.
+- New: Optional global hotkeys for show/hide and speaking the current notification-area status.
+- New: Configurable NVDA startup speech for minimized startup.
+- New: Performance/Overview page with uptime, BIOS, system, storage, and GPU overview details.
+- Added: 64-bit NVDA Controller Client files for optional NVDA speech from the portable folder.
+- Added: `Options` > `Speak tray status now`.
+- Added: Help > Contact and Help > Donate links. Sensor Readout remains free.
+- Added: Help > Check for updates displays GitHub release notes, checks silently at startup, and can install a downloadable portable ZIP.
+- Fixed: Preferences has a Close button on every tab, and Escape closes the dialog.
+- Fixed: Language switching refreshes Preferences, the main window, reading labels, common screen-reader labels, and combo-box values without requiring a restart.
+- Fixed: GitHub update checks use TLS 1.2 for compatibility with GitHub's current HTTPS requirements.
+- Fixed: Missing notification-area selections are preserved during startup and upgrades.
+- Fixed: Samsung SMART data counters are converted correctly so read/write totals display as readable GB/TB values.
+- Fixed: GPU fan controls exposed by LibreHardwareMonitor stay visible even when the GPU is in fan-stop mode.
+- Fixed: Fan Controls refreshes the selected fan state after manual, automatic, and all-fan actions without closing the dialog.
+- Improved: Startup displays the main window while sensor refresh continues in the background.
+- Improved: GPU adapter memory reporting uses Windows' 64-bit display registry value.
+- Improved: Selected percentage readings expose progress value-change events for screen readers.
+- Improved: Minimized or hidden operation keeps tray status fresh while reducing visible UI rebuild work.
+- Improved: The main window toolbar is cleaner, with duplicate Refresh and Save report buttons removed in favour of the menu and keyboard shortcuts.
+- Changed: Preferences saves edits immediately for hotkeys, tray selections, hidden items, startup options, and language choices.
+- Changed: Per-computer settings live in `Config`, logs live in `Logs`, and old top-level JSON/log files are migrated automatically.
+- Changed: Logging includes diagnostics for hotkeys and NVDA speech.
 
 ### 1.1.0
 
@@ -224,6 +284,10 @@ The app must run as administrator for motherboard Super I/O access on many syste
 
 Created by Codex. Ideas by Andre Louis.
 
+Questions and feedback can be sent through `Help` > `Contact` in the app or <https://onj.me/contact>.
+
+Sensor Readout is free software. If you want to support Andre's work, use `Help` > `Donate` in the app or visit <https://www.paypal.me/AndreLouis>.
+
 Sensor Readout uses or bundles components from these projects:
 
 - [LibreHardwareMonitor](https://librehardwaremonitor.net/) and [LibreHardwareMonitor on GitHub](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor), for hardware sensor access.
@@ -233,8 +297,10 @@ Sensor Readout uses or bundles components from these projects:
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit), used by LibreHardwareMonitor for storage data.
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit), used by LibreHardwareMonitor for memory SPD data.
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
+- [NVDA Controller Client](https://github.com/nvaccess/nvda/tree/master/extras/controllerClient), used for optional NVDA speech output.
 - Microsoft .NET Framework and support libraries.
 
 ## License
 
 This project is licensed under the MIT License. See `LICENSE.txt`.
+

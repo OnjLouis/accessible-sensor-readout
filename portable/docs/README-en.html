@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensor Readout</title>
+<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.55;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111;background:#fff}h1,h2{line-height:1.25}code{font-family:Consolas,monospace;background:#f2f2f2;padding:.1rem .25rem}table{border-collapse:collapse;width:100%;margin:1em 0 1.5em}th,td{border:1px solid #999;padding:.55em .7em;text-align:left;vertical-align:top}th{background:#f2f2f2}pre{background:#f7f7f7;padding:1rem;overflow:auto}a{color:#0645ad}li{margin:.25rem 0}</style>
+</head>
+<body>
+<h1>Sensor Readout</h1>
+<p>Current version: 1.2.0.</p>
+<p>Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.</p>
+<p>It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar.</p>
+<p>Sensor Readout can be found <a href="https://github.com/OnjLouis/accessible-sensor-readout">on GitHub</a>.</p>
+<h2>Contents</h2>
+<ul>
+<li><a href="#what-it-does">What It Does</a></li>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+<li><a href="#preferences">Preferences</a></li>
+<li><a href="#notification-area-readings">Notification Area Readings</a></li>
+<li><a href="#fan-control-workflow">Fan Control Workflow</a></li>
+<li><a href="#reports">Reports</a></li>
+<li><a href="#language-files">Language Files</a></li>
+<li><a href="#changelog">Changelog</a></li>
+<li><a href="#credits">Credits</a></li>
+</ul><h2 id="what-it-does">What It Does</h2>
+<ul>
+<li>Reads temperatures, fan RPM, storage health, storage capacity, and selected hardware counters.</li>
+<li>Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, memory usage, and storage read/write activity.</li>
+<li>Opens the main UI immediately while the first sensor refresh continues in the background.</li>
+<li>Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, and total traffic.</li>
+<li>Links back to the project page from the README, Help menu, and About dialog.</li>
+<li>Uses bundled LibreHardwareMonitor libraries for sensor access.</li>
+<li>Uses the PawnIO driver for low-level motherboard sensors and fan controls where hardware support is available.</li>
+<li>Lets you label fan headers with friendly names.</li>
+<li>Hides stopped or unpopulated motherboard fan headers by default.</li>
+<li>Applies manual fan percentages to one selected fan or to all visible fans.</li>
+<li>Returns one fan or all fans to automatic/default control.</li>
+<li>Saves TXT or HTML sensor reports.</li>
+<li>Supports configurable automatic refresh.</li>
+<li>Defaults to a 5-second refresh interval on new configurations.</li>
+<li>Can run at Windows startup and start minimized to the notification area.</li>
+<li>Uses a per-computer configuration file in the <code>Config</code> folder, such as <code>Desktop.json</code>, <code>Laptop.json</code>, or <code>Family-PC.json</code>, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other&#39;s settings.</li>
+<li>Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.</li>
+<li>Writes diagnostic logs in the <code>Logs</code> folder as <code>&lt;ComputerName&gt;.log</code> when logging is enabled.</li>
+<li>Can show temperatures in Celsius or Fahrenheit.</li>
+<li>Converts Samsung storage data counters to readable GB/TB values when LibreHardwareMonitor exposes them as raw SMART units.</li>
+<li>Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.</li>
+<li>Can speak the notification area status through NVDA using bundled 64-bit NVDA Controller Client DLLs.</li>
+<li>Supports simple user-editable language files in the <code>langs</code> folder.</li>
+<li>Logging is off by default and can be enabled from Preferences when troubleshooting.</li>
+<li>Can show selected readings in the notification area tooltip.</li>
+</ul>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Windows 10 or Windows 11, 64-bit.</li>
+<li>Microsoft .NET Framework 4.8 or newer.</li>
+<li>PawnIO driver installed for motherboard sensors and fan controls.</li>
+<li>Administrator rights when reading motherboard sensors or controlling fans.</li>
+</ul>
+<p>LibreHardwareMonitor is not required as a running app because this folder ships the needed library files. Installing the standalone app can still be useful for troubleshooting.</p>
+<h2>Winget Install Commands</h2>
+<p>Open Windows Terminal or PowerShell as administrator and run:</p>
+<pre><code>
+winget install --id Microsoft.DotNet.Framework.Runtime -e --source winget
+winget install --id namazso.PawnIO -e --source winget
+</code></pre>
+<p>Optional troubleshooting tool:</p>
+<pre><code>
+winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
+</code></pre>
+<p>You can also run <code>Install-Prerequisites.cmd</code> from this folder. It calls <code>Install-Prerequisites.ps1</code>, asks for administrator rights if needed, checks for winget, and installs .NET Framework Runtime plus PawnIO. To also install the standalone LibreHardwareMonitor app, run:</p>
+<pre><code>
+.\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
+</code></pre>
+<h2>First Run</h2>
+<p>1. Start <code>Sensor Readout.exe</code>.</p>
+<p>2. Accept the Windows administrator prompt.</p>
+<p>3. If PawnIO is missing, Sensor Readout offers to run the prerequisite installer.</p>
+<p>4. Press <code>F5</code> to refresh if values are still loading.</p>
+<p>5. Open <code>Options</code> &gt; <code>Fan controls...</code> or press <code>Ctrl+L</code> if you want to adjust fan control values.</p>
+<p>If motherboard fans or controls are missing, check that PawnIO is installed and that the app was started as administrator.</p>
+<p>You can rerun the prerequisite installer later from <code>Help</code> &gt; <code>Install prerequisites...</code>.</p>
+<h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+<table>
+<thead>
+<tr><th>Shortcut</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td><code>F5</code></td><td>Refresh now.</td></tr>
+<tr><td><code>Ctrl+S</code></td><td>Save report.</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Copy the selected reading or tree branch.</td></tr>
+<tr><td><code>F2</code></td><td>Rename the selected fan reading.</td></tr>
+<tr><td><code>Del</code></td><td>Hide the selected reading or tree branch.</td></tr>
+<tr><td><code>Ctrl+L</code></td><td>Open fan controls.</td></tr>
+<tr><td><code>Ctrl+,</code></td><td>Open Preferences.</td></tr>
+<tr><td><code>F1</code></td><td>Open the manual.</td></tr>
+<tr><td><code>Shift+F1</code></td><td>Check GitHub Releases for a newer version and check PawnIO.</td></tr>
+<tr><td><code>Ctrl+F1</code></td><td>Open the project page.</td></tr>
+<tr><td><code>Ctrl+0</code> to <code>Ctrl+4</code></td><td>Show Performance, Temperatures, Fans, SMART, or Network.</td></tr>
+<tr><td><code>Esc</code></td><td>Close the Fan Controls dialog.</td></tr>
+<tr><td><code>Alt+L</code></td><td>Save the label for the selected fan control.</td></tr>
+<tr><td><code>Alt+M</code></td><td>Apply the manual percentage to the selected fan control.</td></tr>
+<tr><td><code>Alt+A</code></td><td>Return the selected fan control to automatic/default.</td></tr>
+<tr><td><code>Alt+R</code></td><td>Return all fan controls to automatic/default.</td></tr>
+<tr><td><code>Alt+7</code></td><td>Set all visible fan controls to 75%.</td></tr>
+<tr><td><code>Alt+X</code></td><td>Set all visible fan controls to maximum.</td></tr>
+<tr><td><code>Alt+S</code></td><td>Show or hide stopped fan headers.</td></tr>
+<tr><td><code>Alt+P</code></td><td>Pause automatic updates.</td></tr>
+<tr><td><code>Ctrl+Right</code></td><td>In Preferences, add the selected available reading to the tray order.</td></tr>
+<tr><td><code>Ctrl+Left</code></td><td>In Preferences, remove the selected tray reading.</td></tr>
+<tr><td><code>Ctrl+Up</code> / <code>Ctrl+Down</code></td><td>In Preferences, move the selected tray reading earlier or later.</td></tr>
+</tbody>
+</table>
+<h2 id="preferences">Preferences</h2>
+<p>Use <code>Options</code> &gt; <code>Preferences</code> or <code>Ctrl+,</code> to configure:</p>
+<ul>
+<li>Automatic refresh on or off.</li>
+<li>Whether values refresh while Sensor Readout has keyboard focus.</li>
+<li>Refresh interval in seconds.</li>
+<li>Whether a notification area icon is shown.</li>
+<li>Whether Sensor Readout runs at Windows startup.</li>
+<li>Whether Sensor Readout starts minimized to the notification area.</li>
+<li>Up to four readings to show in the notification area tooltip, with a configurable display order.</li>
+<li>Hidden readings and groups.</li>
+<li>Logging level: Off, Error, Normal, or Debug.</li>
+</ul>
+<p>When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. <code>Alt+F4</code> exits the app completely.</p>
+<p>The startup option creates or removes a <code>Sensor Readout.lnk</code> shortcut in the current user&#39;s Windows Startup folder. If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.</p>
+<p>Notification area readings are selected from an Available readings list and moved into a Tray order list. The tray order is limited to four readings because Windows notification tooltips are short. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or <code>Ctrl+Right</code>, <code>Ctrl+Left</code>, and <code>Ctrl+Up</code> / <code>Ctrl+Down</code>, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as <code>Ethernet - Rx: Network</code>, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as <code>CPU</code>, <code>GPU</code>, <code>Rx</code>, and <code>Tx</code>.</p>
+<h2>Reading Sensors</h2>
+<p>The readings pane is a tree view. Sections such as Temperatures, Fans, SMART, Performance, and Network group readings by device or purpose first, then list individual readings underneath. This keeps screen readers from announcing a long device name before every value.</p>
+<p>Use the left section list to move between broad areas. This changes the view only; it does not enable, disable, or permanently select devices.</p>
+<p>Sensor Readout opens on Temperatures by default. There is no combined Overview section; each reading belongs to its own section to reduce duplicate tree navigation.</p>
+<p>The Performance section summarizes live system counters and storage activity. It groups CPU and memory under System, then groups storage activity by drive.</p>
+<p>The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters.</p>
+<p>When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers such as NVDA use their existing progress bar feedback without navigating many separate progress controls.</p>
+<p>Use the <code>Edit</code> menu, Application key, or right-click on a reading or group to copy it, rename a fan, or hide it. Hidden items can be restored from <code>Options</code> &gt; <code>Preferences</code> &gt; <code>Hidden items</code>; checked items in that tab are hidden.</p>
+<h2 id="fan-control-workflow">Fan Control Workflow</h2>
+<p>Open fan controls from <code>Options</code> &gt; <code>Fan controls...</code> or press <code>Ctrl+L</code>.</p>
+<p>1. Choose a fan in the fan control target box.</p>
+<p>2. Optional: type a friendly label and press <code>Alt+L</code>.</p>
+<p>3. Type a percentage from 0 to 100.</p>
+<p>4. Press <code>Alt+M</code> to apply it to the selected fan.</p>
+<p>5. Press <code>Alt+A</code> to return the selected fan to automatic/default.</p>
+<p>6. Press <code>Alt+R</code> to return all visible fan controls to automatic/default.</p>
+<p>The all-fan buttons apply only to visible fan controls. Stopped or unpopulated motherboard headers are hidden unless <code>Show stopped</code> is enabled.</p>
+<p>Fan labels are saved in the per-computer configuration file in the <code>Config</code> folder. Labels only change friendly names shown in Sensor Readout.</p>
+<h2 id="reports">Reports</h2>
+<p>Press <code>Ctrl+S</code> or use <code>File</code> &gt; <code>Save report...</code>.</p>
+<p>The save dialog offers:</p>
+<ul>
+<li>TXT report.</li>
+<li>HTML report.</li>
+</ul>
+<p>TXT reports group values by reading type and device, so long hardware names are written once as headings instead of being repeated on every line. HTML reports use formatted tables with sensor, value, and source columns.</p>
+<h2>Files</h2>
+<p>Portable build:</p>
+<ul>
+<li><code>Sensor Readout.exe</code></li>
+</ul>
+<p>Source:</p>
+<ul>
+<li><code>src\SensorReadoutApp.cs</code></li>
+<li><code>src\SensorReadoutApp.exe.manifest</code></li>
+</ul>
+<p>Configuration and logging created by the app:</p>
+<ul>
+<li><code>Config\&lt;ComputerName&gt;.json</code>: refresh, notification area, hidden-item, fan-label, and logging preferences.</li>
+<li><code>Logs\&lt;ComputerName&gt;.log</code>: optional diagnostics, fan actions, hotkey registration, and NVDA speech messages, created only when logging is enabled.</li>
+</ul>
+<p>Language files:</p>
+<ul>
+<li>Put <code>.txt</code> or <code>.ini</code> files in the <code>langs</code> folder beside <code>Sensor Readout.exe</code>.</li>
+<li>On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.</li>
+<li>Use simple <code>key=value</code> lines. Lines starting with <code>#</code> or <code>;</code> are comments.</li>
+<li>Set <code>language.name=Display name</code> so the language has a clear name in menus.</li>
+<li>Set <code>manual.file=README-xx.html</code> so <code>F1</code> opens the matching manual for the selected language in the user&#39;s browser. Type only a file name, not a folder path. Sensor Readout looks in the <code>docs</code> folder first. If this entry is missing, Sensor Readout tries <code>&lt;language-file-name&gt;.html</code>, then falls back to <code>README-en.html</code>.</li>
+<li>Set <code>number.decimalSeparator=,</code> if the language should display decimal values with a comma, such as <code>1,1 TB</code>.</li>
+<li>Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in <code>Options</code> &gt; <code>Language</code> without restarting.</li>
+<li><code>langs\English.txt</code> is the primary/default language file. Copy it or use the Language editor&#39;s New button to start another language.</li>
+<li>The decimal separator can also be changed from Preferences without editing a language file.</li>
+<li>Bundled manuals live in the <code>docs</code> folder and use <code>README-en.html</code>, <code>README-de.html</code>, <code>README-es.html</code>, <code>README-fr.html</code>, and <code>README-it.html</code>.</li>
+</ul>
+<p>Optional NVDA speech:</p>
+<ul>
+<li>The speak-tray-status hotkey uses NVDA&#39;s controller client when available.</li>
+<li><code>nvdaControllerClient.dll</code> and <code>nvdaControllerClient64.dll</code> are bundled beside <code>Sensor Readout.exe</code> for the 64-bit app.</li>
+<li>If the DLL is missing or NVDA is not running, the hotkey fails safely and shows a status message when the main window is visible.</li>
+<li>When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through NVDA. The default comes from <code>speech.startupActive</code> in the selected language file.</li>
+<li>Preferences includes a simple language editor tab for editing existing language-file entries without opening a separate text editor.</li>
+</ul>
+<h2>Notes</h2>
+<p>Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip, and what the BIOS exposes. Some systems may provide readings but not writable fan controls.</p>
+<p>The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.</p>
+<h2 id="changelog">Changelog</h2>
+<h3>1.2.0</h3>
+<ul>
+<li>New: Multilingual interface support with English, German, Spanish, French, and Italian language files.</li>
+<li>New: Language editor in Preferences for editing translated text, creating new language files from English, and changing the NVDA startup message.</li>
+<li>New: HTML manuals in the <code>docs</code> folder, with <code>F1</code> opening the manual for the selected language.</li>
+<li>New: Temperature-unit control for Celsius or Fahrenheit.</li>
+<li>New: Decimal-separator control with language default, period, and comma choices.</li>
+<li>New: Optional global hotkeys for show/hide and speaking the current notification-area status.</li>
+<li>New: Configurable NVDA startup speech for minimized startup.</li>
+<li>New: Performance/Overview page with uptime, BIOS, system, storage, and GPU overview details.</li>
+<li>Added: 64-bit NVDA Controller Client files for optional NVDA speech from the portable folder.</li>
+<li>Added: <code>Options</code> &gt; <code>Speak tray status now</code>.</li>
+<li>Added: Help &gt; Contact and Help &gt; Donate links. Sensor Readout remains free.</li>
+<li>Added: Help &gt; Check for updates displays GitHub release notes, checks silently at startup, and can install a downloadable portable ZIP.</li>
+<li>Fixed: Preferences has a Close button on every tab, and Escape closes the dialog.</li>
+<li>Fixed: Language switching refreshes Preferences, the main window, reading labels, common screen-reader labels, and combo-box values without requiring a restart.</li>
+<li>Fixed: GitHub update checks use TLS 1.2 for compatibility with GitHub&#39;s current HTTPS requirements.</li>
+<li>Fixed: Missing notification-area selections are preserved during startup and upgrades.</li>
+<li>Fixed: Samsung SMART data counters are converted correctly so read/write totals display as readable GB/TB values.</li>
+<li>Fixed: GPU fan controls exposed by LibreHardwareMonitor stay visible even when the GPU is in fan-stop mode.</li>
+<li>Fixed: Fan Controls refreshes the selected fan state after manual, automatic, and all-fan actions without closing the dialog.</li>
+<li>Improved: Startup displays the main window while sensor refresh continues in the background.</li>
+<li>Improved: GPU adapter memory reporting uses Windows&#39; 64-bit display registry value.</li>
+<li>Improved: Selected percentage readings expose progress value-change events for screen readers.</li>
+<li>Improved: Minimized or hidden operation keeps tray status fresh while reducing visible UI rebuild work.</li>
+<li>Improved: The main window toolbar is cleaner, with duplicate Refresh and Save report buttons removed in favour of the menu and keyboard shortcuts.</li>
+<li>Changed: Preferences saves edits immediately for hotkeys, tray selections, hidden items, startup options, and language choices.</li>
+<li>Changed: Per-computer settings live in <code>Config</code>, logs live in <code>Logs</code>, and old top-level JSON/log files are migrated automatically.</li>
+<li>Changed: Logging includes diagnostics for hotkeys and NVDA speech.</li>
+</ul>
+<h3>1.1.0</h3>
+<ul>
+<li>Removed the combined Overview section to reduce duplicate tree navigation.</li>
+<li>Added Network as a first-class section.</li>
+<li>Moved Performance to the top of the section list and to <code>Ctrl+0</code>.</li>
+<li>Grouped Performance into System and Storage.</li>
+<li>Reworded the section list accessibility description so it is clearer that the list changes views only.</li>
+<li>Added Windows startup and start-minimized preferences.</li>
+<li>Added selected-reading progress feedback for percentage readings.</li>
+<li>Added ordered notification area reading selection and shorter notification tooltip labels.</li>
+<li>Added keyboard movement for notification area readings in Preferences.</li>
+<li>Added project page links to the README, Help menu, and About dialog.</li>
+<li>Added Help &gt; Check for updates, backed by GitHub Releases.</li>
+<li>Changed About into a keyboard-friendly dialog with a Project page button.</li>
+<li>Pruned unused DLLs from the portable package.</li>
+<li>Expanded bundled component attribution in README and About.</li>
+</ul>
+<h3>1.0.0</h3>
+<ul>
+<li>Initial portable release with sensor reading, report export, tray readouts, per-computer settings, hidden readings, fan labels, and direct LibreHardwareMonitor/PawnIO fan control.</li>
+</ul>
+<h2 id="credits">Credits</h2>
+<p>Created by Codex. Ideas by Andre Louis.</p>
+<p>Questions and feedback can be sent through Help &gt; Contact in the app or <a href="https://onj.me/contact">onj.me/contact</a>.</p>
+<p>Sensor Readout is free software. If you want to support Andre&#39;s work, use Help &gt; Donate in the app or visit <a href="https://www.paypal.me/AndreLouis">paypal.me/AndreLouis</a>.</p>
+<p>Sensor Readout uses or bundles components from these projects:</p>
+<ul>
+<li><a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a> and <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">LibreHardwareMonitor on GitHub</a>, for hardware sensor access.</li>
+<li><a href="https://github.com/namazso/PawnIO">PawnIO</a> and <a href="https://github.com/namazso/PawnIO.Setup">PawnIO.Setup</a>, for low-level motherboard sensor access where supported.</li>
+<li><a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, for configuration file handling.</li>
+<li><a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, used by LibreHardwareMonitor for HID device access.</li>
+<li><a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, used by LibreHardwareMonitor for storage data.</li>
+<li><a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>, used by LibreHardwareMonitor for memory SPD data.</li>
+<li><a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core</a>, used by LibreHardwareMonitor dependencies.</li>
+<li><a href="https://github.com/nvaccess/nvda/tree/master/extras/controllerClient">NVDA Controller Client</a>, used for optional NVDA speech output.</li>
+<li>Microsoft .NET Framework and support libraries.</li>
+</ul>
+<h2>License</h2>
+<p>This project is licensed under the MIT License. See <code>LICENSE.txt</code>.</p>
+</body>
+</html>
+
+
+
+
+
+
+
+
