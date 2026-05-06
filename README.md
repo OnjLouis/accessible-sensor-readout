@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.2.0.
+Current version: 1.2.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -228,6 +228,11 @@ Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip
 The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.
 
 ## Changelog
+
+### 1.2.1
+
+- Fixed: Storage free/used-space readings now come from Windows logical drives, avoiding mismatched LibreHardwareMonitor space values on some SSDs.
+- Improved: The selected-reading progress meter now works for any valid percentage reading, including memory available, memory used, drive free space, drive space used, CPU usage, activity percentages, and localized comma-decimal percentages.
 
 ### 1.2.0
 

@@ -14,8 +14,8 @@ using LibreHardwareMonitor.Hardware;
 using Newtonsoft.Json;
 
 [assembly: System.Reflection.AssemblyTitle("Sensor Readout")]
-[assembly: System.Reflection.AssemblyVersion("1.2.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.1.0")]
 
 public sealed class SensorRow
 {
@@ -1659,7 +1659,7 @@ public sealed class PreferencesForm : Form
 
 public sealed class SensorReadoutForm : Form
 {
-    private const string AppVersion = "1.2.0";
+    private const string AppVersion = "1.2.1";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -3677,6 +3677,7 @@ public sealed class SensorReadoutForm : Form
         rows.AddRange(GetSystemPerformanceRows());
         rows.AddRange(GetOverviewRows());
         rows.AddRange(GetStoragePerformanceRows(rows));
+        rows.AddRange(GetWindowsLogicalDiskRows());
         rows.AddRange(GetNetworkRows());
         rows = ApplyFanLabelsToReadings(rows);
 
@@ -4562,6 +4563,11 @@ public sealed class SensorReadoutForm : Form
                 continue;
             }
 
+            if (isStorage && IsLibreHardwareMonitorFileSystemSpaceSensor(sensor.Name))
+            {
+                continue;
+            }
+
             yield return new SensorRow
             {
                 Type = type,
@@ -4714,6 +4720,67 @@ public sealed class SensorReadoutForm : Form
         catch
         {
         }
+    }
+
+    private static IEnumerable<SensorRow> GetWindowsLogicalDiskRows()
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            foreach (var drive in System.IO.DriveInfo.GetDrives())
+            {
+                if (drive.DriveType != System.IO.DriveType.Fixed || !drive.IsReady || drive.TotalSize <= 0)
+                {
+                    continue;
+                }
+
+                var freeBytes = Math.Max(0, drive.AvailableFreeSpace);
+                var usedBytes = Math.Max(0, drive.TotalSize - freeBytes);
+                var usedPercent = usedBytes / (double)drive.TotalSize * 100.0;
+                var freePercent = freeBytes / (double)drive.TotalSize * 100.0;
+                var hardware = GetLogicalDiskHardwareName(drive);
+
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = hardware,
+                    Name = "Space used",
+                    Value = (float)usedPercent,
+                    DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+                    Source = "Windows Logical Disk"
+                });
+
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = hardware,
+                    Name = "Free space",
+                    Value = (float)freePercent,
+                    DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+                    Source = "Windows Logical Disk"
+                });
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static string GetLogicalDiskHardwareName(System.IO.DriveInfo drive)
+    {
+        var root = drive.Name == null ? "" : drive.Name.TrimEnd('\\');
+        var label = "";
+        try
+        {
+            label = drive.VolumeLabel;
+        }
+        catch
+        {
+        }
+
+        return string.IsNullOrWhiteSpace(label) ? root : root + " " + label;
     }
 
     private static IEnumerable<SensorRow> GetSystemPerformanceRows()
@@ -5463,6 +5530,14 @@ public sealed class SensorReadoutForm : Form
             || sensorName.Equals("Data Written", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsLibreHardwareMonitorFileSystemSpaceSensor(string sensorName)
+    {
+        return !string.IsNullOrWhiteSpace(sensorName) &&
+            (sensorName.Equals("Free Space", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Used Space", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Total Space", StringComparison.OrdinalIgnoreCase));
+    }
+
     private void UpdateDeviceList()
     {
         var filters = BuildFilters(latestRows).ToList();
@@ -5557,8 +5632,9 @@ public sealed class SensorReadoutForm : Form
 
         if (string.Equals(lastReadingTreeShapeSignature, shapeSignature, StringComparison.Ordinal))
         {
-            UpdateTreeNodeText(readingTree.Nodes, BuildTreeTextMap(items));
+            UpdateTreeNodes(readingTree.Nodes, BuildTreeItemMap(items));
             lastReadingTreeSignature = signature;
+            UpdateSelectedMeterProgress();
             return;
         }
 
@@ -5749,18 +5825,7 @@ public sealed class SensorReadoutForm : Form
         }
 
         var percent = ExtractPercent(row);
-        if (!percent.HasValue || percent.Value < 0 || percent.Value > 100)
-        {
-            return false;
-        }
-
-        var name = CleanSensorName(row.Name);
-        return name.IndexOf("usage", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("activity", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("space used", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("used space", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("life remaining", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("load", StringComparison.OrdinalIgnoreCase) >= 0;
+        return percent.HasValue && percent.Value >= 0 && percent.Value <= 100;
     }
 
     private static float ClampPercent(float? value)
@@ -5787,12 +5852,30 @@ public sealed class SensorReadoutForm : Form
             return parsed.Value;
         }
 
-        if (row.Value.HasValue)
+        if (row.Value.HasValue && IsImplicitPercentRow(row))
         {
             return row.Value.Value;
         }
 
         return null;
+    }
+
+    private static bool IsImplicitPercentRow(SensorRow row)
+    {
+        if (row == null || string.IsNullOrWhiteSpace(row.Name))
+        {
+            return false;
+        }
+
+        var name = CleanSensorName(row.Name);
+        return name.IndexOf("usage", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("activity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("space used", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("used space", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("free space", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("life remaining", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("wear", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("load", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static float? ExtractPercent(string text)
@@ -5809,47 +5892,52 @@ public sealed class SensorReadoutForm : Form
         }
 
         var start = percentIndex - 1;
-        while (start >= 0 && (char.IsDigit(text[start]) || text[start] == '.' || text[start] == '-'))
+        while (start >= 0 && (char.IsDigit(text[start]) || text[start] == '.' || text[start] == ',' || text[start] == '-'))
         {
             start--;
         }
 
-        var number = text.Substring(start + 1, percentIndex - start - 1);
+        var number = text.Substring(start + 1, percentIndex - start - 1).Trim().Replace(',', '.');
         float value;
-        return float.TryParse(number, out value) ? value : (float?)null;
+        return float.TryParse(number, NumberStyles.Float, CultureInfo.InvariantCulture, out value) ? value : (float?)null;
     }
 
-    private static Dictionary<string, string> BuildTreeTextMap(IEnumerable<ReadingTreeItem> items)
+    private static Dictionary<string, ReadingTreeItem> BuildTreeItemMap(IEnumerable<ReadingTreeItem> items)
     {
-        var map = new Dictionary<string, string>();
-        AddTreeTextMap(items, map);
+        var map = new Dictionary<string, ReadingTreeItem>();
+        AddTreeItemMap(items, map);
         return map;
     }
 
-    private static void AddTreeTextMap(IEnumerable<ReadingTreeItem> items, Dictionary<string, string> map)
+    private static void AddTreeItemMap(IEnumerable<ReadingTreeItem> items, Dictionary<string, ReadingTreeItem> map)
     {
         foreach (var item in items)
         {
             if (!string.IsNullOrWhiteSpace(item.Key))
             {
-                map[item.Key] = item.Text;
+                map[item.Key] = item;
             }
 
-            AddTreeTextMap(item.Children, map);
+            AddTreeItemMap(item.Children, map);
         }
     }
 
-    private static void UpdateTreeNodeText(TreeNodeCollection nodes, Dictionary<string, string> textByKey)
+    private static void UpdateTreeNodes(TreeNodeCollection nodes, Dictionary<string, ReadingTreeItem> itemByKey)
     {
         foreach (TreeNode node in nodes)
         {
-            string text;
-            if (!string.IsNullOrWhiteSpace(node.Name) && textByKey.TryGetValue(node.Name, out text) && node.Text != text)
+            ReadingTreeItem item;
+            if (!string.IsNullOrWhiteSpace(node.Name) && itemByKey.TryGetValue(node.Name, out item))
             {
-                node.Text = text;
+                if (node.Text != item.Text)
+                {
+                    node.Text = item.Text;
+                }
+
+                node.Tag = item.Row;
             }
 
-            UpdateTreeNodeText(node.Nodes, textByKey);
+            UpdateTreeNodes(node.Nodes, itemByKey);
         }
     }
 
