@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.4.2.
+Current version: 1.4.3.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -29,7 +29,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
 - Can run at Windows startup and start minimized to the notification area.
-- Uses a per-computer configuration file in `Config`, such as `Desktop.json`, `Laptop.json`, or `Family-PC.json`, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other's settings.
+- Uses `Config\Shared.json` for portable preferences that should follow the app between machines, while keeping hardware-specific setup in `Config\<ComputerName>.json`.
 - Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.
 - Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
 - Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
@@ -206,7 +206,7 @@ Open fan controls from `Options` > `Fan controls...` or press `Ctrl+L`.
 
 The all-fan buttons apply only to visible fan controls. Stopped or unpopulated motherboard headers are hidden unless `Show stopped` is enabled.
 
-Fan labels are saved in the per-computer configuration file in `Config`. Labels only change friendly names shown in Sensor Readout.
+Fan labels are saved in the machine-specific configuration file in `Config`. Labels only change friendly names shown in Sensor Readout.
 
 ## Reports
 
@@ -227,7 +227,8 @@ Portable build:
 
 Configuration and logging created by the app:
 
-- `Config\<ComputerName>.json`: refresh, notification area, hidden-item, fan-label, and logging preferences.
+- `Config\Shared.json`: portable preferences shared across machines, such as language, refresh behavior, temperature unit, startup/shutdown sounds, startup speech, notification-area visibility, update checks, and global hotkey choices.
+- `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and NVDA speech messages, created only when logging is enabled.
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 
@@ -263,6 +264,11 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
 ## Changelog
+
+### 1.4.3
+
+- Changed: Portable preferences such as language, refresh settings, temperature unit, startup/shutdown sounds, startup speech, update checks, and global hotkeys now live in `Config\Shared.json` so they can follow the app between machines.
+- Changed: Hardware-specific setup such as selected tray readings, spoken hotkey reading lists, alarms, hidden readings, fan labels, fan controls, custom spoken reading labels, logging level, and Windows startup registration stays in `Config\<ComputerName>.json`. Shared preferences are no longer duplicated into the machine-specific file. Unsafe navigation keys such as Shift+Tab are rejected when assigning global hotkeys.
 
 ### 1.4.2
 

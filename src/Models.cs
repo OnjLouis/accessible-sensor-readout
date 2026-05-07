@@ -64,6 +64,41 @@ public sealed class AppSettings
     public string ShutdownSoundFile = "";
 }
 
+public sealed class SharedAppSettings
+{
+    public bool AutoRefreshEnabled = true;
+    public bool RefreshWhileFocused = true;
+    public int RefreshIntervalSeconds = 5;
+    public string TemperatureUnit = "C";
+    public string DecimalSeparator = "";
+    public string LanguageFile = "";
+    public bool LanguagePreferenceInitialized = false;
+    public string ShowHideHotKey = "";
+    public string SpeakTrayHotKey = "";
+    public int HotKeyCopyDoublePressMs = -1;
+    public string StartupSpeechMessage = "";
+    public bool SpeechIncludesDeviceNames = true;
+    public bool TrayStatusEnabled = true;
+    public bool StartMinimizedToTray = false;
+    public bool CheckForUpdatesAtStartup = true;
+    public string StartupSoundFile = "";
+    public string ShutdownSoundFile = "";
+}
+
+public sealed class MachineAppSettings
+{
+    public bool RunAtStartup = false;
+    public bool PrerequisitesPromptShown = false;
+    public string LoggingLevel = "Off";
+    public List<string> TrayItemKeys = new List<string>();
+    public List<SpokenHotKeySetting> SpokenHotKeys = new List<SpokenHotKeySetting>();
+    public List<string> HiddenReadingKeys = new List<string>();
+    public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
+    public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
+    public List<AlarmSetting> Alarms = new List<AlarmSetting>();
+}
+
 public sealed class FanControlSetting
 {
     public bool Manual;
@@ -320,6 +355,19 @@ public sealed class GlobalHotKey
 
     public bool IsValid
     {
-        get { return Key != Keys.None && Modifiers != 0; }
+        get { return IsAllowedBaseKey(Key) && HasRequiredModifier(Modifiers); }
+    }
+
+    public static bool IsAllowedBaseKey(Keys key)
+    {
+        return (key >= Keys.A && key <= Keys.Z) ||
+            (key >= Keys.D0 && key <= Keys.D9) ||
+            (key >= Keys.NumPad0 && key <= Keys.NumPad9) ||
+            (key >= Keys.F1 && key <= Keys.F24);
+    }
+
+    private static bool HasRequiredModifier(uint modifiers)
+    {
+        return (modifiers & (NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModWin)) != 0;
     }
 }

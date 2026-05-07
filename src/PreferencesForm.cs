@@ -1237,6 +1237,11 @@ public sealed class PreferencesForm : Form
         };
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {
+            if (e.KeyCode == Keys.Tab)
+            {
+                return;
+            }
+
             e.SuppressKeyPress = true;
             e.Handled = true;
             if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete || e.KeyCode == Keys.Escape)

@@ -26,10 +26,33 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
+        if (!GlobalHotKey.IsAllowedBaseKey(key))
+        {
+            return "";
+        }
+
+        var modifiers = 0u;
         var parts = new List<string>();
-        if ((keyData & Keys.Control) == Keys.Control) parts.Add("Ctrl");
-        if ((keyData & Keys.Alt) == Keys.Alt) parts.Add("Alt");
-        if ((keyData & Keys.Shift) == Keys.Shift) parts.Add("Shift");
+        if ((keyData & Keys.Control) == Keys.Control)
+        {
+            modifiers |= NativeMethods.ModControl;
+            parts.Add("Ctrl");
+        }
+        if ((keyData & Keys.Alt) == Keys.Alt)
+        {
+            modifiers |= NativeMethods.ModAlt;
+            parts.Add("Alt");
+        }
+        if ((keyData & Keys.Shift) == Keys.Shift)
+        {
+            modifiers |= NativeMethods.ModShift;
+            parts.Add("Shift");
+        }
+        if ((modifiers & (NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModWin)) == 0)
+        {
+            return "";
+        }
+
         parts.Add(KeyToHotKeyPart(key));
         return parts.Count < 2 ? "" : string.Join("+", parts.ToArray());
     }
@@ -151,26 +174,37 @@ public sealed partial class SensorReadoutForm : Form
         {
             MigrateProgramDataFiles();
             var path = GetConfigFilePath();
+            AppSettings loaded = null;
             if (System.IO.File.Exists(path))
             {
-                var loaded = JsonConvert.DeserializeObject<AppSettings>(System.IO.File.ReadAllText(path));
-                if (loaded != null)
-                {
-                    NormalizeSettings(loaded);
-                    if (!loaded.LanguagePreferenceInitialized)
-                    {
-                        SetDefaultLanguagePreference(loaded);
-                        SaveSettings(loaded);
-                    }
-                    return loaded;
-                }
+                loaded = JsonConvert.DeserializeObject<AppSettings>(System.IO.File.ReadAllText(path));
             }
 
-            var created = new AppSettings();
-            SetDefaultLanguagePreference(created);
-            NormalizeSettings(created);
-            SaveSettings(created);
-            return created;
+            if (loaded == null)
+            {
+                loaded = new AppSettings();
+                SetDefaultLanguagePreference(loaded);
+            }
+
+            NormalizeSettings(loaded);
+            var shared = LoadSharedSettings();
+            if (shared == null)
+            {
+                SaveSharedSettings(ExtractSharedSettings(loaded));
+            }
+            else
+            {
+                ApplySharedSettings(loaded, shared);
+                NormalizeSettings(loaded);
+            }
+
+            if (!loaded.LanguagePreferenceInitialized)
+            {
+                SetDefaultLanguagePreference(loaded);
+            }
+
+            SaveSettings(loaded);
+            return loaded;
         }
         catch
         {
@@ -253,9 +287,10 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             NormalizeSettings(value);
+            SaveSharedSettings(ExtractSharedSettings(value));
             var path = GetConfigFilePath();
             EnsureDirectoryForFile(path);
-            System.IO.File.WriteAllText(path, JsonConvert.SerializeObject(value, Formatting.Indented));
+            System.IO.File.WriteAllText(path, JsonConvert.SerializeObject(ExtractMachineSettings(value), Formatting.Indented));
         }
         catch
         {
@@ -268,6 +303,151 @@ public sealed partial class SensorReadoutForm : Form
         var value = LoadSettings();
         value.LoggingLevel = normalized;
         SaveSettings(value);
+    }
+
+    private static SharedAppSettings LoadSharedSettings()
+    {
+        var path = GetSharedConfigFilePath();
+        if (!System.IO.File.Exists(path))
+        {
+            return null;
+        }
+
+        var shared = JsonConvert.DeserializeObject<SharedAppSettings>(System.IO.File.ReadAllText(path));
+        if (shared != null)
+        {
+            NormalizeSharedSettings(shared);
+        }
+
+        return shared;
+    }
+
+    private static void SaveSharedSettings(SharedAppSettings value)
+    {
+        if (value == null)
+        {
+            return;
+        }
+
+        NormalizeSharedSettings(value);
+        var path = GetSharedConfigFilePath();
+        EnsureDirectoryForFile(path);
+        System.IO.File.WriteAllText(path, JsonConvert.SerializeObject(value, Formatting.Indented));
+    }
+
+    private static SharedAppSettings ExtractSharedSettings(AppSettings value)
+    {
+        value = value ?? new AppSettings();
+        return new SharedAppSettings
+        {
+            AutoRefreshEnabled = value.AutoRefreshEnabled,
+            RefreshWhileFocused = value.RefreshWhileFocused,
+            RefreshIntervalSeconds = value.RefreshIntervalSeconds,
+            TemperatureUnit = value.TemperatureUnit,
+            DecimalSeparator = value.DecimalSeparator,
+            LanguageFile = value.LanguageFile,
+            LanguagePreferenceInitialized = value.LanguagePreferenceInitialized,
+            ShowHideHotKey = value.ShowHideHotKey,
+            SpeakTrayHotKey = value.SpeakTrayHotKey,
+            HotKeyCopyDoublePressMs = value.HotKeyCopyDoublePressMs,
+            StartupSpeechMessage = value.StartupSpeechMessage,
+            SpeechIncludesDeviceNames = value.SpeechIncludesDeviceNames,
+            TrayStatusEnabled = value.TrayStatusEnabled,
+            StartMinimizedToTray = value.StartMinimizedToTray,
+            CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
+            StartupSoundFile = value.StartupSoundFile,
+            ShutdownSoundFile = value.ShutdownSoundFile
+        };
+    }
+
+    private static MachineAppSettings ExtractMachineSettings(AppSettings value)
+    {
+        value = value ?? new AppSettings();
+        return new MachineAppSettings
+        {
+            RunAtStartup = value.RunAtStartup,
+            PrerequisitesPromptShown = value.PrerequisitesPromptShown,
+            LoggingLevel = value.LoggingLevel,
+            TrayItemKeys = new List<string>(value.TrayItemKeys ?? new List<string>()),
+            SpokenHotKeys = (value.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
+                .Select(p => new SpokenHotKeySetting
+                {
+                    Name = p == null ? "" : p.Name ?? "",
+                    HotKey = p == null ? "" : p.HotKey ?? "",
+                    ReadingKeys = p == null ? new List<string>() : new List<string>(p.ReadingKeys ?? new List<string>())
+                })
+                .ToList(),
+            HiddenReadingKeys = new List<string>(value.HiddenReadingKeys ?? new List<string>()),
+            FanLabels = new Dictionary<string, string>(value.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
+            FanControlSettings = (value.FanControlSettings ?? new Dictionary<string, FanControlSetting>())
+                .Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.Value != null)
+                .ToDictionary(
+                    i => i.Key,
+                    i => new FanControlSetting { Manual = i.Value.Manual, Percent = i.Value.Percent },
+                    StringComparer.OrdinalIgnoreCase),
+            ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
+            Alarms = (value.Alarms ?? new List<AlarmSetting>())
+                .Select(a => new AlarmSetting
+                {
+                    Name = a == null ? "" : a.Name ?? "",
+                    ReadingKey = a == null ? "" : a.ReadingKey ?? "",
+                    Condition = a == null ? "Above" : a.Condition ?? "Above",
+                    Threshold = a == null ? 80 : a.Threshold,
+                    ThresholdUnit = a == null ? "" : a.ThresholdUnit ?? "",
+                    Enabled = a == null || a.Enabled,
+                    Speak = a == null || a.Speak,
+                    SoundFile = a == null ? "" : a.SoundFile ?? "",
+                    CooldownSeconds = a == null ? 60 : a.CooldownSeconds
+                })
+                .ToList()
+        };
+    }
+
+    private static void ApplySharedSettings(AppSettings target, SharedAppSettings shared)
+    {
+        if (target == null || shared == null)
+        {
+            return;
+        }
+
+        target.AutoRefreshEnabled = shared.AutoRefreshEnabled;
+        target.RefreshWhileFocused = shared.RefreshWhileFocused;
+        target.RefreshIntervalSeconds = shared.RefreshIntervalSeconds;
+        target.TemperatureUnit = shared.TemperatureUnit;
+        target.DecimalSeparator = shared.DecimalSeparator;
+        target.LanguageFile = shared.LanguageFile;
+        target.LanguagePreferenceInitialized = shared.LanguagePreferenceInitialized;
+        target.ShowHideHotKey = shared.ShowHideHotKey;
+        target.SpeakTrayHotKey = shared.SpeakTrayHotKey;
+        target.HotKeyCopyDoublePressMs = shared.HotKeyCopyDoublePressMs;
+        target.StartupSpeechMessage = shared.StartupSpeechMessage;
+        target.SpeechIncludesDeviceNames = shared.SpeechIncludesDeviceNames;
+        target.TrayStatusEnabled = shared.TrayStatusEnabled;
+        target.StartMinimizedToTray = shared.StartMinimizedToTray;
+        target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
+        target.StartupSoundFile = shared.StartupSoundFile;
+        target.ShutdownSoundFile = shared.ShutdownSoundFile;
+    }
+
+    private static void NormalizeSharedSettings(SharedAppSettings value)
+    {
+        if (value == null)
+        {
+            return;
+        }
+
+        value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds <= 0 ? 5 : value.RefreshIntervalSeconds));
+        value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
+        value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
+            ? value.DecimalSeparator
+            : "";
+        value.LanguageFile = SanitizeLanguageFileName(value.LanguageFile);
+        value.ShowHideHotKey = NormalizeHotKeyText(value.ShowHideHotKey);
+        value.SpeakTrayHotKey = NormalizeHotKeyText(value.SpeakTrayHotKey);
+        value.HotKeyCopyDoublePressMs = NormalizeHotKeyCopyDoublePressMs(value.HotKeyCopyDoublePressMs);
+        value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
+        value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
+        value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
     }
 
     private static void NormalizeSettings(AppSettings value)
@@ -434,6 +614,11 @@ public sealed partial class SensorReadoutForm : Form
     private static string GetConfigFilePath()
     {
         return System.IO.Path.Combine(GetConfigFolderPath(), GetConfigFileName());
+    }
+
+    private static string GetSharedConfigFilePath()
+    {
+        return System.IO.Path.Combine(GetConfigFolderPath(), "Shared.json");
     }
 
     private static string GetLogFilePath()
