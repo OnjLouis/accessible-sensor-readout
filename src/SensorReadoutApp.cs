@@ -14,8 +14,8 @@ using LibreHardwareMonitor.Hardware;
 using Newtonsoft.Json;
 
 [assembly: System.Reflection.AssemblyTitle("Sensor Readout")]
-[assembly: System.Reflection.AssemblyVersion("1.2.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.3.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.3.0.0")]
 
 public sealed class SensorRow
 {
@@ -58,14 +58,40 @@ public sealed class AppSettings
     public string ShowHideHotKey = "";
     public string SpeakTrayHotKey = "";
     public string StartupSpeechMessage = "";
+    public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
     public bool RunAtStartup = false;
     public bool StartMinimizedToTray = false;
+    public bool CheckForUpdatesAtStartup = true;
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
+    public List<SpokenHotKeySetting> SpokenHotKeys = new List<SpokenHotKeySetting>();
     public List<string> HiddenReadingKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
+    public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
+}
+
+public sealed class FanControlSetting
+{
+    public bool Manual;
+    public int Percent = 50;
+}
+
+public sealed class SpokenHotKeySetting
+{
+    public string Name = "";
+    public string HotKey = "";
+    public List<string> ReadingKeys = new List<string>();
+
+    public override string ToString()
+    {
+        var name = string.IsNullOrWhiteSpace(Name) ? "Spoken hotkey" : Name.Trim();
+        var hotKey = string.IsNullOrWhiteSpace(HotKey) ? "no hotkey" : HotKey.Trim();
+        var count = ReadingKeys == null ? 0 : ReadingKeys.Count;
+        return name + " (" + hotKey + ", " + count + " reading" + (count == 1 ? "" : "s") + ")";
+    }
 }
 
 public sealed class LanguageChoice
@@ -105,6 +131,49 @@ public sealed class LanguageCatalog
     public static LanguageCatalog English()
     {
         return new LanguageCatalog("", "English", new Dictionary<string, string>());
+    }
+}
+
+public sealed class ListSearchState
+{
+    public string Text = "";
+    public DateTime LastKey = DateTime.MinValue;
+}
+
+public sealed class ShortcutButton : Button
+{
+    public string ShortcutText { get; set; }
+    public Keys ShortcutKeys { get; set; }
+
+    public ShortcutButton()
+    {
+        AccessibleRole = AccessibleRole.PushButton;
+    }
+
+    protected override AccessibleObject CreateAccessibilityInstance()
+    {
+        return new ShortcutButtonAccessibleObject(this);
+    }
+
+    private sealed class ShortcutButtonAccessibleObject : Control.ControlAccessibleObject
+    {
+        private readonly ShortcutButton owner;
+
+        public ShortcutButtonAccessibleObject(ShortcutButton owner)
+            : base(owner)
+        {
+            this.owner = owner;
+        }
+
+        public override string KeyboardShortcut
+        {
+            get
+            {
+                return string.IsNullOrWhiteSpace(owner.ShortcutText)
+                    ? base.KeyboardShortcut
+                    : owner.ShortcutText;
+            }
+        }
     }
 }
 
@@ -211,6 +280,7 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox trayStatusCheckBox;
     private readonly CheckBox runAtStartupCheckBox;
     private readonly CheckBox startMinimizedCheckBox;
+    private readonly CheckBox checkForUpdatesAtStartupCheckBox;
     private readonly NumericUpDown refreshSecondsBox;
     private readonly ComboBox temperatureUnitBox;
     private readonly ComboBox decimalSeparatorBox;
@@ -219,21 +289,33 @@ public sealed class PreferencesForm : Form
     private readonly TextBox showHideHotKeyBox;
     private readonly TextBox speakTrayHotKeyBox;
     private readonly TextBox startupSpeechMessageBox;
+    private readonly CheckBox speechIncludesDeviceNamesCheckBox;
     private readonly ComboBox loggingLevelBox;
+    private readonly TabControl preferencesTabs;
     private ComboBox languageEditorFileBox;
     private ListBox languageEntryList;
     private TextBox languageEntryValueBox;
     private readonly ListBox trayAvailableList;
     private readonly ListBox traySelectedList;
     private readonly Label traySelectionStatusLabel;
+    private readonly ListBox spokenHotKeyList;
+    private readonly TextBox spokenHotKeyNameBox;
+    private readonly TextBox spokenHotKeyBox;
+    private readonly ListBox spokenAvailableList;
+    private readonly ListBox spokenSelectedList;
+    private readonly Label spokenSelectionStatusLabel;
     private readonly CheckedListBox hiddenItemsList;
     private readonly List<SensorRow> rows;
+    private string rowsSignature = "";
     private readonly List<string> hiddenReadingKeys;
+    private readonly List<SpokenHotKeySetting> spokenHotKeys;
+    private readonly Dictionary<string, string> readingSpeechLabels;
     private readonly AppSettings liveSettings;
     private readonly List<string> originalTrayItemKeys;
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
     private readonly Dictionary<object, string> originalAccessibleNames = new Dictionary<object, string>();
     private readonly Dictionary<object, string> originalAccessibleDescriptions = new Dictionary<object, string>();
+    private readonly Dictionary<ListBox, ListSearchState> listSearchStates = new Dictionary<ListBox, ListSearchState>();
     private bool loadingPreferences;
 
     public bool AutoRefreshEnabled { get { return autoRefreshCheckBox.Checked; } }
@@ -241,8 +323,9 @@ public sealed class PreferencesForm : Form
     public bool TrayStatusEnabled { get { return trayStatusCheckBox.Checked; } }
     public bool RunAtStartup { get { return runAtStartupCheckBox.Checked; } }
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
+    public bool CheckForUpdatesAtStartup { get { return checkForUpdatesAtStartupCheckBox.Checked; } }
     public int RefreshIntervalSeconds { get { return Convert.ToInt32(refreshSecondsBox.Value); } }
-    public string TemperatureUnit { get { return temperatureUnitBox.SelectedIndex == 1 ? "F" : "C"; } }
+    public string TemperatureUnit { get { return SensorReadoutForm.TemperatureUnitFromIndex(temperatureUnitBox.SelectedIndex); } }
     public string DecimalSeparator
     {
         get
@@ -277,6 +360,7 @@ public sealed class PreferencesForm : Form
             return string.Equals(text, SensorReadoutForm.DefaultStartupSpeechMessage(), StringComparison.Ordinal) ? "" : text;
         }
     }
+    public bool SpeechIncludesDeviceNames { get { return speechIncludesDeviceNamesCheckBox.Checked; } }
     public string LoggingLevel
     {
         get
@@ -288,9 +372,25 @@ public sealed class PreferencesForm : Form
         }
     }
     public List<string> TrayItemKeys { get; private set; }
+    public List<SpokenHotKeySetting> SpokenHotKeys { get; private set; }
     public List<string> HiddenReadingKeys { get; private set; }
+    public Dictionary<string, string> ReadingSpeechLabels { get; private set; }
+    public string SelectedTabName
+    {
+        get
+        {
+            return preferencesTabs != null && preferencesTabs.SelectedTab != null
+                ? preferencesTabs.SelectedTab.Name
+                : "General";
+        }
+    }
 
     public PreferencesForm(AppSettings settings, List<SensorRow> latestRows, List<LanguageChoice> languageChoices)
+        : this(settings, latestRows, languageChoices, "General")
+    {
+    }
+
+    public PreferencesForm(AppSettings settings, List<SensorRow> latestRows, List<LanguageChoice> languageChoices, string initialTabName)
     {
         var effectiveLanguageChoices = SensorReadoutForm.LoadLanguageChoices();
         if (effectiveLanguageChoices.Count == 0)
@@ -314,6 +414,8 @@ public sealed class PreferencesForm : Form
         originalTrayItemKeys = new List<string>(settings.TrayItemKeys ?? new List<string>());
         loadingPreferences = true;
         hiddenReadingKeys = new List<string>(settings.HiddenReadingKeys ?? new List<string>());
+        spokenHotKeys = CloneSpokenHotKeys(settings.SpokenHotKeys);
+        readingSpeechLabels = new Dictionary<string, string>(settings.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
         rows = latestRows
             .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance" || r.Type == "Network")
@@ -321,17 +423,20 @@ public sealed class PreferencesForm : Form
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
             .ToList();
+        rowsSignature = BuildRowsSignature(rows);
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        var generalTab = new TabPage("General");
-        var hiddenTab = new TabPage("Hidden items");
-        var languageEditorTab = new TabPage("Language editor");
+        preferencesTabs = new TabControl { Dock = DockStyle.Fill };
+        var generalTab = new TabPage("General") { Name = "General" };
+        var startupTab = new TabPage("Startup") { Name = "Startup" };
+        var hotKeysTab = new TabPage("Hotkeys") { Name = "Hotkeys" };
+        var hiddenTab = new TabPage("Hidden items") { Name = "Hidden items" };
+        var languageEditorTab = new TabPage("Language editor") { Name = "Language editor" };
 
         var main = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 15,
+            RowCount = 12,
             Padding = new Padding(10)
         };
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -344,9 +449,7 @@ public sealed class PreferencesForm : Form
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         autoRefreshCheckBox = new CheckBox
@@ -387,6 +490,15 @@ public sealed class PreferencesForm : Form
             Checked = settings.StartMinimizedToTray,
             AutoSize = true,
             AccessibleName = "Start minimized to notification area"
+        };
+
+        checkForUpdatesAtStartupCheckBox = new CheckBox
+        {
+            Text = "Check for updates at startup",
+            Checked = settings.CheckForUpdatesAtStartup,
+            AutoSize = true,
+            AccessibleName = "Check for updates at startup",
+            AccessibleDescription = "When checked, Sensor Readout silently checks GitHub for updates when it starts and only alerts you if a newer release is available."
         };
 
         runAtStartupCheckBox.CheckedChanged += delegate
@@ -445,8 +557,8 @@ public sealed class PreferencesForm : Form
             Width = 140,
             AccessibleName = "Temperature unit"
         };
-        temperatureUnitBox.Items.AddRange(new object[] { "Celsius (C)", "Fahrenheit (F)" });
-        temperatureUnitBox.SelectedItem = string.Equals(settings.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase) ? "Fahrenheit (F)" : "Celsius (C)";
+        temperatureUnitBox.Items.AddRange(new object[] { "Celsius (C)", "Fahrenheit (F)", "Celsius, then Fahrenheit", "Fahrenheit, then Celsius" });
+        temperatureUnitBox.SelectedIndex = SensorReadoutForm.TemperatureUnitIndex(settings.TemperatureUnit);
         temperaturePanel.Controls.Add(temperatureUnitBox);
         temperatureUnitBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
 
@@ -525,7 +637,7 @@ public sealed class PreferencesForm : Form
             AutoSize = true,
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 3
+            RowCount = 2
         };
         hotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         hotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -533,16 +645,27 @@ public sealed class PreferencesForm : Form
         hotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         showHideHotKeyBox = CreateHotKeyBox(settings.ShowHideHotKey, "Show or hide Sensor Readout global hotkey");
         hotKeyPanel.Controls.Add(showHideHotKeyBox, 1, 0);
-        var clearShowHideButton = new Button { Text = "Clear", AutoSize = true };
+        var clearShowHideButton = new Button { Text = "&Clear", AutoSize = true };
         clearShowHideButton.Click += delegate { showHideHotKeyBox.Text = ""; };
         hotKeyPanel.Controls.Add(clearShowHideButton, 2, 0);
         hotKeyPanel.Controls.Add(new Label { Text = "Speak tray status hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 1);
         speakTrayHotKeyBox = CreateHotKeyBox(settings.SpeakTrayHotKey, "Speak notification area status global hotkey");
         hotKeyPanel.Controls.Add(speakTrayHotKeyBox, 1, 1);
-        var clearSpeakButton = new Button { Text = "Clear", AutoSize = true };
+        var clearSpeakButton = new Button { Text = "&Clear", AutoSize = true };
         clearSpeakButton.Click += delegate { speakTrayHotKeyBox.Text = ""; };
         hotKeyPanel.Controls.Add(clearSpeakButton, 2, 1);
-        hotKeyPanel.Controls.Add(new Label { Text = "Startup speech:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
+
+        var startupSpeechPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        startupSpeechPanel.Controls.Add(new Label { Text = "Spoken message:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         startupSpeechMessageBox = new TextBox
         {
             Text = string.IsNullOrWhiteSpace(settings.StartupSpeechMessage) ? SensorReadoutForm.DefaultStartupSpeechMessage() : settings.StartupSpeechMessage,
@@ -550,10 +673,19 @@ public sealed class PreferencesForm : Form
             AccessibleName = "Startup speech message",
             AccessibleDescription = "Message spoken by NVDA when Sensor Readout starts minimized to the notification area."
         };
-        hotKeyPanel.Controls.Add(startupSpeechMessageBox, 1, 2);
-        var resetStartupSpeechButton = new Button { Text = "Reset", AutoSize = true };
+        startupSpeechPanel.Controls.Add(startupSpeechMessageBox, 1, 0);
+        var resetStartupSpeechButton = new Button { Text = "&Reset", AutoSize = true };
         resetStartupSpeechButton.Click += delegate { startupSpeechMessageBox.Text = SensorReadoutForm.DefaultStartupSpeechMessage(); };
-        hotKeyPanel.Controls.Add(resetStartupSpeechButton, 2, 2);
+        startupSpeechPanel.Controls.Add(resetStartupSpeechButton, 2, 0);
+
+        speechIncludesDeviceNamesCheckBox = new CheckBox
+        {
+            Text = "Include device names in spoken feedback",
+            Checked = settings.SpeechIncludesDeviceNames,
+            AutoSize = true,
+            AccessibleName = "Include device names in spoken feedback",
+            AccessibleDescription = "When checked, spoken status includes device names such as WiFi or CPU before each selected reading."
+        };
 
         var loggingPanel = new FlowLayoutPanel
         {
@@ -598,12 +730,14 @@ public sealed class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Selected notification area readings in display order",
-            AccessibleDescription = "Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
+            AccessibleDescription = "Press F2 to rename the spoken label. Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
         };
         trayAvailableList.KeyDown += TrayAvailableListKeyDown;
         traySelectedList.KeyDown += TraySelectedListKeyDown;
+        AttachIncrementalListSearch(trayAvailableList);
+        AttachIncrementalListSearch(traySelectedList);
         var trayChoices = rows
-            .Select(r => new TrayItemChoice(r))
+            .Select(r => new TrayItemChoice(r, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames))
             .OrderBy(i => i.Hardware)
             .ThenBy(i => SensorReadoutForm.ReadingSortIndex(i.Name))
             .ThenBy(i => i.Name)
@@ -614,11 +748,14 @@ public sealed class PreferencesForm : Form
             var selectedTrayChoice = trayChoices.FirstOrDefault(i => i.Key == key);
             if (selectedTrayChoice != null && !ContainsTrayChoice(traySelectedList, selectedTrayChoice.Key))
             {
+                selectedTrayChoice.ShowSpeechPreview = true;
                 traySelectedList.Items.Add(selectedTrayChoice);
             }
             else if (selectedTrayChoice == null && !ContainsTrayChoice(traySelectedList, key))
             {
-                traySelectedList.Items.Add(TrayItemChoice.Unresolved(key));
+                var unresolved = TrayItemChoice.Unresolved(key, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames);
+                unresolved.ShowSpeechPreview = true;
+                traySelectedList.Items.Add(unresolved);
             }
         }
         traySelectionStatusLabel = new Label
@@ -644,6 +781,60 @@ public sealed class PreferencesForm : Form
             traySelectedList.SelectedIndex = 0;
         }
         UpdateTraySelectionStatus();
+
+        spokenHotKeyList = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            IntegralHeight = false,
+            AccessibleName = "Spoken hotkeys",
+            AccessibleDescription = "Choose a spoken hotkey profile to edit."
+        };
+        spokenHotKeyNameBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            AccessibleName = "Spoken hotkey name",
+            AccessibleDescription = "Friendly name for this spoken hotkey."
+        };
+        spokenHotKeyBox = CreateHotKeyBox("", "Spoken hotkey key combination");
+        spokenAvailableList = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            IntegralHeight = false,
+            AccessibleName = "Available readings for spoken hotkey",
+            AccessibleDescription = "Press Control Right Arrow to add the selected reading to this spoken hotkey."
+        };
+        spokenSelectedList = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            IntegralHeight = false,
+            AccessibleName = "Readings spoken by this hotkey",
+            AccessibleDescription = "Press F2 to rename the spoken label. Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
+        };
+        spokenSelectionStatusLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            AccessibleName = "Spoken hotkey selection status"
+        };
+        spokenHotKeyList.SelectedIndexChanged += delegate { LoadSelectedSpokenHotKey(); };
+        spokenHotKeyNameBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
+        spokenHotKeyBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
+        spokenAvailableList.KeyDown += SpokenAvailableListKeyDown;
+        spokenSelectedList.KeyDown += SpokenSelectedListKeyDown;
+        AttachIncrementalListSearch(spokenAvailableList);
+        AttachIncrementalListSearch(spokenSelectedList);
+        foreach (var profile in spokenHotKeys)
+        {
+            spokenHotKeyList.Items.Add(profile);
+        }
+        if (spokenHotKeyList.Items.Count > 0)
+        {
+            spokenHotKeyList.SelectedIndex = 0;
+        }
+        else
+        {
+            UpdateSpokenHotKeyEditor();
+        }
 
         hiddenItemsList = new CheckedListBox
         {
@@ -683,7 +874,7 @@ public sealed class PreferencesForm : Form
         hiddenLayout.Controls.Add(new Label { Text = "Hidden readings and groups. Checked items are hidden. Uncheck items to show them again.", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(hiddenItemsList, 0, 1);
         var hiddenButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
-        var unhideSelectedButton = new Button { Text = "Show selected", AutoSize = true };
+        var unhideSelectedButton = new Button { Text = "&Show selected", AutoSize = true };
         unhideSelectedButton.Click += delegate
         {
             if (hiddenItemsList.SelectedIndex >= 0)
@@ -691,7 +882,7 @@ public sealed class PreferencesForm : Form
                 hiddenItemsList.SetItemChecked(hiddenItemsList.SelectedIndex, false);
             }
         };
-        var unhideAllButton = new Button { Text = "Show all", AutoSize = true };
+        var unhideAllButton = new Button { Text = "Show &all", AutoSize = true };
         unhideAllButton.Click += delegate
         {
             for (var i = 0; i < hiddenItemsList.Items.Count; i++)
@@ -725,21 +916,54 @@ public sealed class PreferencesForm : Form
         main.Controls.Add(autoRefreshCheckBox, 0, 2);
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 3);
         main.Controls.Add(trayStatusCheckBox, 0, 4);
-        main.Controls.Add(runAtStartupCheckBox, 0, 5);
-        main.Controls.Add(startMinimizedCheckBox, 0, 6);
-        main.Controls.Add(intervalPanel, 0, 7);
-        main.Controls.Add(temperaturePanel, 0, 8);
-        main.Controls.Add(decimalSeparatorPanel, 0, 9);
-        main.Controls.Add(hotKeyPanel, 0, 10);
-        main.Controls.Add(loggingPanel, 0, 11);
-        main.Controls.Add(trayLabel, 0, 12);
-        main.Controls.Add(BuildTraySelectionPanel(), 0, 13);
-        main.Controls.Add(traySelectionStatusLabel, 0, 14);
+        main.Controls.Add(intervalPanel, 0, 5);
+        main.Controls.Add(temperaturePanel, 0, 6);
+        main.Controls.Add(decimalSeparatorPanel, 0, 7);
+        main.Controls.Add(loggingPanel, 0, 8);
+        main.Controls.Add(trayLabel, 0, 9);
+        main.Controls.Add(BuildTraySelectionPanel(), 0, 10);
+        main.Controls.Add(traySelectionStatusLabel, 0, 11);
         generalTab.Controls.Add(main);
-        tabs.TabPages.Add(generalTab);
-        tabs.TabPages.Add(hiddenTab);
+        preferencesTabs.TabPages.Add(generalTab);
+
+        var startupLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            Padding = new Padding(10)
+        };
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        startupLayout.Controls.Add(runAtStartupCheckBox, 0, 0);
+        startupLayout.Controls.Add(startMinimizedCheckBox, 0, 1);
+        startupLayout.Controls.Add(checkForUpdatesAtStartupCheckBox, 0, 2);
+        startupLayout.Controls.Add(startupSpeechPanel, 0, 3);
+        startupTab.Controls.Add(startupLayout);
+        preferencesTabs.TabPages.Add(startupTab);
+
+        var hotKeysLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(10)
+        };
+        hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        hotKeysLayout.Controls.Add(hotKeyPanel, 0, 0);
+        hotKeysLayout.Controls.Add(speechIncludesDeviceNamesCheckBox, 0, 1);
+        hotKeysLayout.Controls.Add(BuildSpokenHotKeysPanel(), 0, 2);
+        hotKeysTab.Controls.Add(hotKeysLayout);
+        preferencesTabs.TabPages.Add(hotKeysTab);
+        preferencesTabs.TabPages.Add(hiddenTab);
         languageEditorTab.Controls.Add(BuildLanguageEditorPanel(effectiveLanguageChoices));
-        tabs.TabPages.Add(languageEditorTab);
+        preferencesTabs.TabPages.Add(languageEditorTab);
+        SelectInitialTab(initialTabName);
 
         var root = new TableLayoutPanel
         {
@@ -750,7 +974,7 @@ public sealed class PreferencesForm : Form
         };
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.Controls.Add(tabs, 0, 0);
+        root.Controls.Add(preferencesTabs, 0, 0);
         root.Controls.Add(dialogButtons, 0, 1);
         Controls.Add(root);
         autoRefreshCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
@@ -758,9 +982,11 @@ public sealed class PreferencesForm : Form
         trayStatusCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         runAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        checkForUpdatesAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         showHideHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         speakTrayHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         startupSpeechMessageBox.TextChanged += delegate { SaveLivePreferences(); };
+        speechIncludesDeviceNamesCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         Shown += delegate
         {
             loadingPreferences = false;
@@ -775,6 +1001,23 @@ public sealed class PreferencesForm : Form
             }
         };
         ApplyLanguage();
+    }
+
+    private void SelectInitialTab(string tabName)
+    {
+        if (preferencesTabs == null || string.IsNullOrWhiteSpace(tabName))
+        {
+            return;
+        }
+
+        foreach (TabPage page in preferencesTabs.TabPages)
+        {
+            if (string.Equals(page.Name, tabName, StringComparison.OrdinalIgnoreCase))
+            {
+                preferencesTabs.SelectedTab = page;
+                return;
+            }
+        }
     }
 
     private void ApplyLanguage()
@@ -792,6 +1035,23 @@ public sealed class PreferencesForm : Form
         {
             traySelectedList.Refresh();
         }
+        if (spokenHotKeyList != null)
+        {
+            spokenHotKeyList.Refresh();
+        }
+        if (spokenAvailableList != null)
+        {
+            spokenAvailableList.Refresh();
+        }
+        if (spokenSelectedList != null)
+        {
+            spokenSelectedList.Refresh();
+        }
+    }
+
+    private bool ShouldPreviewSpeechWithDeviceNames()
+    {
+        return speechIncludesDeviceNamesCheckBox == null || speechIncludesDeviceNamesCheckBox.Checked;
     }
 
     private void ApplyLanguageToControls(Control.ControlCollection controls)
@@ -875,13 +1135,80 @@ public sealed class PreferencesForm : Form
             && !(control is ProgressBar);
     }
 
+    protected override bool ProcessDialogChar(char charCode)
+    {
+        if ((ModifierKeys & Keys.Alt) == 0 && FocusedControlShouldKeepPlainCharacters(Controls))
+        {
+            return false;
+        }
+
+        return base.ProcessDialogChar(charCode);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if ((keyData & Keys.Alt) == Keys.Alt)
+        {
+            var key = keyData & Keys.KeyCode;
+            if (PerformShortcutButton(Controls, key))
+            {
+                return true;
+            }
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private static bool PerformShortcutButton(Control.ControlCollection controls, Keys key)
+    {
+        foreach (Control control in controls)
+        {
+            if (!control.Visible || !control.Enabled)
+            {
+                continue;
+            }
+
+            var button = control as ShortcutButton;
+            if (button != null && button.ShortcutKeys == key && button.CanSelect)
+            {
+                button.PerformClick();
+                return true;
+            }
+
+            if (control.HasChildren && PerformShortcutButton(control.Controls, key))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FocusedControlShouldKeepPlainCharacters(Control.ControlCollection controls)
+    {
+        foreach (Control control in controls)
+        {
+            if (control.Focused && (control is TextBoxBase || control is ListBox || control is ComboBox))
+            {
+                return true;
+            }
+
+            if (control.ContainsFocus && FocusedControlShouldKeepPlainCharacters(control.Controls))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void ApplyFixedOptionLanguage()
     {
         var previousLoading = loadingPreferences;
         loadingPreferences = true;
         try
         {
-            SetComboItems(temperatureUnitBox, new[] { SensorReadoutForm.L("ui.Celsius (C)", "Celsius (C)"), SensorReadoutForm.L("ui.Fahrenheit (F)", "Fahrenheit (F)") });
+            SetComboItems(temperatureUnitBox, new[] { SensorReadoutForm.L("ui.Celsius (C)", "Celsius (C)"), SensorReadoutForm.L("ui.Fahrenheit (F)", "Fahrenheit (F)"), SensorReadoutForm.L("ui.Celsius, then Fahrenheit", "Celsius, then Fahrenheit"), SensorReadoutForm.L("ui.Fahrenheit, then Celsius", "Fahrenheit, then Celsius") });
             SetComboItems(decimalSeparatorBox, new[] { SensorReadoutForm.L("ui.Language default", "Language default"), SensorReadoutForm.L("ui.Period (.)", "Period (.)"), SensorReadoutForm.L("ui.Comma (,)", "Comma (,)") });
             SetComboItems(loggingLevelBox, new[] { SensorReadoutForm.L("ui.Off", "Off"), SensorReadoutForm.L("ui.Error", "Error"), SensorReadoutForm.L("ui.Normal", "Normal"), SensorReadoutForm.L("ui.Debug", "Debug") });
             decimalSeparatorBox.SelectedIndex = DecimalSeparatorIndex(DecimalSeparator);
@@ -903,6 +1230,7 @@ public sealed class PreferencesForm : Form
             return;
         }
 
+        values = (values ?? new string[0]).Select(StripMnemonic).ToArray();
         var selectedIndex = Math.Max(0, box.SelectedIndex);
         var newIndex = Math.Min(selectedIndex, values.Length - 1);
         box.BeginUpdate();
@@ -982,9 +1310,11 @@ public sealed class PreferencesForm : Form
         liveSettings.ShowHideHotKey = ShowHideHotKey;
         liveSettings.SpeakTrayHotKey = SpeakTrayHotKey;
         liveSettings.StartupSpeechMessage = StartupSpeechMessage;
+        liveSettings.SpeechIncludesDeviceNames = SpeechIncludesDeviceNames;
         liveSettings.TrayStatusEnabled = TrayStatusEnabled;
         liveSettings.RunAtStartup = RunAtStartup;
         liveSettings.StartMinimizedToTray = StartMinimizedToTray;
+        liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
         if (liveSettings.RunAtStartup || liveSettings.StartMinimizedToTray)
         {
             liveSettings.TrayStatusEnabled = true;
@@ -995,14 +1325,18 @@ public sealed class PreferencesForm : Form
         {
             liveSettings.TrayItemKeys = currentTrayItemKeys;
         }
+        liveSettings.SpokenHotKeys = CurrentSpokenHotKeys();
         liveSettings.HiddenReadingKeys = CurrentHiddenReadingKeys();
+        liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
         SensorReadoutForm.SaveSettings(liveSettings);
     }
 
     private void CommitPreferences()
     {
         TrayItemKeys = CurrentTrayItemKeys();
+        SpokenHotKeys = CurrentSpokenHotKeys();
         HiddenReadingKeys = CurrentHiddenReadingKeys();
+        ReadingSpeechLabels = CurrentReadingSpeechLabels();
         SaveLivePreferences();
     }
 
@@ -1095,14 +1429,151 @@ public sealed class PreferencesForm : Form
             WrapContents = false,
             Padding = new Padding(8, 24, 8, 0)
         };
-        var addButton = new Button { Text = "&Add", AutoSize = true, AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow." };
+        var addButton = CreateShortcutButton("&Add", "Alt+A", Keys.A);
+        addButton.AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedTrayChoice(); };
-        var removeButton = new Button { Text = "&Remove", AutoSize = true, AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow." };
+        var removeButton = CreateShortcutButton("&Remove", "Alt+R", Keys.R);
+        removeButton.AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedTrayChoice(); };
-        var upButton = new Button { Text = "&Up", AutoSize = true, AccessibleDescription = "Move selected tray reading up. Shortcut Control Up Arrow." };
+        var upButton = CreateShortcutButton("&Up", "Alt+U", Keys.U);
+        upButton.AccessibleDescription = "Move selected tray reading up. Shortcut Control Up Arrow.";
         upButton.Click += delegate { MoveSelectedTrayChoice(-1); };
-        var downButton = new Button { Text = "&Down", AutoSize = true, AccessibleDescription = "Move selected tray reading down. Shortcut Control Down Arrow." };
+        var downButton = CreateShortcutButton("&Down", "Alt+D", Keys.D);
+        downButton.AccessibleDescription = "Move selected tray reading down. Shortcut Control Down Arrow.";
         downButton.Click += delegate { MoveSelectedTrayChoice(1); };
+        buttons.Controls.Add(addButton);
+        buttons.Controls.Add(removeButton);
+        buttons.Controls.Add(upButton);
+        buttons.Controls.Add(downButton);
+
+        panel.Controls.Add(availablePanel, 0, 0);
+        panel.Controls.Add(buttons, 1, 0);
+        panel.Controls.Add(selectedPanel, 2, 0);
+        return panel;
+    }
+
+    private static ShortcutButton CreateShortcutButton(string text, string shortcut, Keys shortcutKeys)
+    {
+        return new ShortcutButton
+        {
+            Text = text,
+            ShortcutText = shortcut,
+            ShortcutKeys = shortcutKeys,
+            AutoSize = true
+        };
+    }
+
+    private Control BuildSpokenHotKeysPanel()
+    {
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(10)
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+
+        var profilePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        profilePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        profilePanel.Controls.Add(new Label { Text = "Spoken hotkeys", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        profilePanel.Controls.Add(spokenHotKeyList, 0, 1);
+        var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+        var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
+        addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
+        var removeProfileButton = CreateShortcutButton("Remove &profile", "Alt+P", Keys.P);
+        removeProfileButton.Click += delegate { RemoveSelectedSpokenHotKeyProfile(); };
+        profileButtons.Controls.Add(addProfileButton);
+        profileButtons.Controls.Add(removeProfileButton);
+        profilePanel.Controls.Add(profileButtons, 0, 2);
+
+        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var namePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        namePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        namePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        namePanel.Controls.Add(new Label { Text = "Name:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        namePanel.Controls.Add(spokenHotKeyNameBox, 1, 0);
+
+        var keyPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+        keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        keyPanel.Controls.Add(spokenHotKeyBox, 1, 0);
+        var clearKeyButton = CreateShortcutButton("&Clear", "Alt+C", Keys.C);
+        clearKeyButton.Click += delegate { spokenHotKeyBox.Text = ""; };
+        keyPanel.Controls.Add(clearKeyButton, 2, 0);
+
+        editor.Controls.Add(namePanel, 0, 0);
+        editor.Controls.Add(keyPanel, 0, 1);
+        editor.Controls.Add(new Label { Text = "Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 2);
+        editor.Controls.Add(BuildSpokenSelectionPanel(), 0, 3);
+        editor.Controls.Add(spokenSelectionStatusLabel, 0, 4);
+
+        layout.Controls.Add(profilePanel, 0, 0);
+        layout.Controls.Add(editor, 1, 0);
+        return layout;
+    }
+
+    private Control BuildSpokenSelectionPanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+        var availablePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        availablePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        availablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        availablePanel.Controls.Add(new Label { Text = "Available readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        availablePanel.Controls.Add(spokenAvailableList, 0, 1);
+
+        var selectedPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        selectedPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        selectedPanel.Controls.Add(new Label { Text = "Spoken readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        selectedPanel.Controls.Add(spokenSelectedList, 0, 1);
+        var spokenLabelButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
+        var renameButton = CreateShortcutButton("&Rename...", "Alt+R", Keys.R);
+        renameButton.Click += delegate { RenameSelectedSpokenChoice(); };
+        var resetButton = CreateShortcutButton("Reset &default", "Alt+D", Keys.D);
+        resetButton.Click += delegate { ResetSelectedSpokenChoiceLabel(); };
+        spokenLabelButtons.Controls.Add(renameButton);
+        spokenLabelButtons.Controls.Add(resetButton);
+        selectedPanel.Controls.Add(spokenLabelButtons, 0, 2);
+
+        var buttons = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(8, 24, 8, 0)
+        };
+        var addButton = CreateShortcutButton("&Add", "Alt+A", Keys.A);
+        addButton.Click += delegate { AddSelectedSpokenChoice(); };
+        var removeButton = CreateShortcutButton("Re&move", "Alt+M", Keys.M);
+        removeButton.Click += delegate { RemoveSelectedSpokenChoice(); };
+        var upButton = CreateShortcutButton("&Up", "Alt+U", Keys.U);
+        upButton.Click += delegate { MoveSelectedSpokenChoice(-1); };
+        var downButton = CreateShortcutButton("Do&wn", "Alt+W", Keys.W);
+        downButton.Click += delegate { MoveSelectedSpokenChoice(1); };
         buttons.Controls.Add(addButton);
         buttons.Controls.Add(removeButton);
         buttons.Controls.Add(upButton);
@@ -1140,13 +1611,13 @@ public sealed class PreferencesForm : Form
             }
         }
         filePanel.Controls.Add(languageEditorFileBox);
-        var reloadButton = new Button { Text = "Reload", AutoSize = true };
+        var reloadButton = new Button { Text = "&Reload", AutoSize = true };
         reloadButton.Click += delegate { LoadLanguageEditorEntries(); };
         filePanel.Controls.Add(reloadButton);
-        var openFolderButton = new Button { Text = "Open folder", AutoSize = true };
+        var openFolderButton = new Button { Text = "&Open folder", AutoSize = true };
         openFolderButton.Click += delegate { SensorReadoutForm.OpenLanguagesFolderStatic(this); };
         filePanel.Controls.Add(openFolderButton);
-        var newButton = new Button { Text = "New...", AutoSize = true };
+        var newButton = new Button { Text = "&New...", AutoSize = true };
         newButton.Click += delegate { CreateNewLanguageFile(); };
         filePanel.Controls.Add(newButton);
 
@@ -1174,7 +1645,7 @@ public sealed class PreferencesForm : Form
             AccessibleName = "Language entry value"
         };
         var buttonPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-        var saveButton = new Button { Text = "Save entry", AutoSize = true };
+        var saveButton = new Button { Text = "&Save entry", AutoSize = true };
         saveButton.Click += delegate { SaveSelectedLanguageEntry(); };
         buttonPanel.Controls.Add(saveButton);
 
@@ -1444,7 +1915,7 @@ public sealed class PreferencesForm : Form
             dialog.Controls.Add(layout);
             dialog.AcceptButton = okButton;
             dialog.CancelButton = cancelButton;
-            return dialog.ShowDialog(owner) == DialogResult.OK ? textBox.Text : "";
+            return dialog.ShowDialog(owner) == DialogResult.OK ? textBox.Text : null;
         }
     }
 
@@ -1467,6 +1938,7 @@ public sealed class PreferencesForm : Form
 
         var index = trayAvailableList.SelectedIndex;
         trayAvailableList.Items.Remove(item);
+        item.ShowSpeechPreview = true;
         traySelectedList.Items.Add(item);
         traySelectedList.SelectedItem = item;
         if (trayAvailableList.Items.Count > 0)
@@ -1489,6 +1961,7 @@ public sealed class PreferencesForm : Form
 
         var index = traySelectedList.SelectedIndex;
         traySelectedList.Items.Remove(item);
+        item.ShowSpeechPreview = false;
         AddAvailableTrayChoiceSorted(item);
         if (traySelectedList.Items.Count > 0)
         {
@@ -1530,7 +2003,13 @@ public sealed class PreferencesForm : Form
 
     private void TraySelectedListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Control && e.KeyCode == Keys.Left)
+        if (e.KeyCode == Keys.F2)
+        {
+            RenameSelectedTrayChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Left)
         {
             RemoveSelectedTrayChoice();
             e.Handled = true;
@@ -1550,6 +2029,130 @@ public sealed class PreferencesForm : Form
         }
     }
 
+    private void RenameSelectedTrayChoice()
+    {
+        var item = traySelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            SetTraySelectionStatus("Select a tray reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        RenameSpeechLabel(item, SetTraySelectionStatus);
+    }
+
+    private void AttachIncrementalListSearch(ListBox list)
+    {
+        if (list == null)
+        {
+            return;
+        }
+
+        listSearchStates[list] = new ListSearchState();
+        list.KeyDown += IncrementalListSearchKeyDown;
+    }
+
+    private void IncrementalListSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        var list = sender as ListBox;
+        if (list == null || e.Control || e.Alt || list.Items.Count == 0)
+        {
+            return;
+        }
+
+        var searchChar = SearchCharFromKeyEvent(e);
+        if (searchChar == '\0')
+        {
+            return;
+        }
+
+        ListSearchState state;
+        if (!listSearchStates.TryGetValue(list, out state))
+        {
+            state = new ListSearchState();
+            listSearchStates[list] = state;
+        }
+
+        var now = DateTime.UtcNow;
+        if ((now - state.LastKey).TotalMilliseconds > 1000)
+        {
+            state.Text = "";
+        }
+
+        state.LastKey = now;
+        state.Text += searchChar;
+        if (!SelectListSearchMatch(list, state.Text) && state.Text.Length > 1)
+        {
+            state.Text = searchChar.ToString();
+            SelectListSearchMatch(list, state.Text);
+        }
+
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+    }
+
+    private static char SearchCharFromKeyEvent(KeyEventArgs e)
+    {
+        if (e.KeyCode >= Keys.A && e.KeyCode <= Keys.Z)
+        {
+            return char.ToLowerInvariant((char)('a' + (e.KeyCode - Keys.A)));
+        }
+
+        if (e.KeyCode >= Keys.D0 && e.KeyCode <= Keys.D9)
+        {
+            return (char)('0' + (e.KeyCode - Keys.D0));
+        }
+
+        if (e.KeyCode >= Keys.NumPad0 && e.KeyCode <= Keys.NumPad9)
+        {
+            return (char)('0' + (e.KeyCode - Keys.NumPad0));
+        }
+
+        if (e.KeyCode == Keys.Space)
+        {
+            return ' ';
+        }
+
+        return '\0';
+    }
+
+    private static bool SelectListSearchMatch(ListBox list, string searchText)
+    {
+        if (list == null || string.IsNullOrWhiteSpace(searchText))
+        {
+            return false;
+        }
+
+        var start = Math.Max(0, list.SelectedIndex);
+        var normalizedSearch = NormalizeListSearchText(searchText);
+        for (var pass = 0; pass < 2; pass++)
+        {
+            for (var offset = pass == 0 ? 1 : 0; offset <= list.Items.Count; offset++)
+            {
+                var index = (start + offset) % list.Items.Count;
+                var text = NormalizeListSearchText(Convert.ToString(list.Items[index]));
+                if (text.StartsWith(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    text.IndexOf(normalizedSearch, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    list.SelectedIndex = index;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeListSearchText(string text)
+    {
+        return (text ?? "")
+            .Replace(" - ", " ")
+            .Replace(": ", " ")
+            .Replace(":", " ")
+            .Trim();
+    }
+
     private void SetTraySelectionStatus(string message)
     {
         if (traySelectionStatusLabel != null)
@@ -1566,6 +2169,133 @@ public sealed class PreferencesForm : Form
         }
 
         SetTraySelectionStatus(SensorReadoutForm.L("ui.Tray order has", "Tray order has") + " " + traySelectedList.Items.Count + " " + SensorReadoutForm.L("ui.of 4 readings.", "of 4 readings."));
+    }
+
+    public void UpdateSensorRows(List<SensorRow> latestRows)
+    {
+        if (latestRows == null)
+        {
+            return;
+        }
+
+        var newRows = latestRows
+            .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance" || r.Type == "Network")
+            .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
+            .ThenBy(r => r.Hardware)
+            .ThenBy(r => r.Name)
+            .ToList();
+        var newSignature = BuildRowsSignature(newRows);
+        if (string.Equals(newSignature, rowsSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var previousLoading = loadingPreferences;
+        loadingPreferences = true;
+        try
+        {
+            rows.Clear();
+            rows.AddRange(newRows);
+            rowsSignature = newSignature;
+
+            PopulateTrayReadingLists(CurrentTrayItemKeys());
+            PopulateSpokenReadingLists(SelectedSpokenHotKey());
+            UpdateTraySelectionStatus();
+            UpdateSpokenSelectionStatus();
+        }
+        finally
+        {
+            loadingPreferences = previousLoading;
+        }
+    }
+
+    private static string BuildRowsSignature(IEnumerable<SensorRow> sourceRows)
+    {
+        return string.Join("|", (sourceRows ?? Enumerable.Empty<SensorRow>())
+            .Select(r => SensorReadoutForm.RowSettingsKey(r))
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .OrderBy(k => k)
+            .ToArray());
+    }
+
+    private void PopulateTrayReadingLists(List<string> selectedKeys)
+    {
+        if (trayAvailableList == null || traySelectedList == null)
+        {
+            return;
+        }
+
+        var selectedAvailableKey = SelectedTrayChoiceKey(trayAvailableList);
+        var selectedTrayKey = SelectedTrayChoiceKey(traySelectedList);
+        trayAvailableList.Items.Clear();
+        traySelectedList.Items.Clear();
+        var keys = selectedKeys ?? new List<string>();
+        var choices = rows
+            .Select(r => new TrayItemChoice(r, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames))
+            .OrderBy(i => i.Hardware)
+            .ThenBy(i => SensorReadoutForm.ReadingSortIndex(i.Name))
+            .ThenBy(i => i.Name)
+            .ThenBy(i => i.Type)
+            .ToList();
+
+        foreach (var key in keys)
+        {
+            var selectedTrayChoice = choices.FirstOrDefault(i => i.Key == key);
+            if (selectedTrayChoice != null && !ContainsTrayChoice(traySelectedList, selectedTrayChoice.Key))
+            {
+                selectedTrayChoice.ShowSpeechPreview = true;
+                traySelectedList.Items.Add(selectedTrayChoice);
+            }
+            else if (selectedTrayChoice == null && !ContainsTrayChoice(traySelectedList, key))
+            {
+                var unresolved = TrayItemChoice.Unresolved(key, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames);
+                unresolved.ShowSpeechPreview = true;
+                traySelectedList.Items.Add(unresolved);
+            }
+        }
+
+        foreach (var item in choices)
+        {
+            if (!ContainsTrayChoice(traySelectedList, item.Key))
+            {
+                trayAvailableList.Items.Add(item);
+            }
+        }
+
+        if (trayAvailableList.Items.Count > 0)
+        {
+            SelectTrayChoiceByKey(trayAvailableList, selectedAvailableKey);
+        }
+        if (traySelectedList.Items.Count > 0)
+        {
+            SelectTrayChoiceByKey(traySelectedList, selectedTrayKey);
+        }
+    }
+
+    private static string SelectedTrayChoiceKey(ListBox list)
+    {
+        var choice = list == null ? null : list.SelectedItem as TrayItemChoice;
+        return choice == null ? "" : choice.Key;
+    }
+
+    private static void SelectTrayChoiceByKey(ListBox list, string key)
+    {
+        if (list == null || list.Items.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < list.Items.Count; i++)
+        {
+            var choice = list.Items[i] as TrayItemChoice;
+            if (choice != null && string.Equals(choice.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                list.SelectedIndex = i;
+                return;
+            }
+        }
+
+        list.SelectedIndex = 0;
     }
 
     private void AddAvailableTrayChoiceSorted(TrayItemChoice choice)
@@ -1594,6 +2324,429 @@ public sealed class PreferencesForm : Form
             .ToList();
     }
 
+    private void AddSpokenHotKeyProfile()
+    {
+        var profile = new SpokenHotKeySetting
+        {
+            Name = "New spoken hotkey",
+            HotKey = "",
+            ReadingKeys = new List<string>()
+        };
+        spokenHotKeys.Add(profile);
+        spokenHotKeyList.Items.Add(profile);
+        spokenHotKeyList.SelectedItem = profile;
+        spokenHotKeyNameBox.Focus();
+        spokenHotKeyNameBox.SelectAll();
+        UpdateSpokenSelectionStatus("Created new spoken hotkey.");
+        SaveLivePreferences();
+    }
+
+    private void RemoveSelectedSpokenHotKeyProfile()
+    {
+        var profile = SelectedSpokenHotKey();
+        if (profile == null)
+        {
+            UpdateSpokenSelectionStatus("Select a spoken hotkey first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var index = spokenHotKeyList.SelectedIndex;
+        spokenHotKeys.Remove(profile);
+        spokenHotKeyList.Items.Remove(profile);
+        if (spokenHotKeyList.Items.Count > 0)
+        {
+            spokenHotKeyList.SelectedIndex = Math.Max(0, Math.Min(index, spokenHotKeyList.Items.Count - 1));
+        }
+        else
+        {
+            UpdateSpokenHotKeyEditor();
+        }
+
+        UpdateSpokenSelectionStatus("Removed spoken hotkey.");
+        SaveLivePreferences();
+    }
+
+    private SpokenHotKeySetting SelectedSpokenHotKey()
+    {
+        return spokenHotKeyList == null ? null : spokenHotKeyList.SelectedItem as SpokenHotKeySetting;
+    }
+
+    private void LoadSelectedSpokenHotKey()
+    {
+        UpdateSpokenHotKeyEditor();
+    }
+
+    private void UpdateSpokenHotKeyEditor()
+    {
+        var previousLoading = loadingPreferences;
+        loadingPreferences = true;
+        try
+        {
+            var profile = SelectedSpokenHotKey();
+            var enabled = profile != null;
+            spokenHotKeyNameBox.Enabled = enabled;
+            spokenHotKeyBox.Enabled = enabled;
+            spokenAvailableList.Enabled = enabled;
+            spokenSelectedList.Enabled = enabled;
+            spokenHotKeyNameBox.Text = profile == null ? "" : profile.Name ?? "";
+            spokenHotKeyBox.Text = profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
+            PopulateSpokenReadingLists(profile);
+        }
+        finally
+        {
+            loadingPreferences = previousLoading;
+        }
+
+        UpdateSpokenSelectionStatus();
+    }
+
+    private void PopulateSpokenReadingLists(SpokenHotKeySetting profile)
+    {
+        var selectedAvailableKey = SelectedTrayChoiceKey(spokenAvailableList);
+        var selectedSpokenKey = SelectedTrayChoiceKey(spokenSelectedList);
+        spokenAvailableList.Items.Clear();
+        spokenSelectedList.Items.Clear();
+        var selectedKeys = profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
+        var choices = rows
+            .Select(r => new TrayItemChoice(r, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames))
+            .OrderBy(i => i.Hardware)
+            .ThenBy(i => SensorReadoutForm.ReadingSortIndex(i.Name))
+            .ThenBy(i => i.Name)
+            .ThenBy(i => i.Type)
+            .ToList();
+
+        foreach (var key in selectedKeys)
+        {
+            var selectedChoice = choices.FirstOrDefault(i => i.Key == key);
+            if (selectedChoice != null && !ContainsTrayChoice(spokenSelectedList, selectedChoice.Key))
+            {
+                selectedChoice.ShowSpeechPreview = true;
+                spokenSelectedList.Items.Add(selectedChoice);
+            }
+            else if (selectedChoice == null && !ContainsTrayChoice(spokenSelectedList, key))
+            {
+                var unresolved = TrayItemChoice.Unresolved(key, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames);
+                unresolved.ShowSpeechPreview = true;
+                spokenSelectedList.Items.Add(unresolved);
+            }
+        }
+
+        foreach (var item in choices)
+        {
+            if (!ContainsTrayChoice(spokenSelectedList, item.Key))
+            {
+                spokenAvailableList.Items.Add(item);
+            }
+        }
+
+        if (spokenAvailableList.Items.Count > 0)
+        {
+            SelectTrayChoiceByKey(spokenAvailableList, selectedAvailableKey);
+        }
+        if (spokenSelectedList.Items.Count > 0)
+        {
+            SelectTrayChoiceByKey(spokenSelectedList, selectedSpokenKey);
+        }
+    }
+
+    private void SaveSelectedSpokenHotKeyHeader()
+    {
+        if (loadingPreferences)
+        {
+            return;
+        }
+
+        var profile = SelectedSpokenHotKey();
+        if (profile == null)
+        {
+            return;
+        }
+
+        profile.Name = spokenHotKeyNameBox.Text.Trim();
+        profile.HotKey = SensorReadoutForm.NormalizeHotKeyText(spokenHotKeyBox.Text);
+        RefreshSelectedSpokenHotKeyListItem();
+        SaveLivePreferences();
+    }
+
+    private void RefreshSelectedSpokenHotKeyListItem()
+    {
+        if (spokenHotKeyList == null)
+        {
+            return;
+        }
+
+        spokenHotKeyList.Refresh();
+    }
+
+    private void AddSelectedSpokenChoice()
+    {
+        var profile = SelectedSpokenHotKey();
+        var item = spokenAvailableList.SelectedItem as TrayItemChoice;
+        if (profile == null || item == null)
+        {
+            UpdateSpokenSelectionStatus("Select a spoken hotkey and an available reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var index = spokenAvailableList.SelectedIndex;
+        spokenAvailableList.Items.Remove(item);
+        item.ShowSpeechPreview = true;
+        spokenSelectedList.Items.Add(item);
+        spokenSelectedList.SelectedItem = item;
+        if (spokenAvailableList.Items.Count > 0)
+        {
+            spokenAvailableList.SelectedIndex = Math.Max(0, Math.Min(index, spokenAvailableList.Items.Count - 1));
+        }
+        SaveSelectedSpokenReadingKeys();
+        UpdateSpokenSelectionStatus("Added " + item + " to spoken hotkey.");
+    }
+
+    private void RemoveSelectedSpokenChoice()
+    {
+        var item = spokenSelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            UpdateSpokenSelectionStatus("Select a spoken reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var index = spokenSelectedList.SelectedIndex;
+        spokenSelectedList.Items.Remove(item);
+        item.ShowSpeechPreview = false;
+        AddAvailableSpokenChoiceSorted(item);
+        if (spokenSelectedList.Items.Count > 0)
+        {
+            spokenSelectedList.SelectedIndex = Math.Max(0, Math.Min(index, spokenSelectedList.Items.Count - 1));
+        }
+        spokenAvailableList.SelectedItem = item;
+        SaveSelectedSpokenReadingKeys();
+        UpdateSpokenSelectionStatus("Removed " + item + " from spoken hotkey.");
+    }
+
+    private void MoveSelectedSpokenChoice(int direction)
+    {
+        var index = spokenSelectedList.SelectedIndex;
+        var target = index + direction;
+        if (index < 0 || target < 0 || target >= spokenSelectedList.Items.Count)
+        {
+            UpdateSpokenSelectionStatus("Cannot move the selected spoken reading further.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var item = spokenSelectedList.Items[index];
+        spokenSelectedList.Items.RemoveAt(index);
+        spokenSelectedList.Items.Insert(target, item);
+        spokenSelectedList.SelectedIndex = target;
+        SaveSelectedSpokenReadingKeys();
+        UpdateSpokenSelectionStatus("Moved " + item + (direction < 0 ? " up." : " down."));
+    }
+
+    private void RenameSelectedSpokenChoice()
+    {
+        var item = spokenSelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            UpdateSpokenSelectionStatus("Select a spoken reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        RenameSpeechLabel(item, UpdateSpokenSelectionStatus);
+    }
+
+    private void RenameSpeechLabel(TrayItemChoice item, Action<string> updateStatus)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        var current = SpeechLabelForChoice(item);
+        var value = PromptForText(this, SensorReadoutForm.L("ui.Rename...", "Rename..."), SensorReadoutForm.L("ui.Spoken label:", "Spoken label:"), current);
+        if (value == null)
+        {
+            return;
+        }
+
+        value = value.Trim();
+        if (string.IsNullOrWhiteSpace(value) || string.Equals(value, DefaultSpeechLabelForChoice(item), StringComparison.OrdinalIgnoreCase))
+        {
+            readingSpeechLabels.Remove(item.Key);
+            updateStatus(SensorReadoutForm.L("ui.Reset spoken label for", "Reset spoken label for") + " " + item + ".");
+        }
+        else
+        {
+            readingSpeechLabels[item.Key] = value;
+            updateStatus(SensorReadoutForm.L("ui.Renamed spoken label to", "Renamed spoken label to") + " " + value + ".");
+        }
+
+        RefreshSpeechPreviewLists();
+        SaveLivePreferences();
+    }
+
+    private void ResetSelectedSpokenChoiceLabel()
+    {
+        var item = spokenSelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            UpdateSpokenSelectionStatus("Select a spoken reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        readingSpeechLabels.Remove(item.Key);
+        RefreshSpeechPreviewLists();
+        SaveLivePreferences();
+        UpdateSpokenSelectionStatus(SensorReadoutForm.L("ui.Reset spoken label for", "Reset spoken label for") + " " + item + ".");
+    }
+
+    private void RefreshSpeechPreviewLists()
+    {
+        if (traySelectedList != null) traySelectedList.Refresh();
+        if (spokenSelectedList != null) spokenSelectedList.Refresh();
+        if (spokenAvailableList != null) spokenAvailableList.Refresh();
+        if (trayAvailableList != null) trayAvailableList.Refresh();
+    }
+
+    private string SpeechLabelForChoice(TrayItemChoice choice)
+    {
+        if (choice == null)
+        {
+            return "";
+        }
+
+        string custom;
+        return readingSpeechLabels.TryGetValue(choice.Key, out custom) && !string.IsNullOrWhiteSpace(custom)
+            ? custom.Trim()
+            : DefaultSpeechLabelForChoice(choice);
+    }
+
+    private string DefaultSpeechLabelForChoice(TrayItemChoice choice)
+    {
+        return choice == null ? "" : SensorReadoutForm.DefaultSpeechLabel(choice.Type, choice.Hardware, choice.Name, ShouldPreviewSpeechWithDeviceNames());
+    }
+
+    private void SaveSelectedSpokenReadingKeys()
+    {
+        var profile = SelectedSpokenHotKey();
+        if (profile == null)
+        {
+            return;
+        }
+
+        profile.ReadingKeys = spokenSelectedList.Items
+            .Cast<TrayItemChoice>()
+            .Select(i => i.Key)
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .ToList();
+        RefreshSelectedSpokenHotKeyListItem();
+        SaveLivePreferences();
+    }
+
+    private void AddAvailableSpokenChoiceSorted(TrayItemChoice choice)
+    {
+        var insertIndex = 0;
+        while (insertIndex < spokenAvailableList.Items.Count &&
+            TrayItemChoice.Compare((TrayItemChoice)spokenAvailableList.Items[insertIndex], choice) <= 0)
+        {
+            insertIndex++;
+        }
+
+        spokenAvailableList.Items.Insert(insertIndex, choice);
+    }
+
+    private void SpokenAvailableListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Control && e.KeyCode == Keys.Right)
+        {
+            AddSelectedSpokenChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void SpokenSelectedListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.F2)
+        {
+            RenameSelectedSpokenChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.Delete)
+        {
+            ResetSelectedSpokenChoiceLabel();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Left)
+        {
+            RemoveSelectedSpokenChoice();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Up)
+        {
+            MoveSelectedSpokenChoice(-1);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Down)
+        {
+            MoveSelectedSpokenChoice(1);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void UpdateSpokenSelectionStatus()
+    {
+        var profile = SelectedSpokenHotKey();
+        if (profile == null)
+        {
+            UpdateSpokenSelectionStatus("No spoken hotkey selected.");
+            return;
+        }
+
+        var count = spokenSelectedList == null ? 0 : spokenSelectedList.Items.Count;
+        UpdateSpokenSelectionStatus(count + " reading" + (count == 1 ? "" : "s") + " selected for this spoken hotkey.");
+    }
+
+    private void UpdateSpokenSelectionStatus(string message)
+    {
+        if (spokenSelectionStatusLabel != null)
+        {
+            spokenSelectionStatusLabel.Text = SensorReadoutForm.TranslateUiText(message);
+        }
+    }
+
+    private List<SpokenHotKeySetting> CurrentSpokenHotKeys()
+    {
+        return CloneSpokenHotKeys(spokenHotKeys)
+            .Where(p => !string.IsNullOrWhiteSpace(p.HotKey) || (p.ReadingKeys != null && p.ReadingKeys.Count > 0) || !string.IsNullOrWhiteSpace(p.Name))
+            .ToList();
+    }
+
+    private static List<SpokenHotKeySetting> CloneSpokenHotKeys(IEnumerable<SpokenHotKeySetting> source)
+    {
+        return (source ?? new List<SpokenHotKeySetting>())
+            .Where(p => p != null)
+            .Select(p => new SpokenHotKeySetting
+            {
+                Name = p.Name ?? "",
+                HotKey = SensorReadoutForm.NormalizeHotKeyText(p.HotKey),
+                ReadingKeys = (p.ReadingKeys ?? new List<string>())
+                    .Where(k => !string.IsNullOrWhiteSpace(k))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .ToList();
+    }
+
     private List<string> CurrentHiddenReadingKeys()
     {
         return hiddenItemsList.CheckedItems
@@ -1603,18 +2756,30 @@ public sealed class PreferencesForm : Form
             .ToList();
     }
 
+    private Dictionary<string, string> CurrentReadingSpeechLabels()
+    {
+        return readingSpeechLabels
+            .Where(i => !string.IsNullOrWhiteSpace(i.Key) && !string.IsNullOrWhiteSpace(i.Value))
+            .ToDictionary(i => i.Key, i => i.Value.Trim(), StringComparer.OrdinalIgnoreCase);
+    }
+
     private sealed class TrayItemChoice
     {
         public readonly string Key;
         public readonly string Type;
         public readonly string Hardware;
         public readonly string Name;
+        private readonly Dictionary<string, string> speechLabels;
+        private readonly Func<bool> includeDeviceNames;
         private readonly string label;
         private readonly bool unresolved;
+        public bool ShowSpeechPreview;
 
-        private TrayItemChoice(string key)
+        private TrayItemChoice(string key, Dictionary<string, string> speechLabels, Func<bool> includeDeviceNames)
         {
             Key = key ?? "";
+            this.speechLabels = speechLabels ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            this.includeDeviceNames = includeDeviceNames ?? (delegate { return true; });
             var parts = Key.Split('|');
             Type = parts.Length > 0 ? parts[0] : "";
             Hardware = parts.Length > 1 ? parts[1] : "";
@@ -1623,25 +2788,30 @@ public sealed class PreferencesForm : Form
             label = string.IsNullOrWhiteSpace(Hardware) ? Key : Hardware + " - " + Name;
         }
 
-        public TrayItemChoice(SensorRow row)
+        public TrayItemChoice(SensorRow row, Dictionary<string, string> speechLabels, Func<bool> includeDeviceNames)
         {
             Key = SensorReadoutForm.RowSettingsKey(row);
+            this.speechLabels = speechLabels ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            this.includeDeviceNames = includeDeviceNames ?? (delegate { return true; });
             Type = row.Type;
             Hardware = SensorReadoutForm.ShortHardwareName(row.Hardware);
             Name = SensorReadoutForm.CleanSensorName(row.Name);
             label = "";
         }
 
-        public static TrayItemChoice Unresolved(string key)
+        public static TrayItemChoice Unresolved(string key, Dictionary<string, string> speechLabels, Func<bool> includeDeviceNames)
         {
-            return new TrayItemChoice(key);
+            return new TrayItemChoice(key, speechLabels, includeDeviceNames);
         }
 
         public override string ToString()
         {
-            return unresolved
+            var display = unresolved
                 ? SensorReadoutForm.L("ui.Missing reading -", "Missing reading -") + " " + label
                 : SensorReadoutForm.TrayChoiceLabel(Hardware, Name, Type);
+            return ShowSpeechPreview
+                ? display + " (" + SensorReadoutForm.L("ui.speaks:", "speaks:") + " " + SensorReadoutForm.SpeechPreviewLabel(Type, Hardware, Name, Key, speechLabels, includeDeviceNames()) + ")"
+                : display;
         }
 
         public static int Compare(TrayItemChoice left, TrayItemChoice right)
@@ -1659,13 +2829,14 @@ public sealed class PreferencesForm : Form
 
 public sealed class SensorReadoutForm : Form
 {
-    private const string AppVersion = "1.2.1";
+    private const string AppVersion = "1.3.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
     private const int RefreshIntervalMs = 5000;
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
+    private const int SpokenHotKeyBaseId = 2100;
     private const int WmHotKey = 0x0312;
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
@@ -1674,15 +2845,15 @@ public sealed class SensorReadoutForm : Form
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ToolStripMenuItem celsiusMenuItem;
     private readonly ToolStripMenuItem fahrenheitMenuItem;
+    private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
+    private readonly ToolStripMenuItem fahrenheitCelsiusMenuItem;
     private readonly ToolStripMenuItem languageMenuItem;
     private readonly ListBox deviceList;
     private readonly TreeView readingTree;
     private readonly MeterProgressBar selectedMeterProgressBar;
     private readonly Label selectedMeterValueLabel;
     private readonly Label statusLabel;
-    private readonly Button refreshButton;
     private readonly CheckBox pauseCheckBox;
-    private readonly Button saveReportButton;
     private ComboBox fanControlBox;
     private TextBox fanLabelBox;
     private NumericUpDown fanPercentBox;
@@ -1704,8 +2875,12 @@ public sealed class SensorReadoutForm : Form
     private string lastReadingTreeFilterKey = "";
     private bool readingTreeExpansionInitialized;
     private string currentTrayStatusText = "Sensor Readout";
+    private readonly Dictionary<int, SpokenHotKeySetting> registeredSpokenHotKeys = new Dictionary<int, SpokenHotKeySetting>();
     private int lastSelectedMeterValue = -1;
     private string lastSelectedMeterLabel = "";
+    private string lastPreferencesTabName = "General";
+    private bool savedFanControlsAppliedThisRun;
+    private PreferencesForm openPreferencesDialog;
     private readonly HotKeyWindow hotKeyWindow;
     private readonly Dictionary<string, NetworkSnapshot> networkSnapshots = new Dictionary<string, NetworkSnapshot>(StringComparer.OrdinalIgnoreCase);
     private List<LanguageChoice> languageChoices = new List<LanguageChoice>();
@@ -1734,52 +2909,9 @@ public sealed class SensorReadoutForm : Form
             settings.TrayStatusEnabled = true;
         }
         Text = "Sensor Readout " + AppVersion;
-        KeyPreview = true;
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(980, 620);
         MinimumSize = new Size(700, 420);
-        KeyDown += delegate(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.F5)
-            {
-                RefreshSensors();
-                HandleShortcutKey(e);
-            }
-            else if (e.Control && e.KeyCode == Keys.S)
-            {
-                SaveReport();
-                HandleShortcutKey(e);
-            }
-            else if (e.Control && e.KeyCode == Keys.Oemcomma)
-            {
-                ShowPreferences();
-                HandleShortcutKey(e);
-            }
-            else if (e.Control && e.KeyCode == Keys.L)
-            {
-                ShowFanControlsDialog();
-                HandleShortcutKey(e);
-            }
-            else if (e.Control && SelectCategoryByShortcut(e.KeyCode))
-            {
-                HandleShortcutKey(e);
-            }
-            else if (e.Shift && e.KeyCode == Keys.F1)
-            {
-                CheckForUpdates();
-                HandleShortcutKey(e);
-            }
-            else if (e.Control && e.KeyCode == Keys.F1)
-            {
-                OpenProjectPage();
-                HandleShortcutKey(e);
-            }
-            else if (e.KeyCode == Keys.F1)
-            {
-                ShowManual();
-                HandleShortcutKey(e);
-            }
-        };
 
         menuStrip = new MenuStrip();
         var fileMenu = new ToolStripMenuItem("&File");
@@ -1840,7 +2972,7 @@ public sealed class SensorReadoutForm : Form
         var temperatureMenu = new ToolStripMenuItem("Temperature &unit");
         celsiusMenuItem = new ToolStripMenuItem("&Celsius (C)")
         {
-            Checked = !string.Equals(settings.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase),
+            Checked = string.Equals(settings.TemperatureUnit, "C", StringComparison.OrdinalIgnoreCase),
             CheckOnClick = true
         };
         fahrenheitMenuItem = new ToolStripMenuItem("&Fahrenheit (F)")
@@ -1848,10 +2980,24 @@ public sealed class SensorReadoutForm : Form
             Checked = string.Equals(settings.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase),
             CheckOnClick = true
         };
+        celsiusFahrenheitMenuItem = new ToolStripMenuItem("Celsius, then Fahrenheit")
+        {
+            Checked = string.Equals(settings.TemperatureUnit, "CF", StringComparison.OrdinalIgnoreCase),
+            CheckOnClick = true
+        };
+        fahrenheitCelsiusMenuItem = new ToolStripMenuItem("Fahrenheit, then Celsius")
+        {
+            Checked = string.Equals(settings.TemperatureUnit, "FC", StringComparison.OrdinalIgnoreCase),
+            CheckOnClick = true
+        };
         celsiusMenuItem.CheckedChanged += CelsiusMenuItemCheckedChangedPlaceholder;
         fahrenheitMenuItem.CheckedChanged += FahrenheitMenuItemCheckedChangedPlaceholder;
+        celsiusFahrenheitMenuItem.CheckedChanged += CelsiusFahrenheitMenuItemCheckedChangedPlaceholder;
+        fahrenheitCelsiusMenuItem.CheckedChanged += FahrenheitCelsiusMenuItemCheckedChangedPlaceholder;
         temperatureMenu.DropDownItems.Add(celsiusMenuItem);
         temperatureMenu.DropDownItems.Add(fahrenheitMenuItem);
+        temperatureMenu.DropDownItems.Add(celsiusFahrenheitMenuItem);
+        temperatureMenu.DropDownItems.Add(fahrenheitCelsiusMenuItem);
 
         languageMenuItem = new ToolStripMenuItem("&Language");
         BuildLanguageMenu();
@@ -1891,22 +3037,6 @@ public sealed class SensorReadoutForm : Form
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };
-
-        refreshButton = new Button
-        {
-            Text = "Refresh",
-            AutoSize = true,
-            AccessibleName = "Refresh sensors now, F5"
-        };
-        refreshButton.Click += delegate { RefreshSensors(); };
-
-        saveReportButton = new Button
-        {
-            Text = "Save repor&t",
-            AutoSize = true,
-            AccessibleName = "Save sensor report"
-        };
-        saveReportButton.Click += delegate { SaveReport(); };
 
         pauseCheckBox = new CheckBox
         {
@@ -2067,7 +3197,10 @@ public sealed class SensorReadoutForm : Form
             timer.Start();
             languageTimer.Start();
             RegisterGlobalHotKeys();
-            BeginSilentStartupUpdateCheck();
+            if (settings.CheckForUpdatesAtStartup)
+            {
+                BeginSilentStartupUpdateCheck();
+            }
             if (startMinimizedRequested || settings.StartMinimizedToTray)
             {
                 BeginInvoke((MethodInvoker)delegate
@@ -2172,7 +3305,7 @@ public sealed class SensorReadoutForm : Form
 
     private void SetTemperatureUnit(string unit)
     {
-        settings.TemperatureUnit = string.Equals(unit, "F", StringComparison.OrdinalIgnoreCase) ? "F" : "C";
+        settings.TemperatureUnit = NormalizeTemperatureUnit(unit);
         activeTemperatureUnit = settings.TemperatureUnit;
         SaveSettings(settings);
         UpdateTemperatureUnitMenu();
@@ -2180,23 +3313,29 @@ public sealed class SensorReadoutForm : Form
         lastReadingTreeShapeSignature = "";
         UpdateReadingList();
         UpdateTrayStatus();
-        statusLabel.Text = "Temperature unit set to " + (settings.TemperatureUnit == "F" ? "Fahrenheit." : "Celsius.");
+        statusLabel.Text = "Temperature unit set to " + TemperatureUnitDisplayName(settings.TemperatureUnit) + ".";
     }
 
     private void UpdateTemperatureUnitMenu()
     {
-        if (celsiusMenuItem == null || fahrenheitMenuItem == null)
+        if (celsiusMenuItem == null || fahrenheitMenuItem == null || celsiusFahrenheitMenuItem == null || fahrenheitCelsiusMenuItem == null)
         {
             return;
         }
 
-        var fahrenheit = string.Equals(settings.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase);
+        var unit = NormalizeTemperatureUnit(settings.TemperatureUnit);
         celsiusMenuItem.CheckedChanged -= CelsiusMenuItemCheckedChangedPlaceholder;
         fahrenheitMenuItem.CheckedChanged -= FahrenheitMenuItemCheckedChangedPlaceholder;
-        celsiusMenuItem.Checked = !fahrenheit;
-        fahrenheitMenuItem.Checked = fahrenheit;
+        celsiusFahrenheitMenuItem.CheckedChanged -= CelsiusFahrenheitMenuItemCheckedChangedPlaceholder;
+        fahrenheitCelsiusMenuItem.CheckedChanged -= FahrenheitCelsiusMenuItemCheckedChangedPlaceholder;
+        celsiusMenuItem.Checked = string.Equals(unit, "C", StringComparison.OrdinalIgnoreCase);
+        fahrenheitMenuItem.Checked = string.Equals(unit, "F", StringComparison.OrdinalIgnoreCase);
+        celsiusFahrenheitMenuItem.Checked = string.Equals(unit, "CF", StringComparison.OrdinalIgnoreCase);
+        fahrenheitCelsiusMenuItem.Checked = string.Equals(unit, "FC", StringComparison.OrdinalIgnoreCase);
         celsiusMenuItem.CheckedChanged += CelsiusMenuItemCheckedChangedPlaceholder;
         fahrenheitMenuItem.CheckedChanged += FahrenheitMenuItemCheckedChangedPlaceholder;
+        celsiusFahrenheitMenuItem.CheckedChanged += CelsiusFahrenheitMenuItemCheckedChangedPlaceholder;
+        fahrenheitCelsiusMenuItem.CheckedChanged += FahrenheitCelsiusMenuItemCheckedChangedPlaceholder;
     }
 
     private void CelsiusMenuItemCheckedChangedPlaceholder(object sender, EventArgs e)
@@ -2212,6 +3351,22 @@ public sealed class SensorReadoutForm : Form
         if (fahrenheitMenuItem.Checked)
         {
             SetTemperatureUnit("F");
+        }
+    }
+
+    private void CelsiusFahrenheitMenuItemCheckedChangedPlaceholder(object sender, EventArgs e)
+    {
+        if (celsiusFahrenheitMenuItem.Checked)
+        {
+            SetTemperatureUnit("CF");
+        }
+    }
+
+    private void FahrenheitCelsiusMenuItemCheckedChangedPlaceholder(object sender, EventArgs e)
+    {
+        if (fahrenheitCelsiusMenuItem.Checked)
+        {
+            SetTemperatureUnit("FC");
         }
     }
 
@@ -2344,14 +3499,6 @@ public sealed class SensorReadoutForm : Form
 
     private void ApplyAccessibleLanguage()
     {
-        if (refreshButton != null)
-        {
-            refreshButton.AccessibleName = T("a11y.Refresh sensors now, F5", "Refresh sensors now, F5");
-        }
-        if (saveReportButton != null)
-        {
-            saveReportButton.AccessibleName = T("a11y.Save sensor report", "Save sensor report");
-        }
         if (pauseCheckBox != null)
         {
             pauseCheckBox.AccessibleName = T("a11y.Pause automatic updates", "Pause automatic updates");
@@ -2458,6 +3605,40 @@ public sealed class SensorReadoutForm : Form
         return T(key, fallback);
     }
 
+    public static string NormalizeTemperatureUnit(string unit)
+    {
+        if (string.Equals(unit, "F", StringComparison.OrdinalIgnoreCase)) return "F";
+        if (string.Equals(unit, "CF", StringComparison.OrdinalIgnoreCase)) return "CF";
+        if (string.Equals(unit, "FC", StringComparison.OrdinalIgnoreCase)) return "FC";
+        return "C";
+    }
+
+    public static int TemperatureUnitIndex(string unit)
+    {
+        var normalized = NormalizeTemperatureUnit(unit);
+        if (normalized == "F") return 1;
+        if (normalized == "CF") return 2;
+        if (normalized == "FC") return 3;
+        return 0;
+    }
+
+    public static string TemperatureUnitFromIndex(int index)
+    {
+        if (index == 1) return "F";
+        if (index == 2) return "CF";
+        if (index == 3) return "FC";
+        return "C";
+    }
+
+    private static string TemperatureUnitDisplayName(string unit)
+    {
+        var normalized = NormalizeTemperatureUnit(unit);
+        if (normalized == "F") return T("ui.Fahrenheit (F)", "Fahrenheit (F)");
+        if (normalized == "CF") return T("ui.Celsius, then Fahrenheit", "Celsius, then Fahrenheit");
+        if (normalized == "FC") return T("ui.Fahrenheit, then Celsius", "Fahrenheit, then Celsius");
+        return T("ui.Celsius (C)", "Celsius (C)");
+    }
+
     private void OpenLanguagesFolder()
     {
         var folder = GetLanguagesFolderPath();
@@ -2479,12 +3660,28 @@ public sealed class SensorReadoutForm : Form
     private void RegisterGlobalHotKeys()
     {
         UnregisterGlobalHotKeys();
-        LogMessage("Debug", "Registering global hotkeys. Show/hide=" + (settings.ShowHideHotKey ?? "") + ", speak tray=" + (settings.SpeakTrayHotKey ?? "") + ".");
+        registeredSpokenHotKeys.Clear();
+        LogMessage("Debug", "Registering global hotkeys. Show/hide=" + (settings.ShowHideHotKey ?? "") + ", speak tray=" + (settings.SpeakTrayHotKey ?? "") + ", spoken profiles=" + ((settings.SpokenHotKeys == null) ? 0 : settings.SpokenHotKeys.Count) + ".");
         RegisterGlobalHotKey(settings.ShowHideHotKey, ShowHideHotKeyId, "show/hide");
         RegisterGlobalHotKey(settings.SpeakTrayHotKey, SpeakTrayHotKeyId, "speak tray status");
+        var profiles = settings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
+        for (var i = 0; i < profiles.Count && i < 100; i++)
+        {
+            var profile = profiles[i];
+            if (profile == null || string.IsNullOrWhiteSpace(profile.HotKey))
+            {
+                continue;
+            }
+
+            var id = SpokenHotKeyBaseId + i;
+            if (RegisterGlobalHotKey(profile.HotKey, id, "spoken hotkey " + (string.IsNullOrWhiteSpace(profile.Name) ? (i + 1).ToString(CultureInfo.InvariantCulture) : profile.Name)))
+            {
+                registeredSpokenHotKeys[id] = profile;
+            }
+        }
     }
 
-    private void RegisterGlobalHotKey(string hotKeyText, int id, string description)
+    private bool RegisterGlobalHotKey(string hotKeyText, int id, string description)
     {
         var hotKey = ParseHotKey(hotKeyText);
         if (hotKey == null || !hotKey.IsValid)
@@ -2493,7 +3690,7 @@ public sealed class SensorReadoutForm : Form
             {
                 LogError("Invalid " + description + " hotkey setting: " + hotKeyText + ".");
             }
-            return;
+            return false;
         }
 
         var hotKeyHandle = hotKeyWindow == null ? Handle : hotKeyWindow.Handle;
@@ -2503,10 +3700,11 @@ public sealed class SensorReadoutForm : Form
             var message = "Could not register " + description + " hotkey " + NormalizeHotKeyText(hotKeyText) + ". Windows error " + error + ". It may already be in use.";
             statusLabel.Text = message;
             LogError(message);
-            return;
+            return false;
         }
 
         LogMessage("Normal", "Registered " + description + " hotkey " + NormalizeHotKeyText(hotKeyText) + ".");
+        return true;
     }
 
     private void UnregisterGlobalHotKeys()
@@ -2519,6 +3717,11 @@ public sealed class SensorReadoutForm : Form
 
         NativeMethods.UnregisterHotKey(hotKeyHandle, ShowHideHotKeyId);
         NativeMethods.UnregisterHotKey(hotKeyHandle, SpeakTrayHotKeyId);
+        for (var id = SpokenHotKeyBaseId; id < SpokenHotKeyBaseId + 100; id++)
+        {
+            NativeMethods.UnregisterHotKey(hotKeyHandle, id);
+        }
+        registeredSpokenHotKeys.Clear();
     }
 
     public bool HandleHotKeyMessage(ref Message m)
@@ -2537,6 +3740,14 @@ public sealed class SensorReadoutForm : Form
             {
                 LogMessage("Debug", "Speak tray status hotkey pressed.");
                 SpeakTrayStatus();
+                return true;
+            }
+
+            SpokenHotKeySetting profile;
+            if (registeredSpokenHotKeys.TryGetValue(id, out profile))
+            {
+                LogMessage("Debug", "Spoken hotkey pressed: " + (profile == null ? "" : profile.Name));
+                SpeakSpokenHotKey(profile);
                 return true;
             }
         }
@@ -2570,15 +3781,27 @@ public sealed class SensorReadoutForm : Form
 
     private void SpeakTrayStatus()
     {
-        var text = BuildCurrentTrayStatusText();
+        SpeakTextWithNvda(BuildCurrentSpeechStatusText(), "tray status");
+    }
+
+    private void SpeakSpokenHotKey(SpokenHotKeySetting profile)
+    {
+        var rows = GetSpokenHotKeyRows(profile);
+        var text = BuildSpeechStatusText(rows);
+        var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
+        SpeakTextWithNvda(text, description);
+    }
+
+    private void SpeakTextWithNvda(string text, string description)
+    {
         string error;
         if (NvdaController.TrySpeak(text, out error))
         {
             if (statusLabel != null)
             {
-                statusLabel.Text = "Spoke tray status with NVDA.";
+                statusLabel.Text = "Spoke " + description + " with NVDA.";
             }
-            LogMessage("Normal", "Spoke tray status with NVDA: " + text);
+            LogMessage("Normal", "Spoke " + description + " with NVDA: " + text);
             return;
         }
 
@@ -2707,7 +3930,7 @@ public sealed class SensorReadoutForm : Form
             fileName = "README-en.html";
         }
 
-        var path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", fileName);
+        var path = System.IO.Path.Combine(GetDocsFolderPath(), fileName);
         if (System.IO.File.Exists(path))
         {
             return path;
@@ -2719,7 +3942,7 @@ public sealed class SensorReadoutForm : Form
             return path;
         }
 
-        path = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "docs", fileName));
+        path = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Docs", fileName));
         if (System.IO.File.Exists(path))
         {
             return path;
@@ -3008,8 +4231,8 @@ public sealed class SensorReadoutForm : Form
                 Padding = new Padding(0, 8, 0, 0)
             };
 
-            var laterButton = new Button { Text = T("ui.Later", "Later"), DialogResult = DialogResult.Cancel, AutoSize = true };
-            var releaseButton = new Button { Text = T("ui.Open release page", "Open release page"), AutoSize = true };
+            var laterButton = new Button { Text = T("ui.Later", "&Later"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var releaseButton = new Button { Text = T("ui.Open release page", "Open &release page"), AutoSize = true };
             releaseButton.Click += delegate
             {
                 Process.Start(new ProcessStartInfo { FileName = releaseUrl, UseShellExecute = true });
@@ -3019,7 +4242,7 @@ public sealed class SensorReadoutForm : Form
 
             if (zipAsset != null)
             {
-                var installButton = new Button { Text = T("ui.Download and install", "Download and install"), AutoSize = true };
+                var installButton = new Button { Text = T("ui.Download and install", "&Download and install"), AutoSize = true };
                 installButton.Click += delegate
                 {
                     dialog.DialogResult = DialogResult.OK;
@@ -3117,8 +4340,16 @@ public sealed class SensorReadoutForm : Form
             "  }\r\n" +
             "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) { throw 'The downloaded ZIP does not contain Sensor Readout.exe.' }\r\n" +
             "  Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Wait-Process\r\n" +
+            "  foreach ($name in @('Docs','Langs')) {\r\n" +
+            "    $lower = Join-Path $target $name.ToLowerInvariant()\r\n" +
+            "    $proper = Join-Path $target $name\r\n" +
+            "    $tmpCase = Join-Path $target ($name + '_case_tmp')\r\n" +
+            "    if ((Test-Path -LiteralPath $lower) -and -not (Test-Path -LiteralPath $proper)) { Rename-Item -LiteralPath $lower -NewName $name -ErrorAction SilentlyContinue }\r\n" +
+            "    elseif (Test-Path -LiteralPath $lower) { Rename-Item -LiteralPath $lower -NewName ($name + '_case_tmp') -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $tmpCase) { Rename-Item -LiteralPath $tmpCase -NewName $name -ErrorAction SilentlyContinue } }\r\n" +
+            "  }\r\n" +
             "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $target $_.Name) -Recurse -Force }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
+            "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
             "  Start-Process -FilePath $exe\r\n" +
@@ -3269,9 +4500,20 @@ public sealed class SensorReadoutForm : Form
     private void ShowPreferences()
     {
         RefreshLanguageChoices(false);
-        using (var dialog = new PreferencesForm(settings, latestRows, languageChoices))
+        using (var dialog = new PreferencesForm(settings, latestRows, languageChoices, lastPreferencesTabName))
         {
-            if (dialog.ShowDialog(this) != DialogResult.OK)
+            openPreferencesDialog = dialog;
+            if (latestRows.Count > 0)
+            {
+                dialog.UpdateSensorRows(latestRows);
+            }
+            var result = dialog.ShowDialog(this);
+            if (openPreferencesDialog == dialog)
+            {
+                openPreferencesDialog = null;
+            }
+            lastPreferencesTabName = dialog.SelectedTabName;
+            if (result != DialogResult.OK)
             {
                 return;
             }
@@ -3286,16 +4528,20 @@ public sealed class SensorReadoutForm : Form
             settings.ShowHideHotKey = dialog.ShowHideHotKey;
             settings.SpeakTrayHotKey = dialog.SpeakTrayHotKey;
             settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
+            settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
             settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
             settings.RunAtStartup = dialog.RunAtStartup;
             settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
+            settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
             if (settings.RunAtStartup || settings.StartMinimizedToTray)
             {
                 settings.TrayStatusEnabled = true;
             }
             settings.LoggingLevel = dialog.LoggingLevel;
             settings.TrayItemKeys = dialog.TrayItemKeys;
+            settings.SpokenHotKeys = dialog.SpokenHotKeys;
             settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
+            settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
             SaveSettings(settings);
             try
             {
@@ -3486,6 +4732,13 @@ public sealed class SensorReadoutForm : Form
                     dialog.Close();
                     e.Handled = true;
                 }
+                else if (e.KeyCode == Keys.F2 && fanLabelBox != null)
+                {
+                    fanLabelBox.Focus();
+                    fanLabelBox.SelectAll();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
             };
 
             var layout = new TableLayoutPanel
@@ -3619,7 +4872,6 @@ public sealed class SensorReadoutForm : Form
         }
 
         refreshInProgress = true;
-        refreshButton.Enabled = false;
         statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
 
         Task.Factory.StartNew(new Func<List<SensorRow>>(CollectSensorRows))
@@ -3642,6 +4894,11 @@ public sealed class SensorReadoutForm : Form
                     var rows = task.Result;
                     latestRows.Clear();
                     latestRows.AddRange(rows);
+                    TryApplySavedFanControlsOnStartupAsync(rows);
+                    if (openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
+                    {
+                        openPreferencesDialog.UpdateSensorRows(rows);
+                    }
                     if (!IsMinimizedOrHidden())
                     {
                         UpdateFanControlBox();
@@ -3662,7 +4919,6 @@ public sealed class SensorReadoutForm : Form
                 }
                 finally
                 {
-                    refreshButton.Enabled = true;
                     refreshInProgress = false;
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
@@ -3679,6 +4935,7 @@ public sealed class SensorReadoutForm : Form
         rows.AddRange(GetStoragePerformanceRows(rows));
         rows.AddRange(GetWindowsLogicalDiskRows());
         rows.AddRange(GetNetworkRows());
+        rows = AttachFanControlPercentsToFanRows(rows);
         rows = ApplyFanLabelsToReadings(rows);
 
         return ConsolidateRelatedRows(rows
@@ -3742,6 +4999,120 @@ public sealed class SensorReadoutForm : Form
         }).ToList();
     }
 
+    private List<SensorRow> AttachFanControlPercentsToFanRows(List<SensorRow> rows)
+    {
+        rows = rows ?? new List<SensorRow>();
+        var controls = rows
+            .Where(r => r.Type == "Fan Control")
+            .ToList();
+        if (controls.Count == 0)
+        {
+            return rows;
+        }
+
+        return rows.Select(row =>
+        {
+            if (row.Type != "Fan" || !row.Value.HasValue)
+            {
+                return row;
+            }
+
+            var percent = FanControlPercentForFanRow(row, controls);
+            if (!percent.HasValue)
+            {
+                return row;
+            }
+
+            return new SensorRow
+            {
+                Type = row.Type,
+                Hardware = row.Hardware,
+                Name = row.Name,
+                Identifier = row.Identifier,
+                Value = row.Value,
+                DisplayValue = FormatNumber(Math.Round(row.Value.Value, 0), "0") + " RPM " + FormatNumber(Math.Round(percent.Value, 1), "0.#") + "%",
+                Source = row.Source
+            };
+        }).ToList();
+    }
+
+    private static float? FanControlPercentForFanRow(SensorRow fanRow, List<SensorRow> controls)
+    {
+        var controlIdentifier = GuessControlIdentifier(fanRow.Identifier);
+        var control = controls.FirstOrDefault(r => string.Equals(r.Identifier, controlIdentifier, StringComparison.OrdinalIgnoreCase));
+        if (control == null)
+        {
+            var baseName = BaseFanReadingName(fanRow.Name);
+            control = controls.FirstOrDefault(r => string.Equals(BaseFanControlName(r.Name), baseName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return control == null ? null : ExtractPercent(control);
+    }
+
+    private void TryApplySavedFanControlsOnStartupAsync(List<SensorRow> rows)
+    {
+        if (savedFanControlsAppliedThisRun)
+        {
+            return;
+        }
+
+        var saved = LoadFanControlSettings();
+        if (saved.Count == 0)
+        {
+            savedFanControlsAppliedThisRun = true;
+            return;
+        }
+
+        var manualSettings = saved
+            .Where(i => i.Value != null && i.Value.Manual)
+            .ToDictionary(i => i.Key, i => i.Value, StringComparer.OrdinalIgnoreCase);
+        if (manualSettings.Count == 0)
+        {
+            savedFanControlsAppliedThisRun = true;
+            return;
+        }
+
+        var controls = (rows ?? new List<SensorRow>())
+            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && manualSettings.ContainsKey(r.Identifier))
+            .Select(r => r.Identifier)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (controls.Count == 0)
+        {
+            return;
+        }
+
+        savedFanControlsAppliedThisRun = true;
+        Task.Factory.StartNew(delegate
+        {
+            var applied = 0;
+            foreach (var identifier in controls)
+            {
+                FanControlSetting setting;
+                if (!manualSettings.TryGetValue(identifier, out setting) || setting == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    SetLibreHardwareMonitorControl(identifier, setting.Percent, setting.Manual);
+                    applied++;
+                    LogMessage("Debug", "Applied saved fan control " + identifier + ": " + (setting.Manual ? setting.Percent + "% manual" : "automatic/default") + ".");
+                }
+                catch (Exception ex)
+                {
+                    LogError("Could not apply saved fan control " + identifier + ": " + ex.Message);
+                }
+            }
+
+            if (applied > 0)
+            {
+                LogMessage("Normal", "Applied " + applied + " saved fan control setting" + (applied == 1 ? "" : "s") + " on startup.");
+            }
+        });
+    }
+
     private void ApplySelectedFanControl(bool manual)
     {
         ClampFanPercentBox();
@@ -3766,6 +5137,7 @@ public sealed class SensorReadoutForm : Form
             delegate { SetLibreHardwareMonitorControl(identifier, percent, manual); },
             delegate
             {
+                SaveFanControlSetting(identifier, manual, percent);
                 statusLabel.Text = "LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + ".";
                 RefreshSensorsAfterFanAction();
             });
@@ -3803,6 +5175,7 @@ public sealed class SensorReadoutForm : Form
             delegate { count = SetAllLibreHardwareMonitorControlsDefault(); },
             delegate
             {
+                SaveFanControlSettingsForAllKnownControls(false, 50);
                 statusLabel.Text = "LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default.";
                 RefreshSensorsAfterFanAction();
             });
@@ -3858,6 +5231,7 @@ public sealed class SensorReadoutForm : Form
             },
             delegate
             {
+                SaveFanControlSettings(controls.Select(c => c.Identifier), true, percent);
                 statusLabel.Text = "LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls.";
                 RefreshSensorsAfterFanAction();
             });
@@ -4019,12 +5393,6 @@ public sealed class SensorReadoutForm : Form
             DisplayValue = control.DisplayValue,
             Source = control.Source
         };
-    }
-
-    private static void HandleShortcutKey(KeyEventArgs e)
-    {
-        e.Handled = true;
-        e.SuppressKeyPress = true;
     }
 
     private bool ShouldShowFanControl(SensorRow control)
@@ -4407,6 +5775,42 @@ public sealed class SensorReadoutForm : Form
     private void SaveFanLabels(Dictionary<string, string> labels)
     {
         settings.FanLabels = new Dictionary<string, string>(labels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        SaveSettings(settings);
+    }
+
+    private Dictionary<string, FanControlSetting> LoadFanControlSettings()
+    {
+        return new Dictionary<string, FanControlSetting>(settings.FanControlSettings ?? new Dictionary<string, FanControlSetting>(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SaveFanControlSetting(string identifier, bool manual, int percent)
+    {
+        SaveFanControlSettings(new[] { identifier }, manual, percent);
+    }
+
+    private void SaveFanControlSettingsForAllKnownControls(bool manual, int percent)
+    {
+        SaveFanControlSettings(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier), manual, percent);
+    }
+
+    private void SaveFanControlSettings(IEnumerable<string> identifiers, bool manual, int percent)
+    {
+        var saved = LoadFanControlSettings();
+        foreach (var identifier in identifiers ?? new string[0])
+        {
+            if (string.IsNullOrWhiteSpace(identifier))
+            {
+                continue;
+            }
+
+            saved[identifier] = new FanControlSetting
+            {
+                Manual = manual,
+                Percent = Math.Max(0, Math.Min(100, percent))
+            };
+        }
+
+        settings.FanControlSettings = saved;
         SaveSettings(settings);
     }
 
@@ -6457,12 +7861,23 @@ public sealed class SensorReadoutForm : Form
 
     private static string FormatTemperature(float celsius)
     {
-        if (string.Equals(activeTemperatureUnit, "F", StringComparison.OrdinalIgnoreCase))
+        var unit = NormalizeTemperatureUnit(activeTemperatureUnit);
+        var celsiusText = FormatNumber(Math.Round(celsius, 1), "0.0") + " C";
+        var fahrenheitText = FormatNumber(Math.Round((celsius * 9.0 / 5.0) + 32.0, 1), "0.0") + " F";
+        if (unit == "F")
         {
-            return FormatNumber(Math.Round((celsius * 9.0 / 5.0) + 32.0, 1), "0.0") + " F";
+            return fahrenheitText;
+        }
+        if (unit == "CF")
+        {
+            return celsiusText + " / " + fahrenheitText;
+        }
+        if (unit == "FC")
+        {
+            return fahrenheitText + " / " + celsiusText;
         }
 
-        return FormatNumber(Math.Round(celsius, 1), "0.0") + " C";
+        return celsiusText;
     }
 
     private static string HtmlEncode(string value)
@@ -6504,7 +7919,52 @@ public sealed class SensorReadoutForm : Form
         return ShortHardwareName(hardware) + " - " + DisplayReadingName(name) + ": " + DisplayTypeName(type);
     }
 
+    public static string SpeechPreviewLabel(string type, string hardware, string name, string key, Dictionary<string, string> speechLabels, bool includeHardwareName)
+    {
+        string custom;
+        return speechLabels != null &&
+            !string.IsNullOrWhiteSpace(key) &&
+            speechLabels.TryGetValue(key, out custom) &&
+            !string.IsNullOrWhiteSpace(custom)
+            ? custom.Trim()
+            : DefaultSpeechLabel(type, hardware, name, includeHardwareName);
+    }
+
+    public static string DefaultSpeechLabel(string type, string hardware, string name, bool includeHardwareName)
+    {
+        var label = ShortTrayName(name);
+        if (string.Equals(type, "Temperature", StringComparison.OrdinalIgnoreCase))
+        {
+            return label;
+        }
+
+        if (string.Equals(type, "Network", StringComparison.OrdinalIgnoreCase))
+        {
+            return includeHardwareName ? ShortTrayHardware(hardware) + " " + label : label;
+        }
+
+        if (string.Equals(type, "Performance", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "SMART", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(hardware, "CPU", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(hardware, "Memory", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(hardware, "System", StringComparison.OrdinalIgnoreCase))
+            {
+                return label;
+            }
+
+            return includeHardwareName ? ShortTrayHardware(hardware) + " " + label : label;
+        }
+
+        return label;
+    }
+
     private static string ShortTrayReadingText(SensorRow row)
+    {
+        return ShortTrayReadingText(row, true);
+    }
+
+    private static string ShortTrayReadingText(SensorRow row, bool includeHardwareName)
     {
         if (row == null)
         {
@@ -6520,7 +7980,7 @@ public sealed class SensorReadoutForm : Form
 
         if (row.Type == "Network")
         {
-            return hardware + " " + name + " " + FormatValue(row);
+            return (includeHardwareName ? hardware + " " : "") + name + " " + FormatValue(row);
         }
 
         if (row.Type == "Performance" || row.Type == "SMART")
@@ -6532,7 +7992,7 @@ public sealed class SensorReadoutForm : Form
                 return name + " " + FormatValue(row);
             }
 
-            return hardware + " " + name + " " + FormatValue(row);
+            return (includeHardwareName ? hardware + " " : "") + name + " " + FormatValue(row);
         }
 
         return name + " " + FormatValue(row);
@@ -6848,7 +8308,87 @@ public sealed class SensorReadoutForm : Form
 
     public static string GetLanguagesFolderPath()
     {
-        return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "langs");
+        return GetKnownFolderPath("Langs", "langs");
+    }
+
+    private static string GetDocsFolderPath()
+    {
+        return GetKnownFolderPath("Docs", "docs");
+    }
+
+    private static string GetKnownFolderPath(string canonicalName, string legacyName)
+    {
+        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        try
+        {
+            var actual = System.IO.Directory.Exists(baseDirectory)
+                ? System.IO.Directory.GetDirectories(baseDirectory)
+                    .FirstOrDefault(p => string.Equals(System.IO.Path.GetFileName(p), canonicalName, StringComparison.OrdinalIgnoreCase))
+                : null;
+            if (!string.IsNullOrWhiteSpace(actual) &&
+                !string.Equals(System.IO.Path.GetFileName(actual), canonicalName, StringComparison.Ordinal))
+            {
+                TryNormalizeFolderCase(actual, canonicalName);
+            }
+        }
+        catch
+        {
+        }
+
+        var canonical = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, canonicalName);
+        if (System.IO.Directory.Exists(canonical))
+        {
+            return canonical;
+        }
+
+        var legacy = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, legacyName);
+        if (System.IO.Directory.Exists(legacy))
+        {
+            TryNormalizeFolderCase(legacy, canonicalName);
+            if (System.IO.Directory.Exists(canonical))
+            {
+                return canonical;
+            }
+
+            return legacy;
+        }
+
+        return canonical;
+    }
+
+    private static void TryNormalizeFolderCase(string existingPath, string canonicalName)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(existingPath) || !System.IO.Directory.Exists(existingPath))
+            {
+                return;
+            }
+
+            var parent = System.IO.Directory.GetParent(existingPath);
+            if (parent == null)
+            {
+                return;
+            }
+
+            var canonicalPath = System.IO.Path.Combine(parent.FullName, canonicalName);
+            if (string.Equals(System.IO.Path.GetFileName(existingPath), canonicalName, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var tempPath = System.IO.Path.Combine(parent.FullName, canonicalName + "_case_tmp");
+            if (System.IO.Directory.Exists(tempPath))
+            {
+                return;
+            }
+
+            System.IO.Directory.Move(existingPath, tempPath);
+            System.IO.Directory.Move(tempPath, canonicalPath);
+        }
+        catch
+        {
+        }
     }
 
     private static string SanitizeLanguageFileName(string fileName)
@@ -7120,10 +8660,32 @@ public sealed class SensorReadoutForm : Form
         }
 
         value.TrayItemKeys = value.TrayItemKeys ?? new List<string>();
+        value.SpokenHotKeys = (value.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
+            .Where(p => p != null)
+            .Select(p => new SpokenHotKeySetting
+            {
+                Name = p.Name ?? "",
+                HotKey = NormalizeHotKeyText(p.HotKey),
+                ReadingKeys = (p.ReadingKeys ?? new List<string>())
+                    .Where(k => !string.IsNullOrWhiteSpace(k))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || p.ReadingKeys.Count > 0)
+            .ToList();
         value.HiddenReadingKeys = value.HiddenReadingKeys ?? new List<string>();
         value.FanLabels = new Dictionary<string, string>(value.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        value.FanControlSettings = new Dictionary<string, FanControlSetting>(value.FanControlSettings ?? new Dictionary<string, FanControlSetting>(), StringComparer.OrdinalIgnoreCase)
+            .Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.Value != null)
+            .ToDictionary(
+                i => i.Key,
+                i => new FanControlSetting { Manual = i.Value.Manual, Percent = Math.Max(0, Math.Min(100, i.Value.Percent)) },
+                StringComparer.OrdinalIgnoreCase);
+        value.ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+            .Where(i => !string.IsNullOrWhiteSpace(i.Key) && !string.IsNullOrWhiteSpace(i.Value))
+            .ToDictionary(i => i.Key, i => i.Value.Trim(), StringComparer.OrdinalIgnoreCase);
         value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds));
-        value.TemperatureUnit = string.Equals(value.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase) ? "F" : "C";
+        value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator
             : "";
@@ -7135,6 +8697,25 @@ public sealed class SensorReadoutForm : Form
             string.Equals(value.ShowHideHotKey, value.SpeakTrayHotKey, StringComparison.OrdinalIgnoreCase))
         {
             value.SpeakTrayHotKey = "";
+        }
+        var reservedHotKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(value.ShowHideHotKey)) reservedHotKeys.Add(value.ShowHideHotKey);
+        if (!string.IsNullOrWhiteSpace(value.SpeakTrayHotKey)) reservedHotKeys.Add(value.SpeakTrayHotKey);
+        foreach (var profile in value.SpokenHotKeys)
+        {
+            if (string.IsNullOrWhiteSpace(profile.HotKey))
+            {
+                continue;
+            }
+
+            if (reservedHotKeys.Contains(profile.HotKey))
+            {
+                profile.HotKey = "";
+            }
+            else
+            {
+                reservedHotKeys.Add(profile.HotKey);
+            }
         }
         value.LoggingLevel = NormalizeLoggingLevel(value.LoggingLevel);
         if (value.RunAtStartup)
@@ -7290,6 +8871,11 @@ public sealed class SensorReadoutForm : Form
         return text;
     }
 
+    private string BuildCurrentSpeechStatusText()
+    {
+        return BuildSpeechStatusText(GetTrayStatusRows());
+    }
+
     private List<SensorRow> GetTrayStatusRows()
     {
         var selectedKeys = settings.TrayItemKeys ?? new List<string>();
@@ -7310,6 +8896,15 @@ public sealed class SensorReadoutForm : Form
         }
 
         return selectedRows;
+    }
+
+    private List<SensorRow> GetSpokenHotKeyRows(SpokenHotKeySetting profile)
+    {
+        var selectedKeys = profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
+        return selectedKeys
+            .Select(FindTrayRowByKey)
+            .Where(r => r != null)
+            .ToList();
     }
 
     private SensorRow FindTrayRowByKey(string key)
@@ -7349,6 +8944,79 @@ public sealed class SensorReadoutForm : Form
         return selectedRows == null || selectedRows.Count == 0
             ? "Sensor Readout"
             : string.Join("; ", selectedRows.Select(ShortTrayReadingText).ToArray());
+    }
+
+    private string BuildSpeechStatusText(List<SensorRow> selectedRows)
+    {
+        if (selectedRows == null || selectedRows.Count == 0)
+        {
+            return "Sensor Readout";
+        }
+
+        var items = selectedRows.Select(r => ShortSpeechReadingText(r, settings.SpeechIncludesDeviceNames, settings.ReadingSpeechLabels)).ToList();
+        return settings.SpeechIncludesDeviceNames
+            ? string.Join("; ", items.ToArray())
+            : CompactRepeatedSpeechLabels(items);
+    }
+
+    private static string ShortSpeechReadingText(SensorRow row, bool includeHardwareName, Dictionary<string, string> speechLabels)
+    {
+        if (row == null)
+        {
+            return "";
+        }
+
+        string custom;
+        var key = RowSettingsKey(row);
+        if (speechLabels != null && speechLabels.TryGetValue(key, out custom) && !string.IsNullOrWhiteSpace(custom))
+        {
+            return custom.Trim() + " " + FormatValue(row);
+        }
+
+        return ShortTrayReadingText(row, includeHardwareName);
+    }
+
+    private static string CompactRepeatedSpeechLabels(List<string> items)
+    {
+        if (items == null || items.Count < 2)
+        {
+            return items == null || items.Count == 0 ? "Sensor Readout" : items[0];
+        }
+
+        var labels = items.Select(LeadingSpeechLabel).ToList();
+        var label = labels.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(label) || labels.Any(i => !string.Equals(i, label, StringComparison.OrdinalIgnoreCase)))
+        {
+            return string.Join("; ", items.ToArray());
+        }
+
+        var values = items.Select(i => RemoveLeadingSpeechLabel(i, label)).Where(i => !string.IsNullOrWhiteSpace(i)).ToArray();
+        return values.Length == items.Count ? label + ": " + string.Join("; ", values) : string.Join("; ", items.ToArray());
+    }
+
+    private static string LeadingSpeechLabel(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        var trimmed = text.Trim();
+        var firstSpace = trimmed.IndexOf(' ');
+        return firstSpace <= 0 ? "" : trimmed.Substring(0, firstSpace);
+    }
+
+    private static string RemoveLeadingSpeechLabel(string text, string label)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(label))
+        {
+            return text ?? "";
+        }
+
+        var trimmed = text.Trim();
+        return trimmed.StartsWith(label + " ", StringComparison.OrdinalIgnoreCase)
+            ? trimmed.Substring(label.Length + 1).Trim()
+            : trimmed;
     }
 
     private static string ShortenTrayText(string text, bool showEllipsis)
@@ -7444,7 +9112,8 @@ public sealed class SensorReadoutForm : Form
 
         if (row.Type == "Temperature")
         {
-            var value = string.Equals(activeTemperatureUnit, "F", StringComparison.OrdinalIgnoreCase)
+            var unit = NormalizeTemperatureUnit(activeTemperatureUnit);
+            var value = unit == "F" || unit == "FC"
                 ? (row.Value.Value * 9.0 / 5.0) + 32.0
                 : row.Value.Value;
             return FormatNumber(Math.Round(value, 0), "0");

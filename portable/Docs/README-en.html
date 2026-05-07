@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 1.2.1.</p>
+<p>Current version: 1.3.0.</p>
 <p>Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.</p>
 <p>It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar.</p>
 <p>Sensor Readout can be found <a href="https://github.com/OnjLouis/accessible-sensor-readout">on GitHub</a>.</p>
@@ -45,11 +45,11 @@
 <li>Uses a per-computer configuration file in the <code>Config</code> folder, such as <code>Desktop.json</code>, <code>Laptop.json</code>, or <code>Family-PC.json</code>, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other&#39;s settings.</li>
 <li>Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.</li>
 <li>Writes diagnostic logs in the <code>Logs</code> folder as <code>&lt;ComputerName&gt;.log</code> when logging is enabled.</li>
-<li>Can show temperatures in Celsius or Fahrenheit.</li>
+<li>Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.</li>
 <li>Converts Samsung storage data counters to readable GB/TB values when LibreHardwareMonitor exposes them as raw SMART units.</li>
 <li>Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.</li>
 <li>Can speak the notification area status through NVDA using bundled 64-bit NVDA Controller Client DLLs.</li>
-<li>Supports simple user-editable language files in the <code>langs</code> folder.</li>
+<li>Supports simple user-editable language files in the <code>Langs</code> folder.</li>
 <li>Logging is off by default and can be enabled from Preferences when troubleshooting.</li>
 <li>Can show selected readings in the notification area tooltip.</li>
 </ul>
@@ -92,7 +92,7 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 <tr><td><code>F5</code></td><td>Refresh now.</td></tr>
 <tr><td><code>Ctrl+S</code></td><td>Save report.</td></tr>
 <tr><td><code>Ctrl+C</code></td><td>Copy the selected reading or tree branch.</td></tr>
-<tr><td><code>F2</code></td><td>Rename the selected fan reading.</td></tr>
+<tr><td><code>F2</code></td><td>Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls.</td></tr>
 <tr><td><code>Del</code></td><td>Hide the selected reading or tree branch.</td></tr>
 <tr><td><code>Ctrl+L</code></td><td>Open fan controls.</td></tr>
 <tr><td><code>Ctrl+,</code></td><td>Open Preferences.</td></tr>
@@ -109,9 +109,9 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 <tr><td><code>Alt+X</code></td><td>Set all visible fan controls to maximum.</td></tr>
 <tr><td><code>Alt+S</code></td><td>Show or hide stopped fan headers.</td></tr>
 <tr><td><code>Alt+P</code></td><td>Pause automatic updates.</td></tr>
-<tr><td><code>Ctrl+Right</code></td><td>In Preferences, add the selected available reading to the tray order.</td></tr>
-<tr><td><code>Ctrl+Left</code></td><td>In Preferences, remove the selected tray reading.</td></tr>
-<tr><td><code>Ctrl+Up</code> / <code>Ctrl+Down</code></td><td>In Preferences, move the selected tray reading earlier or later.</td></tr>
+<tr><td><code>Ctrl+Right</code></td><td>In Preferences, add the selected available reading to the tray order or selected spoken hotkey.</td></tr>
+<tr><td><code>Ctrl+Left</code></td><td>In Preferences, remove the selected tray or spoken-hotkey reading.</td></tr>
+<tr><td><code>Ctrl+Up</code> / <code>Ctrl+Down</code></td><td>In Preferences, move the selected tray or spoken-hotkey reading earlier or later.</td></tr><tr><td><code>Alt+N</code></td><td>In Preferences &gt; Hotkeys, create a new spoken hotkey profile.</td></tr><tr><td><code>Alt+P</code></td><td>Remove the selected spoken hotkey profile.</td></tr><tr><td><code>Alt+A</code></td><td>Add the selected reading to the selected spoken hotkey.</td></tr><tr><td><code>Alt+M</code></td><td>Remove the selected reading from the selected spoken hotkey.</td></tr><tr><td><code>Alt+U</code> / <code>Alt+W</code></td><td>Move the selected spoken-hotkey reading up or down.</td></tr><tr><td><code>Alt+R</code></td><td>Rename the selected spoken label.</td></tr><tr><td><code>Alt+D</code></td><td>Reset the selected spoken label to default.</td></tr><tr><td><code>Delete</code></td><td>Reset the selected spoken label to default in Preferences &gt; Hotkeys.</td></tr>
 </tbody>
 </table>
 <h2 id="preferences">Preferences</h2>
@@ -125,7 +125,7 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 <li>Whether Sensor Readout starts minimized to the notification area.</li>
 <li>Up to four readings to show in the notification area tooltip, with a configurable display order.</li>
 <li>Hidden readings and groups.</li>
-<li>Logging level: Off, Error, Normal, or Debug.</li>
+<li>Logging level: Off, Error, Normal, or Debug.</li><li>Whether spoken feedback includes device names before selected readings.</li>
 </ul>
 <p>When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. <code>Alt+F4</code> exits the app completely.</p>
 <p>The startup option creates or removes a <code>Sensor Readout.lnk</code> shortcut in the current user&#39;s Windows Startup folder. If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.</p>
@@ -173,16 +173,16 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 </ul>
 <p>Language files:</p>
 <ul>
-<li>Put <code>.txt</code> or <code>.ini</code> files in the <code>langs</code> folder beside <code>Sensor Readout.exe</code>.</li>
+<li>Put <code>.txt</code> or <code>.ini</code> files in the <code>Langs</code> folder beside <code>Sensor Readout.exe</code>.</li>
 <li>On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.</li>
 <li>Use simple <code>key=value</code> lines. Lines starting with <code>#</code> or <code>;</code> are comments.</li>
 <li>Set <code>language.name=Display name</code> so the language has a clear name in menus.</li>
-<li>Set <code>manual.file=README-xx.html</code> so <code>F1</code> opens the matching manual for the selected language in the user&#39;s browser. Type only a file name, not a folder path. Sensor Readout looks in the <code>docs</code> folder first. If this entry is missing, Sensor Readout tries <code>&lt;language-file-name&gt;.html</code>, then falls back to <code>README-en.html</code>.</li>
+<li>Set <code>manual.file=README-xx.html</code> so <code>F1</code> opens the matching manual for the selected language in the user&#39;s browser. Type only a file name, not a folder path. Sensor Readout looks in the <code>Docs</code> folder first. If this entry is missing, Sensor Readout tries <code>&lt;language-file-name&gt;.html</code>, then falls back to <code>README-en.html</code>.</li>
 <li>Set <code>number.decimalSeparator=,</code> if the language should display decimal values with a comma, such as <code>1,1 TB</code>.</li>
 <li>Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in <code>Options</code> &gt; <code>Language</code> without restarting.</li>
-<li><code>langs\English.txt</code> is the primary/default language file. Copy it or use the Language editor&#39;s New button to start another language.</li>
+<li><code>Langs\English.txt</code> is the primary/default language file. Copy it or use the Language editor&#39;s New button to start another language.</li>
 <li>The decimal separator can also be changed from Preferences without editing a language file.</li>
-<li>Bundled manuals live in the <code>docs</code> folder and use <code>README-en.html</code>, <code>README-de.html</code>, <code>README-es.html</code>, <code>README-fr.html</code>, and <code>README-it.html</code>.</li>
+<li>Bundled manuals live in the <code>Docs</code> folder and use <code>README-en.html</code>, <code>README-de.html</code>, <code>README-es.html</code>, <code>README-fr.html</code>, and <code>README-it.html</code>.</li>
 </ul>
 <p>Optional NVDA speech:</p>
 <ul>
@@ -196,7 +196,7 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 <p>Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip, and what the BIOS exposes. Some systems may provide readings but not writable fan controls.</p>
 <p>The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.</p>
 <h2 id="changelog">Changelog</h2>
-<h3>1.2.1</h3>
+<h3>1.3.0</h3><ul><li>New: Selected tray and spoken-hotkey readings show a speech preview, and spoken-hotkey readings can be renamed for shorter speech.</li><li>New: Create multiple spoken hotkey profiles, each with its own key combination and ordered set of readings.</li><li>New: Spoken feedback can omit device names for shorter NVDA output such as <code>Rx 688.4 KB/s; Tx 14.4 MB/s</code>.</li><li>Improved: Repeated spoken labels are grouped for concise output, for example <code>CPU: 15.0%; 45.1 C</code>.</li><li>Improved: Hotkey and speech controls now live together on a dedicated Hotkeys tab.</li><li>Improved: Preferences reopens on the tab you used last during the current session.</li><li>Improved: Startup options now live together on a dedicated Startup tab.</li><li>New: Startup update checks can be turned off in Preferences.</li><li>Improved: Preferences now protects plain text entry so typing profile names does not trigger unrelated UI accelerators.</li><li>Improved: Reading selection lists in Preferences support buffered multi-character search, so typing more than one letter can find entries such as Ethernet Rx.</li><li>New: Fan readings can show the matching control percentage next to RPM, and those percentages feed the selected-reading progress meter for NVDA feedback.</li><li>Improved: Saved manual fan settings are restored in the background on startup, while saved automatic/default fan settings no longer slow launch.</li><li>Fixed: Update-available dialog buttons now include keyboard accelerators.</li><li>Changed: Shipped folders now use consistent casing: <code>Config</code>, <code>Logs</code>, <code>Langs</code>, and <code>Docs</code>, while folder lookup remains case-insensitive for existing installs.</li></ul><h3>1.2.1</h3>
 <ul>
 <li>Fixed: Storage free/used-space readings now come from Windows logical drives, avoiding mismatched LibreHardwareMonitor space values on some SSDs.</li>
 <li>Improved: The selected-reading progress meter now works for any valid percentage reading, including memory available, memory used, drive free space, drive space used, CPU usage, activity percentages, and localized comma-decimal percentages.</li>
@@ -205,8 +205,8 @@ winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 <ul>
 <li>New: Multilingual interface support with English, German, Spanish, French, and Italian language files.</li>
 <li>New: Language editor in Preferences for editing translated text, creating new language files from English, and changing the NVDA startup message.</li>
-<li>New: HTML manuals in the <code>docs</code> folder, with <code>F1</code> opening the manual for the selected language.</li>
-<li>New: Temperature-unit control for Celsius or Fahrenheit.</li>
+<li>New: HTML manuals in the <code>Docs</code> folder, with <code>F1</code> opening the manual for the selected language.</li>
+<li>New: Temperature-unit control for Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.</li>
 <li>New: Decimal-separator control with language default, period, and comma choices.</li>
 <li>New: Optional global hotkeys for show/hide and speaking the current notification-area status.</li>
 <li>New: Configurable NVDA startup speech for minimized startup.</li>

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.2.1.
+Current version: 1.3.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -30,11 +30,11 @@ Sensor Readout can be found [on GitHub](https://github.com/OnjLouis/accessible-s
 - Uses a per-computer configuration file in `Config`, such as `Desktop.json`, `Laptop.json`, or `Family-PC.json`, so the same folder can be shared from Dropbox or a USB stick without machines overwriting each other's settings.
 - Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.
 - Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
-- Can show temperatures in Celsius or Fahrenheit.
+- Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Converts Samsung storage data counters to readable GB/TB values when LibreHardwareMonitor exposes them as raw SMART units.
 - Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.
 - Can speak the notification area status through NVDA using bundled 64-bit NVDA Controller Client DLLs.
-- Supports simple user-editable language files in the `langs` folder.
+- Supports simple user-editable language files in the `Langs` folder.
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
 
@@ -101,7 +101,7 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
-| `F2` | Rename the selected fan reading. |
+| `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | `Del` | Hide the selected reading or tree branch. |
 | `Ctrl+L` | Open fan controls. |
 | `Ctrl+,` | Open Preferences. |
@@ -118,9 +118,17 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Alt+X` | Set all visible fan controls to maximum. |
 | `Alt+S` | Show or hide stopped fan headers. |
 | `Alt+P` | Pause automatic updates. |
-| `Ctrl+Right` | In Preferences, add the selected available reading to the tray order. |
-| `Ctrl+Left` | In Preferences, remove the selected tray reading. |
-| `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray reading earlier or later. |
+| `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
+| `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
+| `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
+| `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
+| `Alt+P` | In Preferences > Hotkeys, remove the selected spoken hotkey profile. |
+| `Alt+A` | In Preferences > Hotkeys, add the selected reading to the selected spoken hotkey. |
+| `Alt+M` | In Preferences > Hotkeys, remove the selected reading from the selected spoken hotkey. |
+| `Alt+U` / `Alt+W` | In Preferences > Hotkeys, move the selected spoken-hotkey reading up or down. |
+| `Alt+R` | In Preferences > Hotkeys, rename the selected spoken label. |
+| `Alt+D` | In Preferences > Hotkeys, reset the selected spoken label to default. |
+| `Delete` | In Preferences > Hotkeys, reset the selected spoken label to default. |
 
 ## Preferences
 
@@ -135,6 +143,7 @@ Use `Options` > `Preferences` or `Ctrl+,` to configure:
 - Up to four readings to show in the notification area tooltip, with a configurable display order.
 - Hidden readings and groups.
 - Logging level: Off, Error, Normal, or Debug.
+- Whether spoken feedback includes device names before selected readings.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
 
@@ -202,16 +211,16 @@ Configuration and logging created by the app:
 
 Language files:
 
-- Put `.txt` or `.ini` files in the `langs` folder beside `Sensor Readout.exe`.
+- Put `.txt` or `.ini` files in the `Langs` folder beside `Sensor Readout.exe`.
 - On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.
 - Use simple `key=value` lines. Lines starting with `#` or `;` are comments.
 - Set `language.name=Display name` so the language has a clear name in menus.
-- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.md`, then falls back to `README-en.md`.
+- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `Docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.md`, then falls back to `README-en.md`.
 - Set `number.decimalSeparator=,` if the language should display decimal values with a comma, such as `1,1 TB`.
 - Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
-- `langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
+- `Langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
 - The decimal separator can also be changed from Preferences without editing a language file.
-- Bundled manuals live in the `docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, and `README-it.html`.
+- Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, and `README-it.html`.
 
 Optional NVDA speech:
 
@@ -229,6 +238,23 @@ The app must run as administrator for motherboard Super I/O access on many syste
 
 ## Changelog
 
+### 1.3.0
+
+- New: Create multiple spoken hotkey profiles, each with its own key combination and ordered set of readings.
+- New: Selected tray and spoken-hotkey readings show a speech preview, and spoken-hotkey readings can be renamed for shorter speech.
+- New: Spoken feedback can omit device names for shorter NVDA output such as `Rx 688.4 KB/s; Tx 14.4 MB/s`.
+- Improved: Repeated spoken labels are grouped for concise output, for example `CPU: 15.0%; 45.1 C`.
+- Improved: Hotkey and speech controls now live together on a dedicated Hotkeys tab.
+- Improved: Preferences reopens on the tab you used last during the current session.
+- Improved: Startup options now live together on a dedicated Startup tab.
+- New: Startup update checks can be turned off in Preferences.
+- Improved: Preferences now protects plain text entry so typing profile names does not trigger unrelated UI accelerators.
+- Improved: Reading selection lists in Preferences support buffered multi-character search, so typing more than one letter can find entries such as Ethernet Rx.
+- New: Fan readings can show the matching control percentage next to RPM, and those percentages feed the selected-reading progress meter for NVDA feedback.
+- Improved: Saved manual fan settings are restored in the background on startup, while saved automatic/default fan settings no longer slow launch.
+- Fixed: Update-available dialog buttons now include keyboard accelerators.
+- Changed: Shipped folders now use consistent casing: `Config`, `Logs`, `Langs`, and `Docs`, while folder lookup remains case-insensitive for existing installs.
+
 ### 1.2.1
 
 - Fixed: Storage free/used-space readings now come from Windows logical drives, avoiding mismatched LibreHardwareMonitor space values on some SSDs.
@@ -238,8 +264,8 @@ The app must run as administrator for motherboard Super I/O access on many syste
 
 - New: Multilingual interface support with English, German, Spanish, French, and Italian language files.
 - New: Language editor in Preferences for editing translated text, creating new language files from English, and changing the NVDA startup message.
-- New: HTML manuals in the `docs` folder, with `F1` opening the manual for the selected language.
-- New: Temperature-unit control for Celsius or Fahrenheit.
+- New: HTML manuals in the `Docs` folder, with `F1` opening the manual for the selected language.
+- New: Temperature-unit control for Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - New: Decimal-separator control with language default, period, and comma choices.
 - New: Optional global hotkeys for show/hide and speaking the current notification-area status.
 - New: Configurable NVDA startup speech for minimized startup.
