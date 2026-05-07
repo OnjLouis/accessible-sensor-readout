@@ -242,6 +242,8 @@ The app must run as administrator for motherboard Super I/O access on many syste
 
 - Added: Optional Core Temp shared-memory fallback for CPU temperatures and CPU load when Core Temp is already running.
 - Fixed: Systems where LibreHardwareMonitor exposes no CPU temperature can now still show CPU readings if Core Temp supports the processor.
+- Added: Guidance for users with missing CPU readings: install and run Core Temp from https://www.alcpu.com/CoreTemp/ so Sensor Readout can use its shared-memory data. Fan control still depends on LibreHardwareMonitor, PawnIO, and the hardware exposing writable fan controls.
+
 ### 1.3.0
 
 - New: Create multiple spoken hotkey profiles, each with its own key combination and ordered set of readings.
@@ -338,4 +340,3 @@ Sensor Readout uses or bundles components from these projects:
 ## License
 
 This project is licensed under the MIT License. See `LICENSE.txt`.
-
