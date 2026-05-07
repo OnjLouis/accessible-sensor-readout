@@ -347,7 +347,23 @@ public sealed partial class SensorReadoutForm : Form
             "    if ((Test-Path -LiteralPath $lower) -and -not (Test-Path -LiteralPath $proper)) { Rename-Item -LiteralPath $lower -NewName $name -ErrorAction SilentlyContinue }\r\n" +
             "    elseif (Test-Path -LiteralPath $lower) { Rename-Item -LiteralPath $lower -NewName ($name + '_case_tmp') -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $tmpCase) { Rename-Item -LiteralPath $tmpCase -NewName $name -ErrorAction SilentlyContinue } }\r\n" +
             "  }\r\n" +
-            "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $target $_.Name) -Recurse -Force }\r\n" +
+            "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object {\r\n" +
+            "    $destination = Join-Path $target $_.Name\r\n" +
+            "    if ($_.PSIsContainer -and (Test-Path -LiteralPath $destination)) {\r\n" +
+            "      Get-ChildItem -LiteralPath $_.FullName -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $destination $_.Name) -Recurse -Force }\r\n" +
+            "    } else {\r\n" +
+            "      Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force\r\n" +
+            "    }\r\n" +
+            "  }\r\n" +
+            "  foreach ($folder in Get-ChildItem -LiteralPath $target -Directory -Force) {\r\n" +
+            "    $name = $folder.Name\r\n" +
+            "    $proper = Join-Path $target $name\r\n" +
+            "    $nested = Join-Path $proper $name\r\n" +
+            "    if (Test-Path -LiteralPath $nested) {\r\n" +
+            "      Get-ChildItem -LiteralPath $nested -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $proper $_.Name) -Recurse -Force }\r\n" +
+            "      Remove-Item -LiteralPath $nested -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
+            "    }\r\n" +
+            "  }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +

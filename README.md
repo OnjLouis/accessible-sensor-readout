@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.4.1.
+Current version: 1.4.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -80,7 +80,7 @@ Optional troubleshooting tool:
 winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 ```
 
-You can also run `Install-Prerequisites.cmd` from this folder. It calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, checks for winget, and installs .NET Framework Runtime plus PawnIO. To also install the standalone LibreHardwareMonitor app, run:
+You can also run `Install-Prerequisites.cmd` from this folder. It calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime. To also install the standalone LibreHardwareMonitor app with winget, run:
 
 ```powershell
 .\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
@@ -263,6 +263,12 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
 ## Changelog
+
+### 1.4.2
+
+- Fixed: Automatic update installs now merge folder contents into existing folders instead of creating nested folders such as `Langs\Langs`, `Docs\Docs`, or `Sounds\Sounds`.
+- Fixed: Sensor Readout repairs installs already affected by nested update folders on startup, moving the newer files back into the correct locations.
+- Improved: The prerequisite installer now falls back from winget to Chocolatey, then to the official PawnIO.Setup GitHub download when winget is unavailable.
 
 ### 1.4.1
 

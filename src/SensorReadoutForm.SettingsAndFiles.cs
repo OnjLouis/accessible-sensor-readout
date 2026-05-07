@@ -457,9 +457,59 @@ public sealed partial class SensorReadoutForm : Form
         {
             MoveTopLevelFilesToFolder("*.json", GetConfigFolderPath());
             MoveTopLevelFilesToFolder("*.log", GetLogsFolderPath());
+            RepairNestedUpdateFolders();
         }
         catch
         {
+        }
+    }
+
+    private static void RepairNestedUpdateFolders()
+    {
+        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        if (!System.IO.Directory.Exists(baseDirectory))
+        {
+            return;
+        }
+
+        foreach (var folder in System.IO.Directory.GetDirectories(baseDirectory, "*", System.IO.SearchOption.TopDirectoryOnly))
+        {
+            RepairNestedUpdateFolder(folder);
+        }
+    }
+
+    private static void RepairNestedUpdateFolder(string parent)
+    {
+        var folderName = System.IO.Path.GetFileName(parent.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+        if (string.IsNullOrWhiteSpace(folderName))
+        {
+            return;
+        }
+
+        var nested = System.IO.Path.Combine(parent, folderName);
+        if (!System.IO.Directory.Exists(nested))
+        {
+            return;
+        }
+
+        CopyDirectoryContents(nested, parent);
+        System.IO.Directory.Delete(nested, true);
+    }
+
+    private static void CopyDirectoryContents(string sourceFolder, string destinationFolder)
+    {
+        System.IO.Directory.CreateDirectory(destinationFolder);
+        foreach (var sourcePath in System.IO.Directory.GetFileSystemEntries(sourceFolder))
+        {
+            var destinationPath = System.IO.Path.Combine(destinationFolder, System.IO.Path.GetFileName(sourcePath));
+            if (System.IO.Directory.Exists(sourcePath))
+            {
+                CopyDirectoryContents(sourcePath, destinationPath);
+            }
+            else
+            {
+                System.IO.File.Copy(sourcePath, destinationPath, true);
+            }
         }
     }
 
