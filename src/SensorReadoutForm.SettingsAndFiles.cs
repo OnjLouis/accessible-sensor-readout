@@ -14,7 +14,12 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
-        var key = e.KeyCode;
+        return HotKeyTextFromKeyData(e.KeyData);
+    }
+
+    public static string HotKeyTextFromKeyData(Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
         if (key == Keys.ControlKey || key == Keys.ShiftKey || key == Keys.Menu ||
             key == Keys.LWin || key == Keys.RWin || key == Keys.None)
         {
@@ -22,9 +27,9 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var parts = new List<string>();
-        if (e.Control) parts.Add("Ctrl");
-        if (e.Alt) parts.Add("Alt");
-        if (e.Shift) parts.Add("Shift");
+        if ((keyData & Keys.Control) == Keys.Control) parts.Add("Ctrl");
+        if ((keyData & Keys.Alt) == Keys.Alt) parts.Add("Alt");
+        if ((keyData & Keys.Shift) == Keys.Shift) parts.Add("Shift");
         parts.Add(KeyToHotKeyPart(key));
         return parts.Count < 2 ? "" : string.Join("+", parts.ToArray());
     }

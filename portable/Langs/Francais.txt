@@ -328,3 +328,4 @@ a11y.Alarm sound=Son de l alarme
 ui.Double-press hotkey copies:=Double pression copie:
 ui.Windows default ({0} ms)=Defaut Windows ({0} ms)
 a11y.Double-press hotkey copies=Double pression du raccourci copie
+message.copiedToClipboard=Copie dans le presse-papiers.

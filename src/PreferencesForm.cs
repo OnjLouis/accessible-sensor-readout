@@ -997,6 +997,12 @@ public sealed class PreferencesForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        var hotKeyBox = FocusedHotKeyBox();
+        if (hotKeyBox != null && HandleHotKeyBoxCommandKey(hotKeyBox, keyData))
+        {
+            return true;
+        }
+
         if (keyData == Keys.Enter)
         {
             if (alarmList != null && alarmList.Focused)
@@ -1083,6 +1089,45 @@ public sealed class PreferencesForm : Form
         }
 
         return false;
+    }
+
+    private TextBox FocusedHotKeyBox()
+    {
+        if (showHideHotKeyBox != null && showHideHotKeyBox.Focused)
+        {
+            return showHideHotKeyBox;
+        }
+
+        if (speakTrayHotKeyBox != null && speakTrayHotKeyBox.Focused)
+        {
+            return speakTrayHotKeyBox;
+        }
+
+        if (spokenHotKeyBox != null && spokenHotKeyBox.Focused)
+        {
+            return spokenHotKeyBox;
+        }
+
+        return null;
+    }
+
+    private static bool HandleHotKeyBoxCommandKey(TextBox box, Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
+        if (key == Keys.Back || key == Keys.Delete || key == Keys.Escape)
+        {
+            box.Text = "";
+            return true;
+        }
+
+        var text = SensorReadoutForm.HotKeyTextFromKeyData(keyData);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        box.Text = text;
+        return true;
     }
 
     private static bool FocusedControlShouldKeepPlainCharacters(Control.ControlCollection controls)

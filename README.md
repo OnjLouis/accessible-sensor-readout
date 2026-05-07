@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.4.0.
+Current version: 1.4.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -263,6 +263,11 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
 ## Changelog
+
+### 1.4.1
+
+- Fixed: Ctrl+Alt combinations can now be captured correctly when assigning global hotkeys in Preferences.
+- Added: Double-press copy actions now speak "Copied to Clipboard." through NVDA after the text is copied.
 
 ### 1.4.0
 

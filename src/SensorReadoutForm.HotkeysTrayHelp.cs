@@ -211,12 +211,27 @@ public sealed partial class SensorReadoutForm : Form
             Clipboard.SetText(text);
             statusLabel.Text = "Copied " + description + " to clipboard.";
             LogMessage("Normal", "Copied " + description + " to clipboard: " + text);
+            AnnounceCopiedToClipboard();
         }
         catch (Exception ex)
         {
             statusLabel.Text = "Could not copy " + description + " to clipboard.";
             LogError("Could not copy " + description + " to clipboard: " + ex.Message);
             System.Media.SystemSounds.Beep.Play();
+        }
+    }
+
+    private void AnnounceCopiedToClipboard()
+    {
+        string error;
+        var message = T("message.copiedToClipboard", "Copied to Clipboard.");
+        if (NvdaController.TrySpeak(message, out error))
+        {
+            LogMessage("Debug", "Announced clipboard copy with NVDA.");
+        }
+        else
+        {
+            LogMessage("Debug", "Clipboard copy announcement was not spoken. " + error);
         }
     }
 
