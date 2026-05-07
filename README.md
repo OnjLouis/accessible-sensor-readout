@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.3.0.
+Current version: 1.3.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -238,6 +238,10 @@ The app must run as administrator for motherboard Super I/O access on many syste
 
 ## Changelog
 
+### 1.3.1
+
+- Added: Optional Core Temp shared-memory fallback for CPU temperatures and CPU load when Core Temp is already running.
+- Fixed: Systems where LibreHardwareMonitor exposes no CPU temperature can now still show CPU readings if Core Temp supports the processor.
 ### 1.3.0
 
 - New: Create multiple spoken hotkey profiles, each with its own key combination and ordered set of readings.

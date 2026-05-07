@@ -296,3 +296,4 @@ a11y.Press F2 to rename the spoken label. Press Control Left Arrow to remove the
 ui.Celsius, then Fahrenheit=Celsius, puis Fahrenheit
 ui.Remove &profile=Supprimer le &profil
 ui.Fahrenheit, then Celsius=Fahrenheit, puis Celsius
+source.Core Temp shared memory=Core Temp shared memory
