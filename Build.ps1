@@ -10,7 +10,7 @@ if (-not (Test-Path $csc)) {
 }
 
 $portable = Join-Path $PSScriptRoot 'portable'
-$source = Join-Path $PSScriptRoot 'src\SensorReadoutApp.cs'
+$sources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $manifest = Join-Path $PSScriptRoot 'src\SensorReadoutApp.exe.manifest'
 
 $references = @(
@@ -23,7 +23,7 @@ $references = @(
     (Join-Path $portable 'Newtonsoft.Json.dll')
 ) -join ','
 
-& $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /out:$OutputPath /reference:$references $source
+& $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /out:$OutputPath /reference:$references $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }

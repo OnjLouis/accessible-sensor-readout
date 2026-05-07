@@ -2,3 +2,4 @@
 *.exe binary
 *.dll binary
 *.ico binary
+*.wav binary

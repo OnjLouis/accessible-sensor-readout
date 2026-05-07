@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.3.1.
+Current version: 1.4.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -37,6 +37,8 @@ Sensor Readout can be found [on GitHub](https://github.com/OnjLouis/accessible-s
 - Supports simple user-editable language files in the `Langs` folder.
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
+- Can run opt-in alarms for selected readings, speaking through NVDA and/or playing a chosen WAV file when a threshold is reached.
+- Can play optional startup and shutdown sounds from the `Sounds` folder.
 
 ## Prerequisites
 
@@ -118,6 +120,9 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Alt+X` | Set all visible fan controls to maximum. |
 | `Alt+S` | Show or hide stopped fan headers. |
 | `Alt+P` | Pause automatic updates. |
+| `Ctrl+1` to `Ctrl+6` | In Preferences, jump to General, Startup, Hotkeys, Alarms, Hidden items, or Language editor. |
+| `F2` | In Preferences lists, jump to the name or rename field where applicable. |
+| `Enter` | In Preferences lists, jump to the main value field where applicable. |
 | `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
 | `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
 | `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
@@ -128,7 +133,19 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Alt+U` / `Alt+W` | In Preferences > Hotkeys, move the selected spoken-hotkey reading up or down. |
 | `Alt+R` | In Preferences > Hotkeys, rename the selected spoken label. |
 | `Alt+D` | In Preferences > Hotkeys, reset the selected spoken label to default. |
-| `Delete` | In Preferences > Hotkeys, reset the selected spoken label to default. |
+| `Delete` | In Preferences, remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
+
+## Command-Line Options
+
+Sensor Readout can also be started with a few command-line options:
+
+| Option | Action |
+| --- | --- |
+| `--minimized` or `--tray` | Start minimized to the notification area. |
+| `--close` | Close any running Sensor Readout instance and exit. |
+| `--report-txt [path]` | Save a text report and exit. If no path is supplied, a timestamped report is created in the current folder. |
+| `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the current folder. |
+| --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
 
@@ -144,12 +161,19 @@ Use `Options` > `Preferences` or `Ctrl+,` to configure:
 - Hidden readings and groups.
 - Logging level: Off, Error, Normal, or Debug.
 - Whether spoken feedback includes device names before selected readings.
+- Whether double-pressing a speech hotkey copies that spoken text to the clipboard, using Windows double-click timing by default.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
 
 The startup option creates or removes a `Sensor Readout.lnk` shortcut in the current user's Windows Startup folder. If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
 Notification area readings are selected from an Available readings list and moved into a Tray order list. The tray order is limited to four readings because Windows notification tooltips are short. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
+
+## Alarms And Sounds
+
+Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through NVDA, play a WAV file, or both.
+
+Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on; users can add their own `.wav` files to the same folder.
 
 ## Reading Sensors
 
@@ -199,15 +223,11 @@ Portable build:
 
 - `Sensor Readout.exe`
 
-Source:
-
-- `src\SensorReadoutApp.cs`
-- `src\SensorReadoutApp.exe.manifest`
-
 Configuration and logging created by the app:
 
 - `Config\<ComputerName>.json`: refresh, notification area, hidden-item, fan-label, and logging preferences.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and NVDA speech messages, created only when logging is enabled.
+- `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 
 Language files:
 
@@ -215,7 +235,7 @@ Language files:
 - On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.
 - Use simple `key=value` lines. Lines starting with `#` or `;` are comments.
 - Set `language.name=Display name` so the language has a clear name in menus.
-- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `Docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.md`, then falls back to `README-en.md`.
+- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `Docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.html`, then falls back to `README-en.html`.
 - Set `number.decimalSeparator=,` if the language should display decimal values with a comma, such as `1,1 TB`.
 - Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
 - `Langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
@@ -236,7 +256,22 @@ Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip
 
 The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.
 
+If CPU temperature or CPU load readings are missing, installing and running Core Temp may help. Sensor Readout can read Core Temp's shared-memory data when Core Temp is already running. Core Temp is optional and is only used as a fallback for CPU readings.
+
+If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
+
 ## Changelog
+
+### 1.4.0
+
+- New: Reading alarms can monitor numeric sensor values and notify with NVDA speech, optional WAV sounds, per-alarm cooldowns, and a flashing notification-area icon.
+- New: Alarm thresholds are unit-aware. Temperature alarms can use C or F, fan alarms use RPM, rate alarms can use B/s, KB/s, MB/s, or GB/s, and size-style readings can use byte units where applicable.
+- New: Startup and shutdown sounds can be chosen from the Sounds folder, with preview while choosing a sound.
+- New: Speech hotkeys can copy their spoken output to the clipboard with an optional double-press gesture.
+- New: Preferences now supports Delete for removing selected items, Ctrl+1 through Ctrl+6 for jumping between tabs, F2 for name/edit fields, and Enter for the main value field where applicable.
+- Changed: Source code has been split into focused files for startup, models, preferences, the main form, and native/NVDA interop, making future maintenance safer.
+- Added: Command-line options for starting minimized, closing a running instance, setting the logging level, and saving TXT or HTML reports.
+- Fixed: Update-available release notes now display GitHub changelog lines clearly instead of running Markdown items together.
 
 ### 1.3.1
 

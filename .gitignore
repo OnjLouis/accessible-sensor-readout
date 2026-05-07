@@ -1,4 +1,6 @@
 portable/*.json
+portable/Config/
+portable/Logs/
 release-stage/
 *.zip
 *.user
