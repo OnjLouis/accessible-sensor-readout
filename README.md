@@ -10,6 +10,8 @@ Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://gi
 
 Sensor Readout can be found [on GitHub](https://github.com/OnjLouis/accessible-sensor-readout).
 
+For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOURCE-MAP.md).
+
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, and selected hardware counters.
