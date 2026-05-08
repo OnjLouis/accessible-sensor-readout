@@ -38,6 +38,16 @@ public static class Program
             return;
         }
 
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        if (saveReport)
+        {
+            SaveCommandLineReport(reportPath, reportHtml);
+            return;
+        }
+
+        CloseOtherInstances();
+
         bool createdNew;
         using (var mutex = new System.Threading.Mutex(true, @"Local\OnjSensorReadoutApp", out createdNew))
         {
@@ -48,14 +58,6 @@ public static class Program
                     "Sensor Readout",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
-                return;
-            }
-
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            if (saveReport)
-            {
-                SaveCommandLineReport(reportPath, reportHtml);
                 return;
             }
 

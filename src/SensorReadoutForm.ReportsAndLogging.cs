@@ -43,15 +43,36 @@ public sealed partial class SensorReadoutForm : Form
             throw new ArgumentException("Report path is required.", "path");
         }
 
+        var totalStopwatch = Stopwatch.StartNew();
+        var refreshStopwatch = Stopwatch.StartNew();
         if (refreshFirst)
         {
             latestRows.Clear();
-            latestRows.AddRange(CollectSensorRows());
+            latestRows.AddRange(CollectSensorRows(true));
         }
+        refreshStopwatch.Stop();
 
         EnsureDirectoryForFile(path);
-        var report = html ? BuildHtmlReport() : BuildTextReport();
+        var renderStopwatch = Stopwatch.StartNew();
+        var timingLine = BuildReportTimingLine(refreshFirst, refreshStopwatch.Elapsed, renderStopwatch.Elapsed, totalStopwatch.Elapsed, false);
+        var report = html ? BuildHtmlReport(timingLine) : BuildTextReport(timingLine);
+        renderStopwatch.Stop();
+
+        timingLine = BuildReportTimingLine(refreshFirst, refreshStopwatch.Elapsed, renderStopwatch.Elapsed, totalStopwatch.Elapsed, false);
+        report = html ? BuildHtmlReport(timingLine) : BuildTextReport(timingLine);
+
+        var writeStopwatch = Stopwatch.StartNew();
         System.IO.File.WriteAllText(path, report);
+        writeStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        LogMessage(
+            "Debug",
+            "Saved " + (html ? "HTML" : "text") + " report to " + path +
+            " with " + latestRows.Count + " rows in " + FormatElapsed(totalStopwatch.Elapsed) +
+            ". Refresh=" + (refreshFirst ? FormatElapsed(refreshStopwatch.Elapsed) : "not requested") +
+            "; render=" + FormatElapsed(renderStopwatch.Elapsed) +
+            "; write=" + FormatElapsed(writeStopwatch.Elapsed) + ".");
     }
 
     private static string FormatElapsed(TimeSpan elapsed)
@@ -64,11 +85,28 @@ public sealed partial class SensorReadoutForm : Form
         return FormatNumber(elapsed.TotalMilliseconds, "0") + " ms";
     }
 
-    private string BuildTextReport()
+    private static string BuildReportTimingLine(bool refreshed, TimeSpan refreshElapsed, TimeSpan renderElapsed, TimeSpan totalElapsed, bool includeWrite)
+    {
+        var parts = new List<string>();
+        if (refreshed)
+        {
+            parts.Add("refresh " + FormatElapsed(refreshElapsed));
+        }
+
+        parts.Add("render " + FormatElapsed(renderElapsed));
+        parts.Add((includeWrite ? "total" : "prepared") + " " + FormatElapsed(totalElapsed));
+        return "Report timing: " + string.Join(", ", parts.ToArray()) + ".";
+    }
+
+    private string BuildTextReport(string timingLine)
     {
         var lines = new List<string>();
         lines.Add("Sensor Readout report");
         lines.Add("Generated " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        if (!string.IsNullOrWhiteSpace(timingLine))
+        {
+            lines.Add(timingLine);
+        }
         lines.Add("");
 
         foreach (var typeGroup in latestRows
@@ -86,6 +124,13 @@ public sealed partial class SensorReadoutForm : Form
                 foreach (var row in hardwareGroup)
                 {
                     lines.Add("    " + CleanSensorName(row.Name) + ": " + FormatValue(row));
+                    if (row.Details != null && row.Details.Count > 0)
+                    {
+                        foreach (var detail in OrderedReportDetails(row))
+                        {
+                            lines.Add("      " + detail.Key + ": " + detail.Value);
+                        }
+                    }
                 }
             }
 
@@ -95,7 +140,7 @@ public sealed partial class SensorReadoutForm : Form
         return string.Join(Environment.NewLine, lines.ToArray());
     }
 
-    private string BuildHtmlReport()
+    private string BuildHtmlReport(string timingLine)
     {
         var html = new System.Text.StringBuilder();
         html.AppendLine("<!doctype html>");
@@ -104,6 +149,10 @@ public sealed partial class SensorReadoutForm : Form
         html.AppendLine("</head><body>");
         html.AppendLine("<h1>Sensor Readout report</h1>");
         html.AppendLine("<p>Generated " + HtmlEncode(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")) + "</p>");
+        if (!string.IsNullOrWhiteSpace(timingLine))
+        {
+            html.AppendLine("<p>" + HtmlEncode(timingLine) + "</p>");
+        }
         foreach (var typeGroup in latestRows
             .Where(r => r.Type != "Fan Control")
             .OrderBy(r => TypeSortIndex(r.Type))
@@ -120,6 +169,15 @@ public sealed partial class SensorReadoutForm : Form
                 foreach (var row in hardwareGroup)
                 {
                     html.AppendLine("<tr><td>" + HtmlEncode(CleanSensorName(row.Name)) + "</td><td>" + HtmlEncode(FormatValue(row)) + "</td><td>" + HtmlEncode(row.Source) + "</td></tr>");
+                    if (row.Details != null && row.Details.Count > 0)
+                    {
+                        html.AppendLine("<tr><td colspan=\"3\"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
+                        foreach (var detail in OrderedReportDetails(row))
+                        {
+                            html.AppendLine("<tr><td>" + HtmlEncode(detail.Key) + "</td><td>" + HtmlEncode(detail.Value) + "</td></tr>");
+                        }
+                        html.AppendLine("</tbody></table></td></tr>");
+                    }
                 }
 
                 html.AppendLine("</tbody></table>");
@@ -130,6 +188,19 @@ public sealed partial class SensorReadoutForm : Form
         return html.ToString();
     }
 
+    private static IEnumerable<KeyValuePair<string, string>> OrderedReportDetails(SensorRow row)
+    {
+        if (row == null || row.Details == null)
+        {
+            return Enumerable.Empty<KeyValuePair<string, string>>();
+        }
+
+        return row.Details
+            .Where(p => !string.IsNullOrWhiteSpace(p.Value))
+            .OrderBy(p => UsbDetailSortIndex(p.Key))
+            .ThenBy(p => p.Key);
+    }
+
     private SensorRow GetSelectedReadingRow()
     {
         return readingTree.SelectedNode == null ? null : readingTree.SelectedNode.Tag as SensorRow;
@@ -137,6 +208,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SetLibreHardwareMonitorControl(string controlIdentifier, int percent, bool manual)
     {
+        controlIdentifier = IdentifierFromSettingsKey(controlIdentifier);
         lock (lhmLock)
         {
             EnsureLibreHardwareMonitorComputerOpen();
@@ -153,11 +225,6 @@ public sealed partial class SensorReadoutForm : Form
             else
             {
                 sensor.Control.SetDefault();
-            }
-
-            foreach (var hardware in lhmComputer.Hardware)
-            {
-                UpdateHardware(hardware);
             }
         }
     }
@@ -202,11 +269,27 @@ public sealed partial class SensorReadoutForm : Form
     {
         foreach (var hardware in computer.Hardware)
         {
-            UpdateHardware(hardware);
+            UpdateHardware(hardware, false);
         }
 
-        return GetAllSensors(computer.Hardware)
+        return GetAllSensorsWithoutUpdating(computer.Hardware)
             .FirstOrDefault(s => s.Control != null && string.Equals(s.Identifier == null ? "" : s.Identifier.ToString(), identifier, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IEnumerable<ISensor> GetAllSensorsWithoutUpdating(IEnumerable<IHardware> hardwareItems)
+    {
+        foreach (var hardware in hardwareItems)
+        {
+            foreach (var sensor in hardware.Sensors)
+            {
+                yield return sensor;
+            }
+
+            foreach (var sensor in GetAllSensorsWithoutUpdating(hardware.SubHardware))
+            {
+                yield return sensor;
+            }
+        }
     }
 
     private static IEnumerable<ISensor> GetAllSensors(IEnumerable<IHardware> hardwareItems)
@@ -238,7 +321,7 @@ public sealed partial class SensorReadoutForm : Form
             .Trim();
     }
 
-    private static string BaseFanControlName(string name)
+    internal static string BaseFanControlName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -254,7 +337,7 @@ public sealed partial class SensorReadoutForm : Form
         return CleanControlName(name);
     }
 
-    private static string BaseFanReadingName(string name)
+    internal static string BaseFanReadingName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -274,7 +357,7 @@ public sealed partial class SensorReadoutForm : Form
         return BaseFanControlName(name);
     }
 
-    private static bool IsGpuControl(string identifier)
+    internal static bool IsGpuControl(string identifier)
     {
         return !string.IsNullOrWhiteSpace(identifier) &&
             (identifier.IndexOf("NVApi", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -283,7 +366,7 @@ public sealed partial class SensorReadoutForm : Form
             identifier.IndexOf("gpu-amd", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
-    private static int ControlSortKey(string identifier)
+    internal static int ControlSortKey(string identifier)
     {
         if (string.IsNullOrWhiteSpace(identifier))
         {
@@ -304,7 +387,7 @@ public sealed partial class SensorReadoutForm : Form
         return IsGpuControl(identifier) ? 90000 : 80000;
     }
 
-    private static string GuessControlIdentifier(string fanIdentifier)
+    internal static string GuessControlIdentifier(string fanIdentifier)
     {
         if (string.IsNullOrWhiteSpace(fanIdentifier))
         {
@@ -317,7 +400,7 @@ public sealed partial class SensorReadoutForm : Form
             .Replace("-A/fan/", "-A/control/");
     }
 
-    private static string GuessFanIdentifier(string controlIdentifier)
+    internal static string GuessFanIdentifier(string controlIdentifier)
     {
         if (string.IsNullOrWhiteSpace(controlIdentifier))
         {

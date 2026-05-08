@@ -40,7 +40,7 @@ public sealed partial class SensorReadoutForm : Form
             var message = BuildAlarmMessage(alarm, row);
             if (alarm.Speak)
             {
-                SpeakTextWithNvdaPolite(message, "alarm");
+                SpeakTextWithScreenReaderPolite(message, "alarm");
             }
 
             if (!string.IsNullOrWhiteSpace(alarm.SoundFile))

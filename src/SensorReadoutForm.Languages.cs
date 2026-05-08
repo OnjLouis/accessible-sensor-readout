@@ -22,7 +22,7 @@ public sealed partial class SensorReadoutForm : Form
     private void CheckLanguageFolderChanged()
     {
         var oldSignature = languageFolderSignature;
-        RefreshLanguageChoices(true);
+        RefreshLanguageChoices(false);
         if (!string.Equals(oldSignature, languageFolderSignature, StringComparison.Ordinal))
         {
             BuildLanguageMenu();
@@ -228,12 +228,37 @@ public sealed partial class SensorReadoutForm : Form
             translated = T("ui." + StripMenuMnemonic(label), label);
         }
 
-        return translated + shortcut;
+        return PreserveMenuMnemonic(label, translated) + shortcut;
     }
 
     private static string StripMenuMnemonic(string text)
     {
         return (text ?? "").Replace("&&", "\u0001").Replace("&", "").Replace("\u0001", "&");
+    }
+
+    private static string PreserveMenuMnemonic(string original, string translated)
+    {
+        if (string.IsNullOrWhiteSpace(original) || string.IsNullOrWhiteSpace(translated) || translated.IndexOf('&') >= 0)
+        {
+            return translated;
+        }
+
+        var index = original.IndexOf('&');
+        if (index < 0 || index >= original.Length - 1)
+        {
+            return translated;
+        }
+
+        var mnemonic = char.ToUpperInvariant(original[index + 1]);
+        for (var i = 0; i < translated.Length; i++)
+        {
+            if (char.ToUpperInvariant(translated[i]) == mnemonic)
+            {
+                return translated.Substring(0, i) + "&" + translated.Substring(i);
+            }
+        }
+
+        return "&" + translated;
     }
 
     public static string L(string key, string fallback)

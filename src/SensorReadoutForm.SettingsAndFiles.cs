@@ -355,6 +355,8 @@ public sealed partial class SensorReadoutForm : Form
             TrayStatusEnabled = value.TrayStatusEnabled,
             StartMinimizedToTray = value.StartMinimizedToTray,
             CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
+            UpdateCheckFrequency = value.UpdateCheckFrequency,
+            LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
             StartupSoundFile = value.StartupSoundFile,
             ShutdownSoundFile = value.ShutdownSoundFile
         };
@@ -385,6 +387,9 @@ public sealed partial class SensorReadoutForm : Form
                     i => i.Key,
                     i => new FanControlSetting { Manual = i.Value.Manual, Percent = i.Value.Percent },
                     StringComparer.OrdinalIgnoreCase),
+            FanProfileStarterProfilesInitialized = value.FanProfileStarterProfilesInitialized,
+            FanProfiles = CloneFanProfiles(value.FanProfiles),
+            FanCurves = CloneFanCurves(value.FanCurves),
             ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
             Alarms = (value.Alarms ?? new List<AlarmSetting>())
                 .Select(a => new AlarmSetting
@@ -425,6 +430,8 @@ public sealed partial class SensorReadoutForm : Form
         target.TrayStatusEnabled = shared.TrayStatusEnabled;
         target.StartMinimizedToTray = shared.StartMinimizedToTray;
         target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
+        target.UpdateCheckFrequency = shared.UpdateCheckFrequency;
+        target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
         target.StartupSoundFile = shared.StartupSoundFile;
         target.ShutdownSoundFile = shared.ShutdownSoundFile;
     }
@@ -445,6 +452,9 @@ public sealed partial class SensorReadoutForm : Form
         value.ShowHideHotKey = NormalizeHotKeyText(value.ShowHideHotKey);
         value.SpeakTrayHotKey = NormalizeHotKeyText(value.SpeakTrayHotKey);
         value.HotKeyCopyDoublePressMs = NormalizeHotKeyCopyDoublePressMs(value.HotKeyCopyDoublePressMs);
+        value.UpdateCheckFrequency = NormalizeUpdateCheckFrequency(string.IsNullOrWhiteSpace(value.UpdateCheckFrequency) ? (value.CheckForUpdatesAtStartup ? "Startup" : "Never") : value.UpdateCheckFrequency);
+        value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
+        value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
@@ -479,6 +489,8 @@ public sealed partial class SensorReadoutForm : Form
                 i => i.Key,
                 i => new FanControlSetting { Manual = i.Value.Manual, Percent = Math.Max(0, Math.Min(100, i.Value.Percent)) },
                 StringComparer.OrdinalIgnoreCase);
+        value.FanProfiles = CloneFanProfiles(value.FanProfiles);
+        value.FanCurves = CloneFanCurves(value.FanCurves);
         value.ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && !string.IsNullOrWhiteSpace(i.Value))
             .ToDictionary(i => i.Key, i => i.Value.Trim(), StringComparer.OrdinalIgnoreCase);
@@ -509,6 +521,9 @@ public sealed partial class SensorReadoutForm : Form
         value.ShowHideHotKey = NormalizeHotKeyText(value.ShowHideHotKey);
         value.SpeakTrayHotKey = NormalizeHotKeyText(value.SpeakTrayHotKey);
         value.HotKeyCopyDoublePressMs = NormalizeHotKeyCopyDoublePressMs(value.HotKeyCopyDoublePressMs);
+        value.UpdateCheckFrequency = NormalizeUpdateCheckFrequency(string.IsNullOrWhiteSpace(value.UpdateCheckFrequency) ? (value.CheckForUpdatesAtStartup ? "Startup" : "Never") : value.UpdateCheckFrequency);
+        value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
+        value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
         if (!string.IsNullOrWhiteSpace(value.ShowHideHotKey) &&
             string.Equals(value.ShowHideHotKey, value.SpeakTrayHotKey, StringComparison.OrdinalIgnoreCase))
@@ -534,6 +549,22 @@ public sealed partial class SensorReadoutForm : Form
                 reservedHotKeys.Add(profile.HotKey);
             }
         }
+        foreach (var profile in value.FanProfiles)
+        {
+            if (string.IsNullOrWhiteSpace(profile.HotKey))
+            {
+                continue;
+            }
+
+            if (reservedHotKeys.Contains(profile.HotKey))
+            {
+                profile.HotKey = "";
+            }
+            else
+            {
+                reservedHotKeys.Add(profile.HotKey);
+            }
+        }
         value.LoggingLevel = NormalizeLoggingLevel(value.LoggingLevel);
         if (value.RunAtStartup)
         {
@@ -544,6 +575,63 @@ public sealed partial class SensorReadoutForm : Form
         {
             value.TrayStatusEnabled = true;
         }
+    }
+
+    private static List<FanCurveSetting> CloneFanCurves(IEnumerable<FanCurveSetting> curves)
+    {
+        return (curves ?? new List<FanCurveSetting>())
+            .Where(c => c != null)
+            .Select(c =>
+            {
+                var lowTemperature = Math.Max(-100, Math.Min(150, c.LowTemperatureC));
+                var highTemperature = Math.Max(-100, Math.Min(150, c.HighTemperatureC));
+                if (highTemperature <= lowTemperature)
+                {
+                    highTemperature = lowTemperature + 1;
+                }
+
+                var emergencyTemperature = Math.Max(highTemperature, Math.Min(150, c.EmergencyTemperatureC));
+                return new FanCurveSetting
+                {
+                    Name = c.Name ?? "",
+                    FanControlKey = c.FanControlKey ?? "",
+                    TemperatureReadingKey = c.TemperatureReadingKey ?? "",
+                    Enabled = c.Enabled,
+                    LowTemperatureC = lowTemperature,
+                    LowPercent = Math.Max(0, Math.Min(100, c.LowPercent)),
+                    HighTemperatureC = highTemperature,
+                    HighPercent = Math.Max(0, Math.Min(100, c.HighPercent)),
+                    EmergencyTemperatureC = emergencyTemperature,
+                    EmergencyPercent = Math.Max(0, Math.Min(100, c.EmergencyPercent)),
+                    MinimumChangePercent = Math.Max(0, Math.Min(25, c.MinimumChangePercent))
+                };
+            })
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name) || !string.IsNullOrWhiteSpace(c.FanControlKey) || !string.IsNullOrWhiteSpace(c.TemperatureReadingKey))
+            .ToList();
+    }
+
+    private static List<FanProfileSetting> CloneFanProfiles(IEnumerable<FanProfileSetting> profiles)
+    {
+        return (profiles ?? new List<FanProfileSetting>())
+            .Where(p => p != null)
+            .Select(p => new FanProfileSetting
+            {
+                Name = p.Name ?? "",
+                HotKey = NormalizeHotKeyText(p.HotKey),
+                Actions = (p.Actions ?? new List<FanProfileActionSetting>())
+                    .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
+                    .Select(a => new FanProfileActionSetting
+                    {
+                        FanControlKey = IdentifierFromSettingsKey(a.FanControlKey),
+                        Manual = a.Manual,
+                        Percent = Math.Max(0, Math.Min(100, a.Percent))
+                    })
+                    .GroupBy(a => a.FanControlKey, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.Last())
+                    .ToList()
+            })
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || p.Actions.Count > 0)
+            .ToList();
     }
 
     public static string NormalizeAlarmCondition(string condition)
@@ -574,6 +662,17 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return Math.Max(100, Math.Min(5000, value));
+    }
+
+    private static string NormalizeUtcDateString(string value)
+    {
+        DateTime date;
+        if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out date))
+        {
+            return "";
+        }
+
+        return date.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);
     }
 
     private static string NormalizeLoggingLevel(string level)
@@ -643,9 +742,27 @@ public sealed partial class SensorReadoutForm : Form
             MoveTopLevelFilesToFolder("*.json", GetConfigFolderPath());
             MoveTopLevelFilesToFolder("*.log", GetLogsFolderPath());
             RepairNestedUpdateFolders();
+            DeleteObsoletePortableFiles();
         }
         catch
         {
+        }
+    }
+
+    private static void DeleteObsoletePortableFiles()
+    {
+        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        foreach (var fileName in new[]
+        {
+            "nvdaControllerClient.dll",
+            "nvdaControllerClient.LICENSE.txt"
+        })
+        {
+            var path = System.IO.Path.Combine(baseDirectory, fileName);
+            if (System.IO.File.Exists(path))
+            {
+                System.IO.File.Delete(path);
+            }
         }
     }
 

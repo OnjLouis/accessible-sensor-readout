@@ -1,19 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    private const string AppVersion = "1.4.3";
+    private const string AppVersion = "1.5.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
     private const int RefreshIntervalMs = 5000;
+    private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
     private const int SpokenHotKeyBaseId = 2100;
+    private const int FanProfileHotKeyBaseId = 2200;
     private const int WmHotKey = 0x0312;
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
@@ -37,6 +40,7 @@ public sealed partial class SensorReadoutForm : Form
     private CheckBox showStoppedFansCheckBox;
     private readonly Timer timer;
     private readonly Timer languageTimer;
+    private readonly Timer updateCheckTimer;
     private readonly NotifyIcon trayIcon;
     private Timer trayFlashTimer;
     private Icon trayStatusIcon;
@@ -53,8 +57,10 @@ public sealed partial class SensorReadoutForm : Form
     private string lastReadingTreeShapeSignature = "";
     private string lastReadingTreeFilterKey = "";
     private bool readingTreeExpansionInitialized;
+    private bool automaticUpdateCheckStartedThisRun;
     private string currentTrayStatusText = "Sensor Readout";
     private readonly Dictionary<int, SpokenHotKeySetting> registeredSpokenHotKeys = new Dictionary<int, SpokenHotKeySetting>();
+    private readonly Dictionary<int, FanProfileSetting> registeredFanProfileHotKeys = new Dictionary<int, FanProfileSetting>();
     private readonly Dictionary<string, DateTime> alarmLastTriggeredUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
     private int trayFlashTicksRemaining;
     private bool trayFlashShowingAlarm;
@@ -67,6 +73,26 @@ public sealed partial class SensorReadoutForm : Form
     private PreferencesForm openPreferencesDialog;
     private readonly HotKeyWindow hotKeyWindow;
     private readonly Dictionary<string, NetworkSnapshot> networkSnapshots = new Dictionary<string, NetworkSnapshot>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, LogicalDiskPerformanceCounters> logicalDiskCounters = new Dictionary<string, LogicalDiskPerformanceCounters>(StringComparer.OrdinalIgnoreCase);
+    private readonly object logicalDiskCountersLock = new object();
+    private readonly Dictionary<string, int> lastAppliedFanCurvePercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTime> lastAppliedFanCurveUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+    private UsbDiagnosticSnapshot lastUsbDiagnosticSnapshot = new UsbDiagnosticSnapshot();
+    private bool hasLastCpuTimes;
+    private ulong lastCpuIdleTime;
+    private ulong lastCpuKernelTime;
+    private ulong lastCpuUserTime;
+    private readonly object slowRowsLock = new object();
+    private List<SensorRow> cachedSlowRows = new List<SensorRow>();
+    private DateTime cachedSlowRowsUtc = DateTime.MinValue;
+    private readonly object lhmRowsLock = new object();
+    private List<SensorRow> cachedLhmRows = new List<SensorRow>();
+    private DateTime cachedLhmRowsUtc = DateTime.MinValue;
+    private Timer visibleRefreshTimer;
+    private bool menuInteractionActive;
+    private bool visibleRefreshPending;
+    private DateTime lastUserNavigationUtc = DateTime.MinValue;
+    private DateTime lastFocusedAutoRefreshUtc = DateTime.MinValue;
     private List<LanguageChoice> languageChoices = new List<LanguageChoice>();
     private string languageFolderSignature = "";
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
@@ -99,15 +125,16 @@ public sealed partial class SensorReadoutForm : Form
 
         menuStrip = new MenuStrip();
         var fileMenu = new ToolStripMenuItem("&File");
-        fileMenu.DropDownItems.Add("Refresh now\tF5", null, delegate { RefreshSensors(); });
-        fileMenu.DropDownItems.Add("Save report...\tCtrl+S", null, delegate { SaveReport(); });
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
-        fileMenu.DropDownItems.Add("Exit", null, delegate { Close(); });
+        fileMenu.DropDownItems.Add("E&xit", null, delegate { Close(); });
 
         var editMenu = new ToolStripMenuItem("&Edit");
-        editMenu.DropDownItems.Add("Copy\tCtrl+C", null, delegate { CopySelectedTreeNode(); });
-        editMenu.DropDownItems.Add("Rename...\tF2", null, delegate { RenameSelectedTreeNode(); });
-        editMenu.DropDownItems.Add("Hide selected\tDel", null, delegate { HideSelectedTreeNode(); });
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
+        editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); }));
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
 
         var viewMenu = new ToolStripMenuItem("&View");
         viewMenu.DropDownItems.Add("&Performance/Overview\tCtrl+0", null, delegate { SelectCategoryByKey("type|Performance"); });
@@ -115,6 +142,7 @@ public sealed partial class SensorReadoutForm : Form
         viewMenu.DropDownItems.Add("&Fans\tCtrl+2", null, delegate { SelectCategoryByKey("type|Fan"); });
         viewMenu.DropDownItems.Add("&SMART\tCtrl+3", null, delegate { SelectCategoryByKey("type|SMART"); });
         viewMenu.DropDownItems.Add("&Network\tCtrl+4", null, delegate { SelectCategoryByKey("type|Network"); });
+        viewMenu.DropDownItems.Add("&USB\tCtrl+5", null, delegate { SelectCategoryByKey("type|USB"); });
 
         var optionsMenu = new ToolStripMenuItem("&Options");
         autoRefreshMenuItem = new ToolStripMenuItem("&Auto refresh")
@@ -164,12 +192,12 @@ public sealed partial class SensorReadoutForm : Form
             Checked = string.Equals(settings.TemperatureUnit, "F", StringComparison.OrdinalIgnoreCase),
             CheckOnClick = true
         };
-        celsiusFahrenheitMenuItem = new ToolStripMenuItem("Celsius, then Fahrenheit")
+        celsiusFahrenheitMenuItem = new ToolStripMenuItem("Celsius, then F&ahrenheit")
         {
             Checked = string.Equals(settings.TemperatureUnit, "CF", StringComparison.OrdinalIgnoreCase),
             CheckOnClick = true
         };
-        fahrenheitCelsiusMenuItem = new ToolStripMenuItem("Fahrenheit, then Celsius")
+        fahrenheitCelsiusMenuItem = new ToolStripMenuItem("Fahrenheit, then C&elsius")
         {
             Checked = string.Equals(settings.TemperatureUnit, "FC", StringComparison.OrdinalIgnoreCase),
             CheckOnClick = true
@@ -193,14 +221,15 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(languageMenuItem);
         optionsMenu.DropDownItems.Add(new ToolStripSeparator());
         optionsMenu.DropDownItems.Add("&Speak tray status now", null, delegate { SpeakTrayStatus(); });
-        optionsMenu.DropDownItems.Add("&Fan controls...\tCtrl+L", null, delegate { ShowFanControlsDialog(); });
-        optionsMenu.DropDownItems.Add("&Preferences...\tCtrl+,", null, delegate { ShowPreferences(); });
+        optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
+        optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan c&urves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
+        optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
 
         var helpMenu = new ToolStripMenuItem("&Help");
-        helpMenu.DropDownItems.Add("&Manual\tF1", null, delegate { ShowManual(); });
-        helpMenu.DropDownItems.Add("Check for &updates...\tShift+F1", null, delegate { CheckForUpdates(); });
-        helpMenu.DropDownItems.Add("&Project on GitHub\tCtrl+F1", null, delegate { OpenProjectPage(); });
-        helpMenu.DropDownItems.Add("&Contact", null, delegate { OpenContactPage(); });
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Manual", Keys.F1, delegate { ShowManual(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));
+        helpMenu.DropDownItems.Add("Con&tact", null, delegate { OpenContactPage(); });
         helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -211,6 +240,16 @@ public sealed partial class SensorReadoutForm : Form
         menuStrip.Items.Add(viewMenu);
         menuStrip.Items.Add(optionsMenu);
         menuStrip.Items.Add(helpMenu);
+        menuStrip.MenuActivate += delegate
+        {
+            menuInteractionActive = true;
+            MarkUserNavigation();
+        };
+        menuStrip.MenuDeactivate += delegate
+        {
+            menuInteractionActive = false;
+            ScheduleVisibleReadingUiUpdate();
+        };
         MainMenuStrip = menuStrip;
 
         var topPanel = new FlowLayoutPanel
@@ -246,14 +285,14 @@ public sealed partial class SensorReadoutForm : Form
             Visible = settings.TrayStatusEnabled,
             ContextMenuStrip = new ContextMenuStrip()
         };
-        trayIcon.ContextMenuStrip.Items.Add("Open Sensor Readout", null, delegate
+        trayIcon.ContextMenuStrip.Items.Add("&Open Sensor Readout", null, delegate
         {
             RestoreFromTray();
         });
-        trayIcon.ContextMenuStrip.Items.Add("Refresh now", null, delegate { RefreshSensors(); });
-        trayIcon.ContextMenuStrip.Items.Add("Preferences...", null, delegate { ShowPreferences(); });
+        trayIcon.ContextMenuStrip.Items.Add("&Refresh now", null, delegate { RefreshSensors(); });
+        trayIcon.ContextMenuStrip.Items.Add("&Preferences...", null, delegate { ShowPreferences(); });
         trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
-        trayIcon.ContextMenuStrip.Items.Add("Exit", null, delegate { Close(); });
+        trayIcon.ContextMenuStrip.Items.Add("E&xit", null, delegate { Close(); });
         trayIcon.DoubleClick += delegate
         {
             RestoreFromTray();
@@ -275,10 +314,11 @@ public sealed partial class SensorReadoutForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Reading section",
-            AccessibleDescription = "Choose a section such as Temperatures, Fans, SMART, Performance, or Network"
+            AccessibleDescription = "Choose a section such as Temperatures, Fans, SMART, Performance, Network, or USB"
         };
         deviceList.SelectedIndexChanged += delegate
         {
+            MarkUserNavigation();
             var filter = deviceList.SelectedItem as DeviceFilter;
             if (filter != null)
             {
@@ -298,11 +338,13 @@ public sealed partial class SensorReadoutForm : Form
             AccessibleDescription = "Current readings grouped by category or device"
         };
         readingTree.ContextMenuStrip = new ContextMenuStrip();
-        readingTree.ContextMenuStrip.Items.Add("Copy", null, delegate { CopySelectedTreeNode(); });
-        readingTree.ContextMenuStrip.Items.Add("Rename...", null, delegate { RenameSelectedTreeNode(); });
-        readingTree.ContextMenuStrip.Items.Add("Hide selected", null, delegate { HideSelectedTreeNode(); });
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
         readingTree.KeyDown += delegate(object sender, KeyEventArgs e)
         {
+            MarkUserNavigation();
             if (e.Control && e.KeyCode == Keys.C)
             {
                 CopySelectedTreeNode();
@@ -317,6 +359,12 @@ public sealed partial class SensorReadoutForm : Form
             {
                 HideSelectedTreeNode();
                 e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                ShowSelectedReadingDetails();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
             }
         };
         readingTree.AfterSelect += delegate { UpdateSelectedMeterProgress(); };
@@ -364,13 +412,33 @@ public sealed partial class SensorReadoutForm : Form
         timer = new Timer { Interval = RefreshIntervalMs };
         timer.Tick += delegate
         {
-            if (settings.AutoRefreshEnabled && (settings.RefreshWhileFocused || !ContainsFocus))
+            if (ShouldRunAutoRefresh())
             {
-                RefreshSensors();
+                RefreshSensors(true, false, ContainsFocus ? "auto-focused" : "auto-background");
             }
         };
         languageTimer = new Timer { Interval = 15000 };
         languageTimer.Tick += delegate { CheckLanguageFolderChanged(); };
+        updateCheckTimer = new Timer { Interval = 10 * 60 * 1000 };
+        updateCheckTimer.Tick += delegate { CheckAutomaticUpdateSchedule(); };
+        visibleRefreshTimer = new Timer { Interval = 300 };
+        visibleRefreshTimer.Tick += delegate
+        {
+            if (!visibleRefreshPending)
+            {
+                visibleRefreshTimer.Stop();
+                return;
+            }
+
+            if (ShouldDeferVisibleReadingUiUpdate())
+            {
+                return;
+            }
+
+            visibleRefreshTimer.Stop();
+            visibleRefreshPending = false;
+            UpdateVisibleReadingUi();
+        };
 
         Shown += delegate
         {
@@ -381,10 +449,7 @@ public sealed partial class SensorReadoutForm : Form
             timer.Start();
             languageTimer.Start();
             RegisterGlobalHotKeys();
-            if (settings.CheckForUpdatesAtStartup)
-            {
-                BeginSilentStartupUpdateCheck();
-            }
+            StartAutomaticUpdateChecks();
             if (startMinimizedRequested || settings.StartMinimizedToTray)
             {
                 BeginInvoke((MethodInvoker)delegate
@@ -451,6 +516,12 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
+        if (modifiers == Keys.Control && keyCode == Keys.U)
+        {
+            ShowFanCurvesDialog();
+            return true;
+        }
+
         if (modifiers == Keys.Control && SelectCategoryByShortcut(keyCode))
         {
             return true;
@@ -477,6 +548,62 @@ public sealed partial class SensorReadoutForm : Form
         return false;
     }
 
+    private static ToolStripMenuItem CreateShortcutMenuItem(string text, Keys shortcutKeys, EventHandler handler)
+    {
+        var shortcutText = new KeysConverter().ConvertToString(shortcutKeys);
+        return new ToolStripMenuItem(text, null, handler)
+        {
+            ShortcutKeys = shortcutKeys,
+            ShortcutKeyDisplayString = shortcutText,
+            ShowShortcutKeys = true
+        };
+    }
+
+    private static ToolStripMenuItem CreateDisplayShortcutMenuItem(string text, string shortcutText, EventHandler handler)
+    {
+        return new ToolStripMenuItem(text, null, handler)
+        {
+            ShortcutKeyDisplayString = shortcutText,
+            ShowShortcutKeys = true
+        };
+    }
+
+    private void MarkUserNavigation()
+    {
+        lastUserNavigationUtc = DateTime.UtcNow;
+    }
+
+    private bool ShouldDeferVisibleReadingUiUpdate()
+    {
+        return menuInteractionActive || DateTime.UtcNow - lastUserNavigationUtc < TimeSpan.FromMilliseconds(500);
+    }
+
+    private void ScheduleVisibleReadingUiUpdate()
+    {
+        if (IsMinimizedOrHidden())
+        {
+            return;
+        }
+
+        visibleRefreshPending = true;
+        if (visibleRefreshTimer != null && !visibleRefreshTimer.Enabled)
+        {
+            visibleRefreshTimer.Start();
+        }
+    }
+
+    private void UpdateVisibleReadingUi()
+    {
+        if (IsMinimizedOrHidden())
+        {
+            return;
+        }
+
+        UpdateFanControlBox();
+        UpdateDeviceList();
+        UpdateReadingList();
+    }
+
     private void ApplyTimerSettings()
     {
         var seconds = Math.Max(2, Math.Min(300, settings.RefreshIntervalSeconds));
@@ -490,6 +617,33 @@ public sealed partial class SensorReadoutForm : Form
         {
             timer.Stop();
         }
+    }
+
+    private bool ShouldRunAutoRefresh()
+    {
+        if (!settings.AutoRefreshEnabled)
+        {
+            return false;
+        }
+
+        if (!ContainsFocus)
+        {
+            return true;
+        }
+
+        if (!settings.RefreshWhileFocused)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - lastFocusedAutoRefreshUtc < FocusedAutoRefreshMinimumInterval)
+        {
+            return false;
+        }
+
+        lastFocusedAutoRefreshUtc = now;
+        return true;
     }
 
     private void SetTemperatureUnit(string unit)

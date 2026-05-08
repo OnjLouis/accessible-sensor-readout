@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
@@ -82,11 +83,14 @@ public sealed partial class SensorReadoutForm : Form
             elevatedFanButton.Click += delegate { ApplyAllVisibleFanControls(75, "elevated"); };
             var maxFanButton = new Button { Text = T("ui.All fans ma&x", "All fans ma&x"), AutoSize = true, AccessibleName = T("a11y.Set all visible fan controls to 100 percent", "Set all visible fan controls to 100 percent") };
             maxFanButton.Click += delegate { ApplyAllVisibleFanControls(100, "max"); };
+            var curvesButton = new Button { Text = T("ui.Fan c&urves...", "Fan c&urves..."), AutoSize = true, AccessibleName = T("a11y.Open fan curves", "Open fan curves") };
+            curvesButton.Click += delegate { ShowFanCurvesDialog(); };
             showStoppedFansCheckBox.Text = T("ui.Show &stopped", "Show &stopped");
             showStoppedFansCheckBox.AccessibleName = T("a11y.Show stopped or unpopulated fan headers", "Show stopped or unpopulated fan headers");
             profilePanel.Controls.Add(autoFanButton);
             profilePanel.Controls.Add(elevatedFanButton);
             profilePanel.Controls.Add(maxFanButton);
+            profilePanel.Controls.Add(curvesButton);
             profilePanel.Controls.Add(showStoppedFansCheckBox);
             layout.Controls.Add(profilePanel, 1, 3);
 
@@ -162,15 +166,24 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RefreshSensors()
     {
+        RefreshSensors(true, true, "manual");
+    }
+
+    private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
+    {
         if (refreshInProgress)
         {
             return;
         }
 
+        var refreshStopwatch = Stopwatch.StartNew();
         refreshInProgress = true;
-        statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
+        if (updateInteractiveUi)
+        {
+            statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
+        }
 
-        Task.Factory.StartNew(new Func<List<SensorRow>>(CollectSensorRows))
+        Task.Factory.StartNew(new Func<List<SensorRow>>(() => CollectSensorRows(refreshSlowRows)))
             .ContinueWith(delegate(Task<List<SensorRow>> task)
             {
                 try
@@ -190,16 +203,22 @@ public sealed partial class SensorReadoutForm : Form
                     var rows = task.Result;
                     latestRows.Clear();
                     latestRows.AddRange(rows);
+                    MigrateLegacyStoragePerformanceSettings();
                     TryApplySavedFanControlsOnStartupAsync(rows);
-                    if (openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
+                    if (updateInteractiveUi && openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
                     {
                         openPreferencesDialog.UpdateSensorRows(rows);
                     }
-                    if (!IsMinimizedOrHidden())
+                    if (updateInteractiveUi && !IsMinimizedOrHidden())
                     {
-                        UpdateFanControlBox();
-                        UpdateDeviceList();
-                        UpdateReadingList();
+                        if (ShouldDeferVisibleReadingUiUpdate())
+                        {
+                            ScheduleVisibleReadingUiUpdate();
+                        }
+                        else
+                        {
+                            UpdateVisibleReadingUi();
+                        }
                     }
                     UpdateTrayStatus();
                     CheckAlarms(rows);
@@ -213,31 +232,40 @@ public sealed partial class SensorReadoutForm : Form
                         var sources = string.Join(", ", rows.Select(r => r.Source).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray());
                         statusLabel.Text = BuildRefreshStatus(rows, sources);
                     }
+
+                    refreshStopwatch.Stop();
+                    LogRefreshDuration(reason, updateInteractiveUi, rows.Count, refreshStopwatch.ElapsedMilliseconds);
                 }
                 finally
                 {
                     refreshInProgress = false;
+                    if (!IsDisposed && task.Status == TaskStatus.RanToCompletion)
+                    {
+                        ApplyFanCurvesAsync(task.Result);
+                    }
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
-    private List<SensorRow> CollectSensorRows()
+    private List<SensorRow> CollectSensorRows(bool refreshSlowRows)
     {
-        var rows = GetLibreHardwareMonitorSensors()
-            .Concat(GetCoreTempRows())
-            .Concat(GetWindowsSmartRows())
-            .ToList();
+        var totalStopwatch = Stopwatch.StartNew();
+        var timings = new List<string>();
+        var rows = new List<SensorRow>();
 
-        rows.AddRange(GetSystemPerformanceRows());
-        rows.AddRange(GetOverviewRows());
-        rows.AddRange(GetStoragePerformanceRows(rows));
-        rows.AddRange(GetWindowsLogicalDiskRows());
-        rows.AddRange(GetNetworkRows());
-        rows = AttachFanControlPercentsToFanRows(rows);
-        rows = ApplyFanLabelsToReadings(rows);
+        AddTimedRows(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), timings);
+        AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
+        AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
-        return ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Network" || s.Type == "Fan Control")
+        AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);
+        AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
+        AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
+        AddTimedRows(rows, "Network", GetNetworkRows, timings);
+        rows = TimedTransformRows(rows, "FanPercentAttach", AttachFanControlPercentsToFanRows, timings);
+        rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
+
+        var result = ConsolidateRelatedRows(rows
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Network" || s.Type == "USB" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList())
@@ -246,6 +274,89 @@ public sealed partial class SensorReadoutForm : Form
             .ThenBy(s => ReadingSortIndex(s.Name))
             .ThenBy(s => s.Name)
             .ToList();
+        totalStopwatch.Stop();
+        if (totalStopwatch.ElapsedMilliseconds >= 1000)
+        {
+            LogMessage("Debug", "CollectSensorRows took " + totalStopwatch.ElapsedMilliseconds + " ms and returned " + result.Count + " rows. Phases: " + string.Join("; ", timings.ToArray()) + ".");
+        }
+        return result;
+    }
+
+    private void AddTimedRows(List<SensorRow> target, string name, Func<IEnumerable<SensorRow>> producer, List<string> timings)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var rows = producer().Where(r => r != null).ToList();
+        stopwatch.Stop();
+        target.AddRange(rows);
+        timings.Add(name + "=" + stopwatch.ElapsedMilliseconds + " ms/" + rows.Count + " rows");
+    }
+
+    private List<SensorRow> TimedTransformRows(List<SensorRow> rows, string name, Func<List<SensorRow>, List<SensorRow>> transform, List<string> timings)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var result = transform(rows);
+        stopwatch.Stop();
+        timings.Add(name + "=" + stopwatch.ElapsedMilliseconds + " ms/" + (result == null ? 0 : result.Count) + " rows");
+        return result ?? new List<SensorRow>();
+    }
+
+    private void LogRefreshDuration(string reason, bool updateInteractiveUi, int rowCount, long elapsedMs)
+    {
+        if (elapsedMs < 1000)
+        {
+            return;
+        }
+
+        LogMessage("Debug", "RefreshSensors " + (string.IsNullOrWhiteSpace(reason) ? "unknown" : reason) + " took " + elapsedMs + " ms, interactive UI update=" + updateInteractiveUi + ", rows=" + rowCount + ".");
+    }
+
+    private List<SensorRow> GetCachedSlowRows(bool allowRefresh)
+    {
+        lock (slowRowsLock)
+        {
+            if (cachedSlowRows.Count > 0 && (!allowRefresh || DateTime.UtcNow - cachedSlowRowsUtc < TimeSpan.FromMinutes(10)))
+            {
+                return cachedSlowRows.Select(CloneSensorRow).ToList();
+            }
+        }
+
+        if (!allowRefresh)
+        {
+            return new List<SensorRow>();
+        }
+
+        var rows = GetWindowsSmartRows()
+            .Concat(GetUsbRowsWithDiagnostics())
+            .Concat(GetOverviewRows())
+            .ToList();
+
+        lock (slowRowsLock)
+        {
+            cachedSlowRows = rows.Select(CloneSensorRow).ToList();
+            cachedSlowRowsUtc = DateTime.UtcNow;
+        }
+
+        return rows;
+    }
+
+    private static SensorRow CloneSensorRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return null;
+        }
+
+        return new SensorRow
+        {
+            Type = row.Type,
+            Hardware = row.Hardware,
+            Name = row.Name,
+            Identifier = row.Identifier,
+            Value = row.Value,
+            DisplayValue = row.DisplayValue,
+            Source = row.Source,
+            Details = row.Details == null ? null : new Dictionary<string, string>(row.Details, StringComparer.OrdinalIgnoreCase)
+        };
     }
 
     private static string BuildRefreshStatus(List<SensorRow> rows, string sources)
@@ -533,6 +644,83 @@ public sealed partial class SensorReadoutForm : Form
                 statusLabel.Text = "LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls.";
                 RefreshSensorsAfterFanAction();
             });
+    }
+
+    private void ApplyFanProfile(FanProfileSetting profile, bool speakCompletion)
+    {
+        if (profile == null || profile.Actions == null || profile.Actions.Count == 0)
+        {
+            var message = T("status.fanProfileNoActions", "Fan profile has no fan actions.");
+            statusLabel.Text = message;
+            LogFanAction(message);
+            if (speakCompletion)
+            {
+                SpeakTextWithScreenReader(message, "fan profile");
+            }
+            return;
+        }
+
+        var actions = profile.Actions
+            .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
+            .Select(a => new FanProfileActionSetting
+            {
+                FanControlKey = IdentifierFromSettingsKey(a.FanControlKey),
+                Manual = a.Manual,
+                Percent = Math.Max(0, Math.Min(100, a.Percent))
+            })
+            .Where(a => !string.IsNullOrWhiteSpace(a.FanControlKey))
+            .ToList();
+        if (actions.Count == 0)
+        {
+            var message = T("status.fanProfileNoActions", "Fan profile has no fan actions.");
+            statusLabel.Text = message;
+            LogFanAction(message);
+            return;
+        }
+
+        var profileName = string.IsNullOrWhiteSpace(profile.Name) ? T("ui.Fan profile", "Fan profile") : profile.Name.Trim();
+        RunFanAction(
+            T("status.applyingFanProfile", "Applying fan profile") + " " + profileName + "...",
+            delegate
+            {
+                foreach (var action in actions)
+                {
+                    SetLibreHardwareMonitorControl(action.FanControlKey, action.Percent, action.Manual);
+                }
+            },
+            delegate
+            {
+                SaveFanProfileActions(actions);
+                var message = string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName);
+                statusLabel.Text = message;
+                if (speakCompletion)
+                {
+                    SpeakTextWithScreenReader(message, "fan profile");
+                }
+                RefreshSensorsAfterFanAction();
+            });
+    }
+
+    private void SaveFanProfileActions(IEnumerable<FanProfileActionSetting> actions)
+    {
+        var saved = LoadFanControlSettings();
+        foreach (var action in actions ?? new List<FanProfileActionSetting>())
+        {
+            var controlKey = action == null ? "" : IdentifierFromSettingsKey(action.FanControlKey);
+            if (string.IsNullOrWhiteSpace(controlKey))
+            {
+                continue;
+            }
+
+            saved[controlKey] = new FanControlSetting
+            {
+                Manual = action.Manual,
+                Percent = Math.Max(0, Math.Min(100, action.Percent))
+            };
+        }
+
+        settings.FanControlSettings = saved;
+        SaveSettings(settings);
     }
 
     private void RefreshSensorsAfterFanAction()

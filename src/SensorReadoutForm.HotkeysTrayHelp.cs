@@ -13,7 +13,8 @@ public sealed partial class SensorReadoutForm : Form
     {
         UnregisterGlobalHotKeys();
         registeredSpokenHotKeys.Clear();
-        LogMessage("Debug", "Registering global hotkeys. Show/hide=" + (settings.ShowHideHotKey ?? "") + ", speak tray=" + (settings.SpeakTrayHotKey ?? "") + ", spoken profiles=" + ((settings.SpokenHotKeys == null) ? 0 : settings.SpokenHotKeys.Count) + ".");
+        registeredFanProfileHotKeys.Clear();
+        LogMessage("Debug", "Registering global hotkeys. Show/hide=" + (settings.ShowHideHotKey ?? "") + ", speak tray=" + (settings.SpeakTrayHotKey ?? "") + ", spoken profiles=" + ((settings.SpokenHotKeys == null) ? 0 : settings.SpokenHotKeys.Count) + ", fan profiles=" + ((settings.FanProfiles == null) ? 0 : settings.FanProfiles.Count) + ".");
         RegisterGlobalHotKey(settings.ShowHideHotKey, ShowHideHotKeyId, "show/hide");
         RegisterGlobalHotKey(settings.SpeakTrayHotKey, SpeakTrayHotKeyId, "speak tray status");
         var profiles = settings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
@@ -29,6 +30,22 @@ public sealed partial class SensorReadoutForm : Form
             if (RegisterGlobalHotKey(profile.HotKey, id, "spoken hotkey " + (string.IsNullOrWhiteSpace(profile.Name) ? (i + 1).ToString(CultureInfo.InvariantCulture) : profile.Name)))
             {
                 registeredSpokenHotKeys[id] = profile;
+            }
+        }
+
+        var fanProfiles = settings.FanProfiles ?? new List<FanProfileSetting>();
+        for (var i = 0; i < fanProfiles.Count && i < 100; i++)
+        {
+            var profile = fanProfiles[i];
+            if (profile == null || string.IsNullOrWhiteSpace(profile.HotKey))
+            {
+                continue;
+            }
+
+            var id = FanProfileHotKeyBaseId + i;
+            if (RegisterGlobalHotKey(profile.HotKey, id, "fan profile " + (string.IsNullOrWhiteSpace(profile.Name) ? (i + 1).ToString(CultureInfo.InvariantCulture) : profile.Name)))
+            {
+                registeredFanProfileHotKeys[id] = profile;
             }
         }
     }
@@ -73,7 +90,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             NativeMethods.UnregisterHotKey(hotKeyHandle, id);
         }
+        for (var id = FanProfileHotKeyBaseId; id < FanProfileHotKeyBaseId + 100; id++)
+        {
+            NativeMethods.UnregisterHotKey(hotKeyHandle, id);
+        }
         registeredSpokenHotKeys.Clear();
+        registeredFanProfileHotKeys.Clear();
     }
 
     public bool HandleHotKeyMessage(ref Message m)
@@ -102,6 +124,14 @@ public sealed partial class SensorReadoutForm : Form
                 HandleSpokenHotKey(id, profile);
                 return true;
             }
+
+            FanProfileSetting fanProfile;
+            if (registeredFanProfileHotKeys.TryGetValue(id, out fanProfile))
+            {
+                LogMessage("Debug", "Fan profile hotkey pressed: " + (fanProfile == null ? "" : fanProfile.Name));
+                ApplyFanProfile(fanProfile, true);
+                return true;
+            }
         }
 
         return false;
@@ -122,8 +152,13 @@ public sealed partial class SensorReadoutForm : Form
         if (Visible && WindowState != FormWindowState.Minimized && ShowInTaskbar)
         {
             LogMessage("Normal", "Hiding Sensor Readout from global hotkey.");
-            Hide();
+            WindowState = FormWindowState.Minimized;
             ShowInTaskbar = false;
+            if (settings.TrayStatusEnabled)
+            {
+                trayIcon.Visible = true;
+            }
+            Hide();
             return;
         }
 
@@ -133,7 +168,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SpeakTrayStatus()
     {
-        SpeakTextWithNvda(BuildCurrentSpeechStatusText(), "tray status");
+        SpeakTextWithScreenReader(BuildCurrentSpeechStatusText(), "tray status");
     }
 
     private void SpeakSpokenHotKey(SpokenHotKeySetting profile)
@@ -141,33 +176,42 @@ public sealed partial class SensorReadoutForm : Form
         var rows = GetSpokenHotKeyRows(profile);
         var text = BuildSpeechStatusText(rows);
         var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
-        SpeakTextWithNvda(text, description);
+        SpeakTextWithScreenReader(text, description);
     }
 
     private void HandleTraySpeechHotKey(int id)
     {
+        var stopwatch = Stopwatch.StartNew();
         var text = BuildCurrentSpeechStatusText();
+        LogMessage("Debug", "Tray hotkey built speech text in " + stopwatch.ElapsedMilliseconds + " ms.");
         if (ShouldCopyFromDoublePress(id))
         {
             CopyHotKeyTextToClipboard(text, "tray status");
+            LogMessage("Debug", "Tray hotkey copied in " + stopwatch.ElapsedMilliseconds + " ms.");
             return;
         }
 
-        SpeakTextWithNvda(text, "tray status");
+        SpeakTextWithScreenReader(text, "tray status");
+        LogMessage("Debug", "Tray hotkey completed in " + stopwatch.ElapsedMilliseconds + " ms.");
     }
 
     private void HandleSpokenHotKey(int id, SpokenHotKeySetting profile)
     {
+        var stopwatch = Stopwatch.StartNew();
         var rows = GetSpokenHotKeyRows(profile);
+        var rowResolveMs = stopwatch.ElapsedMilliseconds;
         var text = BuildSpeechStatusText(rows);
         var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
+        LogMessage("Debug", "Spoken hotkey " + description + " resolved " + rows.Count + " row(s) and built text in " + rowResolveMs + " ms.");
         if (ShouldCopyFromDoublePress(id))
         {
             CopyHotKeyTextToClipboard(text, description);
+            LogMessage("Debug", "Spoken hotkey " + description + " copied in " + stopwatch.ElapsedMilliseconds + " ms.");
             return;
         }
 
-        SpeakTextWithNvda(text, description);
+        SpeakTextWithScreenReader(text, description);
+        LogMessage("Debug", "Spoken hotkey " + description + " completed in " + stopwatch.ElapsedMilliseconds + " ms.");
     }
 
     private bool ShouldCopyFromDoublePress(int id)
@@ -225,9 +269,9 @@ public sealed partial class SensorReadoutForm : Form
     {
         string error;
         var message = T("message.copiedToClipboard", "Copied to Clipboard.");
-        if (NvdaController.TrySpeak(message, out error))
+        if (ScreenReaderOutput.TrySpeak(message, out error))
         {
-            LogMessage("Debug", "Announced clipboard copy with NVDA.");
+            LogMessage("Debug", "Announced clipboard copy with screen reader.");
         }
         else
         {
@@ -235,37 +279,37 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private void SpeakTextWithNvda(string text, string description)
+    private void SpeakTextWithScreenReader(string text, string description)
     {
-        SpeakTextWithNvda(text, description, false);
+        SpeakTextWithScreenReader(text, description, false);
     }
 
-    private void SpeakTextWithNvdaPolite(string text, string description)
+    private void SpeakTextWithScreenReaderPolite(string text, string description)
     {
-        SpeakTextWithNvda(text, description, true);
+        SpeakTextWithScreenReader(text, description, true);
     }
 
-    private void SpeakTextWithNvda(string text, string description, bool polite)
+    private void SpeakTextWithScreenReader(string text, string description, bool polite)
     {
         string error;
         var spoken = polite
-            ? NvdaController.TrySpeakPolite(text, out error)
-            : NvdaController.TrySpeak(text, out error);
+            ? ScreenReaderOutput.TrySpeakPolite(text, out error)
+            : ScreenReaderOutput.TrySpeak(text, out error);
         if (spoken)
         {
             if (statusLabel != null)
             {
-                statusLabel.Text = "Spoke " + description + " with NVDA.";
+                statusLabel.Text = "Spoke " + description + " with screen reader.";
             }
-            LogMessage("Normal", "Spoke " + description + " with NVDA: " + text);
+            LogMessage("Normal", "Spoke " + description + " with screen reader: " + text);
             return;
         }
 
         if (statusLabel != null)
         {
-            statusLabel.Text = "Could not speak with NVDA. " + error;
+            statusLabel.Text = "Could not speak with screen reader. " + error;
         }
-        LogError("Could not speak with NVDA. " + error);
+        LogError("Could not speak with screen reader. " + error);
         System.Media.SystemSounds.Beep.Play();
     }
 
@@ -290,9 +334,9 @@ public sealed partial class SensorReadoutForm : Form
     {
         var message = string.IsNullOrWhiteSpace(settings.StartupSpeechMessage) ? DefaultStartupSpeechMessage() : settings.StartupSpeechMessage.Trim();
         string error;
-        if (NvdaController.TrySpeakPolite(message, out error))
+        if (ScreenReaderOutput.TrySpeakPolite(message, out error))
         {
-            LogMessage("Normal", "Spoke startup active message with NVDA: " + message);
+            LogMessage("Normal", "Spoke startup active message with screen reader: " + message);
         }
         else
         {
@@ -457,7 +501,7 @@ public sealed partial class SensorReadoutForm : Form
                     "Created by Codex." + Environment.NewLine +
                     "Ideas by Andre Louis." + Environment.NewLine + Environment.NewLine +
                     "Bundled and referenced components:" + Environment.NewLine +
-                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, NVDA Controller Client, and Microsoft .NET Framework support libraries."
+                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries."
             };
 
             var buttons = new FlowLayoutPanel
@@ -567,13 +611,28 @@ public sealed partial class SensorReadoutForm : Form
     private List<SensorRow> GetSpokenHotKeyRows(SpokenHotKeySetting profile)
     {
         var selectedKeys = profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
-        return selectedKeys
-            .Select(FindTrayRowByKey)
-            .Where(r => r != null)
-            .ToList();
+        var rows = new List<SensorRow>();
+        foreach (var key in selectedKeys)
+        {
+            var row = FindTrayRowByKey(key);
+            if (row == null)
+            {
+                LogMessage("Debug", "Spoken hotkey " + (profile == null ? "" : profile.Name ?? "") + " missing row key: " + key);
+                continue;
+            }
+
+            rows.Add(row);
+        }
+
+        return rows;
     }
 
     private SensorRow FindTrayRowByKey(string key)
+    {
+        return FindTrayRowByKey(key, true);
+    }
+
+    private SensorRow FindTrayRowByKey(string key, bool promoteLabels)
     {
         if (string.IsNullOrWhiteSpace(key))
         {
@@ -597,12 +656,274 @@ public sealed partial class SensorReadoutForm : Form
         var name = parts[2];
         var identifier = parts.Length > 3 ? parts[3] : "";
         var normalizedHardware = NormalizeHardwareName(hardware);
+        var cleanName = CleanSensorName(name);
+        if (string.Equals(type, "SMART", StringComparison.OrdinalIgnoreCase) && IsStoragePerformanceName(cleanName))
+        {
+            var driveLetter = DriveLetterFromSpeechLabel(key);
+            if (string.IsNullOrWhiteSpace(driveLetter))
+            {
+                driveLetter = DriveLetterFromRelatedSpeechLabels(hardware);
+            }
+
+            if (!string.IsNullOrWhiteSpace(driveLetter))
+            {
+                var driveRow = latestRows.FirstOrDefault(r =>
+                    string.Equals(r.Type ?? "", "Performance", StringComparison.OrdinalIgnoreCase) &&
+                    (r.Hardware ?? "").StartsWith(driveLetter + ":", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(CleanSensorName(r.Name), cleanName, StringComparison.OrdinalIgnoreCase));
+                if (driveRow != null)
+                {
+                    if (promoteLabels)
+                    {
+                        PromoteSpeechLabelToResolvedRow(key, driveRow);
+                    }
+                    return driveRow;
+                }
+            }
+
+            var storagePerformance = latestRows.FirstOrDefault(r =>
+                string.Equals(r.Type ?? "", "Performance", StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(NormalizeHardwareName(r.Hardware), normalizedHardware, StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(identifier) || string.Equals(r.Identifier ?? "", identifier, StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(CleanSensorName(r.Name), cleanName, StringComparison.OrdinalIgnoreCase));
+            if (storagePerformance != null)
+            {
+                if (promoteLabels)
+                {
+                    PromoteSpeechLabelToResolvedRow(key, storagePerformance);
+                }
+                return storagePerformance;
+            }
+
+            storagePerformance = latestRows.FirstOrDefault(r =>
+                string.Equals(r.Type ?? "", "Performance", StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(NormalizeHardwareName(r.Hardware), normalizedHardware, StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(CleanSensorName(r.Name), cleanName, StringComparison.OrdinalIgnoreCase));
+            if (storagePerformance != null)
+            {
+                if (promoteLabels)
+                {
+                    PromoteSpeechLabelToResolvedRow(key, storagePerformance);
+                }
+                return storagePerformance;
+            }
+        }
+
         return latestRows.FirstOrDefault(r =>
             string.Equals(r.Type ?? "", type, StringComparison.OrdinalIgnoreCase) &&
             (string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase) ||
              string.Equals(NormalizeHardwareName(r.Hardware), normalizedHardware, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(identifier) || string.Equals(r.Identifier ?? "", identifier, StringComparison.OrdinalIgnoreCase)) &&
-            string.Equals(CleanSensorName(r.Name), CleanSensorName(name), StringComparison.OrdinalIgnoreCase));
+            string.Equals(CleanSensorName(r.Name), cleanName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void PromoteSpeechLabelToResolvedRow(string oldKey, SensorRow resolvedRow)
+    {
+        if (settings.ReadingSpeechLabels == null || string.IsNullOrWhiteSpace(oldKey) || resolvedRow == null)
+        {
+            return;
+        }
+
+        string label;
+        if (!settings.ReadingSpeechLabels.TryGetValue(oldKey, out label) || string.IsNullOrWhiteSpace(label))
+        {
+            return;
+        }
+
+        var newKey = RowSettingsKey(resolvedRow);
+        if (string.IsNullOrWhiteSpace(newKey) || string.Equals(oldKey, newKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        string existing;
+        if (settings.ReadingSpeechLabels.TryGetValue(newKey, out existing) && !string.IsNullOrWhiteSpace(existing))
+        {
+            return;
+        }
+
+        settings.ReadingSpeechLabels[newKey] = label.Trim();
+        SaveSettings(settings);
+        LogMessage("Debug", "Migrated spoken label from " + oldKey + " to " + newKey + ".");
+    }
+
+    private void MigrateLegacyStoragePerformanceSettings()
+    {
+        if (latestRows.Count == 0)
+        {
+            return;
+        }
+
+        var changed = false;
+        if (settings.TrayItemKeys != null)
+        {
+            changed |= MigrateLegacyStorageKeyList(settings.TrayItemKeys);
+        }
+
+        if (settings.ReadingSpeechLabels != null)
+        {
+            foreach (var key in settings.ReadingSpeechLabels.Keys.ToList())
+            {
+                if (WouldAddMigratedSpeechLabel(key))
+                {
+                    MigratedLegacyStorageKey(key);
+                    changed = true;
+                }
+            }
+        }
+
+        if (settings.SpokenHotKeys != null)
+        {
+            foreach (var profile in settings.SpokenHotKeys.Where(p => p != null && p.ReadingKeys != null))
+            {
+                changed |= MigrateLegacyStorageKeyList(profile.ReadingKeys);
+            }
+        }
+
+        if (settings.Alarms != null)
+        {
+            foreach (var alarm in settings.Alarms.Where(a => a != null && !string.IsNullOrWhiteSpace(a.ReadingKey)))
+            {
+                var migrated = MigratedLegacyStorageKey(alarm.ReadingKey);
+                if (!string.IsNullOrWhiteSpace(migrated) && !string.Equals(migrated, alarm.ReadingKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    alarm.ReadingKey = migrated;
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            SaveSettings(settings);
+            LogMessage("Debug", "Migrated legacy storage performance setting keys to live logical disk rows.");
+        }
+    }
+
+    private bool MigrateLegacyStorageKeyList(List<string> keys)
+    {
+        var changed = false;
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var migrated = MigratedLegacyStorageKey(keys[i]);
+            if (!string.IsNullOrWhiteSpace(migrated) && !string.Equals(migrated, keys[i], StringComparison.OrdinalIgnoreCase))
+            {
+                keys[i] = migrated;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private string MigratedLegacyStorageKey(string key)
+    {
+        if (!IsLegacyStoragePerformanceKey(key))
+        {
+            return key;
+        }
+
+        var row = FindTrayRowByKey(key);
+        if (row == null)
+        {
+            return key;
+        }
+
+        var migrated = RowSettingsKey(row);
+        return string.IsNullOrWhiteSpace(migrated) ? key : migrated;
+    }
+
+    private bool WouldAddMigratedSpeechLabel(string key)
+    {
+        if (!IsLegacyStoragePerformanceKey(key) || settings.ReadingSpeechLabels == null)
+        {
+            return false;
+        }
+
+        var row = FindTrayRowByKey(key, false);
+        if (row == null)
+        {
+            return false;
+        }
+
+        var migrated = RowSettingsKey(row);
+        if (string.IsNullOrWhiteSpace(migrated) || string.Equals(migrated, key, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string existing;
+        return !settings.ReadingSpeechLabels.TryGetValue(migrated, out existing) || string.IsNullOrWhiteSpace(existing);
+    }
+
+    private static bool IsLegacyStoragePerformanceKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var parts = key.Split('|');
+        if (parts.Length < 3 || !string.Equals(parts[0], "SMART", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var name = CleanSensorName(parts[2]);
+        return name.Equals("Read rate", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Write rate", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Read Rate", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Write Rate", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string DriveLetterFromSpeechLabel(string key)
+    {
+        string label;
+        if (settings.ReadingSpeechLabels == null ||
+            !settings.ReadingSpeechLabels.TryGetValue(key, out label) ||
+            string.IsNullOrWhiteSpace(label))
+        {
+            return "";
+        }
+
+        label = label.Trim();
+        return label.Length >= 2 && char.IsLetter(label[0]) && label[1] == ':'
+            ? label.Substring(0, 1).ToUpperInvariant()
+            : "";
+    }
+
+    private string DriveLetterFromRelatedSpeechLabels(string hardware)
+    {
+        if (settings.ReadingSpeechLabels == null || string.IsNullOrWhiteSpace(hardware))
+        {
+            return "";
+        }
+
+        var normalizedHardware = NormalizeHardwareName(hardware);
+        foreach (var item in settings.ReadingSpeechLabels)
+        {
+            var parts = item.Key.Split('|');
+            if (parts.Length < 2)
+            {
+                continue;
+            }
+
+            if (!string.Equals(parts[1], hardware, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(NormalizeHardwareName(parts[1]), normalizedHardware, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var label = item.Value == null ? "" : item.Value.Trim();
+            if (label.Length >= 2 && char.IsLetter(label[0]) && label[1] == ':')
+            {
+                return label.Substring(0, 1).ToUpperInvariant();
+            }
+        }
+
+        return "";
     }
 
     private static string BuildTrayStatusText(List<SensorRow> selectedRows)
@@ -616,7 +937,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (selectedRows == null || selectedRows.Count == 0)
         {
-            return "Sensor Readout";
+            return T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
         }
 
         var items = selectedRows.Select(r => ShortSpeechReadingText(r, settings.SpeechIncludesDeviceNames, settings.ReadingSpeechLabels)).ToList();
@@ -646,7 +967,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (items == null || items.Count < 2)
         {
-            return items == null || items.Count == 0 ? "Sensor Readout" : items[0];
+            return items == null || items.Count == 0 ? T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.") : items[0];
         }
 
         var labels = items.Select(LeadingSpeechLabel).ToList();

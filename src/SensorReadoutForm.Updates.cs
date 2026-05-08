@@ -82,12 +82,63 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private void BeginSilentStartupUpdateCheck()
+    private void StartAutomaticUpdateChecks()
+    {
+        if (updateCheckTimer != null)
+        {
+            updateCheckTimer.Stop();
+        }
+
+        CheckAutomaticUpdateSchedule();
+        if (updateCheckTimer != null && AutomaticUpdateInterval(settings.UpdateCheckFrequency).HasValue)
+        {
+            updateCheckTimer.Start();
+        }
+    }
+
+    private void CheckAutomaticUpdateSchedule()
+    {
+        var frequency = NormalizeUpdateCheckFrequency(settings.UpdateCheckFrequency);
+        if (frequency == "Never")
+        {
+            return;
+        }
+
+        if (frequency == "Startup")
+        {
+            if (!automaticUpdateCheckStartedThisRun)
+            {
+                automaticUpdateCheckStartedThisRun = true;
+                BeginSilentAutomaticUpdateCheck(false);
+            }
+            return;
+        }
+
+        var interval = AutomaticUpdateInterval(frequency);
+        if (!interval.HasValue)
+        {
+            return;
+        }
+
+        DateTime last;
+        if (!DateTime.TryParse(settings.LastAutomaticUpdateCheckUtc, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out last) ||
+            DateTime.UtcNow - last >= interval.Value)
+        {
+            BeginSilentAutomaticUpdateCheck(true);
+        }
+    }
+
+    private void BeginSilentAutomaticUpdateCheck(bool recordAttempt)
     {
         Task.Run(delegate
         {
             try
             {
+                if (recordAttempt)
+                {
+                    RecordAutomaticUpdateCheckAttempt();
+                }
+
                 var release = FetchLatestRelease();
                 var latest = (release == null ? "" : release.TagName) ?? "";
                 var latestVersion = latest.Trim().TrimStart('v', 'V');
@@ -111,6 +162,51 @@ public sealed partial class SensorReadoutForm : Form
                 // Startup checks are intentionally silent unless an update is available.
             }
         });
+    }
+
+    private void RecordAutomaticUpdateCheckAttempt()
+    {
+        try
+        {
+            BeginInvoke((MethodInvoker)delegate
+            {
+                if (IsDisposed)
+                {
+                    return;
+                }
+
+                settings.LastAutomaticUpdateCheckUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+                SaveSettings(settings);
+            });
+        }
+        catch
+        {
+        }
+    }
+
+    public static string NormalizeUpdateCheckFrequency(string value)
+    {
+        if (string.Equals(value, "Hour", StringComparison.OrdinalIgnoreCase)) return "Hourly";
+        if (string.Equals(value, "Hourly", StringComparison.OrdinalIgnoreCase)) return "Hourly";
+        if (string.Equals(value, "6Hours", StringComparison.OrdinalIgnoreCase)) return "6Hours";
+        if (string.Equals(value, "12Hours", StringComparison.OrdinalIgnoreCase)) return "12Hours";
+        if (string.Equals(value, "Daily", StringComparison.OrdinalIgnoreCase)) return "Daily";
+        if (string.Equals(value, "Weekly", StringComparison.OrdinalIgnoreCase)) return "Weekly";
+        if (string.Equals(value, "Never", StringComparison.OrdinalIgnoreCase)) return "Never";
+        return "Startup";
+    }
+
+    public static TimeSpan? AutomaticUpdateInterval(string frequency)
+    {
+        switch (NormalizeUpdateCheckFrequency(frequency))
+        {
+            case "Hourly": return TimeSpan.FromHours(1);
+            case "6Hours": return TimeSpan.FromHours(6);
+            case "12Hours": return TimeSpan.FromHours(12);
+            case "Daily": return TimeSpan.FromDays(1);
+            case "Weekly": return TimeSpan.FromDays(7);
+            default: return null;
+        }
     }
 
     private static GitHubReleaseInfo FetchLatestRelease()
@@ -287,8 +383,8 @@ public sealed partial class SensorReadoutForm : Form
 
         var confirm = MessageBox.Show(
             this,
-            T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your per-computer settings and logs will be kept."),
-            T("ui.Download and install", "Download and install"),
+            T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your settings and logs will be kept."),
+            StripMenuMnemonic(T("ui.Download and install", "Download and install")),
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Information);
         if (confirm != DialogResult.OK)
@@ -365,6 +461,8 @@ public sealed partial class SensorReadoutForm : Form
             "    }\r\n" +
             "  }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
+            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.dll') -Force -ErrorAction SilentlyContinue\r\n" +
+            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.LICENSE.txt') -Force -ErrorAction SilentlyContinue\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue\r\n" +

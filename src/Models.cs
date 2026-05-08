@@ -13,6 +13,7 @@ public sealed class SensorRow
     public float? Value;
     public string DisplayValue;
     public string Source;
+    public Dictionary<string, string> Details;
 
     public override string ToString()
     {
@@ -51,6 +52,8 @@ public sealed class AppSettings
     public bool RunAtStartup = false;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
+    public string UpdateCheckFrequency = "Startup";
+    public string LastAutomaticUpdateCheckUtc = "";
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -58,6 +61,9 @@ public sealed class AppSettings
     public List<string> HiddenReadingKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public bool FanProfileStarterProfilesInitialized = false;
+    public List<FanProfileSetting> FanProfiles = new List<FanProfileSetting>();
+    public List<FanCurveSetting> FanCurves = new List<FanCurveSetting>();
     public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
     public List<AlarmSetting> Alarms = new List<AlarmSetting>();
     public string StartupSoundFile = "";
@@ -81,6 +87,8 @@ public sealed class SharedAppSettings
     public bool TrayStatusEnabled = true;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
+    public string UpdateCheckFrequency = "Startup";
+    public string LastAutomaticUpdateCheckUtc = "";
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
 }
@@ -95,6 +103,9 @@ public sealed class MachineAppSettings
     public List<string> HiddenReadingKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public bool FanProfileStarterProfilesInitialized = false;
+    public List<FanProfileSetting> FanProfiles = new List<FanProfileSetting>();
+    public List<FanCurveSetting> FanCurves = new List<FanCurveSetting>();
     public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
     public List<AlarmSetting> Alarms = new List<AlarmSetting>();
 }
@@ -103,6 +114,54 @@ public sealed class FanControlSetting
 {
     public bool Manual;
     public int Percent = 50;
+}
+
+public sealed class FanProfileActionSetting
+{
+    public string FanControlKey = "";
+    public bool Manual = true;
+    public int Percent = 50;
+
+    public override string ToString()
+    {
+        return Manual ? Math.Max(0, Math.Min(100, Percent)) + "%" : "Auto";
+    }
+}
+
+public sealed class FanProfileSetting
+{
+    public string Name = "";
+    public string HotKey = "";
+    public List<FanProfileActionSetting> Actions = new List<FanProfileActionSetting>();
+
+    public override string ToString()
+    {
+        var name = string.IsNullOrWhiteSpace(Name) ? "Fan profile" : Name.Trim();
+        var hotKey = string.IsNullOrWhiteSpace(HotKey) ? "no hotkey" : HotKey.Trim();
+        var count = Actions == null ? 0 : Actions.Count;
+        return name + " (" + hotKey + ", " + count + " fan" + (count == 1 ? "" : "s") + ")";
+    }
+}
+
+public sealed class FanCurveSetting
+{
+    public string Name = "";
+    public string FanControlKey = "";
+    public string TemperatureReadingKey = "";
+    public bool Enabled = true;
+    public double LowTemperatureC = 35;
+    public int LowPercent = 30;
+    public double HighTemperatureC = 75;
+    public int HighPercent = 100;
+    public double EmergencyTemperatureC = 85;
+    public int EmergencyPercent = 100;
+    public int MinimumChangePercent = 2;
+
+    public override string ToString()
+    {
+        var name = string.IsNullOrWhiteSpace(Name) ? "Fan curve" : Name.Trim();
+        return name + " (" + LowTemperatureC.ToString("0.#") + " C=" + LowPercent + "%, " + HighTemperatureC.ToString("0.#") + " C=" + HighPercent + "%)";
+    }
 }
 
 public sealed class SpokenHotKeySetting
@@ -346,6 +405,14 @@ public sealed class GitHubReleaseAsset
 
     [JsonProperty("browser_download_url")]
     public string BrowserDownloadUrl;
+}
+
+public sealed class UsbDiagnosticSnapshot
+{
+    public int HubCount;
+    public int PortCount;
+    public int PortMatchCount;
+    public readonly List<string> Lines = new List<string>();
 }
 
 public sealed class GlobalHotKey

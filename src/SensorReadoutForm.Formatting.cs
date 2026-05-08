@@ -16,6 +16,18 @@ public sealed partial class SensorReadoutForm : Form
         return (row.Type ?? "") + "|" + (row.Hardware ?? "") + "|" + (row.Name ?? "") + "|" + (row.Identifier ?? "");
     }
 
+    public static string IdentifierFromSettingsKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        var trimmed = key.Trim();
+        var lastSeparator = trimmed.LastIndexOf('|');
+        return lastSeparator >= 0 ? trimmed.Substring(lastSeparator + 1).Trim() : trimmed;
+    }
+
     public static string TrayChoiceLabel(SensorRow row)
     {
         if (row == null)
@@ -53,6 +65,11 @@ public sealed partial class SensorReadoutForm : Form
         if (string.Equals(type, "Network", StringComparison.OrdinalIgnoreCase))
         {
             return includeHardwareName ? ShortTrayHardware(hardware) + " " + label : label;
+        }
+
+        if (string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase))
+        {
+            return includeHardwareName ? ShortTrayHardware(hardware) : label;
         }
 
         if (string.Equals(type, "Performance", StringComparison.OrdinalIgnoreCase) ||
@@ -93,6 +110,11 @@ public sealed partial class SensorReadoutForm : Form
         if (row.Type == "Network")
         {
             return (includeHardwareName ? hardware + " " : "") + name + " " + FormatValue(row);
+        }
+
+        if (row.Type == "USB")
+        {
+            return includeHardwareName ? hardware + ", " + FormatValue(row) : FormatValue(row);
         }
 
         if (row.Type == "Performance" || row.Type == "SMART")

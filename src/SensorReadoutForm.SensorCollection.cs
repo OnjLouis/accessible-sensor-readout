@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Net.NetworkInformation;
@@ -10,7 +11,34 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    private IEnumerable<SensorRow> GetLibreHardwareMonitorSensors()
+    private sealed class LogicalDiskPerformanceCounters : IDisposable
+    {
+        public readonly PerformanceCounter ReadBytes;
+        public readonly PerformanceCounter WriteBytes;
+        public readonly PerformanceCounter ReadActivity;
+        public readonly PerformanceCounter WriteActivity;
+        public readonly PerformanceCounter TotalActivity;
+
+        public LogicalDiskPerformanceCounters(string instance)
+        {
+            ReadBytes = new PerformanceCounter("LogicalDisk", "Disk Read Bytes/sec", instance, true);
+            WriteBytes = new PerformanceCounter("LogicalDisk", "Disk Write Bytes/sec", instance, true);
+            ReadActivity = new PerformanceCounter("LogicalDisk", "% Disk Read Time", instance, true);
+            WriteActivity = new PerformanceCounter("LogicalDisk", "% Disk Write Time", instance, true);
+            TotalActivity = new PerformanceCounter("LogicalDisk", "% Disk Time", instance, true);
+        }
+
+        public void Dispose()
+        {
+            ReadBytes.Dispose();
+            WriteBytes.Dispose();
+            ReadActivity.Dispose();
+            WriteActivity.Dispose();
+            TotalActivity.Dispose();
+        }
+    }
+
+    private IEnumerable<SensorRow> GetLibreHardwareMonitorSensors(bool includeSlowHardware)
     {
         try
         {
@@ -20,10 +48,14 @@ public sealed partial class SensorReadoutForm : Form
 
                 foreach (var hardware in lhmComputer.Hardware)
                 {
-                    UpdateHardware(hardware);
+                    UpdateHardware(hardware, includeSlowHardware);
                 }
 
-                return lhmComputer.Hardware.SelectMany(ReadLibreHardwareMonitorSensors).ToList();
+                var freshRows = lhmComputer.Hardware
+                    .SelectMany(hardware => ReadLibreHardwareMonitorSensors(hardware, includeSlowHardware))
+                    .ToList();
+                UpdateCachedLhmRows(freshRows, includeSlowHardware);
+                return BuildLibreHardwareMonitorRowsFromCache(freshRows, includeSlowHardware);
             }
         }
         catch
@@ -162,17 +194,84 @@ public sealed partial class SensorReadoutForm : Form
         lhmComputer.Open();
     }
 
-    private static void UpdateHardware(IHardware hardware)
+    private static void UpdateHardware(IHardware hardware, bool includeSlowHardware)
     {
+        if (!includeSlowHardware && IsSlowLibreHardwareMonitorHardware(hardware))
+        {
+            return;
+        }
+
         hardware.Update();
         foreach (var subHardware in hardware.SubHardware)
         {
-            UpdateHardware(subHardware);
+            UpdateHardware(subHardware, includeSlowHardware);
         }
     }
 
-    private static IEnumerable<SensorRow> ReadLibreHardwareMonitorSensors(IHardware hardware)
+    private static void UpdateHardware(IHardware hardware)
     {
+        UpdateHardware(hardware, true);
+    }
+
+    private static bool IsSlowLibreHardwareMonitorHardware(IHardware hardware)
+    {
+        if (hardware == null)
+        {
+            return true;
+        }
+
+        return hardware.HardwareType == HardwareType.Storage ||
+            hardware.HardwareType == HardwareType.Network ||
+            hardware.HardwareType == HardwareType.Memory;
+    }
+
+    private IEnumerable<SensorRow> BuildLibreHardwareMonitorRowsFromCache(List<SensorRow> freshRows, bool includeSlowHardware)
+    {
+        if (includeSlowHardware)
+        {
+            return freshRows;
+        }
+
+        lock (lhmRowsLock)
+        {
+            if (cachedLhmRows.Count == 0)
+            {
+                return freshRows;
+            }
+
+            var freshKeys = new HashSet<string>(freshRows.Select(SensorDeduplicationKey), StringComparer.OrdinalIgnoreCase);
+            return freshRows
+                .Concat(cachedLhmRows.Where(row => row != null && !freshKeys.Contains(SensorDeduplicationKey(row))).Select(CloneSensorRow))
+                .ToList();
+        }
+    }
+
+    private void UpdateCachedLhmRows(List<SensorRow> freshRows, bool includeSlowHardware)
+    {
+        lock (lhmRowsLock)
+        {
+            if (includeSlowHardware || cachedLhmRows.Count == 0)
+            {
+                cachedLhmRows = freshRows.Select(CloneSensorRow).ToList();
+                cachedLhmRowsUtc = DateTime.UtcNow;
+                return;
+            }
+
+            var freshKeys = new HashSet<string>(freshRows.Select(SensorDeduplicationKey), StringComparer.OrdinalIgnoreCase);
+            cachedLhmRows = freshRows
+                .Concat(cachedLhmRows.Where(row => row != null && !freshKeys.Contains(SensorDeduplicationKey(row))).Select(CloneSensorRow))
+                .ToList();
+            cachedLhmRowsUtc = DateTime.UtcNow;
+        }
+    }
+
+    private static IEnumerable<SensorRow> ReadLibreHardwareMonitorSensors(IHardware hardware, bool includeSlowHardware)
+    {
+        if (!includeSlowHardware && IsSlowLibreHardwareMonitorHardware(hardware))
+        {
+            yield break;
+        }
+
         foreach (var sensor in hardware.Sensors)
         {
             var sensorType = sensor.SensorType.ToString();
@@ -201,6 +300,11 @@ public sealed partial class SensorReadoutForm : Form
                 continue;
             }
 
+            if (isStorage && IsLibreHardwareMonitorStorageVolatileCounter(sensor.Name))
+            {
+                continue;
+            }
+
             yield return new SensorRow
             {
                 Type = type,
@@ -215,7 +319,7 @@ public sealed partial class SensorReadoutForm : Form
 
         foreach (var subHardware in hardware.SubHardware)
         {
-            foreach (var row in ReadLibreHardwareMonitorSensors(subHardware))
+            foreach (var row in ReadLibreHardwareMonitorSensors(subHardware, includeSlowHardware))
             {
                 yield return row;
             }
@@ -416,9 +520,139 @@ public sealed partial class SensorReadoutForm : Form
         return string.IsNullOrWhiteSpace(label) ? root : root + " " + label;
     }
 
-    private static IEnumerable<SensorRow> GetSystemPerformanceRows()
+    private IEnumerable<SensorRow> GetLogicalDiskPerformanceRows()
     {
         var rows = new List<SensorRow>();
+        try
+        {
+            foreach (var drive in System.IO.DriveInfo.GetDrives())
+            {
+                if (drive.DriveType != System.IO.DriveType.Fixed || !drive.IsReady)
+                {
+                    continue;
+                }
+
+                var instance = drive.Name == null ? "" : drive.Name.TrimEnd('\\');
+                if (string.IsNullOrWhiteSpace(instance))
+                {
+                    continue;
+                }
+
+                LogicalDiskPerformanceCounters counters;
+                if (!TryGetLogicalDiskPerformanceCounters(instance, out counters))
+                {
+                    continue;
+                }
+
+                var hardware = GetLogicalDiskHardwareName(drive);
+                float readBytes;
+                float writeBytes;
+                float readActivity;
+                float writeActivity;
+                float totalActivity;
+                if (TryReadLogicalDiskPerformanceCounters(instance, counters, out readBytes, out writeBytes, out readActivity, out writeActivity, out totalActivity))
+                {
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read rate", Identifier = "logicaldisk/" + instance + "/read", Value = readBytes, DisplayValue = FormatBytesPerSecond(readBytes), Source = "Windows Logical Disk" });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write rate", Identifier = "logicaldisk/" + instance + "/write", Value = writeBytes, DisplayValue = FormatBytesPerSecond(writeBytes), Source = "Windows Logical Disk" });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read activity", Identifier = "logicaldisk/" + instance + "/read-activity", Value = readActivity, DisplayValue = FormatNumber(Math.Round(readActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write activity", Identifier = "logicaldisk/" + instance + "/write-activity", Value = writeActivity, DisplayValue = FormatNumber(Math.Round(writeActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Total activity", Identifier = "logicaldisk/" + instance + "/total-activity", Value = totalActivity, DisplayValue = FormatNumber(Math.Round(totalActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private bool TryGetLogicalDiskPerformanceCounters(string instance, out LogicalDiskPerformanceCounters counters)
+    {
+        counters = null;
+        lock (logicalDiskCountersLock)
+        {
+            if (logicalDiskCounters.TryGetValue(instance, out counters))
+            {
+                return true;
+            }
+
+            try
+            {
+                counters = new LogicalDiskPerformanceCounters(instance);
+                logicalDiskCounters[instance] = counters;
+                return true;
+            }
+            catch
+            {
+                counters = null;
+                return false;
+            }
+        }
+    }
+
+    private bool TryReadLogicalDiskPerformanceCounters(string instance, LogicalDiskPerformanceCounters counters, out float readBytes, out float writeBytes, out float readActivity, out float writeActivity, out float totalActivity)
+    {
+        readBytes = 0;
+        writeBytes = 0;
+        readActivity = 0;
+        writeActivity = 0;
+        totalActivity = 0;
+        try
+        {
+            readBytes = Math.Max(0, counters.ReadBytes.NextValue());
+            writeBytes = Math.Max(0, counters.WriteBytes.NextValue());
+            readActivity = ClampPercent(counters.ReadActivity.NextValue());
+            writeActivity = ClampPercent(counters.WriteActivity.NextValue());
+            totalActivity = ClampPercent(counters.TotalActivity.NextValue());
+            return true;
+        }
+        catch
+        {
+            RemoveLogicalDiskPerformanceCounters(instance);
+            return false;
+        }
+    }
+
+    private void RemoveLogicalDiskPerformanceCounters(string instance)
+    {
+        lock (logicalDiskCountersLock)
+        {
+            LogicalDiskPerformanceCounters counters;
+            if (!logicalDiskCounters.TryGetValue(instance, out counters))
+            {
+                return;
+            }
+
+            logicalDiskCounters.Remove(instance);
+            counters.Dispose();
+        }
+    }
+
+    private static float ClampPercent(float value)
+    {
+        if (float.IsNaN(value) || float.IsInfinity(value))
+        {
+            return 0;
+        }
+
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        return value > 100 ? 100 : value;
+    }
+
+    private IEnumerable<SensorRow> GetSystemPerformanceRows()
+    {
+        var rows = new List<SensorRow>();
+        var fastRows = new List<SensorRow>();
+        if (TryAddFastCpuUsageRow(fastRows) & TryAddFastMemoryRows(fastRows))
+        {
+            return fastRows;
+        }
+
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor"))
@@ -472,6 +706,81 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private bool TryAddFastCpuUsageRow(List<SensorRow> rows)
+    {
+        try
+        {
+            NativeMethods.FileTime idleTime;
+            NativeMethods.FileTime kernelTime;
+            NativeMethods.FileTime userTime;
+            if (!NativeMethods.GetSystemTimes(out idleTime, out kernelTime, out userTime))
+            {
+                return false;
+            }
+
+            var idle = idleTime.ToUInt64();
+            var kernel = kernelTime.ToUInt64();
+            var user = userTime.ToUInt64();
+            var load = 0.0;
+            if (hasLastCpuTimes)
+            {
+                var idleDelta = idle - lastCpuIdleTime;
+                var kernelDelta = kernel - lastCpuKernelTime;
+                var userDelta = user - lastCpuUserTime;
+                var totalDelta = kernelDelta + userDelta;
+                if (totalDelta > 0)
+                {
+                    load = Math.Max(0, Math.Min(100, (1.0 - (idleDelta / (double)totalDelta)) * 100.0));
+                }
+            }
+
+            lastCpuIdleTime = idle;
+            lastCpuKernelTime = kernel;
+            lastCpuUserTime = user;
+            hasLastCpuTimes = true;
+            rows.Add(new SensorRow
+            {
+                Type = "Performance",
+                Hardware = "CPU",
+                Name = "CPU usage",
+                Value = (float)load,
+                DisplayValue = FormatNumber(Math.Round(load, 1), "0.0") + "%",
+                Source = "Windows"
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryAddFastMemoryRows(List<SensorRow> rows)
+    {
+        try
+        {
+            var status = NativeMethods.MemoryStatusEx.Create();
+            if (!NativeMethods.GlobalMemoryStatusEx(ref status) || status.ullTotalPhys == 0)
+            {
+                return false;
+            }
+
+            var totalBytes = (double)status.ullTotalPhys;
+            var freeBytes = (double)status.ullAvailPhys;
+            var usedBytes = Math.Max(0, totalBytes - freeBytes);
+            var usedPercent = usedBytes / totalBytes * 100.0;
+            var availablePercent = freeBytes / totalBytes * 100.0;
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows" });
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedBytes), Source = "Windows" });
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows" });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static IEnumerable<SensorRow> GetOverviewRows()
@@ -798,36 +1107,6 @@ public sealed partial class SensorReadoutForm : Form
         return ulong.TryParse(Convert.ToString(value), out parsed) ? parsed : 0;
     }
 
-    private static IEnumerable<SensorRow> GetStoragePerformanceRows(IEnumerable<SensorRow> sourceRows)
-    {
-        var wantedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Data read",
-            "Data written",
-            "Read rate",
-            "Write rate",
-            "Read activity",
-            "Write activity",
-            "Total activity",
-            "Used space",
-            "Free space"
-        };
-
-        return sourceRows
-            .Where(r => r.Type == "SMART" && wantedNames.Contains(CleanSensorName(r.Name)))
-            .Select(r => new SensorRow
-            {
-                Type = "Performance",
-                Hardware = NormalizeStorageHardwareName(r.Hardware),
-                Name = CleanSensorName(r.Name),
-                Identifier = r.Identifier,
-                Value = r.Value,
-                DisplayValue = r.DisplayValue,
-                Source = r.Source
-            })
-            .ToList();
-    }
-
     private IEnumerable<SensorRow> GetNetworkRows()
     {
         var rows = new List<SensorRow>();
@@ -847,6 +1126,10 @@ public sealed partial class SensorReadoutForm : Form
                     name = "Network adapter";
                 }
 
+                var macAddress = FormatMacAddress(adapter.GetPhysicalAddress());
+                var macVendor = string.IsNullOrWhiteSpace(macAddress)
+                    ? ""
+                    : MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data")).Lookup(macAddress);
                 var stats = adapter.GetIPv4Statistics();
                 var now = DateTime.UtcNow;
                 var id = string.IsNullOrWhiteSpace(adapter.Id) ? name : adapter.Id;
@@ -867,6 +1150,18 @@ public sealed partial class SensorReadoutForm : Form
                     TimestampUtc = now
                 };
 
+                if (!string.IsNullOrWhiteSpace(adapter.Description) && !string.Equals(adapter.Description, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Adapter description", DisplayValue = adapter.Description, Source = "Windows Network" });
+                }
+                if (!string.IsNullOrWhiteSpace(macAddress))
+                {
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC address", DisplayValue = macAddress, Source = "Windows Network" });
+                }
+                if (!string.IsNullOrWhiteSpace(macVendor))
+                {
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC vendor", DisplayValue = macVendor, Source = "OUI database" });
+                }
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Status", DisplayValue = adapter.OperationalStatus.ToString(), Source = "Windows Network" });
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Link speed", DisplayValue = FormatBitsPerSecond(adapter.Speed), Source = "Windows Network" });
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Receive rate", Value = (float)receiveRate, DisplayValue = FormatBytesPerSecond(receiveRate), Source = "Windows Network" });
@@ -891,6 +1186,19 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static string FormatMacAddress(PhysicalAddress address)
+    {
+        if (address == null)
+        {
+            return "";
+        }
+
+        var bytes = address.GetAddressBytes();
+        return bytes == null || bytes.Length == 0
+            ? ""
+            : string.Join(":", bytes.Select(b => b.ToString("X2")).ToArray());
     }
 
     private static string SensorDeduplicationKey(SensorRow row)
@@ -1189,5 +1497,15 @@ public sealed partial class SensorReadoutForm : Form
             (sensorName.Equals("Free Space", StringComparison.OrdinalIgnoreCase) ||
             sensorName.Equals("Used Space", StringComparison.OrdinalIgnoreCase) ||
             sensorName.Equals("Total Space", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsLibreHardwareMonitorStorageVolatileCounter(string sensorName)
+    {
+        return !string.IsNullOrWhiteSpace(sensorName) &&
+            (sensorName.Equals("Data Read", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Data Written", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Read Activity", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Write Activity", StringComparison.OrdinalIgnoreCase) ||
+            sensorName.Equals("Total Activity", StringComparison.OrdinalIgnoreCase));
     }
 }

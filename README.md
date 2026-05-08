@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.4.3.
+Current version: 1.5.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -18,6 +18,8 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, memory usage, and storage read/write activity.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, and total traffic.
+- Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
+- Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, and detailed copyable device fields.
 - Links back to the project page from the README, Help menu, and About dialog.
 - Uses bundled LibreHardwareMonitor libraries for sensor access.
 - Uses the PawnIO driver for low-level motherboard sensors and fan controls where hardware support is available.
@@ -25,6 +27,8 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Hides stopped or unpopulated motherboard fan headers by default.
 - Applies manual fan percentages to one selected fan or to all visible fans.
 - Returns one fan or all fans to automatic/default control.
+- Supports simple fan curves that set a fan control from a selected temperature reading.
+- Supports fan profiles that apply several fan controls at once, with optional global hotkeys.
 - Saves TXT or HTML sensor reports.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
@@ -33,13 +37,12 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.
 - Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
 - Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
-- Converts Samsung storage data counters to readable GB/TB values when LibreHardwareMonitor exposes them as raw SMART units.
 - Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.
-- Can speak the notification area status through NVDA using bundled 64-bit NVDA Controller Client DLLs.
+- Can speak the notification area status through the active screen reader using bundled 64-bit Tolk screen reader library DLLs.
 - Supports simple user-editable language files in the `Langs` folder.
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
-- Can run opt-in alarms for selected readings, speaking through NVDA and/or playing a chosen WAV file when a threshold is reached.
+- Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
 
 ## Prerequisites
@@ -62,7 +65,7 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit)
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit)
 - [BlackSharp.Core on NuGet](https://www.nuget.org/packages/BlackSharp.Core/)
-- [NVDA Controller Client](https://github.com/nvaccess/nvda/tree/master/extras/controllerClient)
+- [Tolk screen reader library](https://github.com/dkager/tolk)
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
 ## Winget Install Commands
@@ -105,14 +108,16 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
+| `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
 | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | `Del` | Hide the selected reading or tree branch. |
 | `Ctrl+L` | Open fan controls. |
+| `Ctrl+U` | Open fan curves. |
 | `Ctrl+,` | Open Preferences. |
 | `F1` | Open the manual. |
 | `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. |
 | `Ctrl+F1` | Open the project page. |
-| `Ctrl+0` to `Ctrl+4` | Show Performance, Temperatures, Fans, SMART, or Network. |
+| `Ctrl+0` to `Ctrl+5` | Show Performance, Temperatures, Fans, SMART, Network, or USB. |
 | `Esc` | Close the Fan Controls dialog. |
 | `Alt+L` | Save the label for the selected fan control. |
 | `Alt+M` | Apply the manual percentage to the selected fan control. |
@@ -157,6 +162,7 @@ Use `Options` > `Preferences` or `Ctrl+,` to configure:
 - Whether values refresh while Sensor Readout has keyboard focus.
 - Refresh interval in seconds.
 - Whether a notification area icon is shown.
+- How often Sensor Readout checks for GitHub updates: at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
 - Whether Sensor Readout runs at Windows startup.
 - Whether Sensor Readout starts minimized to the notification area.
 - Up to four readings to show in the notification area tooltip, with a configurable display order.
@@ -173,7 +179,7 @@ Notification area readings are selected from an Available readings list and move
 
 ## Alarms And Sounds
 
-Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through NVDA, play a WAV file, or both.
+Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
 
 Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on; users can add their own `.wav` files to the same folder.
 
@@ -189,9 +195,9 @@ The Performance section summarizes live system counters and storage activity. It
 
 The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters.
 
-When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers such as NVDA use their existing progress bar feedback without navigating many separate progress controls.
+When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.
 
-Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, rename a fan, or hide it. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, open Details where available, rename a fan, or hide it. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
 ## Fan Control Workflow
 
@@ -207,6 +213,33 @@ Open fan controls from `Options` > `Fan controls...` or press `Ctrl+L`.
 The all-fan buttons apply only to visible fan controls. Stopped or unpopulated motherboard headers are hidden unless `Show stopped` is enabled.
 
 Fan labels are saved in the machine-specific configuration file in `Config`. Labels only change friendly names shown in Sensor Readout.
+
+## Fan Curves
+
+Open fan curves from `Options` > `Fan curves...`, press `Ctrl+U`, or open them from the Fan Controls dialog.
+
+Each curve chooses one writable fan control and one temperature reading. Sensor Readout sets the fan to the low percentage at the low temperature, ramps between the low and high points, and uses the emergency percentage once the emergency temperature is reached. Fan curves depend on LibreHardwareMonitor exposing a writable control; if the hardware only exposes a fan RPM reading, Sensor Readout can read it but cannot control it.
+
+## Fan Profiles
+
+Preferences > Fan profiles lets you build named groups of fan actions. The layout matches the Hotkeys tab: create a profile, assign an optional global hotkey, add fan controls to the profile, then choose whether each fan should be set to a manual percentage or returned to automatic/default control.
+
+Useful examples:
+
+- Everyday: set case fans to a quiet fixed percentage and leave the CPU fan on automatic.
+- Gaming or rendering: set case, CPU, and GPU fan controls higher before starting a heavy workload.
+- Reset to automatic: create one profile that returns every writable fan control to automatic/default control.
+
+Fan profiles are machine-specific because fan control keys depend on the hardware in the current computer. New installs start with a few empty starter profiles, such as everyday use, heavier workloads, and reset to automatic. Add the fans that make sense on your machine, rename the profiles if needed, or delete the starters.
+
+If a fan curve is enabled for the same fan, the curve may adjust that fan again on the next refresh. Use fan profiles for deliberate one-shot changes, and fan curves for continuous temperature-based control.
+
+## Example Setups
+
+- Quick status hotkey: create a spoken hotkey for CPU usage, CPU temperature, GPU temperature, and the most important network rates.
+- Disk activity hotkey: create a spoken hotkey for read and write rates on the drives you care about most, then double-press it when you want the same values copied to the clipboard.
+- Quiet desktop: use a fan curve for the CPU fan, a quiet fan profile for case fans, and an alarm that warns if CPU or GPU temperature rises above your chosen limit.
+- Troubleshooting USB: open the USB category, press Enter on a device for details, select the useful fields, and copy them for sharing.
 
 ## Reports
 
@@ -229,8 +262,10 @@ Configuration and logging created by the app:
 
 - `Config\Shared.json`: portable preferences shared across machines, such as language, refresh behavior, temperature unit, startup/shutdown sounds, startup speech, notification-area visibility, update checks, and global hotkey choices.
 - `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
-- `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and NVDA speech messages, created only when logging is enabled.
+- `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and screen reader speech messages, created only when logging is enabled.
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
+- `Data\usb.ids`: bundled USB vendor/product lookup data.
+- `Data\oui.csv`: bundled MAC/OUI vendor lookup data for network adapters.
 
 Language files:
 
@@ -245,12 +280,12 @@ Language files:
 - The decimal separator can also be changed from Preferences without editing a language file.
 - Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, and `README-it.html`.
 
-Optional NVDA speech:
+Optional screen-reader speech:
 
-- The speak-tray-status hotkey uses NVDA's controller client when available.
-- `nvdaControllerClient.dll` and `nvdaControllerClient64.dll` are bundled beside `Sensor Readout.exe` for the 64-bit app.
-- If the DLL is missing or NVDA is not running, the hotkey fails safely and shows a status message when the main window is visible.
-- When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through NVDA. The default comes from `speech.startupActive` in the selected language file.
+- Spoken hotkeys and alarms use Tolk to talk to the active screen reader where possible.
+- `Tolk.dll`, `SAAPI64.dll`, and Tolk support DLLs are bundled beside `Sensor Readout.exe` for screen-reader and SAPI speech.
+- If Tolk is missing or no speech target accepts the message, the action fails safely and shows a status message when the main window is visible.
+- When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through the active screen reader. The default comes from `speech.startupActive` in the selected language file.
 - Preferences includes a simple language editor tab for editing existing language-file entries without opening a separate text editor.
 
 ## Notes
@@ -264,6 +299,22 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
 ## Changelog
+
+### 1.5.0
+
+- New: USB category for connected devices, hubs, and controllers, with concise tree rows, copyable detail fields, bundled `Data\usb.ids` vendor/product lookup, and extra information such as connection speed, capable speed, requested power in mA, port, drive letters, safe-to-unplug status, VID/PID, driver key, service, and Windows device IDs where Windows exposes them.
+- New: Fan curves can link a writable fan control to a temperature reading with low, high, and emergency points.
+- New: Fan profiles can apply several fan controls at once, including automatic/default control, and can be triggered from optional global hotkeys. New setups include empty starter profiles that users can fill with their own fans.
+- Added: `Ctrl+U` opens Fan Curves directly from anywhere in the main app.
+- Fixed: Fan Curves now uses friendly fan names and follows the same hidden or stopped fan filtering as Fan Controls.
+- Improved: Visible reading lists defer refresh redraws briefly while menus or tree navigation are active, reducing focus stalls during background updates.
+- Improved: Preferences now has a General > Updates section where automatic GitHub update checks can be set to startup, hourly, 6-hourly, 12-hourly, daily, weekly, or never.
+- New: Network adapters show MAC address and OUI vendor when the bundled OUI database contains the adapter prefix.
+- Added: `Data\oui.csv` is bundled as a separate MIT-licensed data file for MAC vendor lookup.
+- Changed: Spoken output uses the Tolk screen-reader library, opening speech support beyond one screen reader and allowing SAPI fallback where available.
+- Fixed: Launching Sensor Readout while it is already running closes the existing instance and starts the new one cleanly, while command-line report generation can still run beside the active app.
+- Improved: TXT and HTML reports include USB details and other row details, making reports more useful when diagnosing hardware support.
+- Changed: SMART now focuses on health, status, temperature, wear, errors, and hours, while live disk read/write rates and activity use Windows performance counters.
 
 ### 1.4.3
 
@@ -279,16 +330,16 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 ### 1.4.1
 
 - Fixed: Ctrl+Alt combinations can now be captured correctly when assigning global hotkeys in Preferences.
-- Added: Double-press copy actions now speak "Copied to Clipboard." through NVDA after the text is copied.
+- Added: Double-press copy actions now speak "Copied to Clipboard." through the active screen reader after the text is copied.
 
 ### 1.4.0
 
-- New: Reading alarms can monitor numeric sensor values and notify with NVDA speech, optional WAV sounds, per-alarm cooldowns, and a flashing notification-area icon.
+- New: Reading alarms can monitor numeric sensor values and notify with screen reader speech, optional WAV sounds, per-alarm cooldowns, and a flashing notification-area icon.
 - New: Alarm thresholds are unit-aware. Temperature alarms can use C or F, fan alarms use RPM, rate alarms can use B/s, KB/s, MB/s, or GB/s, and size-style readings can use byte units where applicable.
 - New: Startup and shutdown sounds can be chosen from the Sounds folder, with preview while choosing a sound.
 - New: Speech hotkeys can copy their spoken output to the clipboard with an optional double-press gesture.
 - New: Preferences now supports Delete for removing selected items, Ctrl+1 through Ctrl+6 for jumping between tabs, F2 for name/edit fields, and Enter for the main value field where applicable.
-- Changed: Source code has been split into focused files for startup, models, preferences, the main form, and native/NVDA interop, making future maintenance safer.
+- Changed: Source code has been split into focused files for startup, models, preferences, the main form, and native/screen reader interop, making future maintenance safer.
 - Added: Command-line options for starting minimized, closing a running instance, setting the logging level, and saving TXT or HTML reports.
 - Fixed: Update-available release notes now display GitHub changelog lines clearly instead of running Markdown items together.
 
@@ -302,7 +353,7 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 
 - New: Create multiple spoken hotkey profiles, each with its own key combination and ordered set of readings.
 - New: Selected tray and spoken-hotkey readings show a speech preview, and spoken-hotkey readings can be renamed for shorter speech.
-- New: Spoken feedback can omit device names for shorter NVDA output such as `Rx 688.4 KB/s; Tx 14.4 MB/s`.
+- New: Spoken feedback can omit device names for shorter screen reader output such as `Rx 688.4 KB/s; Tx 14.4 MB/s`.
 - Improved: Repeated spoken labels are grouped for concise output, for example `CPU: 15.0%; 45.1 C`.
 - Improved: Hotkey and speech controls now live together on a dedicated Hotkeys tab.
 - Improved: Preferences reopens on the tab you used last during the current session.
@@ -310,7 +361,7 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 - New: Startup update checks can be turned off in Preferences.
 - Improved: Preferences now protects plain text entry so typing profile names does not trigger unrelated UI accelerators.
 - Improved: Reading selection lists in Preferences support buffered multi-character search, so typing more than one letter can find entries such as Ethernet Rx.
-- New: Fan readings can show the matching control percentage next to RPM, and those percentages feed the selected-reading progress meter for NVDA feedback.
+- New: Fan readings can show the matching control percentage next to RPM, and those percentages feed the selected-reading progress meter for screen reader feedback.
 - Improved: Saved manual fan settings are restored in the background on startup, while saved automatic/default fan settings no longer slow launch.
 - Fixed: Update-available dialog buttons now include keyboard accelerators.
 - Changed: Shipped folders now use consistent casing: `Config`, `Logs`, `Langs`, and `Docs`, while folder lookup remains case-insensitive for existing installs.
@@ -324,8 +375,8 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 
 - New: Multilingual interface support with English, German, Spanish, French, and Italian language files.
 - New: Language editor in Preferences for editing translated text, creating new language files from English, and changing the NVDA startup message.
-- New: HTML manuals in the `Docs` folder, with `F1` opening the manual for the selected language.
-- New: Temperature-unit control for Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
+- New: HTML manuals in the `docs` folder, with `F1` opening the manual for the selected language.
+- New: Temperature-unit control for Celsius or Fahrenheit.
 - New: Decimal-separator control with language default, period, and comma choices.
 - New: Optional global hotkeys for show/hide and speaking the current notification-area status.
 - New: Configurable NVDA startup speech for minimized startup.
@@ -388,7 +439,9 @@ Sensor Readout uses or bundles components from these projects:
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit), used by LibreHardwareMonitor for storage data.
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit), used by LibreHardwareMonitor for memory SPD data.
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
-- [NVDA Controller Client](https://github.com/nvaccess/nvda/tree/master/extras/controllerClient), used for optional NVDA speech output.
+- [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
+- [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.
+- [MAC Address Vendor Database](https://github.com/uxmansarwar/mac-address-vendor-database), used under the MIT License for MAC/OUI vendor lookup.
 - Microsoft .NET Framework and support libraries.
 
 ## License

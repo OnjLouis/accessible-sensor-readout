@@ -14,69 +14,100 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern IntPtr LoadLibrary(string lpFileName);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx status);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi)]
-    public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetSystemTimes(out FileTime idleTime, out FileTime kernelTime, out FileTime userTime);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FileTime
+    {
+        public uint LowDateTime;
+        public uint HighDateTime;
+
+        public ulong ToUInt64()
+        {
+            return ((ulong)HighDateTime << 32) | LowDateTime;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct MemoryStatusEx
+    {
+        public uint dwLength;
+        public uint dwMemoryLoad;
+        public ulong ullTotalPhys;
+        public ulong ullAvailPhys;
+        public ulong ullTotalPageFile;
+        public ulong ullAvailPageFile;
+        public ulong ullTotalVirtual;
+        public ulong ullAvailVirtual;
+        public ulong ullAvailExtendedVirtual;
+
+        public static MemoryStatusEx Create()
+        {
+            return new MemoryStatusEx { dwLength = (uint)Marshal.SizeOf(typeof(MemoryStatusEx)) };
+        }
+    }
 }
 
-internal static class NvdaController
+internal static class ScreenReaderOutput
 {
-    private delegate int NvdaTestIfRunningDelegate();
-    private delegate int NvdaSpeakTextDelegate([MarshalAs(UnmanagedType.LPWStr)] string text);
-    private delegate int NvdaSpeakSsmlDelegate(
-        [MarshalAs(UnmanagedType.LPWStr)] string ssml,
-        int symbolLevel,
-        int priority,
-        [MarshalAs(UnmanagedType.I1)] bool asynchronous);
-
-    private static NvdaTestIfRunningDelegate testIfRunning;
-    private static NvdaSpeakTextDelegate speakText;
-    private static NvdaSpeakSsmlDelegate speakSsml;
     private static bool loadAttempted;
-    private static string loadError = "NVDA controller client DLL not loaded.";
+    private static bool loaded;
+    private static string loadError = "Tolk screen reader library is not loaded.";
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void Tolk_Load();
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool Tolk_IsLoaded();
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void Tolk_Unload();
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void Tolk_TrySAPI([MarshalAs(UnmanagedType.I1)] bool trySAPI);
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void Tolk_PreferSAPI([MarshalAs(UnmanagedType.I1)] bool preferSAPI);
+
+    [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool Tolk_Output([MarshalAs(UnmanagedType.LPWStr)] string text, [MarshalAs(UnmanagedType.I1)] bool interrupt);
 
     public static bool TrySpeak(string text, out string error)
     {
-        error = "";
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            text = "Sensor Readout";
-        }
-
-        if (!EnsureLoaded(out error))
-        {
-            return false;
-        }
-
-        try
-        {
-            var running = testIfRunning == null ? 0 : testIfRunning();
-            if (running != 0)
-            {
-                error = "NVDA does not appear to be running.";
-                return false;
-            }
-
-            var result = speakText(text);
-            if (result != 0)
-            {
-                error = "NVDA returned error code " + result + ".";
-                return false;
-            }
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            return false;
-        }
+        return TryOutput(text, true, out error);
     }
 
     public static bool TrySpeakPolite(string text, out string error)
     {
+        return TryOutput(text, false, out error);
+    }
+
+    public static void Shutdown()
+    {
+        if (!loaded)
+        {
+            return;
+        }
+
+        try
+        {
+            Tolk_Unload();
+        }
+        catch
+        {
+        }
+
+        loaded = false;
+    }
+
+    private static bool TryOutput(string text, bool interrupt, out string error)
+    {
         error = "";
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -88,26 +119,11 @@ internal static class NvdaController
             return false;
         }
 
-        if (speakSsml == null)
-        {
-            return TrySpeak(text, out error);
-        }
-
         try
         {
-            var running = testIfRunning == null ? 0 : testIfRunning();
-            if (running != 0)
+            if (!Tolk_Output(text, interrupt))
             {
-                error = "NVDA does not appear to be running.";
-                return false;
-            }
-
-            const int symbolLevelUnchanged = -1;
-            const int speechPriorityNormal = 0;
-            var result = speakSsml("<speak>" + EscapeSsml(text) + "</speak>", symbolLevelUnchanged, speechPriorityNormal, true);
-            if (result != 0)
-            {
-                error = "NVDA returned error code " + result + ".";
+                error = "No supported screen reader or SAPI voice accepted the message.";
                 return false;
             }
 
@@ -122,7 +138,7 @@ internal static class NvdaController
 
     private static bool EnsureLoaded(out string error)
     {
-        if (speakText != null)
+        if (loaded)
         {
             error = "";
             return true;
@@ -135,60 +151,33 @@ internal static class NvdaController
         }
 
         loadAttempted = true;
-        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        var candidates = new[]
+
+        try
         {
-            System.IO.Path.Combine(baseDirectory, "nvdaControllerClient.dll"),
-            System.IO.Path.Combine(baseDirectory, "nvdaControllerClient64.dll")
-        };
-
-        foreach (var candidate in candidates)
+            Tolk_TrySAPI(true);
+            Tolk_PreferSAPI(false);
+            Tolk_Load();
+            loaded = Tolk_IsLoaded();
+            if (loaded)
+            {
+                error = "";
+                return true;
+            }
+        }
+        catch (DllNotFoundException)
         {
-            if (!System.IO.File.Exists(candidate))
-            {
-                continue;
-            }
-
-            var module = NativeMethods.LoadLibrary(candidate);
-            if (module == IntPtr.Zero)
-            {
-                continue;
-            }
-
-            var speakPointer = NativeMethods.GetProcAddress(module, "nvdaController_speakText");
-            var speakSsmlPointer = NativeMethods.GetProcAddress(module, "nvdaController_speakSsml");
-            var testPointer = NativeMethods.GetProcAddress(module, "nvdaController_testIfRunning");
-            if (speakPointer == IntPtr.Zero)
-            {
-                continue;
-            }
-
-            speakText = (NvdaSpeakTextDelegate)Marshal.GetDelegateForFunctionPointer(speakPointer, typeof(NvdaSpeakTextDelegate));
-            if (speakSsmlPointer != IntPtr.Zero)
-            {
-                speakSsml = (NvdaSpeakSsmlDelegate)Marshal.GetDelegateForFunctionPointer(speakSsmlPointer, typeof(NvdaSpeakSsmlDelegate));
-            }
-            if (testPointer != IntPtr.Zero)
-            {
-                testIfRunning = (NvdaTestIfRunningDelegate)Marshal.GetDelegateForFunctionPointer(testPointer, typeof(NvdaTestIfRunningDelegate));
-            }
-
-            error = "";
-            return true;
+            loadError = "Place Tolk.dll beside Sensor Readout.exe to enable screen-reader speech.";
+        }
+        catch (BadImageFormatException)
+        {
+            loadError = "The Tolk.dll beside Sensor Readout.exe is not a compatible 64-bit build.";
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
         }
 
-        loadError = "Place nvdaControllerClient.dll beside Sensor Readout.exe to enable NVDA speech.";
         error = loadError;
         return false;
-    }
-
-    private static string EscapeSsml(string text)
-    {
-        return (text ?? "")
-            .Replace("&", "&amp;")
-            .Replace("<", "&lt;")
-            .Replace(">", "&gt;")
-            .Replace("\"", "&quot;")
-            .Replace("'", "&apos;");
     }
 }

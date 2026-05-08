@@ -28,4 +28,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }
 
+$dataSource = Join-Path $PSScriptRoot 'Data'
+if (Test-Path $dataSource) {
+    $dataTarget = Join-Path $portable 'Data'
+    New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
+    Copy-Item -LiteralPath (Join-Path $dataSource '*') -Destination $dataTarget -Force
+}
+
 Write-Host "Built $OutputPath"

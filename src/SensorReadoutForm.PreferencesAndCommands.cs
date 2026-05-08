@@ -32,18 +32,31 @@ public sealed partial class SensorReadoutForm : Form
             return SelectCategoryByKey("type|Network");
         }
 
+        if (keyCode == Keys.D5 || keyCode == Keys.NumPad5)
+        {
+            return SelectCategoryByKey("type|USB");
+        }
+
         return false;
     }
 
     private bool SelectCategoryByKey(string key)
     {
+        var keepTreeFocus = readingTree != null && readingTree.ContainsFocus;
         for (var i = 0; i < deviceList.Items.Count; i++)
         {
             var filter = deviceList.Items[i] as DeviceFilter;
             if (filter != null && filter.Key == key)
             {
                 deviceList.SelectedIndex = i;
-                deviceList.Focus();
+                if (keepTreeFocus)
+                {
+                    readingTree.Focus();
+                }
+                else
+                {
+                    deviceList.Focus();
+                }
                 return true;
             }
         }
@@ -57,6 +70,10 @@ public sealed partial class SensorReadoutForm : Form
         using (var dialog = new PreferencesForm(settings, latestRows, languageChoices, lastPreferencesTabName))
         {
             openPreferencesDialog = dialog;
+            dialog.ApplyFanProfileRequested += delegate(FanProfileSetting profile)
+            {
+                ApplyFanProfile(profile, true);
+            };
             if (latestRows.Count > 0)
             {
                 dialog.UpdateSensorRows(latestRows);
@@ -88,6 +105,7 @@ public sealed partial class SensorReadoutForm : Form
             settings.RunAtStartup = dialog.RunAtStartup;
             settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
             settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
+            settings.UpdateCheckFrequency = dialog.UpdateCheckFrequency;
             if (settings.RunAtStartup || settings.StartMinimizedToTray)
             {
                 settings.TrayStatusEnabled = true;
@@ -95,6 +113,7 @@ public sealed partial class SensorReadoutForm : Form
             settings.LoggingLevel = dialog.LoggingLevel;
             settings.TrayItemKeys = dialog.TrayItemKeys;
             settings.SpokenHotKeys = dialog.SpokenHotKeys;
+            settings.FanProfiles = dialog.FanProfiles;
             settings.Alarms = dialog.Alarms;
             settings.StartupSoundFile = dialog.StartupSoundFile;
             settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
@@ -133,6 +152,7 @@ public sealed partial class SensorReadoutForm : Form
             ApplyLanguage();
             RegisterGlobalHotKeys();
             ApplyTimerSettings();
+            StartAutomaticUpdateChecks();
             statusLabel.Text = "Preferences saved.";
         }
     }

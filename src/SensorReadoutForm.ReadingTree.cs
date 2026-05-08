@@ -64,6 +64,7 @@ public sealed partial class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|Fan", DisplayName = T("type.Fan", "Fans"), Type = "Fan" };
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" };
         yield return new DeviceFilter { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" };
+        yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
     }
 
     private void UpdateReadingList()
@@ -468,6 +469,12 @@ public sealed partial class SensorReadoutForm : Form
                 return typeItem.Children;
             }
 
+            if (filter.Type == "USB")
+            {
+                AddUsbGroups(typeItem, rows);
+                return typeItem.Children;
+            }
+
             AddHardwareGroups(typeItem, rows);
             return typeItem.Children;
         }
@@ -580,6 +587,40 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private static void AddUsbGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        var devices = rows
+            .Where(r => !IsUsbHubOrController(r))
+            .ToList();
+        if (devices.Count > 0)
+        {
+            var devicesItem = new ReadingTreeItem { Key = "usb|devices", Text = T("group.USB devices", "Connected devices") };
+            AddReadingRows(devicesItem, devices);
+            parent.Children.Add(devicesItem);
+        }
+
+        var hubs = rows
+            .Where(IsUsbHubOrController)
+            .ToList();
+        if (hubs.Count > 0)
+        {
+            var hubsItem = new ReadingTreeItem { Key = "usb|hubs", Text = T("group.USB hubs", "Hubs and controllers") };
+            AddReadingRows(hubsItem, hubs);
+            parent.Children.Add(hubsItem);
+        }
+    }
+
+    private static bool IsUsbHubOrController(SensorRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        var name = (row.Hardware + " " + row.DisplayValue).ToLowerInvariant();
+        return name.IndexOf("hub") >= 0 || name.IndexOf("controller") >= 0 || name.IndexOf("host") >= 0;
+    }
+
     private static bool IsSystemPerformanceHardware(string hardware)
     {
         return string.Equals(hardware, "CPU", StringComparison.OrdinalIgnoreCase)
@@ -620,7 +661,7 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(new ReadingTreeItem
             {
                 Key = "row|" + RowSettingsKey(row),
-                Text = DisplayReadingName(row.Name) + ": " + FormatValue(row),
+                Text = row.Type == "USB" ? ShortHardwareName(row.Hardware) + ": " + FormatValue(row) : DisplayReadingName(row.Name) + ": " + FormatValue(row),
                 Row = row
             });
         }
@@ -745,7 +786,12 @@ public sealed partial class SensorReadoutForm : Form
             return 4;
         }
 
-        return 5;
+        if (type == "USB")
+        {
+            return 5;
+        }
+
+        return 6;
     }
 
     public static string DisplayTypeName(string type)
@@ -773,6 +819,11 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Network")
         {
             return T("type.Network", "Network");
+        }
+
+        if (type == "USB")
+        {
+            return T("type.USB", "USB");
         }
 
         return string.IsNullOrWhiteSpace(type) ? T("type.Readings", "Readings") : type;
@@ -811,6 +862,7 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Send rate", StringComparison.OrdinalIgnoreCase)) return 34;
         if (clean.Equals("Data received", StringComparison.OrdinalIgnoreCase)) return 35;
         if (clean.Equals("Data sent", StringComparison.OrdinalIgnoreCase)) return 36;
+        if (clean.Equals("Device", StringComparison.OrdinalIgnoreCase)) return 40;
         return 100;
     }
 

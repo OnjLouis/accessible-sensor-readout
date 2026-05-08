@@ -11,6 +11,11 @@ public sealed partial class SensorReadoutForm : Form
 
         if (disposing)
         {
+            DisposeLogicalDiskPerformanceCounters();
+        }
+
+        if (disposing)
+        {
             UnregisterGlobalHotKeys();
         }
 
@@ -45,6 +50,34 @@ public sealed partial class SensorReadoutForm : Form
             languageTimer.Dispose();
         }
 
+        if (disposing && updateCheckTimer != null)
+        {
+            updateCheckTimer.Dispose();
+        }
+
+        if (disposing && visibleRefreshTimer != null)
+        {
+            visibleRefreshTimer.Dispose();
+        }
+
+        if (disposing)
+        {
+            ScreenReaderOutput.Shutdown();
+        }
+
         base.Dispose(disposing);
+    }
+
+    private void DisposeLogicalDiskPerformanceCounters()
+    {
+        lock (logicalDiskCountersLock)
+        {
+            foreach (var counters in logicalDiskCounters.Values)
+            {
+                counters.Dispose();
+            }
+
+            logicalDiskCounters.Clear();
+        }
     }
 }
