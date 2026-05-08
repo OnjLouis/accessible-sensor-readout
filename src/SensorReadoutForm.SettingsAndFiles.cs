@@ -174,8 +174,9 @@ public sealed partial class SensorReadoutForm : Form
         {
             MigrateProgramDataFiles();
             var path = GetConfigFilePath();
+            var machineConfigExists = System.IO.File.Exists(path);
             AppSettings loaded = null;
-            if (System.IO.File.Exists(path))
+            if (machineConfigExists)
             {
                 loaded = JsonConvert.DeserializeObject<AppSettings>(System.IO.File.ReadAllText(path));
             }
@@ -196,6 +197,11 @@ public sealed partial class SensorReadoutForm : Form
             {
                 ApplySharedSettings(loaded, shared);
                 NormalizeSettings(loaded);
+            }
+
+            if (!machineConfigExists)
+            {
+                loaded.RunAtStartup = false;
             }
 
             if (!loaded.LanguagePreferenceInitialized)

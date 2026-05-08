@@ -63,6 +63,7 @@ public sealed partial class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|Temperature", DisplayName = T("type.Temperature", "Temperatures"), Type = "Temperature" };
         yield return new DeviceFilter { Key = "type|Fan", DisplayName = T("type.Fan", "Fans"), Type = "Fan" };
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" };
+        yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
         yield return new DeviceFilter { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" };
         yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
     }
@@ -783,15 +784,20 @@ public sealed partial class SensorReadoutForm : Form
 
         if (type == "Network")
         {
-            return 4;
+            return 5;
         }
 
         if (type == "USB")
         {
-            return 5;
+            return 6;
         }
 
-        return 6;
+        if (type == "Battery")
+        {
+            return 4;
+        }
+
+        return 7;
     }
 
     public static string DisplayTypeName(string type)
@@ -819,6 +825,11 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Network")
         {
             return T("type.Network", "Network");
+        }
+
+        if (type == "Battery")
+        {
+            return T("type.Battery", "Battery");
         }
 
         if (type == "USB")

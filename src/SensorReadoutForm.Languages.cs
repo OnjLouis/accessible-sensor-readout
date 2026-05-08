@@ -142,7 +142,7 @@ public sealed partial class SensorReadoutForm : Form
         if (deviceList != null)
         {
             deviceList.AccessibleName = T("a11y.Reading section", "Reading section");
-            deviceList.AccessibleDescription = T("a11y.Choose a section such as Temperatures, Fans, SMART, Performance, or Network", "Choose a section such as Temperatures, Fans, SMART, Performance, or Network");
+            deviceList.AccessibleDescription = T("a11y.Choose a section such as Temperatures, Fans, SMART, Performance, Battery, Network, or USB", "Choose a section such as Temperatures, Fans, SMART, Performance, Battery, Network, or USB");
         }
         if (readingTree != null)
         {

@@ -255,6 +255,8 @@ public sealed partial class SensorReadoutForm : Form
 
         AddTimedRows(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
+        AddTimedRows(rows, "FrameworkEc", GetFrameworkEcRows, timings);
+        AddTimedRows(rows, "Battery", GetBatteryRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
         AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);
@@ -265,7 +267,7 @@ public sealed partial class SensorReadoutForm : Form
         rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
 
         var result = ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Network" || s.Type == "USB" || s.Type == "Fan Control")
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "USB" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList())

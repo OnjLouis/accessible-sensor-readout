@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.5.0.
+Current version: 1.5.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -44,6 +44,8 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Can show selected readings in the notification area tooltip.
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
+- Can read Framework Laptop temperatures and fan RPMs from the optional Framework Control local API when that tool is installed and running.
+- Can show laptop battery charge, status, capacity, health, cycle count, voltage, and power rate where Windows exposes them.
 
 ## Prerequisites
 
@@ -298,7 +300,25 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
+### Framework Laptops
+
+Framework Laptop owners who want Framework-specific fan RPM and temperature readings should prepare Framework Control before reporting missing Framework readings:
+
+1. Update the laptop BIOS from Framework's BIOS and drivers page: <https://knowledgebase.frame.work/bios-and-drivers-downloads-rJ3PaCexh>
+2. Install and run Framework Control: <https://github.com/ozturkkl/framework-control>
+3. Confirm Framework Control can show its fan/temperature controls in its browser interface.
+4. Start Sensor Readout. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
+
+Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
+
 ## Changelog
+
+### 1.5.1
+
+- Added: Optional read-only Framework Control API support. When Framework Control is installed and running, Sensor Readout can show Framework Laptop temperature and fan RPM readings.
+- Added: Battery section for laptop charge, status, capacity, health, cycle count, voltage, and power rate when Windows exposes those values.
+- Added: Framework Laptop setup notes in the manual, including BIOS update guidance and the Framework Control project link.
+- Fixed: On a new machine with no machine-specific config yet, copied portable/shared settings no longer silently enable Windows startup registration from another computer.
 
 ### 1.5.0
 
@@ -440,6 +460,7 @@ Sensor Readout uses or bundles components from these projects:
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit), used by LibreHardwareMonitor for memory SPD data.
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
+- [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
 - [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.
 - [MAC Address Vendor Database](https://github.com/uxmansarwar/mac-address-vendor-database), used under the MIT License for MAC/OUI vendor lookup.
 - Microsoft .NET Framework and support libraries.
