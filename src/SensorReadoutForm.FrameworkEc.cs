@@ -14,6 +14,8 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime frameworkEcRowsUtc = DateTime.MinValue;
     private List<SensorRow> cachedFrameworkEcRows = new List<SensorRow>();
     private string cachedFrameworkEcPath = "";
+    private DateTime frameworkControlApiRetryUtc = DateTime.MinValue;
+    private bool frameworkControlApiAvailable;
 
     private IEnumerable<SensorRow> GetFrameworkEcRows()
     {
@@ -105,15 +107,24 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetFrameworkControlApiRows()
     {
+        if (!frameworkControlApiAvailable && DateTime.UtcNow < frameworkControlApiRetryUtc)
+        {
+            return Enumerable.Empty<SensorRow>();
+        }
+
         foreach (var baseUrl in GetFrameworkControlApiBaseUrls())
         {
             var rows = TryGetFrameworkControlThermalRows(baseUrl).ToList();
             if (rows.Count > 0)
             {
+                frameworkControlApiAvailable = true;
+                frameworkControlApiRetryUtc = DateTime.MinValue;
                 return rows;
             }
         }
 
+        frameworkControlApiAvailable = false;
+        frameworkControlApiRetryUtc = DateTime.UtcNow.AddSeconds(60);
         return Enumerable.Empty<SensorRow>();
     }
 
@@ -137,8 +148,9 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> TryGetFrameworkControlThermalRows(string baseUrl)
     {
-        var json = TryGetFrameworkControlJson(baseUrl + "/thermal");
-        if (string.IsNullOrWhiteSpace(json))
+        string json;
+        var thermalResponded = TryGetFrameworkControlJson(baseUrl + "/thermal", out json);
+        if (thermalResponded && string.IsNullOrWhiteSpace(json))
         {
             json = TryGetLatestFrameworkControlHistoryJson(baseUrl + "/thermal/history");
         }
@@ -152,14 +164,15 @@ public sealed partial class SensorReadoutForm : Form
         return ParseFrameworkControlThermalJson(json, baseUrl);
     }
 
-    private string TryGetFrameworkControlJson(string url)
+    private bool TryGetFrameworkControlJson(string url, out string json)
     {
+        json = "";
         try
         {
             var request = (HttpWebRequest)WebRequest.Create(url);
             request.Method = "GET";
-            request.Timeout = 1000;
-            request.ReadWriteTimeout = 1000;
+            request.Timeout = 200;
+            request.ReadWriteTimeout = 200;
             request.UserAgent = "Sensor Readout";
 
             using (var response = (HttpWebResponse)request.GetResponse())
@@ -168,22 +181,28 @@ public sealed partial class SensorReadoutForm : Form
             {
                 if (response.StatusCode != HttpStatusCode.OK)
                 {
-                    return "";
+                    return true;
                 }
 
-                return reader.ReadToEnd();
+                json = reader.ReadToEnd();
+                return true;
             }
         }
         catch (Exception ex)
         {
             LogMessage("Debug", "Framework Control API probe failed for " + url + ": " + ex.Message);
-            return "";
+            return false;
         }
     }
 
     private string TryGetLatestFrameworkControlHistoryJson(string url)
     {
-        var json = TryGetFrameworkControlJson(url);
+        string json;
+        if (!TryGetFrameworkControlJson(url, out json))
+        {
+            return "";
+        }
+
         if (string.IsNullOrWhiteSpace(json))
         {
             return "";

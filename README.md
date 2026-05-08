@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.5.1.
+Current version: 1.5.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -309,9 +309,14 @@ Framework Laptop owners who want Framework-specific fan RPM and temperature read
 3. Confirm Framework Control can show its fan/temperature controls in its browser interface.
 4. Start Sensor Readout. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
-Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
+Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps. If Framework Control is not installed or not running, Sensor Readout skips that optional API quickly and continues showing the standard LibreHardwareMonitor and Windows readings.
 
 ## Changelog
+
+### 1.5.2
+
+- Fixed: Framework Laptops without Framework Control installed or running no longer wait through repeated local API timeouts before normal sensor readings appear.
+- Fixed: Framework Control API probing now fails fast and is briefly cached when unavailable, so speech hotkeys and the main readings can use the standard LibreHardwareMonitor and Windows data promptly.
 
 ### 1.5.1
 
