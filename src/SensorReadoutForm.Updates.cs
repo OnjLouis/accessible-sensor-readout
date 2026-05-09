@@ -472,7 +472,6 @@ public sealed partial class SensorReadoutForm : Form
             "  }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.dll') -Force -ErrorAction SilentlyContinue\r\n" +
-            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient64.dll') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.LICENSE.txt') -Force -ErrorAction SilentlyContinue\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +

@@ -770,7 +770,6 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var fileName in new[]
         {
             "nvdaControllerClient.dll",
-            "nvdaControllerClient64.dll",
             "nvdaControllerClient.LICENSE.txt"
         })
         {
