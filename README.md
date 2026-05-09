@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.6.0.
+Current version: 1.6.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -28,7 +28,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Applies manual fan percentages to one selected fan or to all visible fans.
 - Returns one fan or all fans to automatic/default control.
 - Supports simple fan curves that set a fan control from a selected temperature reading.
-- Supports fan profiles that apply several fan controls at once, with optional global hotkeys.
+- Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
@@ -111,6 +111,7 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | --- | --- |
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
+| `Ctrl+I` | Import a Plug-In ZIP. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
 | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
 | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
@@ -139,6 +140,7 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
 | `Alt+I` | In Preferences > Plug-Ins, import a plug-in ZIP. |
 | `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
+| `Alt+I` | In Preferences > Hotkeys, import spoken hotkey profiles from another machine config. |
 | `Alt+P` | In Preferences > Hotkeys, remove the selected spoken hotkey profile. |
 | `Alt+A` | In Preferences > Hotkeys, add the selected reading to the selected spoken hotkey. |
 | `Alt+M` | In Preferences > Hotkeys, remove the selected reading from the selected spoken hotkey. |
@@ -181,6 +183,8 @@ When notification area status is enabled, minimizing Sensor Readout hides it fro
 The startup option creates or removes a `Sensor Readout.lnk` shortcut in the current user's Windows Startup folder. If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
 Notification area readings are selected from an Available readings list and moved into a Tray order list. The tray order is limited to four readings because Windows notification tooltips are short. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
+
+The Hotkeys tab can import spoken hotkey profiles from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
 
 ## Alarms And Sounds
 
@@ -238,6 +242,8 @@ Each curve chooses one writable fan control and one temperature reading. Sensor 
 ## Fan Profiles
 
 Preferences > Fan profiles lets you build named groups of fan actions. The layout matches the Hotkeys tab: create a profile, assign an optional global hotkey, add fan controls to the profile, then choose whether each fan should be set to a manual percentage or returned to automatic/default control.
+
+Fan profiles can also be marked as toggles. With that option enabled, pressing the profile hotkey once applies the profile, and pressing the same hotkey again returns the fans in that profile to automatic/default control.
 
 Useful examples:
 
@@ -311,7 +317,7 @@ Fan support depends on LibreHardwareMonitor, PawnIO, the motherboard sensor chip
 
 The app must run as administrator for motherboard Super I/O access on many systems. GPU and storage readings may still appear without elevation, but motherboard fans and controls often will not.
 
-If CPU temperature or CPU load readings are missing, installing and running Core Temp may help. Sensor Readout can read Core Temp's shared-memory data when Core Temp is already running. Core Temp is optional and is only used as a fallback for CPU readings.
+If CPU temperature or CPU load readings are missing, installing and running Core Temp may help. Sensor Readout can read Core Temp's shared-memory data when Core Temp is already running. Core Temp is optional and is only used as a fallback for CPU readings. Use `Help` > `Install Core Temp support...` to open the official Core Temp page or start installation with winget or Chocolatey when those tools are available.
 
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
@@ -322,11 +328,27 @@ Framework Laptop owners who want Framework-specific fan RPM and temperature read
 1. Update the laptop BIOS from Framework's BIOS and drivers page: <https://knowledgebase.frame.work/bios-and-drivers-downloads-rJ3PaCexh>
 2. Install and run Framework Control: <https://github.com/ozturkkl/framework-control>
 3. Confirm Framework Control can show its fan/temperature controls in its browser interface.
-4. Start Sensor Readout. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
+4. Start Sensor Readout.
+5. Open `Options` > `Preferences` > `Plug-Ins`, enable the Framework Laptop plug-in, and close Preferences.
+6. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
 Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
 
 ## Changelog
+
+### 1.6.1
+
+- New: Fan profiles can now be used as toggles. Press a fan profile hotkey once to apply it, then press the same hotkey again to return those fans to automatic/default control.
+- New: Spoken hotkey profiles can be imported from another Sensor Readout machine config. Readings that match the current machine are kept, while missing machine-specific readings are skipped.
+- New: Update dialogs now show every release note between the installed version and the newest version, headed by the current version, new version, and version range.
+- Added: Fan profile hotkey actions can play a chosen sound when the profile is applied.
+- Added: The update-available dialog can play a chosen sound from Preferences.
+- Added: Startup speech can now be disabled with a checkbox instead of using a blank or placeholder startup message.
+- Added: Experimental HP Hardware Support plug-in for opt-in tester diagnostics on HP/OMEN/Victus systems. It is disabled by default and read-only.
+- Added: `Help` > `Install Core Temp support...` explains the optional CPU fallback and can open the Core Temp website or launch a winget/Chocolatey install with user confirmation.
+- Fixed: Closing a running Sensor Readout instance with `--close` now hides the notification area icon first, reducing orphaned tray icons during updates and test runs.
+- Fixed: Framework Laptop setup notes now state that the bundled Framework plug-in must be enabled in Preferences before Framework Control readings can appear.
+- Improved: The update dialog keeps Download and install as the first button when a ZIP package is available.
 
 ### 1.6.0
 

@@ -55,9 +55,19 @@ public sealed partial class SensorReadoutForm : Form
             updateCheckTimer.Dispose();
         }
 
+        if (disposing && closeRequestTimer != null)
+        {
+            closeRequestTimer.Dispose();
+        }
+
         if (disposing && visibleRefreshTimer != null)
         {
             visibleRefreshTimer.Dispose();
+        }
+
+        if (disposing && closeRequestEvent != null)
+        {
+            closeRequestEvent.Dispose();
         }
 
         if (disposing)
@@ -66,6 +76,39 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         base.Dispose(disposing);
+    }
+
+    private void CheckCloseRequest()
+    {
+        try
+        {
+            if (closeRequestEvent == null || !closeRequestEvent.WaitOne(0))
+            {
+                return;
+            }
+
+            closeRequestEvent.Reset();
+            closeRequestTimer.Stop();
+            HideTrayIconBeforeExit();
+            Close();
+        }
+        catch
+        {
+        }
+    }
+
+    private void HideTrayIconBeforeExit()
+    {
+        try
+        {
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void DisposeLogicalDiskPerformanceCounters()

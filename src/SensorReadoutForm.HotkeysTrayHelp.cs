@@ -332,6 +332,12 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SpeakStartupActiveMessage()
     {
+        if (!settings.StartupSpeechEnabled)
+        {
+            LogMessage("Debug", "Startup active message is disabled.");
+            return;
+        }
+
         var message = string.IsNullOrWhiteSpace(settings.StartupSpeechMessage) ? DefaultStartupSpeechMessage() : settings.StartupSpeechMessage.Trim();
         string error;
         if (ScreenReaderOutput.TrySpeakPolite(message, out error))

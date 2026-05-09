@@ -5,6 +5,8 @@ using System.Windows.Forms;
 
 public static class Program
 {
+    public const string CloseRequestEventName = @"Local\OnjSensorReadoutCloseRequest";
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -136,6 +138,7 @@ public static class Program
     {
         var current = Process.GetCurrentProcess();
         var processName = System.IO.Path.GetFileNameWithoutExtension(Application.ExecutablePath);
+        SignalCloseRequest();
         foreach (var process in Process.GetProcessesByName(processName))
         {
             using (process)
@@ -147,6 +150,11 @@ public static class Program
 
                 try
                 {
+                    if (process.WaitForExit(8000))
+                    {
+                        continue;
+                    }
+
                     if (process.CloseMainWindow() && process.WaitForExit(5000))
                     {
                         continue;
@@ -159,6 +167,20 @@ public static class Program
                 {
                 }
             }
+        }
+    }
+
+    private static void SignalCloseRequest()
+    {
+        try
+        {
+            using (var closeRequest = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, CloseRequestEventName))
+            {
+                closeRequest.Set();
+            }
+        }
+        catch
+        {
         }
     }
 

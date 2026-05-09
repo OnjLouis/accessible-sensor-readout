@@ -481,6 +481,15 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Type = "Performance",
                     Hardware = hardware,
+                    Name = "Total space",
+                    DisplayValue = FormatBytes(drive.TotalSize),
+                    Source = "Windows Logical Disk"
+                });
+
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = hardware,
                     Name = "Space used",
                     Value = (float)usedPercent,
                     DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",

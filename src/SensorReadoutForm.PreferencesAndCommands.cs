@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
@@ -35,6 +36,11 @@ public sealed partial class SensorReadoutForm : Form
         if (keyCode == Keys.D5 || keyCode == Keys.NumPad5)
         {
             return SelectCategoryByKey("type|USB");
+        }
+
+        if (keyCode == Keys.D6 || keyCode == Keys.NumPad6)
+        {
+            return SelectCategoryByKey("type|Battery");
         }
 
         return false;
@@ -99,6 +105,7 @@ public sealed partial class SensorReadoutForm : Form
             settings.ShowHideHotKey = dialog.ShowHideHotKey;
             settings.SpeakTrayHotKey = dialog.SpeakTrayHotKey;
             settings.HotKeyCopyDoublePressMs = dialog.HotKeyCopyDoublePressMs;
+            settings.StartupSpeechEnabled = dialog.StartupSpeechEnabled;
             settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
             settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
             settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
@@ -106,6 +113,7 @@ public sealed partial class SensorReadoutForm : Form
             settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
             settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
             settings.UpdateCheckFrequency = dialog.UpdateCheckFrequency;
+            settings.UpdateAvailableSoundFile = dialog.UpdateAvailableSoundFile;
             if (settings.RunAtStartup || settings.StartMinimizedToTray)
             {
                 settings.TrayStatusEnabled = true;
@@ -160,6 +168,18 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private void ImportPlugInFromZip()
+    {
+        if (!PlugInZipImporter.PromptAndImport(this, settings))
+        {
+            return;
+        }
+
+        plugInManager = null;
+        statusLabel.Text = "Plug-In imported. Enable it from Options, Preferences, Plug-Ins.";
+        RefreshSensors(false, false, "plug-in import");
+    }
+
     private void CopySelectedTreeNode()
     {
         if (readingTree.SelectedNode == null)
@@ -209,7 +229,7 @@ public sealed partial class SensorReadoutForm : Form
     private void RenameSelectedTreeNode()
     {
         var row = GetSelectedReadingRow();
-        if (row == null || (row.Type != "Fan" && row.Type != "Fan Control"))
+        if (!CanRenameReadingRow(row))
         {
             statusLabel.Text = "Select a fan reading before renaming.";
             return;
@@ -249,6 +269,38 @@ public sealed partial class SensorReadoutForm : Form
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         RefreshSensors();
+    }
+
+    private void UpdateRenameMenuVisibility()
+    {
+        var visible = CanRenameSelectedTreeNode();
+        if (editRenameMenuItem != null)
+        {
+            editRenameMenuItem.Visible = visible;
+        }
+
+        if (treeRenameMenuItem != null)
+        {
+            treeRenameMenuItem.Visible = visible;
+        }
+    }
+
+    private bool CanRenameSelectedTreeNode()
+    {
+        return CanRenameReadingRow(GetSelectedReadingRow());
+    }
+
+    private static bool CanRenameReadingRow(SensorRow row)
+    {
+        return row != null && (row.Type == "Fan" || row.Type == "Fan Control");
+    }
+
+    private void UpdateViewMenuVisibility()
+    {
+        if (batteryViewMenuItem != null)
+        {
+            batteryViewMenuItem.Visible = latestRows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private string PromptForText(string title, string label, string initialValue)

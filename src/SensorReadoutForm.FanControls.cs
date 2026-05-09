@@ -692,27 +692,52 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var profileName = string.IsNullOrWhiteSpace(profile.Name) ? T("ui.Fan profile", "Fan profile") : profile.Name.Trim();
+        var profileKey = FanProfileToggleKey(profile);
+        var togglingToAutomatic = profile.ToggleAutomatic && !string.IsNullOrWhiteSpace(profileKey) && string.Equals(toggledFanProfileKey, profileKey, StringComparison.OrdinalIgnoreCase);
+        var actionsToApply = togglingToAutomatic
+            ? actions.Select(a => new FanProfileActionSetting { FanControlKey = a.FanControlKey, Manual = false, Percent = a.Percent }).ToList()
+            : actions;
         RunFanAction(
-            T("status.applyingFanProfile", "Applying fan profile") + " " + profileName + "...",
+            (togglingToAutomatic ? T("status.settingFanProfileAutomatic", "Setting fan profile back to automatic") : T("status.applyingFanProfile", "Applying fan profile")) + " " + profileName + "...",
             delegate
             {
-                foreach (var action in actions)
+                foreach (var action in actionsToApply)
                 {
                     SetLibreHardwareMonitorControl(action.FanControlKey, action.Percent, action.Manual);
                 }
             },
             delegate
             {
-                SaveFanProfileActions(actions);
-                var disabledCurveCount = DisableFanCurvesForControls(actions.Select(a => a.FanControlKey));
-                var message = string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName) + FanCurveDisabledSuffix(disabledCurveCount);
+                SaveFanProfileActions(actionsToApply);
+                var disabledCurveCount = togglingToAutomatic ? 0 : DisableFanCurvesForControls(actionsToApply.Select(a => a.FanControlKey));
+                toggledFanProfileKey = togglingToAutomatic ? "" : profileKey;
+                var message = togglingToAutomatic
+                    ? string.Format(T("status.switchedFanProfileToAutomatic", "Switched {0} to automatic."), profileName)
+                    : string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName) + FanCurveDisabledSuffix(disabledCurveCount);
                 SetFanActionStatus(message, disabledCurveCount, false);
+                PlaySoundFile(profile.SoundFile);
                 if (speakCompletion)
                 {
                     SpeakTextWithScreenReader(message, "fan profile");
                 }
                 RefreshSensorsAfterFanAction();
             });
+    }
+
+    private static string FanProfileToggleKey(FanProfileSetting profile)
+    {
+        if (profile == null)
+        {
+            return "";
+        }
+
+        var hotKey = NormalizeHotKeyText(profile.HotKey);
+        if (!string.IsNullOrWhiteSpace(hotKey))
+        {
+            return "hotkey|" + hotKey;
+        }
+
+        return "name|" + (profile.Name ?? "").Trim();
     }
 
     private void SetFanActionStatus(string message, int disabledCurveCount, bool speakDisabledCurve, bool logNormal)

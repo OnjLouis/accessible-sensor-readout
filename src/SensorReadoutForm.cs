@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    private const string AppVersion = "1.6.0";
+    private const string AppVersion = "1.6.1";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -20,6 +20,9 @@ public sealed partial class SensorReadoutForm : Form
     private const int WmHotKey = 0x0312;
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
+    private readonly ToolStripMenuItem editRenameMenuItem;
+    private readonly ToolStripMenuItem treeRenameMenuItem;
+    private readonly ToolStripMenuItem batteryViewMenuItem;
     private readonly ToolStripMenuItem autoRefreshMenuItem;
     private readonly ToolStripMenuItem refreshWhileFocusedMenuItem;
     private readonly ToolStripMenuItem trayStatusMenuItem;
@@ -42,6 +45,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly Timer timer;
     private readonly Timer languageTimer;
     private readonly Timer updateCheckTimer;
+    private readonly Timer closeRequestTimer;
     private readonly NotifyIcon trayIcon;
     private Timer trayFlashTimer;
     private Icon trayStatusIcon;
@@ -78,6 +82,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object logicalDiskCountersLock = new object();
     private readonly Dictionary<string, int> lastAppliedFanCurvePercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DateTime> lastAppliedFanCurveUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+    private string toggledFanProfileKey = "";
     private UsbDiagnosticSnapshot lastUsbDiagnosticSnapshot = new UsbDiagnosticSnapshot();
     private bool hasLastCpuTimes;
     private ulong lastCpuIdleTime;
@@ -100,6 +105,7 @@ public sealed partial class SensorReadoutForm : Form
     private static string activeTemperatureUnit = "C";
     private static string activeDecimalSeparator = "";
     private static LanguageCatalog activeLanguage = LanguageCatalog.English();
+    private readonly System.Threading.EventWaitHandle closeRequestEvent;
 
     public SensorReadoutForm()
         : this(false)
@@ -114,6 +120,7 @@ public sealed partial class SensorReadoutForm : Form
         RefreshLanguageChoices(true);
         LoadSelectedLanguage();
         hotKeyWindow = new HotKeyWindow(this);
+        closeRequestEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, Program.CloseRequestEventName);
         startMinimizedRequested = startMinimized;
         if ((startMinimizedRequested || settings.StartMinimizedToTray) && !settings.TrayStatusEnabled)
         {
@@ -128,14 +135,17 @@ public sealed partial class SensorReadoutForm : Form
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Import Plug-In from ZIP...", Keys.Control | Keys.I, delegate { ImportPlugInFromZip(); }));
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
         fileMenu.DropDownItems.Add("E&xit", null, delegate { Close(); });
 
         var editMenu = new ToolStripMenuItem("&Edit");
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
-        editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); }));
+        editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
+        editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
+        editMenu.DropDownOpening += delegate { UpdateRenameMenuVisibility(); };
 
         var viewMenu = new ToolStripMenuItem("&View");
         viewMenu.DropDownItems.Add("&Performance/Overview\tCtrl+0", null, delegate { SelectCategoryByKey("type|Performance"); });
@@ -144,6 +154,9 @@ public sealed partial class SensorReadoutForm : Form
         viewMenu.DropDownItems.Add("&SMART\tCtrl+3", null, delegate { SelectCategoryByKey("type|SMART"); });
         viewMenu.DropDownItems.Add("&Network\tCtrl+4", null, delegate { SelectCategoryByKey("type|Network"); });
         viewMenu.DropDownItems.Add("&USB\tCtrl+5", null, delegate { SelectCategoryByKey("type|USB"); });
+        batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+6", null, delegate { SelectCategoryByKey("type|Battery"); });
+        viewMenu.DropDownItems.Add(batteryViewMenuItem);
+        viewMenu.DropDownOpening += delegate { UpdateViewMenuVisibility(); };
 
         var optionsMenu = new ToolStripMenuItem("&Options");
         autoRefreshMenuItem = new ToolStripMenuItem("&Auto refresh")
@@ -232,6 +245,7 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));
         helpMenu.DropDownItems.Add("Con&tact", null, delegate { OpenContactPage(); });
         helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
+        helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
@@ -341,8 +355,10 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip = new ContextMenuStrip();
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
-        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); }));
+        treeRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
+        readingTree.ContextMenuStrip.Items.Add(treeRenameMenuItem);
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
+        readingTree.ContextMenuStrip.Opening += delegate { UpdateRenameMenuVisibility(); };
         readingTree.KeyDown += delegate(object sender, KeyEventArgs e)
         {
             MarkUserNavigation();
@@ -368,7 +384,11 @@ public sealed partial class SensorReadoutForm : Form
                 e.SuppressKeyPress = true;
             }
         };
-        readingTree.AfterSelect += delegate { UpdateSelectedMeterProgress(); };
+        readingTree.AfterSelect += delegate
+        {
+            UpdateSelectedMeterProgress();
+            UpdateRenameMenuVisibility();
+        };
 
         selectedMeterValueLabel = new Label
         {
@@ -422,6 +442,9 @@ public sealed partial class SensorReadoutForm : Form
         languageTimer.Tick += delegate { CheckLanguageFolderChanged(); };
         updateCheckTimer = new Timer { Interval = 10 * 60 * 1000 };
         updateCheckTimer.Tick += delegate { CheckAutomaticUpdateSchedule(); };
+        closeRequestTimer = new Timer { Interval = 250 };
+        closeRequestTimer.Tick += delegate { CheckCloseRequest(); };
+        closeRequestTimer.Start();
         visibleRefreshTimer = new Timer { Interval = 300 };
         visibleRefreshTimer.Tick += delegate
         {
@@ -502,6 +525,12 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == Keys.Control && keyCode == Keys.S)
         {
             SaveReport();
+            return true;
+        }
+
+        if (modifiers == Keys.Control && keyCode == Keys.I)
+        {
+            ImportPlugInFromZip();
             return true;
         }
 

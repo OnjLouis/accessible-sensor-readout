@@ -63,9 +63,12 @@ public sealed partial class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|Temperature", DisplayName = T("type.Temperature", "Temperatures"), Type = "Temperature" };
         yield return new DeviceFilter { Key = "type|Fan", DisplayName = T("type.Fan", "Fans"), Type = "Fan" };
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" };
-        yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
         yield return new DeviceFilter { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" };
         yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
+        if (rows != null && rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
+        {
+            yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
+        }
     }
 
     private void UpdateReadingList()
@@ -863,10 +866,11 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Read activity", StringComparison.OrdinalIgnoreCase)) return 14;
         if (clean.Equals("Write activity", StringComparison.OrdinalIgnoreCase)) return 15;
         if (clean.Equals("Total activity", StringComparison.OrdinalIgnoreCase)) return 16;
-        if (clean.Equals("Space used", StringComparison.OrdinalIgnoreCase)) return 20;
-        if (clean.Equals("Free space", StringComparison.OrdinalIgnoreCase)) return 21;
-        if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 22;
-        if (clean.Equals("Size", StringComparison.OrdinalIgnoreCase)) return 22;
+        if (clean.Equals("Total space", StringComparison.OrdinalIgnoreCase)) return 20;
+        if (clean.Equals("Space used", StringComparison.OrdinalIgnoreCase)) return 21;
+        if (clean.Equals("Free space", StringComparison.OrdinalIgnoreCase)) return 22;
+        if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 23;
+        if (clean.Equals("Size", StringComparison.OrdinalIgnoreCase)) return 23;
         if (clean.Equals("Status", StringComparison.OrdinalIgnoreCase)) return 30;
         if (clean.Equals("IP address", StringComparison.OrdinalIgnoreCase)) return 31;
         if (clean.Equals("Link speed", StringComparison.OrdinalIgnoreCase)) return 32;

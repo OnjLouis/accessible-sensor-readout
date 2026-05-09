@@ -152,6 +152,7 @@ public sealed partial class SensorReadoutForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        HideTrayIconBeforeExit();
         PlaySoundFileSync(settings.ShutdownSoundFile);
         base.OnFormClosing(e);
     }

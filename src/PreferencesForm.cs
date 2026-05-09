@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Windows.Forms;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
 public sealed class PreferencesForm : Form
 {
@@ -15,6 +14,7 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox runAtStartupCheckBox;
     private readonly CheckBox startMinimizedCheckBox;
     private readonly ComboBox updateCheckFrequencyBox;
+    private readonly ComboBox updateAvailableSoundBox;
     private readonly NumericUpDown refreshSecondsBox;
     private readonly ComboBox temperatureUnitBox;
     private readonly ComboBox decimalSeparatorBox;
@@ -23,6 +23,7 @@ public sealed class PreferencesForm : Form
     private readonly TextBox showHideHotKeyBox;
     private readonly TextBox speakTrayHotKeyBox;
     private readonly ComboBox hotKeyCopyDoublePressBox;
+    private readonly CheckBox startupSpeechEnabledCheckBox;
     private readonly TextBox startupSpeechMessageBox;
     private readonly CheckBox speechIncludesDeviceNamesCheckBox;
     private readonly ComboBox loggingLevelBox;
@@ -42,10 +43,12 @@ public sealed class PreferencesForm : Form
     private readonly ListBox fanProfileList;
     private readonly TextBox fanProfileNameBox;
     private readonly TextBox fanProfileHotKeyBox;
+    private readonly CheckBox fanProfileToggleBox;
     private readonly ListBox fanProfileAvailableList;
     private readonly ListBox fanProfileSelectedList;
     private readonly ComboBox fanProfileActionBox;
     private readonly NumericUpDown fanProfilePercentBox;
+    private readonly ComboBox fanProfileSoundBox;
     private readonly Label fanProfileStatusLabel;
     private readonly ListBox alarmList;
     private readonly CheckBox alarmEnabledCheckBox;
@@ -92,6 +95,7 @@ public sealed class PreferencesForm : Form
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
+    public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public int RefreshIntervalSeconds { get { return Convert.ToInt32(refreshSecondsBox.Value); } }
     public string TemperatureUnit { get { return SensorReadoutForm.TemperatureUnitFromIndex(temperatureUnitBox.SelectedIndex); } }
     public string DecimalSeparator
@@ -121,6 +125,7 @@ public sealed class PreferencesForm : Form
     public string ShowHideHotKey { get { return SensorReadoutForm.NormalizeHotKeyText(showHideHotKeyBox.Text); } }
     public string SpeakTrayHotKey { get { return SensorReadoutForm.NormalizeHotKeyText(speakTrayHotKeyBox.Text); } }
     public int HotKeyCopyDoublePressMs { get { return HotKeyCopyDoublePressMsFromIndex(hotKeyCopyDoublePressBox.SelectedIndex); } }
+    public bool StartupSpeechEnabled { get { return startupSpeechEnabledCheckBox.Checked; } }
     public string StartupSpeechMessage
     {
         get
@@ -206,7 +211,7 @@ public sealed class PreferencesForm : Form
         fanLabels = new Dictionary<string, string>(settings.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
 
         rows = latestRows
-            .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance" || r.Type == "Network")
+            .Where(IsSelectableReadoutRow)
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
@@ -423,7 +428,7 @@ public sealed class PreferencesForm : Form
             AutoSize = true,
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 2
+            RowCount = 3
         };
         updatesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         updatesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -440,6 +445,15 @@ public sealed class PreferencesForm : Form
         updateCheckFrequencyBox.Items.AddRange(UpdateCheckFrequencyOptions().Cast<object>().ToArray());
         updateCheckFrequencyBox.SelectedIndex = UpdateCheckFrequencyIndex(settings.UpdateCheckFrequency);
         updatesPanel.Controls.Add(updateCheckFrequencyBox, 1, 1);
+        updatesPanel.Controls.Add(new Label { Text = "Update available sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
+        updateAvailableSoundBox = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 180,
+            AccessibleName = "Update available sound"
+        };
+        PopulateSoundCombo(updateAvailableSoundBox, settings.UpdateAvailableSoundFile);
+        updatesPanel.Controls.Add(updateAvailableSoundBox, 1, 2);
 
         var hotKeyPanel = new TableLayoutPanel
         {
@@ -479,6 +493,14 @@ public sealed class PreferencesForm : Form
         startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        startupSpeechEnabledCheckBox = new CheckBox
+        {
+            Text = "Speak startup message",
+            Checked = settings.StartupSpeechEnabled,
+            AutoSize = true,
+            AccessibleName = "Speak startup message",
+            AccessibleDescription = "When checked, Sensor Readout speaks the startup message through the active screen reader."
+        };
         startupSpeechPanel.Controls.Add(new Label { Text = "Spoken message:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         startupSpeechMessageBox = new TextBox
         {
@@ -491,6 +513,8 @@ public sealed class PreferencesForm : Form
         var resetStartupSpeechButton = new Button { Text = "&Reset", AutoSize = true };
         resetStartupSpeechButton.Click += delegate { startupSpeechMessageBox.Text = SensorReadoutForm.DefaultStartupSpeechMessage(); };
         startupSpeechPanel.Controls.Add(resetStartupSpeechButton, 2, 0);
+        startupSpeechMessageBox.Enabled = startupSpeechEnabledCheckBox.Checked;
+        resetStartupSpeechButton.Enabled = startupSpeechEnabledCheckBox.Checked;
 
         var startupSoundPanel = BuildSoundPickerPanel("Startup sound:", settings.StartupSoundFile, out startupSoundBox);
         var shutdownSoundPanel = BuildSoundPickerPanel("Shutdown sound:", settings.ShutdownSoundFile, out shutdownSoundBox);
@@ -647,6 +671,14 @@ public sealed class PreferencesForm : Form
             AccessibleDescription = "Friendly name for this fan profile."
         };
         fanProfileHotKeyBox = CreateHotKeyBox("", "Fan profile key combination");
+        fanProfileToggleBox = new CheckBox
+        {
+            Text = "Toggle back to automatic when pressed again",
+            AutoSize = true,
+            AccessibleName = "Toggle fan profile back to automatic"
+        };
+        fanProfileSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Fan profile sound" };
+        PopulateSoundCombo(fanProfileSoundBox, "");
         fanProfileAvailableList = new ListBox
         {
             Dock = DockStyle.Fill,
@@ -721,6 +753,12 @@ public sealed class PreferencesForm : Form
         fanProfileList.SelectedIndexChanged += delegate { LoadSelectedFanProfile(); };
         fanProfileNameBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
         fanProfileHotKeyBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
+        fanProfileToggleBox.CheckedChanged += delegate { SaveSelectedFanProfileHeader(); };
+        fanProfileSoundBox.SelectedIndexChanged += delegate
+        {
+            SaveSelectedFanProfileHeader();
+            PreviewSelectedSound(fanProfileSoundBox);
+        };
         fanProfileActionBox.SelectedIndexChanged += delegate { SaveSelectedFanProfileAction(); };
         fanProfilePercentBox.ValueChanged += delegate { SaveSelectedFanProfileAction(); };
         fanProfileSelectedList.SelectedIndexChanged += delegate { LoadSelectedFanProfileAction(); };
@@ -892,9 +930,10 @@ public sealed class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             Padding = new Padding(10)
         };
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -903,9 +942,10 @@ public sealed class PreferencesForm : Form
         startupLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         startupLayout.Controls.Add(runAtStartupCheckBox, 0, 0);
         startupLayout.Controls.Add(startMinimizedCheckBox, 0, 1);
-        startupLayout.Controls.Add(startupSpeechPanel, 0, 2);
-        startupLayout.Controls.Add(startupSoundPanel, 0, 3);
-        startupLayout.Controls.Add(shutdownSoundPanel, 0, 4);
+        startupLayout.Controls.Add(startupSpeechEnabledCheckBox, 0, 2);
+        startupLayout.Controls.Add(startupSpeechPanel, 0, 3);
+        startupLayout.Controls.Add(startupSoundPanel, 0, 4);
+        startupLayout.Controls.Add(shutdownSoundPanel, 0, 5);
         startupTab.Controls.Add(startupLayout);
         preferencesTabs.TabPages.Add(startupTab);
 
@@ -953,9 +993,20 @@ public sealed class PreferencesForm : Form
         runAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateCheckFrequencyBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        updateAvailableSoundBox.SelectedIndexChanged += delegate
+        {
+            SaveLivePreferences();
+            PreviewSelectedSound(updateAvailableSoundBox);
+        };
         showHideHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         speakTrayHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         hotKeyCopyDoublePressBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        startupSpeechEnabledCheckBox.CheckedChanged += delegate
+        {
+            startupSpeechMessageBox.Enabled = startupSpeechEnabledCheckBox.Checked;
+            resetStartupSpeechButton.Enabled = startupSpeechEnabledCheckBox.Checked;
+            SaveLivePreferences();
+        };
         startupSpeechMessageBox.TextChanged += delegate { SaveLivePreferences(); };
         startupSoundBox.SelectedIndexChanged += delegate
         {
@@ -1303,9 +1354,11 @@ public sealed class PreferencesForm : Form
             SetComboItems(updateCheckFrequencyBox, UpdateCheckFrequencyOptions());
             SetComboItems(alarmConditionBox, new[] { SensorReadoutForm.L("ui.Above or equal", "Above or equal"), SensorReadoutForm.L("ui.Below or equal", "Below or equal"), SensorReadoutForm.L("ui.Equal", "Equal") });
             SetComboItems(fanProfileActionBox, new[] { SensorReadoutForm.L("ui.Manual", "Manual"), SensorReadoutForm.L("ui.Auto", "Auto") });
+            PopulateSoundCombo(updateAvailableSoundBox, UpdateAvailableSoundFile);
             PopulateSoundCombo(startupSoundBox, StartupSoundFile);
             PopulateSoundCombo(shutdownSoundBox, ShutdownSoundFile);
             PopulateSoundCombo(alarmSoundBox, SelectedSoundFile(alarmSoundBox));
+            PopulateSoundCombo(fanProfileSoundBox, SelectedSoundFile(fanProfileSoundBox));
             decimalSeparatorBox.SelectedIndex = DecimalSeparatorIndex(DecimalSeparator);
             if (decimalSeparatorBox.SelectedIndex >= 0)
             {
@@ -1433,6 +1486,7 @@ public sealed class PreferencesForm : Form
         liveSettings.ShowHideHotKey = ShowHideHotKey;
         liveSettings.SpeakTrayHotKey = SpeakTrayHotKey;
         liveSettings.HotKeyCopyDoublePressMs = HotKeyCopyDoublePressMs;
+        liveSettings.StartupSpeechEnabled = StartupSpeechEnabled;
         liveSettings.StartupSpeechMessage = StartupSpeechMessage;
         liveSettings.SpeechIncludesDeviceNames = SpeechIncludesDeviceNames;
         liveSettings.TrayStatusEnabled = TrayStatusEnabled;
@@ -1440,6 +1494,7 @@ public sealed class PreferencesForm : Form
         liveSettings.StartMinimizedToTray = StartMinimizedToTray;
         liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
         liveSettings.UpdateCheckFrequency = UpdateCheckFrequency;
+        liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
         if (liveSettings.RunAtStartup || liveSettings.StartMinimizedToTray)
         {
             liveSettings.TrayStatusEnabled = true;
@@ -1694,9 +1749,12 @@ public sealed class PreferencesForm : Form
         var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
         addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
+        var importProfileButton = CreateShortcutButton("&Import...", "Alt+I", Keys.I);
+        importProfileButton.Click += delegate { ImportSpokenHotKeysFromConfig(); };
         var removeProfileButton = CreateShortcutButton("Remove &profile", "Alt+P", Keys.P);
         removeProfileButton.Click += delegate { RemoveSelectedSpokenHotKeyProfile(); };
         profileButtons.Controls.Add(addProfileButton);
+        profileButtons.Controls.Add(importProfileButton);
         profileButtons.Controls.Add(removeProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);
 
@@ -1765,13 +1823,14 @@ public sealed class PreferencesForm : Form
         profileButtons.Controls.Add(applyProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);
 
-        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7 };
+        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 8 };
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var namePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -1790,6 +1849,12 @@ public sealed class PreferencesForm : Form
         clearKeyButton.Click += delegate { fanProfileHotKeyBox.Text = ""; };
         keyPanel.Controls.Add(clearKeyButton, 2, 0);
 
+        var soundPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        soundPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        soundPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        soundPanel.Controls.Add(new Label { Text = "Sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        soundPanel.Controls.Add(fanProfileSoundBox, 1, 0);
+
         var actionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         actionPanel.Controls.Add(new Label { Text = "Action for selected fan:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfileActionBox);
@@ -1798,10 +1863,12 @@ public sealed class PreferencesForm : Form
 
         editor.Controls.Add(namePanel, 0, 0);
         editor.Controls.Add(keyPanel, 0, 1);
-        editor.Controls.Add(actionPanel, 0, 2);
-        editor.Controls.Add(new Label { Text = "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 3);
-        editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 4);
-        editor.Controls.Add(fanProfileStatusLabel, 0, 5);
+        editor.Controls.Add(fanProfileToggleBox, 0, 2);
+        editor.Controls.Add(soundPanel, 0, 3);
+        editor.Controls.Add(actionPanel, 0, 4);
+        editor.Controls.Add(new Label { Text = "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 5);
+        editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 6);
+        editor.Controls.Add(fanProfileStatusLabel, 0, 7);
 
         layout.Controls.Add(profilePanel, 0, 0);
         layout.Controls.Add(editor, 1, 0);
@@ -2149,208 +2216,11 @@ public sealed class PreferencesForm : Form
 
     private void ImportPlugInFromZip()
     {
-        using (var dialog = new OpenFileDialog())
+        if (PlugInZipImporter.PromptAndImport(this, liveSettings))
         {
-            dialog.Title = SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP");
-            dialog.Filter = "Sensor Readout Plug-In ZIP (*.zip)|*.zip|All files (*.*)|*.*";
-            dialog.CheckFileExists = true;
-            dialog.Multiselect = false;
-            if (dialog.ShowDialog(this) != DialogResult.OK)
-            {
-                return;
-            }
-
-            ImportPlugInZip(dialog.FileName);
-        }
-    }
-
-    private void ImportPlugInZip(string zipPath)
-    {
-        var tempFolder = Path.Combine(Path.GetTempPath(), "SensorReadoutPlugInImport_" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            Directory.CreateDirectory(tempFolder);
-            ExtractZipSafely(zipPath, tempFolder);
-            var manifests = Directory.GetFiles(tempFolder, "plugin.json", SearchOption.AllDirectories);
-            if (manifests.Length == 0)
-            {
-                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMissingManifest", "This ZIP does not contain a plugin.json file."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (manifests.Length > 1)
-            {
-                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMultipleManifests", "This ZIP contains more than one plugin.json file. Import one Plug-In at a time."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var manifestPath = manifests[0];
-            var manifest = JObject.Parse(File.ReadAllText(manifestPath));
-            var plugInId = SafeJsonText(manifest, "id");
-            if (string.IsNullOrWhiteSpace(plugInId))
-            {
-                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMissingId", "The Plug-In manifest must include a stable id."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var plugInName = SafeJsonText(manifest, "name");
-            var plugInFolderName = SanitizeFolderName(plugInId);
-            var sourceFolder = Path.GetDirectoryName(manifestPath);
-            var targetRoot = SensorReadoutForm.GetPlugInsFolderPath();
-            Directory.CreateDirectory(targetRoot);
-            var targetFolder = FindExistingPlugInFolderById(targetRoot, plugInId);
-            if (string.IsNullOrWhiteSpace(targetFolder))
-            {
-                targetFolder = Path.Combine(targetRoot, plugInFolderName);
-            }
-            else
-            {
-                plugInFolderName = Path.GetFileName(targetFolder);
-            }
-
-            if (Directory.Exists(targetFolder))
-            {
-                var replace = MessageBox.Show(
-                    this,
-                    string.Format(SensorReadoutForm.L("message.pluginFolderExists", "A Plug-In folder named {0} already exists. Replace it?"), plugInFolderName),
-                    SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"),
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-                if (replace != DialogResult.Yes)
-                {
-                    return;
-                }
-
-                Directory.Delete(targetFolder, true);
-            }
-
-            CopyDirectory(sourceFolder, targetFolder);
-            if (liveSettings.PlugInsEnabled == null)
-            {
-                liveSettings.PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            liveSettings.PlugInsEnabled[plugInId] = false;
-            SensorReadoutForm.SaveSettings(liveSettings);
             RefreshPlugInList();
-            MessageBox.Show(this, string.Format(SensorReadoutForm.L("message.pluginImportedDisabled", "Imported {0}. It is disabled until you check it."), string.IsNullOrWhiteSpace(plugInName) ? plugInId : plugInName), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            UpdatePlugInDetails();
         }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, string.Format(SensorReadoutForm.L("message.pluginImportFailed", "Could not import Plug-In ZIP: {0}"), ex.Message), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(tempFolder))
-                {
-                    Directory.Delete(tempFolder, true);
-                }
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    private static string FindExistingPlugInFolderById(string targetRoot, string plugInId)
-    {
-        if (string.IsNullOrWhiteSpace(targetRoot) || string.IsNullOrWhiteSpace(plugInId) || !Directory.Exists(targetRoot))
-        {
-            return "";
-        }
-
-        foreach (var manifestPath in Directory.GetFiles(targetRoot, "plugin.json", SearchOption.AllDirectories))
-        {
-            try
-            {
-                var manifest = JObject.Parse(File.ReadAllText(manifestPath));
-                if (string.Equals(SafeJsonText(manifest, "id"), plugInId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Path.GetDirectoryName(manifestPath);
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        return "";
-    }
-
-    private static void ExtractZipSafely(string zipPath, string destination)
-    {
-        var destinationRoot = Path.GetFullPath(destination);
-        if (!destinationRoot.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
-        {
-            destinationRoot += Path.DirectorySeparatorChar;
-        }
-
-        using (var archive = ZipFile.OpenRead(zipPath))
-        {
-            foreach (var entry in archive.Entries)
-            {
-                var targetPath = Path.GetFullPath(Path.Combine(destinationRoot, entry.FullName));
-                if (!targetPath.StartsWith(destinationRoot, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException("The ZIP contains an unsafe path.");
-                }
-
-                if (string.IsNullOrEmpty(entry.Name))
-                {
-                    Directory.CreateDirectory(targetPath);
-                    continue;
-                }
-
-                var directory = Path.GetDirectoryName(targetPath);
-                if (!string.IsNullOrWhiteSpace(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                entry.ExtractToFile(targetPath, true);
-            }
-        }
-    }
-
-    private static void CopyDirectory(string sourceFolder, string targetFolder)
-    {
-        Directory.CreateDirectory(targetFolder);
-        foreach (var directory in Directory.GetDirectories(sourceFolder, "*", SearchOption.AllDirectories))
-        {
-            Directory.CreateDirectory(Path.Combine(targetFolder, directory.Substring(sourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
-        }
-
-        foreach (var file in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = file.Substring(sourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var targetPath = Path.Combine(targetFolder, relativePath);
-            var directory = Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            File.Copy(file, targetPath, true);
-        }
-    }
-
-    private static string SafeJsonText(JObject obj, string key)
-    {
-        return obj == null || obj[key] == null ? "" : Convert.ToString(obj[key]).Trim();
-    }
-
-    private static string SanitizeFolderName(string value)
-    {
-        var safe = string.IsNullOrWhiteSpace(value) ? "ImportedPlugIn" : value.Trim();
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            safe = safe.Replace(invalid, '_');
-        }
-
-        safe = safe.Replace(' ', '_');
-        return string.IsNullOrWhiteSpace(safe) ? "ImportedPlugIn" : safe;
     }
 
     private Dictionary<string, bool> CurrentPlugInSettings()
@@ -2975,7 +2845,7 @@ public sealed class PreferencesForm : Form
         }
 
         var newRows = latestRows
-            .Where(r => r.Type == "Temperature" || r.Type == "Fan" || r.Type == "SMART" || r.Type == "Performance" || r.Type == "Network")
+            .Where(IsSelectableReadoutRow)
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
@@ -3021,6 +2891,37 @@ public sealed class PreferencesForm : Form
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .OrderBy(k => k)
             .ToArray());
+    }
+
+    private static bool IsSelectableReadoutRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        var type = row.Type ?? "";
+        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery")
+        {
+            return true;
+        }
+
+        if (type != "Performance")
+        {
+            return false;
+        }
+
+        var name = SensorReadoutForm.CleanSensorName(row.Name);
+        return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Free space", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Read rate", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Write rate", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Read activity", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Write activity", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Total activity", StringComparison.OrdinalIgnoreCase);
     }
 
     private void PopulateTrayReadingLists(List<string> selectedKeys)
@@ -3170,6 +3071,131 @@ public sealed class PreferencesForm : Form
 
         UpdateSpokenSelectionStatus("Removed spoken hotkey.");
         SaveLivePreferences();
+    }
+
+    private void ImportSpokenHotKeysFromConfig()
+    {
+        using (var dialog = new OpenFileDialog())
+        {
+            dialog.Title = "Import spoken hotkeys";
+            dialog.Filter = "Sensor Readout config (*.json)|*.json|All files (*.*)|*.*";
+            dialog.InitialDirectory = SensorReadoutForm.GetConfigFolderPath();
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            try
+            {
+                var importedSettings = JsonConvert.DeserializeObject<MachineAppSettings>(File.ReadAllText(dialog.FileName));
+                var importedProfiles = importedSettings == null ? new List<SpokenHotKeySetting>() : importedSettings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
+                var added = 0;
+                var skippedProfiles = 0;
+                var skippedReadings = 0;
+                foreach (var imported in importedProfiles.Where(p => p != null))
+                {
+                    var resolvedKeys = new List<string>();
+                    foreach (var key in imported.ReadingKeys ?? new List<string>())
+                    {
+                        var resolved = ResolveImportedSpokenReadingKey(key);
+                        if (string.IsNullOrWhiteSpace(resolved))
+                        {
+                            skippedReadings++;
+                            continue;
+                        }
+
+                        if (!resolvedKeys.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+                        {
+                            resolvedKeys.Add(resolved);
+                        }
+                    }
+
+                    if (resolvedKeys.Count == 0)
+                    {
+                        skippedProfiles++;
+                        continue;
+                    }
+
+                    var profile = new SpokenHotKeySetting
+                    {
+                        Name = UniqueSpokenHotKeyName(imported.Name),
+                        HotKey = "",
+                        ReadingKeys = resolvedKeys
+                    };
+                    spokenHotKeys.Add(profile);
+                    spokenHotKeyList.Items.Add(profile);
+                    added++;
+                }
+
+                if (added > 0)
+                {
+                    spokenHotKeyList.SelectedIndex = spokenHotKeyList.Items.Count - 1;
+                    SaveLivePreferences();
+                }
+
+                UpdateSpokenSelectionStatus("Imported " + added + " spoken hotkey" + (added == 1 ? "" : "s") + ". " + skippedProfiles + " profile" + (skippedProfiles == 1 ? "" : "s") + " and " + skippedReadings + " reading" + (skippedReadings == 1 ? "" : "s") + " skipped.");
+            }
+            catch (Exception ex)
+            {
+                UpdateSpokenSelectionStatus("Could not import spoken hotkeys: " + ex.Message);
+                System.Media.SystemSounds.Beep.Play();
+            }
+        }
+    }
+
+    private string ResolveImportedSpokenReadingKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        var exact = rows.FirstOrDefault(r => string.Equals(SensorReadoutForm.RowSettingsKey(r), key, StringComparison.OrdinalIgnoreCase));
+        if (exact != null)
+        {
+            return SensorReadoutForm.RowSettingsKey(exact);
+        }
+
+        var parts = key.Split('|');
+        if (parts.Length < 3)
+        {
+            return "";
+        }
+
+        var type = parts[0];
+        var hardware = parts[1];
+        var name = SensorReadoutForm.CleanSensorName(parts[2]);
+        var portableHardware = IsPortableImportedHardware(hardware);
+        var matches = rows
+            .Where(r =>
+                string.Equals(r.Type ?? "", type, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(SensorReadoutForm.CleanSensorName(r.Name), name, StringComparison.OrdinalIgnoreCase) &&
+                (portableHardware || string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        return matches.Count == 1 ? SensorReadoutForm.RowSettingsKey(matches[0]) : "";
+    }
+
+    private static bool IsPortableImportedHardware(string hardware)
+    {
+        return string.Equals(hardware ?? "", "CPU", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(hardware ?? "", "Memory", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(hardware ?? "", "Battery", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(hardware ?? "", "Overview", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string UniqueSpokenHotKeyName(string name)
+    {
+        var baseName = string.IsNullOrWhiteSpace(name) ? "Imported spoken hotkey" : name.Trim();
+        var candidate = baseName;
+        var suffix = 2;
+        while (spokenHotKeys.Any(p => p != null && string.Equals(p.Name ?? "", candidate, StringComparison.OrdinalIgnoreCase)))
+        {
+            candidate = baseName + " " + suffix;
+            suffix++;
+        }
+
+        return candidate;
     }
 
     private SpokenHotKeySetting SelectedSpokenHotKey()
@@ -3620,8 +3646,12 @@ public sealed class PreferencesForm : Form
             fanProfileSelectedList.Enabled = enabled;
             fanProfileActionBox.Enabled = enabled;
             fanProfilePercentBox.Enabled = enabled;
+            fanProfileToggleBox.Enabled = enabled;
+            fanProfileSoundBox.Enabled = enabled;
             fanProfileNameBox.Text = profile == null ? "" : profile.Name ?? "";
             fanProfileHotKeyBox.Text = profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
+            fanProfileToggleBox.Checked = profile != null && profile.ToggleAutomatic;
+            PopulateSoundCombo(fanProfileSoundBox, profile == null ? "" : profile.SoundFile ?? "");
             PopulateFanProfileLists(profile);
             LoadSelectedFanProfileAction();
         }
@@ -3694,6 +3724,8 @@ public sealed class PreferencesForm : Form
 
         profile.Name = fanProfileNameBox.Text.Trim();
         profile.HotKey = SensorReadoutForm.NormalizeHotKeyText(fanProfileHotKeyBox.Text);
+        profile.ToggleAutomatic = fanProfileToggleBox.Checked;
+        profile.SoundFile = SelectedSoundFile(fanProfileSoundBox);
         RefreshSelectedFanProfileListItem();
         SaveLivePreferences();
     }
@@ -4475,7 +4507,7 @@ public sealed class PreferencesForm : Form
     private List<FanProfileSetting> CurrentFanProfiles()
     {
         return CloneFanProfiles(fanProfiles)
-            .Where(p => !string.IsNullOrWhiteSpace(p.HotKey) || (p.Actions != null && p.Actions.Count > 0) || !string.IsNullOrWhiteSpace(p.Name))
+            .Where(p => !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || (p.Actions != null && p.Actions.Count > 0) || !string.IsNullOrWhiteSpace(p.Name))
             .ToList();
     }
 
@@ -4490,6 +4522,8 @@ public sealed class PreferencesForm : Form
         {
             Name = profile.Name ?? "",
             HotKey = SensorReadoutForm.NormalizeHotKeyText(profile.HotKey),
+            SoundFile = System.IO.Path.GetFileName(profile.SoundFile ?? ""),
+            ToggleAutomatic = profile.ToggleAutomatic,
             Actions = (profile.Actions ?? new List<FanProfileActionSetting>())
                 .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
                 .Select(CloneFanProfileAction)

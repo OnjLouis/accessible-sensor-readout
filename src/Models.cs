@@ -46,6 +46,7 @@ public sealed class AppSettings
     public string ShowHideHotKey = "";
     public string SpeakTrayHotKey = "";
     public int HotKeyCopyDoublePressMs = -1;
+    public bool StartupSpeechEnabled = true;
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
@@ -54,6 +55,7 @@ public sealed class AppSettings
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";
     public string LastAutomaticUpdateCheckUtc = "";
+    public string UpdateAvailableSoundFile = "";
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -83,6 +85,7 @@ public sealed class SharedAppSettings
     public string ShowHideHotKey = "";
     public string SpeakTrayHotKey = "";
     public int HotKeyCopyDoublePressMs = -1;
+    public bool StartupSpeechEnabled = true;
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
@@ -90,6 +93,7 @@ public sealed class SharedAppSettings
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";
     public string LastAutomaticUpdateCheckUtc = "";
+    public string UpdateAvailableSoundFile = "";
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
 }
@@ -152,14 +156,17 @@ public sealed class FanProfileSetting
 {
     public string Name = "";
     public string HotKey = "";
+    public string SoundFile = "";
+    public bool ToggleAutomatic = false;
     public List<FanProfileActionSetting> Actions = new List<FanProfileActionSetting>();
 
     public override string ToString()
     {
         var name = string.IsNullOrWhiteSpace(Name) ? "Fan profile" : Name.Trim();
         var hotKey = string.IsNullOrWhiteSpace(HotKey) ? "no hotkey" : HotKey.Trim();
+        var toggle = ToggleAutomatic ? ", toggle" : "";
         var count = Actions == null ? 0 : Actions.Count;
-        return name + " (" + hotKey + ", " + count + " fan" + (count == 1 ? "" : "s") + ")";
+        return name + " (" + hotKey + toggle + ", " + count + " fan" + (count == 1 ? "" : "s") + ")";
     }
 }
 

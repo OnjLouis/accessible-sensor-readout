@@ -61,6 +61,7 @@ if (Test-Path $plugInRoot) {
             $plugInReferences = @(
                 'System.dll',
                 'System.Core.dll',
+                'System.Management.dll',
                 (Join-Path $portable 'Newtonsoft.Json.dll'),
                 $sdkOutput
             ) -join ','

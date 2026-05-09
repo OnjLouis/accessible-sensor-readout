@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
@@ -18,7 +19,8 @@ public sealed partial class SensorReadoutForm : Form
     {
         try
         {
-            var release = FetchLatestRelease();
+            var releases = FetchReleases();
+            var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
             var latest = (release == null ? "" : release.TagName) ?? "";
             var latestVersion = latest.Trim().TrimStart('v', 'V');
             if (string.IsNullOrWhiteSpace(latestVersion))
@@ -34,7 +36,7 @@ public sealed partial class SensorReadoutForm : Form
             Version remote;
             if (Version.TryParse(AppVersion, out current) && Version.TryParse(latestVersion, out remote) && remote > current)
             {
-                ShowUpdateAvailableDialog(release, latest);
+                ShowUpdateAvailableDialog(release, latest, BuildUpdateReleaseNotes(releases, current, remote));
                 CheckPawnIoFromManualUpdateCheck(showUpToDate, showErrors);
                 return;
             }
@@ -139,7 +141,8 @@ public sealed partial class SensorReadoutForm : Form
                     RecordAutomaticUpdateCheckAttempt();
                 }
 
-                var release = FetchLatestRelease();
+                var releases = FetchReleases();
+                var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
                 var latest = (release == null ? "" : release.TagName) ?? "";
                 var latestVersion = latest.Trim().TrimStart('v', 'V');
                 Version current;
@@ -153,7 +156,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     if (!IsDisposed)
                     {
-                        ShowUpdateAvailableDialog(release, latest);
+                        ShowUpdateAvailableDialog(release, latest, BuildUpdateReleaseNotes(releases, current, remote));
                     }
                 });
             }
@@ -220,6 +223,69 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private static List<GitHubReleaseInfo> FetchReleases()
+    {
+        ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+        using (var client = new WebClient())
+        {
+            client.Headers.Add("User-Agent", "Sensor Readout " + AppVersion);
+            var json = client.DownloadString(ProjectUrl.Replace("https://github.com/", "https://api.github.com/repos/") + "/releases?per_page=100");
+            return JsonConvert.DeserializeObject<List<GitHubReleaseInfo>>(json) ?? new List<GitHubReleaseInfo>();
+        }
+    }
+
+    private static GitHubReleaseInfo LatestVersionedRelease(IEnumerable<GitHubReleaseInfo> releases)
+    {
+        return (releases ?? new List<GitHubReleaseInfo>())
+            .Select(r => new { Release = r, Version = ReleaseVersion(r) })
+            .Where(i => i.Version != null)
+            .OrderByDescending(i => i.Version)
+            .Select(i => i.Release)
+            .FirstOrDefault();
+    }
+
+    private static Version ReleaseVersion(GitHubReleaseInfo release)
+    {
+        if (release == null || string.IsNullOrWhiteSpace(release.TagName))
+        {
+            return null;
+        }
+
+        Version version;
+        return Version.TryParse(release.TagName.Trim().TrimStart('v', 'V'), out version) ? version : null;
+    }
+
+    private string BuildUpdateReleaseNotes(IEnumerable<GitHubReleaseInfo> releases, Version current, Version latest)
+    {
+        var newerReleases = (releases ?? new List<GitHubReleaseInfo>())
+            .Select(r => new { Release = r, Version = ReleaseVersion(r) })
+            .Where(i => i.Version != null && i.Version > current && i.Version <= latest)
+            .OrderBy(i => i.Version)
+            .ToList();
+
+        var builder = new System.Text.StringBuilder();
+        builder.AppendLine(string.Format(T("message.yourVersion", "Your version: {0}"), AppVersion));
+        builder.AppendLine(string.Format(T("message.newVersion", "New version: {0}"), latest));
+        builder.AppendLine();
+        builder.AppendLine(string.Format(T("message.changesBetweenVersions", "Changes between {0} and {1}"), AppVersion, latest));
+
+        if (newerReleases.Count == 0)
+        {
+            builder.AppendLine();
+            builder.AppendLine(T("message.noReleaseNotes", "No release notes were provided for this update."));
+            return builder.ToString().TrimEnd();
+        }
+
+        foreach (var item in newerReleases)
+        {
+            builder.AppendLine();
+            builder.AppendLine(item.Release.TagName);
+            builder.AppendLine(FormatReleaseNotesForDialog(item.Release.Body, T("message.noReleaseNotes", "No release notes were provided for this update.")));
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
     private static string FormatReleaseNotesForDialog(string markdown, string fallback)
     {
         if (string.IsNullOrWhiteSpace(markdown))
@@ -274,10 +340,11 @@ public sealed partial class SensorReadoutForm : Form
         return string.IsNullOrWhiteSpace(text) ? fallback : text;
     }
 
-    private void ShowUpdateAvailableDialog(GitHubReleaseInfo release, string latest)
+    private void ShowUpdateAvailableDialog(GitHubReleaseInfo release, string latest, string releaseNotes)
     {
         var releaseUrl = release == null || string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl;
         var zipAsset = FindPortableZipAsset(release);
+        PlaySoundFile(settings.UpdateAvailableSoundFile);
 
         using (var dialog = new Form())
         {
@@ -315,7 +382,7 @@ public sealed partial class SensorReadoutForm : Form
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
-                Text = FormatReleaseNotesForDialog(release == null ? "" : release.Body, T("message.noReleaseNotes", "No release notes were provided for this update.")),
+                Text = string.IsNullOrWhiteSpace(releaseNotes) ? FormatReleaseNotesForDialog(release == null ? "" : release.Body, T("message.noReleaseNotes", "No release notes were provided for this update.")) : releaseNotes,
                 AccessibleName = T("a11y.Release notes", "Release notes")
             };
 

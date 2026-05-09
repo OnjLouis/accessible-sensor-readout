@@ -356,6 +356,7 @@ public sealed partial class SensorReadoutForm : Form
             ShowHideHotKey = value.ShowHideHotKey,
             SpeakTrayHotKey = value.SpeakTrayHotKey,
             HotKeyCopyDoublePressMs = value.HotKeyCopyDoublePressMs,
+            StartupSpeechEnabled = value.StartupSpeechEnabled,
             StartupSpeechMessage = value.StartupSpeechMessage,
             SpeechIncludesDeviceNames = value.SpeechIncludesDeviceNames,
             TrayStatusEnabled = value.TrayStatusEnabled,
@@ -363,6 +364,7 @@ public sealed partial class SensorReadoutForm : Form
             CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
             UpdateCheckFrequency = value.UpdateCheckFrequency,
             LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
+            UpdateAvailableSoundFile = value.UpdateAvailableSoundFile,
             StartupSoundFile = value.StartupSoundFile,
             ShutdownSoundFile = value.ShutdownSoundFile
         };
@@ -432,6 +434,7 @@ public sealed partial class SensorReadoutForm : Form
         target.ShowHideHotKey = shared.ShowHideHotKey;
         target.SpeakTrayHotKey = shared.SpeakTrayHotKey;
         target.HotKeyCopyDoublePressMs = shared.HotKeyCopyDoublePressMs;
+        target.StartupSpeechEnabled = shared.StartupSpeechEnabled;
         target.StartupSpeechMessage = shared.StartupSpeechMessage;
         target.SpeechIncludesDeviceNames = shared.SpeechIncludesDeviceNames;
         target.TrayStatusEnabled = shared.TrayStatusEnabled;
@@ -439,6 +442,7 @@ public sealed partial class SensorReadoutForm : Form
         target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
         target.UpdateCheckFrequency = shared.UpdateCheckFrequency;
         target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
+        target.UpdateAvailableSoundFile = shared.UpdateAvailableSoundFile;
         target.StartupSoundFile = shared.StartupSoundFile;
         target.ShutdownSoundFile = shared.ShutdownSoundFile;
     }
@@ -463,6 +467,7 @@ public sealed partial class SensorReadoutForm : Form
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
         value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
+        value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
     }
@@ -522,6 +527,7 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
+        value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds));
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
@@ -628,6 +634,8 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Name = p.Name ?? "",
                 HotKey = NormalizeHotKeyText(p.HotKey),
+                SoundFile = System.IO.Path.GetFileName(p.SoundFile ?? ""),
+                ToggleAutomatic = p.ToggleAutomatic,
                 Actions = (p.Actions ?? new List<FanProfileActionSetting>())
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
                     .Select(a => new FanProfileActionSetting
@@ -640,7 +648,7 @@ public sealed partial class SensorReadoutForm : Form
                     .Select(g => g.Last())
                     .ToList()
             })
-            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || p.Actions.Count > 0)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || p.Actions.Count > 0)
             .ToList();
     }
 
@@ -735,7 +743,7 @@ public sealed partial class SensorReadoutForm : Form
         return System.IO.Path.Combine(GetLogsFolderPath(), System.IO.Path.ChangeExtension(GetConfigFileName(), ".log"));
     }
 
-    private static string GetConfigFolderPath()
+    public static string GetConfigFolderPath()
     {
         return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config");
     }

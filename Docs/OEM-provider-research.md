@@ -19,7 +19,8 @@ This is a development note, not user-facing release documentation. The goal is t
 - `GetMachineIdentity()` caches `Win32_ComputerSystem` manufacturer/model.
 - `IsFrameworkComputer()`, `IsHpOmenComputer()`, and `IsAsusComputer()` centralize targeting.
 - Framework EC and Framework Control API now sit behind the OEM provider seam.
-- HP OMEN and ASUS currently perform debug-only capability probes and return no sensor rows yet.
+- HP OMEN/Victus has an experimental opt-in Plug-In that performs a read-only WMI capability probe and reports diagnostic status only.
+- ASUS was researched through G-Helper, but no user-facing Plug-In is shipped because the useful integration points are not currently exposed through a supported external interface.
 
 ## Framework
 
@@ -37,7 +38,7 @@ Notes:
 
 ## HP OMEN / Victus
 
-Status: research-ready, not implemented as control/readout yet.
+Status: researched, not shipped.
 
 Sources:
 
@@ -71,13 +72,22 @@ Open questions:
 - Whether direct WMI calls require administrator rights on all affected systems.
 - Whether using the WMI command constants directly is acceptable for this project without GPL contamination. Implementation should be clean-room and narrowly based on interface behavior, not copied source.
 
+Current Plug-In behavior:
+
+- Ships as `HP Hardware Support (experimental)`.
+- Enables only when the user opts in from Preferences, Plug-Ins.
+- Targets HP, Hewlett-Packard, OMEN, and Victus machine identifiers.
+- Probes `root\wmi` for `hpqBDataIn` and `hpqBIntM`.
+- Adds only a diagnostic status row for now; it does not set fans or call firmware commands.
+
 Next safe step:
 
-- Add a debug/test build command that probes `hpqBIntM` read-only calls on HP/OMEN/Victus machines and logs raw output only when debug logging is enabled.
+- Ask HP/OMEN/Victus testers to enable the Plug-In, send a debug log and report, and confirm which WMI classes are present.
+- If read-only fan/thermal commands are confirmed on tester hardware, expose them as real `Fan` or `Temperature` rows.
 
 ## ASUS ROG / TUF / Zephyrus
 
-Status: research-ready, not implemented as control/readout yet.
+Status: experimental Plug-In prepared for 1.6.1. It is disabled by default and read-only.
 
 Sources:
 
@@ -88,7 +98,7 @@ Observed G-Helper implementation surface:
 
 - ASUS ACPI device methods expose CPU, GPU, and middle fan RPMs.
 - Fan curve and fan range setters exist inside the app.
-- No stable machine-readable CLI/API was found in the first pass.
+- No stable machine-readable CLI/API, named pipe, socket, or local HTTP endpoint was found in the source or docs.
 
 Risk:
 
@@ -96,10 +106,15 @@ Risk:
 - If G-Helper adds a stable CLI/API, Sensor Readout can call it as an installed optional tool.
 - Direct ASUS ACPI support would need a clean-room provider and careful test hardware coverage.
 
+Decision:
+
+- Do not ship the read-only ASUS/G-Helper presence Plug-In. It only confirmed that G-Helper exists and did not expose real Sensor Readout value.
+- Keep this research note so ASUS can be revisited if G-Helper adds a supported interface or if a clean-room provider becomes practical.
+
 Next safe step:
 
 - Track G-Helper releases and docs for a stable CLI/API.
-- Add a quiet debug probe for installed G-Helper path only; do not show UI rows from that probe.
+- Add real sensor rows only if there is a safe installed-tool interface or a clean-room direct provider.
 
 ## Lenovo Legion
 
@@ -126,8 +141,9 @@ Notes:
 ## 1.6 implementation target
 
 1. Keep the new OEM provider seam.
-2. Add read-only debug probes for HP OMEN/Victus first.
+2. Ship the HP experimental Plug-In disabled by default and collect tester logs/reports.
 3. If HP read-only fan levels work on tester hardware, expose them as `Fan` rows.
 4. Only after readout is proven, consider writable `Fan Control` rows with explicit safety limits and manual testing.
-5. Add ASUS support only if a stable installed-tool interface exists or a clean-room direct provider can be built safely.
-6. Update docs around “OEM helper support” only when a provider is actually user-facing.
+5. Do not ship ASUS/G-Helper detection-only support.
+6. Add ASUS sensor/control support only if a stable installed-tool interface exists or a clean-room direct provider can be built safely.
+7. Update docs around OEM helper support only when a provider is actually user-facing.

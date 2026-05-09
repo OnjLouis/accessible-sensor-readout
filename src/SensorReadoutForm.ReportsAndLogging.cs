@@ -104,7 +104,7 @@ public sealed partial class SensorReadoutForm : Form
     private string BuildTextReport(string timingLine)
     {
         var lines = new List<string>();
-        lines.Add("Sensor Readout report");
+        lines.Add(BuildReportTitle());
         lines.Add("Generated " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
@@ -146,12 +146,13 @@ public sealed partial class SensorReadoutForm : Form
 
     private string BuildHtmlReport(string timingLine)
     {
+        var title = BuildReportTitle();
         var html = new System.Text.StringBuilder();
         html.AppendLine("<!doctype html>");
-        html.AppendLine("<html><head><meta charset=\"utf-8\"><title>Sensor Readout report</title>");
-        html.AppendLine("<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.35} table{border-collapse:collapse;margin:0 0 1.2em 0} th,td{border:1px solid #888;padding:4px 8px;text-align:left} h2{margin-top:1.4em} h3{margin-bottom:.4em}</style>");
+        html.AppendLine("<html><head><meta charset=\"utf-8\"><title>" + HtmlEncode(title) + "</title>");
+        html.AppendLine("<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.35} table{border-collapse:collapse;margin:0 0 1.2em 0} th,td{border:1px solid #888;padding:4px 8px;text-align:left} h2{margin-top:1.4em} h3{margin-bottom:.4em} h4{margin:.8em 0 .3em 0}</style>");
         html.AppendLine("</head><body>");
-        html.AppendLine("<h1>Sensor Readout report</h1>");
+        html.AppendLine("<h1>" + HtmlEncode(title) + "</h1>");
         html.AppendLine("<p>Generated " + HtmlEncode(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")) + "</p>");
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
@@ -174,23 +175,33 @@ public sealed partial class SensorReadoutForm : Form
                 foreach (var row in hardwareGroup)
                 {
                     html.AppendLine("<tr><td>" + HtmlEncode(CleanSensorName(row.Name)) + "</td><td>" + HtmlEncode(FormatValue(row)) + "</td><td>" + HtmlEncode(row.Source) + "</td></tr>");
-                    if (row.Details != null && row.Details.Count > 0)
-                    {
-                        html.AppendLine("<tr><td colspan=\"3\"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
-                        foreach (var detail in OrderedReportDetails(row))
-                        {
-                            html.AppendLine("<tr><td>" + HtmlEncode(detail.Key) + "</td><td>" + HtmlEncode(detail.Value) + "</td></tr>");
-                        }
-                        html.AppendLine("</tbody></table></td></tr>");
-                    }
                 }
 
                 html.AppendLine("</tbody></table>");
+                foreach (var row in hardwareGroup.Where(r => r.Details != null && r.Details.Count > 0))
+                {
+                    html.AppendLine("<h4>Details for " + HtmlEncode(CleanSensorName(row.Name)) + "</h4>");
+                    html.AppendLine("<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
+                    foreach (var detail in OrderedReportDetails(row))
+                    {
+                        html.AppendLine("<tr><td>" + HtmlEncode(detail.Key) + "</td><td>" + HtmlEncode(detail.Value) + "</td></tr>");
+                    }
+
+                    html.AppendLine("</tbody></table>");
+                }
             }
         }
 
         html.AppendLine("</body></html>");
         return html.ToString();
+    }
+
+    private static string BuildReportTitle()
+    {
+        var machineName = Environment.MachineName;
+        return string.IsNullOrWhiteSpace(machineName)
+            ? "Sensor Readout report"
+            : "Sensor Readout report for " + machineName;
     }
 
     private static IEnumerable<KeyValuePair<string, string>> OrderedReportDetails(SensorRow row)
