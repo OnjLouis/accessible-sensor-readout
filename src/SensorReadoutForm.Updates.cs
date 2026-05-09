@@ -25,7 +25,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 if (showErrors)
                 {
-                    MessageBox.Show(this, T("message.couldNotReadLatestVersion", "Could not read the latest release version."), T("ui.Check for updates...", "Check for updates..."), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this, T("message.couldNotReadLatestVersion", "Could not read the latest release version."), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 return;
             }
@@ -41,7 +41,7 @@ public sealed partial class SensorReadoutForm : Form
 
             if (showUpToDate)
             {
-                MessageBox.Show(this, string.Format(T("message.upToDate", "Sensor Readout is up to date. Current version: {0}."), AppVersion), T("ui.Check for updates...", "Check for updates..."), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, string.Format(T("message.upToDate", "Sensor Readout is up to date. Current version: {0}."), AppVersion), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             CheckPawnIoFromManualUpdateCheck(showUpToDate, showErrors);
         }
@@ -49,14 +49,14 @@ public sealed partial class SensorReadoutForm : Form
         {
             if (showErrors)
             {
-                MessageBox.Show(this, T("message.couldNotCheckUpdates", "Could not check for updates. GitHub releases may not exist yet, or the network request failed.") + Environment.NewLine + Environment.NewLine + ex.Message, T("ui.Check for updates...", "Check for updates..."), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, T("message.couldNotCheckUpdates", "Could not check for updates. GitHub releases may not exist yet, or the network request failed.") + Environment.NewLine + Environment.NewLine + ex.Message, UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
         catch (Exception ex)
         {
             if (showErrors)
             {
-                MessageBox.Show(this, ex.Message, T("ui.Check for updates...", "Check for updates..."), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, ex.Message, UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
@@ -72,7 +72,7 @@ public sealed partial class SensorReadoutForm : Form
             this,
             T("message.pawnIoMissingAfterUpdateCheck", "PawnIO is not installed. Motherboard sensors and fan controls may be missing without it.") + Environment.NewLine + Environment.NewLine +
             T("message.installPawnIoNow", "Do you want to install PawnIO now using winget?"),
-            T("ui.Check for updates...", "Check for updates..."),
+            UpdateCheckDialogTitle(),
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Information);
 
@@ -323,7 +323,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 AutoSize = true,
                 Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.RightToLeft,
+                FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(0, 8, 0, 0)
             };
 
@@ -333,8 +333,6 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Process.Start(new ProcessStartInfo { FileName = releaseUrl, UseShellExecute = true });
             };
-            buttons.Controls.Add(laterButton);
-            buttons.Controls.Add(releaseButton);
 
             if (zipAsset != null)
             {
@@ -348,6 +346,8 @@ public sealed partial class SensorReadoutForm : Form
                 buttons.Controls.Add(installButton);
                 dialog.AcceptButton = installButton;
             }
+            buttons.Controls.Add(releaseButton);
+            buttons.Controls.Add(laterButton);
 
             dialog.CancelButton = laterButton;
             layout.Controls.Add(header, 0, 0);
@@ -377,7 +377,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (string.IsNullOrWhiteSpace(zipUrl))
         {
-            MessageBox.Show(this, T("message.noUpdatePackage", "This GitHub release does not include a downloadable ZIP package. Please open the release page instead."), T("ui.Check for updates...", "Check for updates..."), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, T("message.noUpdatePackage", "This GitHub release does not include a downloadable ZIP package. Please open the release page instead."), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -413,6 +413,11 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private string UpdateCheckDialogTitle()
+    {
+        return StripMenuMnemonic(T("ui.Check for updates...", "Check for updates..."));
+    }
+
     private static string BuildUpdaterScript(string zipUrl, string targetDir, string exePath, int processId)
     {
         return
@@ -436,6 +441,11 @@ public sealed partial class SensorReadoutForm : Form
             "  }\r\n" +
             "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) { throw 'The downloaded ZIP does not contain Sensor Readout.exe.' }\r\n" +
             "  Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Wait-Process\r\n" +
+            "  $backup = Join-Path (Join-Path $target 'Config\\Update Backups') (Get-Date -Format 'yyyyMMdd-HHmmss')\r\n" +
+            "  foreach ($name in @('Langs')) {\r\n" +
+            "    $existing = Join-Path $target $name\r\n" +
+            "    if (Test-Path -LiteralPath $existing) { New-Item -ItemType Directory -Force -Path $backup | Out-Null; Copy-Item -LiteralPath $existing -Destination (Join-Path $backup $name) -Recurse -Force }\r\n" +
+            "  }\r\n" +
             "  foreach ($name in @('Docs','Langs')) {\r\n" +
             "    $lower = Join-Path $target $name.ToLowerInvariant()\r\n" +
             "    $proper = Join-Path $target $name\r\n" +
@@ -462,6 +472,7 @@ public sealed partial class SensorReadoutForm : Form
             "  }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.dll') -Force -ErrorAction SilentlyContinue\r\n" +
+            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient64.dll') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.LICENSE.txt') -Force -ErrorAction SilentlyContinue\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
             "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +

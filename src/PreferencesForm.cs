@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Windows.Forms;
+using Newtonsoft.Json.Linq;
 
 public sealed class PreferencesForm : Form
 {
@@ -57,6 +60,8 @@ public sealed class PreferencesForm : Form
     private readonly ComboBox startupSoundBox;
     private readonly ComboBox shutdownSoundBox;
     private readonly Label alarmStatusLabel;
+    private readonly CheckedListBox plugInList;
+    private readonly Label plugInDetailsLabel;
     private readonly CheckedListBox hiddenItemsList;
     private readonly List<SensorRow> rows;
     private readonly List<SensorRow> fanControlRows;
@@ -66,6 +71,7 @@ public sealed class PreferencesForm : Form
     private readonly List<SpokenHotKeySetting> spokenHotKeys;
     private readonly List<FanProfileSetting> fanProfiles;
     private readonly List<AlarmSetting> alarms;
+    private readonly List<PlugInPreferenceInfo> plugIns;
     private readonly List<string> soundFiles;
     private readonly Dictionary<string, string> readingSpeechLabels;
     private readonly Dictionary<string, string> fanLabels;
@@ -140,6 +146,7 @@ public sealed class PreferencesForm : Form
     public List<AlarmSetting> Alarms { get; private set; }
     public List<string> HiddenReadingKeys { get; private set; }
     public Dictionary<string, string> ReadingSpeechLabels { get; private set; }
+    public Dictionary<string, bool> PlugInsEnabled { get { return CurrentPlugInSettings(); } }
     public string StartupSoundFile { get { return SelectedSoundFile(startupSoundBox); } }
     public string ShutdownSoundFile { get { return SelectedSoundFile(shutdownSoundBox); } }
     public string SelectedTabName
@@ -193,6 +200,7 @@ public sealed class PreferencesForm : Form
             fanProfileStarterProfilesInitialized = true;
         }
         alarms = CloneAlarms(settings.Alarms);
+        plugIns = SensorReadoutForm.LoadPlugInPreferenceInfos(settings);
         soundFiles = SensorReadoutForm.LoadSoundFileNames();
         readingSpeechLabels = new Dictionary<string, string>(settings.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         fanLabels = new Dictionary<string, string>(settings.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
@@ -213,6 +221,7 @@ public sealed class PreferencesForm : Form
         var hotKeysTab = new TabPage("Hotkeys") { Name = "Hotkeys" };
         var fanProfilesTab = new TabPage("Fan profiles") { Name = "Fan profiles" };
         var alarmsTab = new TabPage("Alarms") { Name = "Alarms" };
+        var plugInsTab = new TabPage("Plug-Ins") { Name = "Plug-Ins" };
         var hiddenTab = new TabPage("Hidden items") { Name = "Hidden items" };
         var languageEditorTab = new TabPage("Language editor") { Name = "Language editor" };
 
@@ -683,6 +692,29 @@ public sealed class PreferencesForm : Form
         alarmSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Alarm sound" };
         PopulateSoundCombo(alarmSoundBox, "");
         alarmStatusLabel = new Label { AutoSize = true, Dock = DockStyle.Fill };
+        plugInList = new CheckedListBox
+        {
+            Dock = DockStyle.Fill,
+            CheckOnClick = true,
+            IntegralHeight = false,
+            AccessibleName = SensorReadoutForm.L("a11y.Installed Plug-Ins", "Installed Plug-Ins"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.", "Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.")
+        };
+        plugInDetailsLabel = new Label { AutoSize = true, Dock = DockStyle.Fill };
+        plugInList.SelectedIndexChanged += delegate { UpdatePlugInDetails(); };
+        plugInList.ItemCheck += delegate(object sender, ItemCheckEventArgs e)
+        {
+            if (loadingPreferences)
+            {
+                return;
+            }
+
+            BeginInvoke((MethodInvoker)delegate
+            {
+                SaveLivePreferences();
+                UpdatePlugInDetails();
+            });
+        };
         spokenHotKeyList.SelectedIndexChanged += delegate { LoadSelectedSpokenHotKey(); };
         spokenHotKeyNameBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
         spokenHotKeyBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
@@ -896,6 +928,8 @@ public sealed class PreferencesForm : Form
         preferencesTabs.TabPages.Add(fanProfilesTab);
         alarmsTab.Controls.Add(BuildAlarmsPanel());
         preferencesTabs.TabPages.Add(alarmsTab);
+        plugInsTab.Controls.Add(BuildPlugInsPanel());
+        preferencesTabs.TabPages.Add(plugInsTab);
         preferencesTabs.TabPages.Add(hiddenTab);
         languageEditorTab.Controls.Add(BuildLanguageEditorPanel(effectiveLanguageChoices));
         preferencesTabs.TabPages.Add(languageEditorTab);
@@ -1424,6 +1458,7 @@ public sealed class PreferencesForm : Form
         liveSettings.Alarms = CurrentAlarms();
         liveSettings.HiddenReadingKeys = CurrentHiddenReadingKeys();
         liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
+        liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SensorReadoutForm.SaveSettings(liveSettings);
     }
 
@@ -1435,6 +1470,7 @@ public sealed class PreferencesForm : Form
         Alarms = CurrentAlarms();
         HiddenReadingKeys = CurrentHiddenReadingKeys();
         ReadingSpeechLabels = CurrentReadingSpeechLabels();
+        liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SaveLivePreferences();
     }
 
@@ -2029,6 +2065,314 @@ public sealed class PreferencesForm : Form
         panel.Controls.Add(buttons, 1, 0);
         panel.Controls.Add(selectedPanel, 2, 0);
         return panel;
+    }
+
+    private Control BuildPlugInsPanel()
+    {
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            Padding = new Padding(10)
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        layout.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.Enable only the Plug-Ins you need for this machine. Each item includes its purpose. Disabled Plug-Ins are not loaded.", "Enable only the Plug-Ins you need for this machine. Each item includes its purpose. Disabled Plug-Ins are not loaded."),
+            AutoSize = true,
+            Dock = DockStyle.Fill
+        }, 0, 0);
+
+        RefreshPlugInList();
+        layout.Controls.Add(plugInList, 0, 1);
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+        var importButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Import from ZIP...", "&Import from ZIP..."), "Alt+I", Keys.I);
+        importButton.AccessibleDescription = SensorReadoutForm.L("a11y.Import a Plug-In ZIP file into the Plug-Ins folder. Imported Plug-Ins stay disabled until you enable them.", "Import a Plug-In ZIP file into the Plug-Ins folder. Imported Plug-Ins stay disabled until you enable them.");
+        importButton.Click += delegate { ImportPlugInFromZip(); };
+        buttons.Controls.Add(importButton);
+        layout.Controls.Add(buttons, 0, 2);
+        layout.Controls.Add(plugInDetailsLabel, 0, 3);
+        UpdatePlugInDetails();
+        return layout;
+    }
+
+    private void RefreshPlugInList()
+    {
+        if (plugInList == null)
+        {
+            return;
+        }
+
+        var previousLoading = loadingPreferences;
+        loadingPreferences = true;
+        try
+        {
+            plugIns.Clear();
+            plugIns.AddRange(SensorReadoutForm.LoadPlugInPreferenceInfos(liveSettings));
+            plugInList.Items.Clear();
+            foreach (var plugIn in plugIns)
+            {
+                plugInList.Items.Add(plugIn, plugIn.Enabled);
+            }
+
+            plugInList.SelectedIndex = plugInList.Items.Count > 0 ? 0 : -1;
+        }
+        finally
+        {
+            loadingPreferences = previousLoading;
+        }
+
+        UpdatePlugInDetails();
+    }
+
+    private void UpdatePlugInDetails()
+    {
+        var plugIn = plugInList == null ? null : plugInList.SelectedItem as PlugInPreferenceInfo;
+        if (plugIn == null || plugInList.SelectedIndex < 0)
+        {
+            plugInDetailsLabel.Text = SensorReadoutForm.L("ui.No Plug-Ins found.", "No Plug-Ins found.");
+            return;
+        }
+
+        plugInDetailsLabel.Text =
+            (plugInList.GetItemChecked(plugInList.SelectedIndex) ? SensorReadoutForm.L("ui.Enabled. ", "Enabled. ") : SensorReadoutForm.L("ui.Disabled. ", "Disabled. ")) +
+            (string.IsNullOrWhiteSpace(plugIn.Description) ? "" : plugIn.Description + " ") +
+            "ID: " + plugIn.Id +
+            "; " + SensorReadoutForm.L("ui.author:", "author:") + " " + (string.IsNullOrWhiteSpace(plugIn.Author) ? SensorReadoutForm.L("ui.unknown", "unknown") : plugIn.Author) +
+            "; " + SensorReadoutForm.L("ui.status:", "status:") + " " + (string.IsNullOrWhiteSpace(plugIn.Status) ? SensorReadoutForm.L("ui.available", "available") : plugIn.Status) + ".";
+    }
+
+    private void ImportPlugInFromZip()
+    {
+        using (var dialog = new OpenFileDialog())
+        {
+            dialog.Title = SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP");
+            dialog.Filter = "Sensor Readout Plug-In ZIP (*.zip)|*.zip|All files (*.*)|*.*";
+            dialog.CheckFileExists = true;
+            dialog.Multiselect = false;
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            ImportPlugInZip(dialog.FileName);
+        }
+    }
+
+    private void ImportPlugInZip(string zipPath)
+    {
+        var tempFolder = Path.Combine(Path.GetTempPath(), "SensorReadoutPlugInImport_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(tempFolder);
+            ExtractZipSafely(zipPath, tempFolder);
+            var manifests = Directory.GetFiles(tempFolder, "plugin.json", SearchOption.AllDirectories);
+            if (manifests.Length == 0)
+            {
+                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMissingManifest", "This ZIP does not contain a plugin.json file."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (manifests.Length > 1)
+            {
+                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMultipleManifests", "This ZIP contains more than one plugin.json file. Import one Plug-In at a time."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var manifestPath = manifests[0];
+            var manifest = JObject.Parse(File.ReadAllText(manifestPath));
+            var plugInId = SafeJsonText(manifest, "id");
+            if (string.IsNullOrWhiteSpace(plugInId))
+            {
+                MessageBox.Show(this, SensorReadoutForm.L("message.pluginZipMissingId", "The Plug-In manifest must include a stable id."), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var plugInName = SafeJsonText(manifest, "name");
+            var plugInFolderName = SanitizeFolderName(plugInId);
+            var sourceFolder = Path.GetDirectoryName(manifestPath);
+            var targetRoot = SensorReadoutForm.GetPlugInsFolderPath();
+            Directory.CreateDirectory(targetRoot);
+            var targetFolder = FindExistingPlugInFolderById(targetRoot, plugInId);
+            if (string.IsNullOrWhiteSpace(targetFolder))
+            {
+                targetFolder = Path.Combine(targetRoot, plugInFolderName);
+            }
+            else
+            {
+                plugInFolderName = Path.GetFileName(targetFolder);
+            }
+
+            if (Directory.Exists(targetFolder))
+            {
+                var replace = MessageBox.Show(
+                    this,
+                    string.Format(SensorReadoutForm.L("message.pluginFolderExists", "A Plug-In folder named {0} already exists. Replace it?"), plugInFolderName),
+                    SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (replace != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                Directory.Delete(targetFolder, true);
+            }
+
+            CopyDirectory(sourceFolder, targetFolder);
+            if (liveSettings.PlugInsEnabled == null)
+            {
+                liveSettings.PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            liveSettings.PlugInsEnabled[plugInId] = false;
+            SensorReadoutForm.SaveSettings(liveSettings);
+            RefreshPlugInList();
+            MessageBox.Show(this, string.Format(SensorReadoutForm.L("message.pluginImportedDisabled", "Imported {0}. It is disabled until you check it."), string.IsNullOrWhiteSpace(plugInName) ? plugInId : plugInName), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, string.Format(SensorReadoutForm.L("message.pluginImportFailed", "Could not import Plug-In ZIP: {0}"), ex.Message), SensorReadoutForm.L("ui.Import Plug-In ZIP", "Import Plug-In ZIP"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempFolder))
+                {
+                    Directory.Delete(tempFolder, true);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static string FindExistingPlugInFolderById(string targetRoot, string plugInId)
+    {
+        if (string.IsNullOrWhiteSpace(targetRoot) || string.IsNullOrWhiteSpace(plugInId) || !Directory.Exists(targetRoot))
+        {
+            return "";
+        }
+
+        foreach (var manifestPath in Directory.GetFiles(targetRoot, "plugin.json", SearchOption.AllDirectories))
+        {
+            try
+            {
+                var manifest = JObject.Parse(File.ReadAllText(manifestPath));
+                if (string.Equals(SafeJsonText(manifest, "id"), plugInId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Path.GetDirectoryName(manifestPath);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return "";
+    }
+
+    private static void ExtractZipSafely(string zipPath, string destination)
+    {
+        var destinationRoot = Path.GetFullPath(destination);
+        if (!destinationRoot.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+        {
+            destinationRoot += Path.DirectorySeparatorChar;
+        }
+
+        using (var archive = ZipFile.OpenRead(zipPath))
+        {
+            foreach (var entry in archive.Entries)
+            {
+                var targetPath = Path.GetFullPath(Path.Combine(destinationRoot, entry.FullName));
+                if (!targetPath.StartsWith(destinationRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("The ZIP contains an unsafe path.");
+                }
+
+                if (string.IsNullOrEmpty(entry.Name))
+                {
+                    Directory.CreateDirectory(targetPath);
+                    continue;
+                }
+
+                var directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                entry.ExtractToFile(targetPath, true);
+            }
+        }
+    }
+
+    private static void CopyDirectory(string sourceFolder, string targetFolder)
+    {
+        Directory.CreateDirectory(targetFolder);
+        foreach (var directory in Directory.GetDirectories(sourceFolder, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(targetFolder, directory.Substring(sourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+        }
+
+        foreach (var file in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = file.Substring(sourceFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var targetPath = Path.Combine(targetFolder, relativePath);
+            var directory = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.Copy(file, targetPath, true);
+        }
+    }
+
+    private static string SafeJsonText(JObject obj, string key)
+    {
+        return obj == null || obj[key] == null ? "" : Convert.ToString(obj[key]).Trim();
+    }
+
+    private static string SanitizeFolderName(string value)
+    {
+        var safe = string.IsNullOrWhiteSpace(value) ? "ImportedPlugIn" : value.Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            safe = safe.Replace(invalid, '_');
+        }
+
+        safe = safe.Replace(' ', '_');
+        return string.IsNullOrWhiteSpace(safe) ? "ImportedPlugIn" : safe;
+    }
+
+    private Dictionary<string, bool> CurrentPlugInSettings()
+    {
+        var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        if (plugInList == null)
+        {
+            return result;
+        }
+
+        for (var i = 0; i < plugInList.Items.Count; i++)
+        {
+            var plugIn = plugInList.Items[i] as PlugInPreferenceInfo;
+            if (plugIn == null || string.IsNullOrWhiteSpace(plugIn.Id))
+            {
+                continue;
+            }
+
+            result[plugIn.Id] = plugInList.GetItemChecked(i);
+        }
+
+        return result;
     }
 
     private Control BuildLanguageEditorPanel(List<LanguageChoice> languageChoices)

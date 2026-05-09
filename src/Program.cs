@@ -121,7 +121,9 @@ public static class Program
     {
         if (string.IsNullOrWhiteSpace(path))
         {
-            path = "SensorReadout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt");
+            path = System.IO.Path.Combine(
+                SensorReadoutForm.GetReportsFolderPath(),
+                "SensorReadout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt"));
         }
 
         using (var form = new SensorReadoutForm(false))
@@ -169,9 +171,9 @@ public static class Program
             "--close" + Environment.NewLine +
             "Close any running Sensor Readout instance and exit." + Environment.NewLine + Environment.NewLine +
             "--report-txt [path]" + Environment.NewLine +
-            "Save a text report and exit. If no path is supplied, a timestamped file is created in the current folder." + Environment.NewLine + Environment.NewLine +
+            "Save a text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--report-html [path]" + Environment.NewLine +
-            "Save an HTML report and exit. If no path is supplied, a timestamped file is created in the current folder." + Environment.NewLine + Environment.NewLine +
+            "Save an HTML report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

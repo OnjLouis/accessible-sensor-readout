@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.5.2.
+Current version: 1.6.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -45,6 +45,8 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
 - Can read Framework Laptop temperatures and fan RPMs from the optional Framework Control local API when that tool is installed and running.
+- Supports opt-in hardware plug-ins from the `Plug-Ins` folder. Installed plug-ins stay disabled until you enable them in Preferences.
+- Can import a plug-in ZIP from Preferences without automatically enabling it.
 - Can show laptop battery charge, status, capacity, health, cycle count, voltage, and power rate where Windows exposes them.
 
 ## Prerequisites
@@ -135,6 +137,7 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
 | `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
 | `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
+| `Alt+I` | In Preferences > Plug-Ins, import a plug-in ZIP. |
 | `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
 | `Alt+P` | In Preferences > Hotkeys, remove the selected spoken hotkey profile. |
 | `Alt+A` | In Preferences > Hotkeys, add the selected reading to the selected spoken hotkey. |
@@ -152,8 +155,8 @@ Sensor Readout can also be started with a few command-line options:
 | --- | --- |
 | `--minimized` or `--tray` | Start minimized to the notification area. |
 | `--close` | Close any running Sensor Readout instance and exit. |
-| `--report-txt [path]` | Save a text report and exit. If no path is supplied, a timestamped report is created in the current folder. |
-| `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the current folder. |
+| `--report-txt [path]` | Save a text report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
@@ -184,6 +187,16 @@ Notification area readings are selected from an Available readings list and move
 Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
 
 Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on; users can add their own `.wav` files to the same folder.
+
+## Plug-Ins
+
+Preferences > Plug-Ins lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust.
+
+Installed plug-ins are disabled by default. Importing a plug-in ZIP copies it into the `Plug-Ins` folder but still leaves it disabled until you check it yourself.
+
+The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
+
+For developers, see `Docs\Plug-In-development.md`.
 
 ## Reading Sensors
 
@@ -268,6 +281,8 @@ Configuration and logging created by the app:
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 - `Data\usb.ids`: bundled USB vendor/product lookup data.
 - `Data\oui.csv`: bundled MAC/OUI vendor lookup data for network adapters.
+- `Plug-Ins\Framework`: optional Framework Laptop plug-in. Users can add third-party plug-ins in their own subfolders.
+- `Reports`: default folder for reports saved from the command line or from the first save dialog.
 
 Language files:
 
@@ -309,14 +324,25 @@ Framework Laptop owners who want Framework-specific fan RPM and temperature read
 3. Confirm Framework Control can show its fan/temperature controls in its browser interface.
 4. Start Sensor Readout. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
-Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps. If Framework Control is not installed or not running, Sensor Readout skips that optional API quickly and continues showing the standard LibreHardwareMonitor and Windows readings.
+Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
 
 ## Changelog
 
+### 1.6.0
+
+- New: Opt-in hardware plug-in system. Plug-ins live in the `Plug-Ins` folder, appear in Preferences, and are disabled until the user enables them.
+- New: Plug-in ZIP import from Preferences > Plug-Ins. Imported plug-ins are validated, copied into the right folder, and left disabled for safety.
+- Added: Framework Laptop support is now shipped as an optional Framework plug-in instead of being built into the main app.
+- Added: `Docs\Plug-In-development.md` for developers who want to build hardware plug-ins for Sensor Readout.
+- Added: Memory total now appears in Performance/Overview alongside memory used and memory available.
+- Added: Reports now default to a `Reports` folder instead of the main program folder.
+- Improved: GitHub self-updates back up the existing `Langs` folder before replacing shipped language files, protecting user language edits.
+- Changed: OEM-specific hardware support can now be added through plug-ins, keeping the main app smaller and safer to maintain.
+
 ### 1.5.2
 
-- Fixed: Framework Laptops without Framework Control installed or running no longer wait through repeated local API timeouts before normal sensor readings appear.
-- Fixed: Framework Control API probing now fails fast and is briefly cached when unavailable, so speech hotkeys and the main readings can use the standard LibreHardwareMonitor and Windows data promptly.
+- Fixed: Framework Laptop systems without Framework Control installed or running no longer wait through repeated local API timeouts before normal readings appear.
+- Fixed: Normal LibreHardwareMonitor, Windows, and Core Temp readings remain available on Framework systems even when the optional Framework Control API is unavailable.
 
 ### 1.5.1
 

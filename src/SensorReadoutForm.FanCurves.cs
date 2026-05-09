@@ -46,6 +46,13 @@ public sealed partial class SensorReadoutForm : Form
             var emergencyTempBox = CreateTemperatureBox(85);
             var emergencyPercentBox = CreatePercentBox(100);
             var minChangeBox = CreatePercentBox(2);
+            lowTempBox.AccessibleName = T("a11y.Low temperature Celsius", "Low temperature, Celsius");
+            lowPercentBox.AccessibleName = T("a11y.Low fan percent", "Low fan percent");
+            highTempBox.AccessibleName = T("a11y.High temperature Celsius", "High temperature, Celsius");
+            highPercentBox.AccessibleName = T("a11y.High fan percent", "High fan percent");
+            emergencyTempBox.AccessibleName = T("a11y.Emergency temperature Celsius", "Emergency temperature, Celsius");
+            emergencyPercentBox.AccessibleName = T("a11y.Emergency fan percent", "Emergency fan percent");
+            minChangeBox.AccessibleName = T("a11y.Minimum fan percent change", "Minimum fan percent change");
             var status = new Label { Dock = DockStyle.Fill, AutoSize = true };
             var loading = false;
 
@@ -200,10 +207,10 @@ public sealed partial class SensorReadoutForm : Form
             AddLabeledControl(editor, 1, T("ui.Fan:", "Fan:"), fanBox);
             AddLabeledControl(editor, 2, T("ui.Temperature:", "Temperature:"), tempBox);
             editor.Controls.Add(enabledCheckBox, 1, 3);
-            AddLabeledControl(editor, 4, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(" C  "), lowPercentBox, LabelText("%")));
-            AddLabeledControl(editor, 5, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(" C  "), highPercentBox, LabelText("%")));
-            AddLabeledControl(editor, 6, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(" C  "), emergencyPercentBox, LabelText("%")));
-            AddLabeledControl(editor, 7, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText("%")));
+            AddLabeledControl(editor, 4, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), lowPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 5, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), highPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 6, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), emergencyPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 7, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText(T("ui.Percent unit label", " percent"))));
             editor.Controls.Add(status, 1, 8);
             outer.Controls.Add(editor, 1, 0);
 
@@ -330,6 +337,49 @@ public sealed partial class SensorReadoutForm : Form
 
         var fraction = (temperatureC - curve.LowTemperatureC) / (curve.HighTemperatureC - curve.LowTemperatureC);
         return Math.Max(0, Math.Min(100, (int)Math.Round(curve.LowPercent + ((curve.HighPercent - curve.LowPercent) * fraction))));
+    }
+
+    private int DisableFanCurvesForControls(IEnumerable<string> fanControlKeys)
+    {
+        var keys = new HashSet<string>(
+            (fanControlKeys ?? Enumerable.Empty<string>())
+                .Select(IdentifierFromSettingsKey)
+                .Where(k => !string.IsNullOrWhiteSpace(k)),
+            StringComparer.OrdinalIgnoreCase);
+        if (keys.Count == 0 || settings.FanCurves == null || settings.FanCurves.Count == 0)
+        {
+            return 0;
+        }
+
+        var disabled = 0;
+        foreach (var curve in settings.FanCurves)
+        {
+            if (curve == null || !curve.Enabled || !keys.Contains(IdentifierFromSettingsKey(curve.FanControlKey)))
+            {
+                continue;
+            }
+
+            curve.Enabled = false;
+            disabled++;
+            LogMessage("Normal", "Disabled fan curve \"" + (string.IsNullOrWhiteSpace(curve.Name) ? "Fan curve" : curve.Name.Trim()) + "\" because a manual fan action targeted the same fan control.");
+        }
+
+        if (disabled > 0)
+        {
+            SaveSettings(settings);
+        }
+
+        return disabled;
+    }
+
+    private static string FanCurveDisabledSuffix(int disabledCurveCount)
+    {
+        if (disabledCurveCount <= 0)
+        {
+            return "";
+        }
+
+        return " Disabled " + disabledCurveCount + " fan curve" + (disabledCurveCount == 1 ? "" : "s") + " for the same fan control" + (disabledCurveCount == 1 ? "" : "s") + ".";
     }
 
     private static List<FanCurveSetting> CloneFanCurveSettings(IEnumerable<FanCurveSetting> curves)

@@ -852,9 +852,10 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Health", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("Temperature", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 2;
-        if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 3;
-        if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 4;
-        if (clean.Equals("Memory available", StringComparison.OrdinalIgnoreCase)) return 5;
+        if (clean.Equals("Memory total", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 5;
+        if (clean.Equals("Memory available", StringComparison.OrdinalIgnoreCase)) return 6;
         if (clean.Equals("Data read", StringComparison.OrdinalIgnoreCase)) return 10;
         if (clean.Equals("Data written", StringComparison.OrdinalIgnoreCase)) return 11;
         if (clean.Equals("Read rate", StringComparison.OrdinalIgnoreCase)) return 12;

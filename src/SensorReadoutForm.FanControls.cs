@@ -17,8 +17,8 @@ public sealed partial class SensorReadoutForm : Form
         {
             dialog.Text = T("ui.Fan Controls", "Fan Controls");
             dialog.StartPosition = FormStartPosition.CenterParent;
-            dialog.Size = new Size(760, 230);
-            dialog.MinimumSize = new Size(620, 210);
+            dialog.Size = new Size(760, 260);
+            dialog.MinimumSize = new Size(620, 240);
             dialog.ShowInTaskbar = false;
             dialog.KeyPreview = true;
             dialog.KeyDown += delegate(object sender, KeyEventArgs e)
@@ -42,12 +42,12 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 5,
+                RowCount = 6,
                 Padding = new Padding(10)
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < 5; i++)
             {
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             }
@@ -94,10 +94,18 @@ public sealed partial class SensorReadoutForm : Form
             profilePanel.Controls.Add(showStoppedFansCheckBox);
             layout.Controls.Add(profilePanel, 1, 3);
 
+            fanControlStatusLabel = new Label
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                AccessibleName = T("a11y.Fan control status", "Fan control status")
+            };
+            layout.Controls.Add(fanControlStatusLabel, 1, 4);
+
             var closePanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
             var closeButton = new Button { Text = T("ui.Close", "Close"), DialogResult = DialogResult.OK, AutoSize = true };
             closePanel.Controls.Add(closeButton);
-            layout.Controls.Add(closePanel, 1, 4);
+            layout.Controls.Add(closePanel, 1, 5);
             dialog.AcceptButton = closeButton;
             dialog.CancelButton = closeButton;
             dialog.Controls.Add(layout);
@@ -108,6 +116,7 @@ public sealed partial class SensorReadoutForm : Form
         fanLabelBox = null;
         fanPercentBox = null;
         showStoppedFansCheckBox = null;
+        fanControlStatusLabel = null;
     }
 
     private void EnsureFanControlControls()
@@ -255,7 +264,7 @@ public sealed partial class SensorReadoutForm : Form
 
         AddTimedRows(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
-        AddTimedRows(rows, "FrameworkEc", GetFrameworkEcRows, timings);
+        AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
@@ -549,7 +558,8 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSetting(identifier, manual, percent);
-                statusLabel.Text = "LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + ".";
+                var disabledCurveCount = DisableFanCurvesForControls(new[] { identifier });
+                SetFanActionStatus("LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + "." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -587,15 +597,15 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);
-                statusLabel.Text = "LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default.";
+                var disabledCurveCount = DisableFanCurvesForControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
+                SetFanActionStatus("LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
 
     private void RunFanAction(string startingStatus, Action worker, Action completed)
     {
-        statusLabel.Text = startingStatus;
-        LogFanAction(startingStatus);
+        SetFanActionStatus(startingStatus, 0, false);
         Task.Factory.StartNew(worker).ContinueWith(delegate(Task task)
         {
             if (IsDisposed)
@@ -606,7 +616,7 @@ public sealed partial class SensorReadoutForm : Form
             if (task.IsFaulted)
             {
                 var ex = task.Exception == null ? null : task.Exception.GetBaseException();
-                statusLabel.Text = ex == null ? "Fan control action failed." : ex.GetType().Name + ": " + ex.Message;
+                SetFanActionStatus(ex == null ? "Fan control action failed." : ex.GetType().Name + ": " + ex.Message, 0, false, false);
                 LogError(statusLabel.Text);
                 return;
             }
@@ -643,7 +653,8 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSettings(controls.Select(c => c.Identifier), true, percent);
-                statusLabel.Text = "LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls.";
+                var disabledCurveCount = DisableFanCurvesForControls(controls.Select(c => c.Identifier));
+                SetFanActionStatus("LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -693,14 +704,39 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanProfileActions(actions);
-                var message = string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName);
-                statusLabel.Text = message;
+                var disabledCurveCount = DisableFanCurvesForControls(actions.Select(a => a.FanControlKey));
+                var message = string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName) + FanCurveDisabledSuffix(disabledCurveCount);
+                SetFanActionStatus(message, disabledCurveCount, false);
                 if (speakCompletion)
                 {
                     SpeakTextWithScreenReader(message, "fan profile");
                 }
                 RefreshSensorsAfterFanAction();
             });
+    }
+
+    private void SetFanActionStatus(string message, int disabledCurveCount, bool speakDisabledCurve, bool logNormal)
+    {
+        statusLabel.Text = message;
+        if (fanControlStatusLabel != null)
+        {
+            fanControlStatusLabel.Text = message;
+        }
+
+        if (logNormal)
+        {
+            LogFanAction(message);
+        }
+
+        if (speakDisabledCurve && disabledCurveCount > 0)
+        {
+            SpeakTextWithScreenReader(message, "fan control");
+        }
+    }
+
+    private void SetFanActionStatus(string message, int disabledCurveCount, bool speakDisabledCurve)
+    {
+        SetFanActionStatus(message, disabledCurveCount, speakDisabledCurve, true);
     }
 
     private void SaveFanProfileActions(IEnumerable<FanProfileActionSetting> actions)

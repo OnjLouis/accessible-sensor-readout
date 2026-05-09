@@ -119,6 +119,8 @@ public sealed partial class SensorReadoutForm : Form
             settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
             settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
             settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
+            settings.PlugInsEnabled = dialog.PlugInsEnabled;
+            plugInManager = null;
             SaveSettings(settings);
             try
             {
@@ -153,6 +155,7 @@ public sealed partial class SensorReadoutForm : Form
             RegisterGlobalHotKeys();
             ApplyTimerSettings();
             StartAutomaticUpdateChecks();
+            RefreshSensors(false, false, "plug-in preferences");
             statusLabel.Text = "Preferences saved.";
         }
     }

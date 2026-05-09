@@ -11,9 +11,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         using (var dialog = new SaveFileDialog())
         {
+            var reportsFolder = GetReportsFolderPath();
+            System.IO.Directory.CreateDirectory(reportsFolder);
             dialog.Title = "Save Sensor Report";
             dialog.Filter = "Text report (*.txt)|*.txt|Formatted HTML report (*.html)|*.html";
             dialog.FileName = "SensorReadout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt";
+            dialog.InitialDirectory = reportsFolder;
             dialog.DefaultExt = "txt";
             dialog.AddExtension = true;
             dialog.OverwritePrompt = true;
@@ -114,6 +117,7 @@ public sealed partial class SensorReadoutForm : Form
             .OrderBy(r => TypeSortIndex(r.Type))
             .ThenBy(r => r.Type)
             .ThenBy(r => ShortHardwareName(r.Hardware))
+            .ThenBy(r => ReadingSortIndex(r.Name))
             .ThenBy(r => CleanSensorName(r.Name))
             .GroupBy(r => r.Type))
         {
@@ -158,6 +162,7 @@ public sealed partial class SensorReadoutForm : Form
             .OrderBy(r => TypeSortIndex(r.Type))
             .ThenBy(r => r.Type)
             .ThenBy(r => ShortHardwareName(r.Hardware))
+            .ThenBy(r => ReadingSortIndex(r.Name))
             .ThenBy(r => CleanSensorName(r.Name))
             .GroupBy(r => r.Type))
         {

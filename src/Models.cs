@@ -68,6 +68,7 @@ public sealed class AppSettings
     public List<AlarmSetting> Alarms = new List<AlarmSetting>();
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
+    public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SharedAppSettings
@@ -108,6 +109,25 @@ public sealed class MachineAppSettings
     public List<FanCurveSetting> FanCurves = new List<FanCurveSetting>();
     public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
     public List<AlarmSetting> Alarms = new List<AlarmSetting>();
+    public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class PlugInPreferenceInfo
+{
+    public string Id = "";
+    public string Name = "";
+    public string Version = "";
+    public string Author = "";
+    public string Description = "";
+    public bool Enabled;
+    public string Status = "";
+
+    public override string ToString()
+    {
+        var name = string.IsNullOrWhiteSpace(Name) ? Id : Name;
+        var label = string.IsNullOrWhiteSpace(Version) ? name : name + " " + Version;
+        return string.IsNullOrWhiteSpace(Description) ? label : label + ": " + Description;
+    }
 }
 
 public sealed class FanControlSetting
@@ -160,7 +180,7 @@ public sealed class FanCurveSetting
     public override string ToString()
     {
         var name = string.IsNullOrWhiteSpace(Name) ? "Fan curve" : Name.Trim();
-        return name + " (" + LowTemperatureC.ToString("0.#") + " C=" + LowPercent + "%, " + HighTemperatureC.ToString("0.#") + " C=" + HighPercent + "%)";
+        return name + " (" + LowTemperatureC.ToString("0.#") + " Celsius = " + LowPercent + "%, " + HighTemperatureC.ToString("0.#") + " Celsius = " + HighPercent + "%)";
     }
 }
 

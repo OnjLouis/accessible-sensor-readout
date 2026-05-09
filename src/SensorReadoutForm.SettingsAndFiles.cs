@@ -397,6 +397,7 @@ public sealed partial class SensorReadoutForm : Form
             FanProfiles = CloneFanProfiles(value.FanProfiles),
             FanCurves = CloneFanCurves(value.FanCurves),
             ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
+            PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase),
             Alarms = (value.Alarms ?? new List<AlarmSetting>())
                 .Select(a => new AlarmSetting
                 {
@@ -497,6 +498,9 @@ public sealed partial class SensorReadoutForm : Form
                 StringComparer.OrdinalIgnoreCase);
         value.FanProfiles = CloneFanProfiles(value.FanProfiles);
         value.FanCurves = CloneFanCurves(value.FanCurves);
+        value.PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase)
+            .Where(i => !string.IsNullOrWhiteSpace(i.Key))
+            .ToDictionary(i => i.Key.Trim(), i => i.Value, StringComparer.OrdinalIgnoreCase);
         value.ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && !string.IsNullOrWhiteSpace(i.Value))
             .ToDictionary(i => i.Key, i => i.Value.Trim(), StringComparer.OrdinalIgnoreCase);
@@ -741,6 +745,11 @@ public sealed partial class SensorReadoutForm : Form
         return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
     }
 
+    public static string GetReportsFolderPath()
+    {
+        return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports");
+    }
+
     private static void MigrateProgramDataFiles()
     {
         try
@@ -761,6 +770,7 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var fileName in new[]
         {
             "nvdaControllerClient.dll",
+            "nvdaControllerClient64.dll",
             "nvdaControllerClient.LICENSE.txt"
         })
         {

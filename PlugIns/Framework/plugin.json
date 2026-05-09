@@ -1,0 +1,9 @@
+{
+  "id": "sensorreadout.framework",
+  "name": "Framework Laptop",
+  "version": "1.0.0",
+  "author": "Sensor Readout",
+  "description": "Adds Framework laptop temperatures and fan readings from Framework Control or optional Framework EC helper tools.",
+  "assembly": "FrameworkPlugIn.dll",
+  "type": "SensorReadout.FrameworkPlugIn.FrameworkPlugIn"
+}
