@@ -44,6 +44,9 @@ public sealed class PreferencesForm : Form
     private readonly TextBox fanProfileNameBox;
     private readonly TextBox fanProfileHotKeyBox;
     private readonly CheckBox fanProfileToggleBox;
+    private readonly CheckBox fanProfileSpeakBox;
+    private readonly TextBox fanProfileSpeechMessageBox;
+    private readonly CheckBox fanProfileShowStoppedBox;
     private readonly ListBox fanProfileAvailableList;
     private readonly ListBox fanProfileSelectedList;
     private readonly ComboBox fanProfileActionBox;
@@ -66,6 +69,7 @@ public sealed class PreferencesForm : Form
     private readonly CheckedListBox plugInList;
     private readonly Label plugInDetailsLabel;
     private readonly CheckedListBox hiddenItemsList;
+    private readonly List<SensorRow> latestSensorRows;
     private readonly List<SensorRow> rows;
     private readonly List<SensorRow> fanControlRows;
     private string rowsSignature = "";
@@ -209,15 +213,16 @@ public sealed class PreferencesForm : Form
         soundFiles = SensorReadoutForm.LoadSoundFileNames();
         readingSpeechLabels = new Dictionary<string, string>(settings.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         fanLabels = new Dictionary<string, string>(settings.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        latestSensorRows = (latestRows ?? new List<SensorRow>()).Where(r => r != null).ToList();
 
-        rows = latestRows
+        rows = latestSensorRows
             .Where(IsSelectableReadoutRow)
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
             .ToList();
         rowsSignature = BuildRowsSignature(rows);
-        fanControlRows = BuildFanProfileFanControlRows(latestRows);
+        fanControlRows = BuildFanProfileFanControlRows(latestSensorRows);
         fanControlRowsSignature = BuildRowsSignature(fanControlRows);
 
         preferencesTabs = new TabControl { Dock = DockStyle.Fill };
@@ -677,6 +682,26 @@ public sealed class PreferencesForm : Form
             AutoSize = true,
             AccessibleName = "Toggle fan profile back to automatic"
         };
+        fanProfileSpeakBox = new CheckBox
+        {
+            Text = SensorReadoutForm.L("ui.Speak when profile changes", "Speak when profile changes"),
+            Checked = true,
+            AutoSize = true,
+            AccessibleName = SensorReadoutForm.L("a11y.Speak when fan profile changes", "Speak when fan profile changes")
+        };
+        fanProfileSpeechMessageBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            AccessibleName = SensorReadoutForm.L("a11y.Fan profile spoken message", "Fan profile spoken message"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Optional message spoken when this fan profile is switched. Use {0} for the profile name.", "Optional message spoken when this fan profile is switched. Use {0} for the profile name.")
+        };
+        fanProfileShowStoppedBox = new CheckBox
+        {
+            Text = SensorReadoutForm.L("ui.Show stopped or hidden fan controls", "Show stopped or hidden fan controls"),
+            Checked = settings.ShowStoppedFans,
+            AutoSize = true,
+            AccessibleName = SensorReadoutForm.L("a11y.Show stopped or hidden fan controls", "Show stopped or hidden fan controls")
+        };
         fanProfileSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Fan profile sound" };
         PopulateSoundCombo(fanProfileSoundBox, "");
         fanProfileAvailableList = new ListBox
@@ -754,6 +779,9 @@ public sealed class PreferencesForm : Form
         fanProfileNameBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
         fanProfileHotKeyBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
         fanProfileToggleBox.CheckedChanged += delegate { SaveSelectedFanProfileHeader(); };
+        fanProfileSpeakBox.CheckedChanged += delegate { SaveSelectedFanProfileHeader(); };
+        fanProfileSpeechMessageBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
+        fanProfileShowStoppedBox.CheckedChanged += delegate { SaveShowStoppedFansPreference(); };
         fanProfileSoundBox.SelectedIndexChanged += delegate
         {
             SaveSelectedFanProfileHeader();
@@ -1510,6 +1538,7 @@ public sealed class PreferencesForm : Form
         liveSettings.SpokenHotKeys = CurrentSpokenHotKeys();
         liveSettings.FanProfileStarterProfilesInitialized = fanProfileStarterProfilesInitialized;
         liveSettings.FanProfiles = CurrentFanProfiles();
+        liveSettings.ShowStoppedFans = fanProfileShowStoppedBox.Checked;
         liveSettings.Alarms = CurrentAlarms();
         liveSettings.HiddenReadingKeys = CurrentHiddenReadingKeys();
         liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
@@ -1823,7 +1852,10 @@ public sealed class PreferencesForm : Form
         profileButtons.Controls.Add(applyProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);
 
-        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 8 };
+        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 11 };
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1855,6 +1887,12 @@ public sealed class PreferencesForm : Form
         soundPanel.Controls.Add(new Label { Text = "Sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         soundPanel.Controls.Add(fanProfileSoundBox, 1, 0);
 
+        var speechPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        speechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        speechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        speechPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Speech message:", "Speech message:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        speechPanel.Controls.Add(fanProfileSpeechMessageBox, 1, 0);
+
         var actionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         actionPanel.Controls.Add(new Label { Text = "Action for selected fan:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfileActionBox);
@@ -1864,11 +1902,14 @@ public sealed class PreferencesForm : Form
         editor.Controls.Add(namePanel, 0, 0);
         editor.Controls.Add(keyPanel, 0, 1);
         editor.Controls.Add(fanProfileToggleBox, 0, 2);
-        editor.Controls.Add(soundPanel, 0, 3);
-        editor.Controls.Add(actionPanel, 0, 4);
-        editor.Controls.Add(new Label { Text = "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 5);
-        editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 6);
-        editor.Controls.Add(fanProfileStatusLabel, 0, 7);
+        editor.Controls.Add(fanProfileSpeakBox, 0, 3);
+        editor.Controls.Add(speechPanel, 0, 4);
+        editor.Controls.Add(soundPanel, 0, 5);
+        editor.Controls.Add(fanProfileShowStoppedBox, 0, 6);
+        editor.Controls.Add(actionPanel, 0, 7);
+        editor.Controls.Add(new Label { Text = "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 8);
+        editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 9);
+        editor.Controls.Add(fanProfileStatusLabel, 0, 10);
 
         layout.Controls.Add(profilePanel, 0, 0);
         layout.Controls.Add(editor, 1, 0);
@@ -2851,6 +2892,8 @@ public sealed class PreferencesForm : Form
             .ThenBy(r => r.Name)
             .ToList();
         var newSignature = BuildRowsSignature(newRows);
+        latestSensorRows.Clear();
+        latestSensorRows.AddRange(latestRows.Where(r => r != null));
         var newFanControlRows = BuildFanProfileFanControlRows(latestRows);
         var newFanControlSignature = BuildRowsSignature(newFanControlRows);
         if (string.Equals(newSignature, rowsSignature, StringComparison.Ordinal) &&
@@ -3045,6 +3088,28 @@ public sealed class PreferencesForm : Form
         spokenHotKeyNameBox.SelectAll();
         UpdateSpokenSelectionStatus("Created new spoken hotkey.");
         SaveLivePreferences();
+    }
+
+    private void SaveShowStoppedFansPreference()
+    {
+        if (loadingPreferences)
+        {
+            return;
+        }
+
+        liveSettings.ShowStoppedFans = fanProfileShowStoppedBox.Checked;
+        RebuildFanProfileFanControlRows();
+        SaveLivePreferences();
+    }
+
+    private void RebuildFanProfileFanControlRows()
+    {
+        var newFanControlRows = BuildFanProfileFanControlRows(latestSensorRows);
+        fanControlRows.Clear();
+        fanControlRows.AddRange(newFanControlRows);
+        fanControlRowsSignature = BuildRowsSignature(newFanControlRows);
+        PopulateFanProfileLists(SelectedFanProfile());
+        UpdateFanProfileStatus();
     }
 
     private void RemoveSelectedSpokenHotKeyProfile()
@@ -3647,10 +3712,14 @@ public sealed class PreferencesForm : Form
             fanProfileActionBox.Enabled = enabled;
             fanProfilePercentBox.Enabled = enabled;
             fanProfileToggleBox.Enabled = enabled;
+            fanProfileSpeakBox.Enabled = enabled;
+            fanProfileSpeechMessageBox.Enabled = enabled;
             fanProfileSoundBox.Enabled = enabled;
             fanProfileNameBox.Text = profile == null ? "" : profile.Name ?? "";
             fanProfileHotKeyBox.Text = profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
             fanProfileToggleBox.Checked = profile != null && profile.ToggleAutomatic;
+            fanProfileSpeakBox.Checked = profile == null || profile.Speak;
+            fanProfileSpeechMessageBox.Text = profile == null ? "" : profile.SpeechMessage ?? "";
             PopulateSoundCombo(fanProfileSoundBox, profile == null ? "" : profile.SoundFile ?? "");
             PopulateFanProfileLists(profile);
             LoadSelectedFanProfileAction();
@@ -3725,6 +3794,8 @@ public sealed class PreferencesForm : Form
         profile.Name = fanProfileNameBox.Text.Trim();
         profile.HotKey = SensorReadoutForm.NormalizeHotKeyText(fanProfileHotKeyBox.Text);
         profile.ToggleAutomatic = fanProfileToggleBox.Checked;
+        profile.Speak = fanProfileSpeakBox.Checked;
+        profile.SpeechMessage = fanProfileSpeechMessageBox.Text.Trim();
         profile.SoundFile = SelectedSoundFile(fanProfileSoundBox);
         RefreshSelectedFanProfileListItem();
         SaveLivePreferences();
@@ -4507,7 +4578,7 @@ public sealed class PreferencesForm : Form
     private List<FanProfileSetting> CurrentFanProfiles()
     {
         return CloneFanProfiles(fanProfiles)
-            .Where(p => !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || (p.Actions != null && p.Actions.Count > 0) || !string.IsNullOrWhiteSpace(p.Name))
+            .Where(p => !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || !p.Speak || !string.IsNullOrWhiteSpace(p.SpeechMessage) || (p.Actions != null && p.Actions.Count > 0) || !string.IsNullOrWhiteSpace(p.Name))
             .ToList();
     }
 
@@ -4524,6 +4595,8 @@ public sealed class PreferencesForm : Form
             HotKey = SensorReadoutForm.NormalizeHotKeyText(profile.HotKey),
             SoundFile = System.IO.Path.GetFileName(profile.SoundFile ?? ""),
             ToggleAutomatic = profile.ToggleAutomatic,
+            Speak = profile.Speak,
+            SpeechMessage = profile.SpeechMessage ?? "",
             Actions = (profile.Actions ?? new List<FanProfileActionSetting>())
                 .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
                 .Select(CloneFanProfileAction)
@@ -4621,11 +4694,12 @@ public sealed class PreferencesForm : Form
     private List<SensorRow> BuildFanProfileFanControlRows(IEnumerable<SensorRow> latestRows)
     {
         var source = (latestRows ?? Enumerable.Empty<SensorRow>()).ToList();
+        var showStopped = liveSettings != null && liveSettings.ShowStoppedFans;
         var hiddenFanControlKeys = HiddenFanControlKeys(source);
         return source
             .Where(r => r.Type == "Fan Control")
-            .Where(r => ShouldShowFanProfileFanControl(r, source))
-            .Where(r => !hiddenFanControlKeys.Contains(r.Identifier ?? ""))
+            .Where(r => showStopped || ShouldShowFanProfileFanControl(r, source))
+            .Where(r => showStopped || !hiddenFanControlKeys.Contains(r.Identifier ?? ""))
             .OrderBy(r => SensorReadoutForm.ControlSortKey(r.Identifier))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)

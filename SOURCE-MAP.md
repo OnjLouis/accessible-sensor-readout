@@ -1,6 +1,6 @@
 # Sensor Readout Source File Map
 
-This table explains the C# source split used by Sensor Readout 1.6.0. It is intended for contributors and anyone who wants to understand where a feature lives before reading the code.
+This table explains the current C# source split used by Sensor Readout. It is intended for contributors and anyone who wants to understand where a feature lives before reading the code. Keep it updated whenever files are added, removed, renamed, or given a materially different responsibility.
 
 | Source file | Main responsibility | What it does | Notes |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ This table explains the C# source split used by Sensor Readout 1.6.0. It is inte
 | `SensorReadoutForm.Formatting.cs` | Display formatting | Formats numbers, temperatures, bytes, rates, percentages, uptime, fan display text, speech labels, and selected meter values. | Keeps text/value presentation consistent across UI, tray, reports, hotkeys, and alarms. |
 | `SensorReadoutForm.HotkeysTrayHelp.cs` | Hotkeys, tray, help, and screen-reader speech | Registers and handles global hotkeys, show/hide behavior, spoken tray status, custom spoken hotkey profiles, double-press clipboard copy, tray icon behavior, Help/About/Donate/Contact links, and F1 manual opening. | Main accessibility and notification-area interaction layer. |
 | `SensorReadoutForm.Languages.cs` | Language loading and translation | Loads language files, detects Windows language, falls back to English, applies translated UI strings, tracks language changes, and resolves translated display text. | Language files live in `Langs` and use `key=value` entries. |
-| `SensorReadoutForm.OemProviders.cs` | OEM/Plug-In bridge | Provides the sensor-collection hook for optional OEM hardware integrations. | In 1.6.0 this forwards to the plug-in loader instead of containing vendor-specific code. |
+| `SensorReadoutForm.OemProviders.cs` | OEM/Plug-In bridge | Provides the sensor-collection hook for optional OEM hardware integrations. | This forwards to the plug-in loader instead of containing vendor-specific code. |
 | `SensorReadoutForm.PlugIns.cs` | Plug-in loading | Discovers `plugin.json` files under `Plug-Ins`, respects per-machine enabled settings, loads enabled plug-in DLLs, catches plug-in failures, and converts SDK readings into normal `SensorRow` objects. | Installed plug-ins remain disabled until the user enables them. |
 | `SensorReadoutForm.PreferencesAndCommands.cs` | Commands and preferences integration | Opens Preferences, handles command/menu actions, applies updated settings, manages startup shortcut toggles, hidden-item commands, copy/rename actions, and report/menu entry points. | Connects main-window commands to settings and dialogs. |
 | `SensorReadoutForm.ReadingTree.cs` | Reading tree UI | Builds and refreshes the category list and reading tree, preserves expansion/selection state, handles context menu actions, exposes progress values for percentage readings, and updates visible rows. | Controls what users and screen readers navigate in the main reading area. |
@@ -35,3 +35,5 @@ This table explains the C# source split used by Sensor Readout 1.6.0. It is inte
 | --- | --- | --- | --- |
 | `src\PluginSdk\PluginSdk.cs` | Plug-in SDK | Defines `ISensorReadoutPlugin`, `IPluginContext`, `PluginInfo`, `MachineInfo`, and `SensorReading` for third-party plug-ins. | Built as `SensorReadout.PluginSdk.dll` and shipped beside the app. |
 | `PlugIns\Framework\src\FrameworkPlugIn.cs` | Framework Laptop plug-in | Reads Framework Control's local API, and optional Framework EC helper tools, to expose Framework-specific temperature and fan rows. | Shipped disabled by default like every plug-in. |
+| `PlugIns\HP\src\HPPlugIn.cs` | HP hardware plug-in | Checks HP/OMEN/Victus WMI interfaces for optional OEM hardware diagnostics. | Experimental, read-only, and disabled by default. |
+| `PlugIns\DellLatitude\src\DellLatitudePlugIn.cs` | Dell Latitude plug-in | Checks Dell Command \| Monitor WMI classes for additional Dell temperature and fan readings when the user enables the plug-in. | Experimental, read-only, and disabled by default. |

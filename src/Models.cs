@@ -63,6 +63,7 @@ public sealed class AppSettings
     public List<string> HiddenReadingKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public bool ShowStoppedFans = false;
     public bool FanProfileStarterProfilesInitialized = false;
     public List<FanProfileSetting> FanProfiles = new List<FanProfileSetting>();
     public List<FanCurveSetting> FanCurves = new List<FanCurveSetting>();
@@ -108,6 +109,7 @@ public sealed class MachineAppSettings
     public List<string> HiddenReadingKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
+    public bool ShowStoppedFans = false;
     public bool FanProfileStarterProfilesInitialized = false;
     public List<FanProfileSetting> FanProfiles = new List<FanProfileSetting>();
     public List<FanCurveSetting> FanCurves = new List<FanCurveSetting>();
@@ -158,6 +160,8 @@ public sealed class FanProfileSetting
     public string HotKey = "";
     public string SoundFile = "";
     public bool ToggleAutomatic = false;
+    public bool Speak = true;
+    public string SpeechMessage = "";
     public List<FanProfileActionSetting> Actions = new List<FanProfileActionSetting>();
 
     public override string ToString()
@@ -176,6 +180,7 @@ public sealed class FanCurveSetting
     public string FanControlKey = "";
     public string TemperatureReadingKey = "";
     public bool Enabled = true;
+    public bool SuspendedByManualControl = false;
     public double LowTemperatureC = 35;
     public int LowPercent = 30;
     public double HighTemperatureC = 75;

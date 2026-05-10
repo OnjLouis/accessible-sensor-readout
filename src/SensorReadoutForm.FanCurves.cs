@@ -20,14 +20,18 @@ public sealed partial class SensorReadoutForm : Form
 
             var curves = CloneFanCurveSettings(settings.FanCurves);
             var labels = LoadFanLabels();
-            var hiddenFanControlKeys = HiddenFanControlKeys();
-            var controls = latestRows
-                .Where(r => r.Type == "Fan Control")
-                .Select(c => EnrichFanControlRow(c, labels))
-                .Where(c => ShouldShowFanControl(c))
-                .Where(c => !hiddenFanControlKeys.Contains(c.Identifier))
-                .OrderBy(r => ControlSortKey(r.Identifier))
-                .ToList();
+            Func<List<SensorRow>> loadFanControls = delegate
+            {
+                var hiddenFanControlKeys = HiddenFanControlKeys();
+                return latestRows
+                    .Where(r => r.Type == "Fan Control")
+                    .Select(c => EnrichFanControlRow(c, labels))
+                    .Where(c => settings.ShowStoppedFans || ShouldShowFanControl(c))
+                    .Where(c => settings.ShowStoppedFans || !hiddenFanControlKeys.Contains(c.Identifier))
+                    .OrderBy(r => ControlSortKey(r.Identifier))
+                    .ToList();
+            };
+            var controls = loadFanControls();
             var temperatures = latestRows
                 .Where(r => r.Type == "Temperature" && r.Value.HasValue)
                 .OrderBy(r => r.Hardware)
@@ -38,6 +42,13 @@ public sealed partial class SensorReadoutForm : Form
             var enabledCheckBox = new CheckBox { Text = T("ui.&Enabled", "&Enabled"), AutoSize = true };
             var nameBox = new TextBox { Dock = DockStyle.Fill };
             var fanBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+            var showStoppedCheckBox = new CheckBox
+            {
+                Text = T("ui.Show &stopped", "Show &stopped"),
+                Checked = settings.ShowStoppedFans,
+                AutoSize = true,
+                AccessibleName = T("a11y.Show stopped or unpopulated fan headers", "Show stopped or unpopulated fan headers")
+            };
             var tempBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
             var lowTempBox = CreateTemperatureBox(35);
             var lowPercentBox = CreatePercentBox(30);
@@ -64,6 +75,26 @@ public sealed partial class SensorReadoutForm : Form
             {
                 tempBox.Items.Add(temperature);
             }
+
+            Action refreshFanControlChoices = delegate
+            {
+                var selectedIdentifier = SelectedSensorIdentifier(fanBox);
+                controls = loadFanControls();
+                fanBox.BeginUpdate();
+                try
+                {
+                    fanBox.Items.Clear();
+                    foreach (var control in controls)
+                    {
+                        fanBox.Items.Add(control);
+                    }
+                    SelectComboByIdentifier(fanBox, selectedIdentifier);
+                }
+                finally
+                {
+                    fanBox.EndUpdate();
+                }
+            };
 
             Action refreshList = delegate
             {
@@ -137,6 +168,12 @@ public sealed partial class SensorReadoutForm : Form
             enabledCheckBox.CheckedChanged += delegate { saveSelected(); };
             nameBox.TextChanged += delegate { saveSelected(); };
             fanBox.SelectedIndexChanged += delegate { saveSelected(); };
+            showStoppedCheckBox.CheckedChanged += delegate
+            {
+                settings.ShowStoppedFans = showStoppedCheckBox.Checked;
+                SaveSettings(settings);
+                refreshFanControlChoices();
+            };
             tempBox.SelectedIndexChanged += delegate { saveSelected(); };
             lowTempBox.ValueChanged += delegate { saveSelected(); };
             lowPercentBox.ValueChanged += delegate { saveSelected(); };
@@ -196,22 +233,23 @@ public sealed partial class SensorReadoutForm : Form
             left.Controls.Add(leftButtons, 0, 1);
             outer.Controls.Add(left, 0, 0);
 
-            var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 12 };
+            var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 13 };
             editor.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            for (var i = 0; i < 12; i++)
+            for (var i = 0; i < 13; i++)
             {
                 editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             }
             AddLabeledControl(editor, 0, T("ui.Name:", "Name:"), nameBox);
             AddLabeledControl(editor, 1, T("ui.Fan:", "Fan:"), fanBox);
-            AddLabeledControl(editor, 2, T("ui.Temperature:", "Temperature:"), tempBox);
-            editor.Controls.Add(enabledCheckBox, 1, 3);
-            AddLabeledControl(editor, 4, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), lowPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 5, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), highPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 6, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), emergencyPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 7, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText(T("ui.Percent unit label", " percent"))));
-            editor.Controls.Add(status, 1, 8);
+            editor.Controls.Add(showStoppedCheckBox, 1, 2);
+            AddLabeledControl(editor, 3, T("ui.Temperature:", "Temperature:"), tempBox);
+            editor.Controls.Add(enabledCheckBox, 1, 4);
+            AddLabeledControl(editor, 5, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), lowPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 6, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), highPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 7, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), emergencyPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 8, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText(T("ui.Percent unit label", " percent"))));
+            editor.Controls.Add(status, 1, 9);
             outer.Controls.Add(editor, 1, 0);
 
             var bottom = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
@@ -254,8 +292,9 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        var manualFanControls = ManualFanControlKeys();
         var curves = CloneFanCurveSettings(settings.FanCurves)
-            .Where(c => c.Enabled && !string.IsNullOrWhiteSpace(c.FanControlKey) && !string.IsNullOrWhiteSpace(c.TemperatureReadingKey))
+            .Where(c => c.Enabled && !c.SuspendedByManualControl && !manualFanControls.Contains(IdentifierFromSettingsKey(c.FanControlKey)) && !string.IsNullOrWhiteSpace(c.FanControlKey) && !string.IsNullOrWhiteSpace(c.TemperatureReadingKey))
             .ToList();
         if (curves.Count == 0)
         {
@@ -339,7 +378,7 @@ public sealed partial class SensorReadoutForm : Form
         return Math.Max(0, Math.Min(100, (int)Math.Round(curve.LowPercent + ((curve.HighPercent - curve.LowPercent) * fraction))));
     }
 
-    private int DisableFanCurvesForControls(IEnumerable<string> fanControlKeys)
+    private int SuspendFanCurvesForManualControls(IEnumerable<string> fanControlKeys)
     {
         var keys = new HashSet<string>(
             (fanControlKeys ?? Enumerable.Empty<string>())
@@ -351,35 +390,100 @@ public sealed partial class SensorReadoutForm : Form
             return 0;
         }
 
-        var disabled = 0;
+        var suspended = 0;
         foreach (var curve in settings.FanCurves)
         {
-            if (curve == null || !curve.Enabled || !keys.Contains(IdentifierFromSettingsKey(curve.FanControlKey)))
+            if (curve == null || !curve.Enabled || curve.SuspendedByManualControl || !keys.Contains(IdentifierFromSettingsKey(curve.FanControlKey)))
             {
                 continue;
             }
 
-            curve.Enabled = false;
-            disabled++;
-            LogMessage("Normal", "Disabled fan curve \"" + (string.IsNullOrWhiteSpace(curve.Name) ? "Fan curve" : curve.Name.Trim()) + "\" because a manual fan action targeted the same fan control.");
+            curve.SuspendedByManualControl = true;
+            suspended++;
+            LogMessage("Normal", "Suspended fan curve \"" + (string.IsNullOrWhiteSpace(curve.Name) ? "Fan curve" : curve.Name.Trim()) + "\" because a manual fan action targeted the same fan control.");
         }
 
-        if (disabled > 0)
+        if (suspended > 0)
         {
             SaveSettings(settings);
         }
 
-        return disabled;
+        return suspended;
     }
 
-    private static string FanCurveDisabledSuffix(int disabledCurveCount)
+    private int ResumeFanCurvesForAutomaticControls(IEnumerable<string> fanControlKeys)
     {
-        if (disabledCurveCount <= 0)
+        var keys = new HashSet<string>(
+            (fanControlKeys ?? Enumerable.Empty<string>())
+                .Select(IdentifierFromSettingsKey)
+                .Where(k => !string.IsNullOrWhiteSpace(k)),
+            StringComparer.OrdinalIgnoreCase);
+        if (keys.Count == 0 || settings.FanCurves == null || settings.FanCurves.Count == 0)
+        {
+            return 0;
+        }
+
+        var resumed = 0;
+        foreach (var curve in settings.FanCurves)
+        {
+            if (curve == null || !keys.Contains(IdentifierFromSettingsKey(curve.FanControlKey)))
+            {
+                continue;
+            }
+
+            if (curve.SuspendedByManualControl)
+            {
+                curve.SuspendedByManualControl = false;
+                resumed++;
+                LogMessage("Normal", "Resumed fan curve \"" + (string.IsNullOrWhiteSpace(curve.Name) ? "Fan curve" : curve.Name.Trim()) + "\" after returning the fan control to automatic/default.");
+                continue;
+            }
+
+            // Compatibility for curves disabled by older builds when a manual action targeted the same fan.
+            if (!curve.Enabled)
+            {
+                curve.Enabled = true;
+                resumed++;
+                LogMessage("Normal", "Re-enabled fan curve \"" + (string.IsNullOrWhiteSpace(curve.Name) ? "Fan curve" : curve.Name.Trim()) + "\" after returning the fan control to automatic/default.");
+            }
+        }
+
+        if (resumed > 0)
+        {
+            SaveSettings(settings);
+        }
+
+        return resumed;
+    }
+
+    private HashSet<string> ManualFanControlKeys()
+    {
+        var saved = LoadFanControlSettings();
+        return new HashSet<string>(
+            saved.Where(i => i.Value != null && i.Value.Manual)
+                .Select(i => IdentifierFromSettingsKey(i.Key))
+                .Where(k => !string.IsNullOrWhiteSpace(k)),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string FanCurveSuspendedSuffix(int suspendedCurveCount)
+    {
+        if (suspendedCurveCount <= 0)
         {
             return "";
         }
 
-        return " Disabled " + disabledCurveCount + " fan curve" + (disabledCurveCount == 1 ? "" : "s") + " for the same fan control" + (disabledCurveCount == 1 ? "" : "s") + ".";
+        return " Suspended " + suspendedCurveCount + " fan curve" + (suspendedCurveCount == 1 ? "" : "s") + " for the same fan control" + (suspendedCurveCount == 1 ? "" : "s") + ".";
+    }
+
+    private static string FanCurveResumedSuffix(int resumedCurveCount)
+    {
+        if (resumedCurveCount <= 0)
+        {
+            return "";
+        }
+
+        return " Resumed " + resumedCurveCount + " fan curve" + (resumedCurveCount == 1 ? "" : "s") + ".";
     }
 
     private static List<FanCurveSetting> CloneFanCurveSettings(IEnumerable<FanCurveSetting> curves)
@@ -394,6 +498,7 @@ public sealed partial class SensorReadoutForm : Form
                     FanControlKey = c.FanControlKey ?? "",
                     TemperatureReadingKey = c.TemperatureReadingKey ?? "",
                     Enabled = c.Enabled,
+                    SuspendedByManualControl = c.SuspendedByManualControl,
                     LowTemperatureC = c.LowTemperatureC,
                     LowPercent = c.LowPercent,
                     HighTemperatureC = c.HighTemperatureC,

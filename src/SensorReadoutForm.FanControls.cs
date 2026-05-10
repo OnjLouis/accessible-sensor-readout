@@ -167,10 +167,16 @@ public sealed partial class SensorReadoutForm : Form
         showStoppedFansCheckBox = new CheckBox
         {
             Text = T("ui.Show &stopped", "Show &stopped"),
+            Checked = settings.ShowStoppedFans,
             AutoSize = true,
             AccessibleName = T("a11y.Show stopped or unpopulated fan headers", "Show stopped or unpopulated fan headers")
         };
-        showStoppedFansCheckBox.CheckedChanged += delegate { UpdateFanControlBox(); };
+        showStoppedFansCheckBox.CheckedChanged += delegate
+        {
+            settings.ShowStoppedFans = showStoppedFansCheckBox.Checked;
+            SaveSettings(settings);
+            UpdateFanControlBox();
+        };
     }
 
     private void RefreshSensors()
@@ -558,8 +564,8 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSetting(identifier, manual, percent);
-                var disabledCurveCount = DisableFanCurvesForControls(new[] { identifier });
-                SetFanActionStatus("LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + "." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
+                var curveCount = manual ? SuspendFanCurvesForManualControls(new[] { identifier }) : ResumeFanCurvesForAutomaticControls(new[] { identifier });
+                SetFanActionStatus("LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + "." + (manual ? FanCurveSuspendedSuffix(curveCount) : FanCurveResumedSuffix(curveCount)), curveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -597,8 +603,8 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);
-                var disabledCurveCount = DisableFanCurvesForControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
-                SetFanActionStatus("LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
+                var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
+                SetFanActionStatus("LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -653,8 +659,8 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanControlSettings(controls.Select(c => c.Identifier), true, percent);
-                var disabledCurveCount = DisableFanCurvesForControls(controls.Select(c => c.Identifier));
-                SetFanActionStatus("LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveDisabledSuffix(disabledCurveCount), disabledCurveCount, true);
+                var suspendedCurveCount = SuspendFanCurvesForManualControls(controls.Select(c => c.Identifier));
+                SetFanActionStatus("LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveSuspendedSuffix(suspendedCurveCount), suspendedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -709,19 +715,33 @@ public sealed partial class SensorReadoutForm : Form
             delegate
             {
                 SaveFanProfileActions(actionsToApply);
-                var disabledCurveCount = togglingToAutomatic ? 0 : DisableFanCurvesForControls(actionsToApply.Select(a => a.FanControlKey));
+                var curveCount = togglingToAutomatic
+                    ? ResumeFanCurvesForAutomaticControls(actionsToApply.Select(a => a.FanControlKey))
+                    : SuspendFanCurvesForManualControls(actionsToApply.Where(a => a.Manual).Select(a => a.FanControlKey)) +
+                      ResumeFanCurvesForAutomaticControls(actionsToApply.Where(a => !a.Manual).Select(a => a.FanControlKey));
                 toggledFanProfileKey = togglingToAutomatic ? "" : profileKey;
                 var message = togglingToAutomatic
-                    ? string.Format(T("status.switchedFanProfileToAutomatic", "Switched {0} to automatic."), profileName)
-                    : string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName) + FanCurveDisabledSuffix(disabledCurveCount);
-                SetFanActionStatus(message, disabledCurveCount, false);
+                    ? string.Format(T("status.switchedFanProfileToAutomatic", "Switched {0} to automatic."), profileName) + FanCurveResumedSuffix(curveCount)
+                    : string.Format(T("status.switchedToFanProfile", "Switched to {0}."), profileName) + FanCurveSuspendedSuffix(curveCount);
+                SetFanActionStatus(message, curveCount, false);
                 PlaySoundFile(profile.SoundFile);
-                if (speakCompletion)
+                if (speakCompletion && profile.Speak)
                 {
-                    SpeakTextWithScreenReader(message, "fan profile");
+                    SpeakTextWithScreenReader(FanProfileSpeechMessage(profile, profileName, message), "fan profile");
                 }
                 RefreshSensorsAfterFanAction();
             });
+    }
+
+    private static string FanProfileSpeechMessage(FanProfileSetting profile, string profileName, string fallback)
+    {
+        var custom = profile == null ? "" : profile.SpeechMessage ?? "";
+        if (string.IsNullOrWhiteSpace(custom))
+        {
+            return fallback;
+        }
+
+        return custom.Replace("{0}", string.IsNullOrWhiteSpace(profileName) ? "fan profile" : profileName.Trim()).Trim();
     }
 
     private static string FanProfileToggleKey(FanProfileSetting profile)
@@ -789,7 +809,7 @@ public sealed partial class SensorReadoutForm : Form
     private void RefreshSensorsAfterFanAction()
     {
         ForceUpdateFanControlBox();
-        RefreshSensors();
+        RefreshSensors(true, false, "fan-action");
     }
 
     private SensorRow GetSelectedFanControlTarget()
@@ -870,7 +890,7 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
         controls = controls
             .Select(c => EnrichFanControlRow(c, labels))
-            .Where(c => showStoppedFansCheckBox.Checked || ShouldShowFanControl(c))
+            .Where(c => settings.ShowStoppedFans || showStoppedFansCheckBox.Checked || ShouldShowFanControl(c))
             .OrderBy(c => ControlSortKey(c.Identifier))
             .ToList();
 

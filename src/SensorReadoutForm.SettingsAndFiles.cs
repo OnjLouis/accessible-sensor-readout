@@ -395,6 +395,7 @@ public sealed partial class SensorReadoutForm : Form
                     i => i.Key,
                     i => new FanControlSetting { Manual = i.Value.Manual, Percent = i.Value.Percent },
                     StringComparer.OrdinalIgnoreCase),
+            ShowStoppedFans = value.ShowStoppedFans,
             FanProfileStarterProfilesInitialized = value.FanProfileStarterProfilesInitialized,
             FanProfiles = CloneFanProfiles(value.FanProfiles),
             FanCurves = CloneFanCurves(value.FanCurves),
@@ -613,6 +614,7 @@ public sealed partial class SensorReadoutForm : Form
                     FanControlKey = c.FanControlKey ?? "",
                     TemperatureReadingKey = c.TemperatureReadingKey ?? "",
                     Enabled = c.Enabled,
+                    SuspendedByManualControl = c.SuspendedByManualControl,
                     LowTemperatureC = lowTemperature,
                     LowPercent = Math.Max(0, Math.Min(100, c.LowPercent)),
                     HighTemperatureC = highTemperature,
@@ -636,6 +638,8 @@ public sealed partial class SensorReadoutForm : Form
                 HotKey = NormalizeHotKeyText(p.HotKey),
                 SoundFile = System.IO.Path.GetFileName(p.SoundFile ?? ""),
                 ToggleAutomatic = p.ToggleAutomatic,
+                Speak = p.Speak,
+                SpeechMessage = p.SpeechMessage ?? "",
                 Actions = (p.Actions ?? new List<FanProfileActionSetting>())
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.FanControlKey))
                     .Select(a => new FanProfileActionSetting
@@ -648,7 +652,7 @@ public sealed partial class SensorReadoutForm : Form
                     .Select(g => g.Last())
                     .ToList()
             })
-            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || p.Actions.Count > 0)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || !string.IsNullOrWhiteSpace(p.SoundFile) || p.ToggleAutomatic || !p.Speak || !string.IsNullOrWhiteSpace(p.SpeechMessage) || p.Actions.Count > 0)
             .ToList();
     }
 

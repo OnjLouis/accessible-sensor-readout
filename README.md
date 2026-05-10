@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 1.6.1.
+Current version: 1.6.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -245,6 +245,8 @@ Preferences > Fan profiles lets you build named groups of fan actions. The layou
 
 Fan profiles can also be marked as toggles. With that option enabled, pressing the profile hotkey once applies the profile, and pressing the same hotkey again returns the fans in that profile to automatic/default control.
 
+Each fan profile can speak when it is applied, play a sound, both, or neither. The spoken message can be customized, and `{0}` is replaced with the profile name.
+
 Useful examples:
 
 - Everyday: set case fans to a quiet fixed percentage and leave the CPU fan on automatic.
@@ -253,7 +255,7 @@ Useful examples:
 
 Fan profiles are machine-specific because fan control keys depend on the hardware in the current computer. New installs start with a few empty starter profiles, such as everyday use, heavier workloads, and reset to automatic. Add the fans that make sense on your machine, rename the profiles if needed, or delete the starters.
 
-If a fan curve is enabled for the same fan, the curve may adjust that fan again on the next refresh. Use fan profiles for deliberate one-shot changes, and fan curves for continuous temperature-based control.
+If a fan curve is enabled for the same fan, Sensor Readout temporarily pauses that curve while a manual fan action or profile controls the same fan. Returning the fan to automatic/default control resumes the curve.
 
 ## Example Setups
 
@@ -287,7 +289,10 @@ Configuration and logging created by the app:
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 - `Data\usb.ids`: bundled USB vendor/product lookup data.
 - `Data\oui.csv`: bundled MAC/OUI vendor lookup data for network adapters.
-- `Plug-Ins\Framework`: optional Framework Laptop plug-in. Users can add third-party plug-ins in their own subfolders.
+- `Plug-Ins\Framework`: optional Framework Laptop plug-in.
+- `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
+- `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
+- Users can add third-party plug-ins in their own subfolders.
 - `Reports`: default folder for reports saved from the command line or from the first save dialog.
 
 Language files:
@@ -336,6 +341,17 @@ Sensor Readout only reads Framework Control's local API. It does not install Fra
 
 ## Changelog
 
+### 1.6.2
+
+- Added: If Sensor Readout crashes during normal use, it writes the crash log and tries to restart automatically, stopping after three crash restarts in a short window to avoid a loop.
+- Added: Fan profiles can now disable spoken confirmation or use a custom spoken message. Use `{0}` in the message to include the profile name.
+- Added: Fan profile and fan curve setup screens can show stopped or hidden fan controls, matching the Fan Controls dialog.
+- Added: Experimental Dell Latitude Support plug-in for opt-in tester diagnostics on Dell systems with Dell Command | Monitor WMI data. It is disabled by default and read-only.
+- Fixed: Fan profile hotkeys now refresh only live sensor rows after changing fan state, avoiding unnecessary SMART/USB refresh work before other spoken hotkeys respond.
+- Fixed: Fan curves that are temporarily taken over by manual fan controls or fan profile hotkeys now resume automatically when those fans are returned to automatic/default control.
+- Fixed: `Show stopped` in the Fan Controls dialog is now saved immediately even if no manual fan setting is changed.
+- Added: Crash diagnostics are now written to the Logs folder even when normal logging is turned off.
+- Improved: Spanish language text has been polished with help from Dreamburguer, including accents and more natural wording for keyboard shortcuts and spoken feedback.
 ### 1.6.1
 
 - New: Fan profiles can now be used as toggles. Press a fan profile hotkey once to apply it, then press the same hotkey again to return those fans to automatic/default control.
