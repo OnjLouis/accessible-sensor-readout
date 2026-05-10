@@ -56,6 +56,10 @@ public sealed class AppSettings
     public string UpdateCheckFrequency = "Startup";
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
+    public bool DiagnosticsSpeakProgress = true;
+    public bool DiagnosticsPlaySounds = true;
+    public string DiagnosticsStartSoundFile = "";
+    public string DiagnosticsCompleteSoundFile = "";
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -95,6 +99,10 @@ public sealed class SharedAppSettings
     public string UpdateCheckFrequency = "Startup";
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
+    public bool DiagnosticsSpeakProgress = true;
+    public bool DiagnosticsPlaySounds = true;
+    public string DiagnosticsStartSoundFile = "";
+    public string DiagnosticsCompleteSoundFile = "";
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
 }

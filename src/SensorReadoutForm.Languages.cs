@@ -118,7 +118,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ApplyLanguage()
     {
-        Text = T("app.title", "Sensor Readout") + " " + AppVersion;
+        UpdateWindowTitle();
         ApplyLanguageToControls(Controls);
         ApplyLanguageToToolStripItems(menuStrip.Items);
         if (trayIcon != null && trayIcon.ContextMenuStrip != null)
@@ -142,7 +142,7 @@ public sealed partial class SensorReadoutForm : Form
         if (deviceList != null)
         {
             deviceList.AccessibleName = T("a11y.Reading section", "Reading section");
-            deviceList.AccessibleDescription = T("a11y.Choose a section such as Temperatures, Fans, SMART, Performance, Battery, Network, or USB", "Choose a section such as Temperatures, Fans, SMART, Performance, Battery, Network, or USB");
+            deviceList.AccessibleDescription = T("a11y.Choose a section such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery", "Choose a section such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery");
         }
         if (readingTree != null)
         {

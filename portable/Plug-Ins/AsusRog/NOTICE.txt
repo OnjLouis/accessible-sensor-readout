@@ -1,0 +1,25 @@
+Asus ROG / TUF Support Plug-In
+================================
+
+This is an experimental, opt-in Sensor Readout hardware plug-in for Asus
+ROG/TUF-style laptops. It reads Asus ATKACPI temperature and fan duty-cycle
+values where available, and attempts fan control on models that accept the
+known ATKACPI fan curve or fan range calls.
+
+Initial plug-in work by Jason Fayre and Claude Code.
+Integration, diagnostics, accessibility, and packaging by Sensor Readout
+contributors.
+
+This plug-in is based in part on ACPI constants and behavior documented in
+G-Helper:
+
+https://github.com/seerge/g-helper
+
+G-Helper is licensed under the GNU General Public License version 3. Because
+this plug-in uses G-Helper-derived ACPI research, distribute this plug-in under
+GPL-3.0-or-later unless the relevant rights holders provide different terms.
+The corresponding source code is available in the Sensor Readout repository
+under PlugIns/AsusRog.
+
+The main Sensor Readout application remains MIT-licensed. This notice applies
+to the optional Asus ROG / TUF Support plug-in.

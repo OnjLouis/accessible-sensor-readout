@@ -8,15 +8,14 @@ using Microsoft.Win32.SafeHandles;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private readonly object deviceBatteryRowsLock = new object();
+    private DateTime deviceBatteryRowsLastReadUtc = DateTime.MinValue;
+    private List<SensorRow> cachedDeviceBatteryRows = new List<SensorRow>();
+
     private IEnumerable<SensorRow> GetBatteryRows()
     {
         var rows = new List<SensorRow>();
         var batteries = GetNativeBatteryInfo();
-        if (batteries.Count == 0)
-        {
-            return rows;
-        }
-
         var wmiInfo = GetWmiBatteryInfo();
         for (var i = 0; i < batteries.Count; i++)
         {
@@ -101,7 +100,210 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        rows.AddRange(GetDeviceBatteryRows());
         return rows;
+    }
+
+    private List<SensorRow> GetDeviceBatteryRows()
+    {
+        lock (deviceBatteryRowsLock)
+        {
+            if ((DateTime.UtcNow - deviceBatteryRowsLastReadUtc).TotalSeconds < 60)
+            {
+                return new List<SensorRow>(cachedDeviceBatteryRows);
+            }
+        }
+
+        var rows = ReadDeviceBatteryRows();
+        lock (deviceBatteryRowsLock)
+        {
+            cachedDeviceBatteryRows = rows;
+            deviceBatteryRowsLastReadUtc = DateTime.UtcNow;
+            return new List<SensorRow>(cachedDeviceBatteryRows);
+        }
+    }
+
+    private static List<SensorRow> ReadDeviceBatteryRows()
+    {
+        var rows = new List<SensorRow>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, DeviceID, PNPClass, Manufacturer, Service FROM Win32_PnPEntity WHERE ConfigManagerErrorCode = 0"))
+            {
+                foreach (ManagementObject device in searcher.Get())
+                {
+                    var name = Convert.ToString(device["Name"]) ?? "";
+                    var deviceId = Convert.ToString(device["DeviceID"]) ?? "";
+                    var pnpClass = Convert.ToString(device["PNPClass"]) ?? "";
+                    var manufacturer = Convert.ToString(device["Manufacturer"]) ?? "";
+                    var service = Convert.ToString(device["Service"]) ?? "";
+                    if (!IsDeviceBatteryCandidate(name, deviceId, pnpClass))
+                    {
+                        continue;
+                    }
+
+                    int percent;
+                    string propertyKey;
+                    if (!TryGetDeviceBatteryPercent(device, out percent, out propertyKey))
+                    {
+                        continue;
+                    }
+
+                    var hardware = FriendlyDeviceBatteryName(name, manufacturer);
+                    var unique = hardware + "|" + percent;
+                    if (!seen.Add(unique))
+                    {
+                        continue;
+                    }
+
+                    var details = new Dictionary<string, string>();
+                    details["Device ID"] = deviceId;
+                    if (!string.IsNullOrWhiteSpace(pnpClass)) details["Class"] = pnpClass;
+                    if (!string.IsNullOrWhiteSpace(manufacturer)) details["Manufacturer"] = manufacturer;
+                    if (!string.IsNullOrWhiteSpace(service)) details["Service"] = service;
+                    details["Windows property"] = propertyKey;
+
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Battery",
+                        Hardware = hardware,
+                        Name = "Charge",
+                        Identifier = "device-battery/" + StableDeviceIdentifier(deviceId, hardware) + "/charge",
+                        Value = percent,
+                        DisplayValue = percent.ToString() + "%",
+                        Source = "Windows Device Battery",
+                        Details = details
+                    });
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static bool IsDeviceBatteryCandidate(string name, string deviceId, string pnpClass)
+    {
+        var combined = ((name ?? "") + " " + (deviceId ?? "") + " " + (pnpClass ?? "")).ToLowerInvariant();
+        return combined.Contains("bluetooth") ||
+            combined.Contains("bth") ||
+            combined.Contains("hid") ||
+            combined.Contains("keyboard") ||
+            combined.Contains("mouse") ||
+            combined.Contains("headset") ||
+            combined.Contains("headphones") ||
+            combined.Contains("logitech");
+    }
+
+    private static bool TryGetDeviceBatteryPercent(ManagementObject device, out int percent, out string propertyKey)
+    {
+        percent = -1;
+        propertyKey = "";
+        try
+        {
+            var outParams = device.InvokeMethod("GetDeviceProperties", null, null);
+            if (outParams == null)
+            {
+                return false;
+            }
+
+            var properties = outParams["deviceProperties"] as ManagementBaseObject[];
+            if (properties == null)
+            {
+                return false;
+            }
+
+            foreach (var property in properties)
+            {
+                var key = Convert.ToString(property["KeyName"]) ?? "";
+                if (!IsBatteryLifePropertyKey(key))
+                {
+                    continue;
+                }
+
+                var value = property["Data"];
+                int parsed;
+                if (TryParseDeviceBatteryPercent(value, out parsed))
+                {
+                    percent = parsed;
+                    propertyKey = key;
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool IsBatteryLifePropertyKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        return key.Equals("System.Devices.BatteryLife", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("{49CD1F76-5626-4B17-A4E8-18B4AA1A2213} 10", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseDeviceBatteryPercent(object value, out int percent)
+    {
+        percent = -1;
+        if (value == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            percent = Convert.ToInt32(value);
+        }
+        catch
+        {
+            return false;
+        }
+
+        return percent >= 0 && percent <= 100;
+    }
+
+    private static string FriendlyDeviceBatteryName(string name, string manufacturer)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "Device battery" : name.Trim();
+        manufacturer = string.IsNullOrWhiteSpace(manufacturer) ? "" : manufacturer.Trim();
+        if (manufacturer.Length == 0 || name.IndexOf(manufacturer, StringComparison.OrdinalIgnoreCase) >= 0 || manufacturer.Equals("(Standard system devices)", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        return name + " (" + manufacturer + ")";
+    }
+
+    private static string StableDeviceIdentifier(string deviceId, string fallback)
+    {
+        var source = string.IsNullOrWhiteSpace(deviceId) ? fallback ?? "" : deviceId;
+        var chars = source.ToLowerInvariant().ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(chars[i]))
+            {
+                chars[i] = '-';
+            }
+        }
+
+        var value = new string(chars).Trim('-');
+        while (value.Contains("--"))
+        {
+            value = value.Replace("--", "-");
+        }
+
+        return string.IsNullOrWhiteSpace(value) ? "device" : value;
     }
 
     private static double? GetBatteryPercent(NativeBatteryInfo battery, WmiBatteryInfo wmi)

@@ -881,7 +881,8 @@ public sealed partial class SensorReadoutForm : Form
         return name.Equals("Read rate", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Write rate", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Read Rate", StringComparison.OrdinalIgnoreCase) ||
-            name.Equals("Write Rate", StringComparison.OrdinalIgnoreCase);
+            name.Equals("Write Rate", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Space used", StringComparison.OrdinalIgnoreCase);
     }
 
     private string DriveLetterFromSpeechLabel(string key)
@@ -1030,8 +1031,17 @@ public sealed partial class SensorReadoutForm : Form
     private void SetTrayIcon(SensorRow row)
     {
         var oldIcon = trayStatusIcon;
-        trayStatusIcon = CreateTrayIcon(row);
-        trayIcon.Icon = trayStatusIcon;
+        try
+        {
+            trayStatusIcon = CreateTrayIcon(row);
+            trayIcon.Icon = trayStatusIcon;
+        }
+        catch (Exception ex)
+        {
+            LogError("Could not create tray status icon; using fallback icon. " + ex.Message);
+            trayStatusIcon = (Icon)SystemIcons.Application.Clone();
+            trayIcon.Icon = trayStatusIcon;
+        }
 
         if (oldIcon != null)
         {
@@ -1064,7 +1074,29 @@ public sealed partial class SensorReadoutForm : Form
                 graphics.DrawString(text, font, brush, new RectangleF(0, 1, 16, 14), format);
             }
 
-            return Icon.FromHandle(bitmap.GetHicon());
+            return IconFromBitmap(bitmap);
+        }
+    }
+
+    private static Icon IconFromBitmap(Bitmap bitmap)
+    {
+        if (bitmap == null)
+        {
+            return (Icon)SystemIcons.Application.Clone();
+        }
+
+        var handle = IntPtr.Zero;
+        try
+        {
+            handle = bitmap.GetHicon();
+            return (Icon)Icon.FromHandle(handle).Clone();
+        }
+        finally
+        {
+            if (handle != IntPtr.Zero)
+            {
+                NativeMethods.DestroyIcon(handle);
+            }
         }
     }
 

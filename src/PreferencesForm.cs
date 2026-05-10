@@ -15,6 +15,10 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox startMinimizedCheckBox;
     private readonly ComboBox updateCheckFrequencyBox;
     private readonly ComboBox updateAvailableSoundBox;
+    private readonly CheckBox diagnosticsSpeakProgressCheckBox;
+    private readonly CheckBox diagnosticsPlaySoundsCheckBox;
+    private readonly ComboBox diagnosticsStartSoundBox;
+    private readonly ComboBox diagnosticsCompleteSoundBox;
     private readonly NumericUpDown refreshSecondsBox;
     private readonly ComboBox temperatureUnitBox;
     private readonly ComboBox decimalSeparatorBox;
@@ -100,6 +104,10 @@ public sealed class PreferencesForm : Form
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
+    public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
+    public bool DiagnosticsPlaySounds { get { return diagnosticsPlaySoundsCheckBox == null || diagnosticsPlaySoundsCheckBox.Checked; } }
+    public string DiagnosticsStartSoundFile { get { return SelectedSoundFile(diagnosticsStartSoundBox); } }
+    public string DiagnosticsCompleteSoundFile { get { return SelectedSoundFile(diagnosticsCompleteSoundBox); } }
     public int RefreshIntervalSeconds { get { return Convert.ToInt32(refreshSecondsBox.Value); } }
     public string TemperatureUnit { get { return SensorReadoutForm.TemperatureUnitFromIndex(temperatureUnitBox.SelectedIndex); } }
     public string DecimalSeparator
@@ -459,6 +467,48 @@ public sealed class PreferencesForm : Form
         };
         PopulateSoundCombo(updateAvailableSoundBox, settings.UpdateAvailableSoundFile);
         updatesPanel.Controls.Add(updateAvailableSoundBox, 1, 2);
+
+        var diagnosticsPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 5
+        };
+        diagnosticsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        diagnosticsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        diagnosticsPanel.Controls.Add(new Label { Text = "Diagnostics", AutoSize = true, Padding = new Padding(0, 8, 0, 2), Font = new Font(Font, FontStyle.Bold) }, 0, 0);
+        diagnosticsPanel.SetColumnSpan(diagnosticsPanel.Controls[0], 2);
+        diagnosticsSpeakProgressCheckBox = new CheckBox
+        {
+            Text = "Speak diagnostic progress",
+            Checked = settings.DiagnosticsSpeakProgress,
+            AutoSize = true,
+            AccessibleName = "Speak diagnostic progress",
+            AccessibleDescription = "When checked, diagnostic runs speak each step and say Complete when finished."
+        };
+        diagnosticsPanel.Controls.Add(diagnosticsSpeakProgressCheckBox, 0, 1);
+        diagnosticsPanel.SetColumnSpan(diagnosticsSpeakProgressCheckBox, 2);
+        diagnosticsPlaySoundsCheckBox = new CheckBox
+        {
+            Text = "Play diagnostic sounds",
+            Checked = settings.DiagnosticsPlaySounds,
+            AutoSize = true,
+            AccessibleName = "Play diagnostic sounds",
+            AccessibleDescription = "When checked, diagnostic runs play a sound at the start and when complete."
+        };
+        diagnosticsPanel.Controls.Add(diagnosticsPlaySoundsCheckBox, 0, 2);
+        diagnosticsPanel.SetColumnSpan(diagnosticsPlaySoundsCheckBox, 2);
+        diagnosticsPanel.Controls.Add(new Label { Text = "Start sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 3);
+        diagnosticsStartSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, AccessibleName = "Diagnostic start sound" };
+        PopulateSoundCombo(diagnosticsStartSoundBox, settings.DiagnosticsStartSoundFile);
+        diagnosticsPanel.Controls.Add(diagnosticsStartSoundBox, 1, 3);
+        diagnosticsPanel.Controls.Add(new Label { Text = "Complete sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 4);
+        diagnosticsCompleteSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, AccessibleName = "Diagnostic complete sound" };
+        PopulateSoundCombo(diagnosticsCompleteSoundBox, settings.DiagnosticsCompleteSoundFile);
+        diagnosticsPanel.Controls.Add(diagnosticsCompleteSoundBox, 1, 4);
+        diagnosticsStartSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
+        diagnosticsCompleteSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
 
         var hotKeyPanel = new TableLayoutPanel
         {
@@ -947,10 +997,11 @@ public sealed class PreferencesForm : Form
         main.Controls.Add(temperaturePanel, 0, 6);
         main.Controls.Add(decimalSeparatorPanel, 0, 7);
         main.Controls.Add(updatesPanel, 0, 8);
-        main.Controls.Add(loggingPanel, 0, 9);
-        main.Controls.Add(trayLabel, 0, 10);
-        main.Controls.Add(BuildTraySelectionPanel(), 0, 11);
-        main.Controls.Add(traySelectionStatusLabel, 0, 12);
+        main.Controls.Add(diagnosticsPanel, 0, 9);
+        main.Controls.Add(loggingPanel, 0, 10);
+        main.Controls.Add(trayLabel, 0, 11);
+        main.Controls.Add(BuildTraySelectionPanel(), 0, 12);
+        main.Controls.Add(traySelectionStatusLabel, 0, 13);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
@@ -1025,6 +1076,23 @@ public sealed class PreferencesForm : Form
         {
             SaveLivePreferences();
             PreviewSelectedSound(updateAvailableSoundBox);
+        };
+        diagnosticsSpeakProgressCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        diagnosticsPlaySoundsCheckBox.CheckedChanged += delegate
+        {
+            diagnosticsStartSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
+            diagnosticsCompleteSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
+            SaveLivePreferences();
+        };
+        diagnosticsStartSoundBox.SelectedIndexChanged += delegate
+        {
+            SaveLivePreferences();
+            PreviewSelectedSound(diagnosticsStartSoundBox);
+        };
+        diagnosticsCompleteSoundBox.SelectedIndexChanged += delegate
+        {
+            SaveLivePreferences();
+            PreviewSelectedSound(diagnosticsCompleteSoundBox);
         };
         showHideHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         speakTrayHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
@@ -1383,6 +1451,8 @@ public sealed class PreferencesForm : Form
             SetComboItems(alarmConditionBox, new[] { SensorReadoutForm.L("ui.Above or equal", "Above or equal"), SensorReadoutForm.L("ui.Below or equal", "Below or equal"), SensorReadoutForm.L("ui.Equal", "Equal") });
             SetComboItems(fanProfileActionBox, new[] { SensorReadoutForm.L("ui.Manual", "Manual"), SensorReadoutForm.L("ui.Auto", "Auto") });
             PopulateSoundCombo(updateAvailableSoundBox, UpdateAvailableSoundFile);
+            PopulateSoundCombo(diagnosticsStartSoundBox, DiagnosticsStartSoundFile);
+            PopulateSoundCombo(diagnosticsCompleteSoundBox, DiagnosticsCompleteSoundFile);
             PopulateSoundCombo(startupSoundBox, StartupSoundFile);
             PopulateSoundCombo(shutdownSoundBox, ShutdownSoundFile);
             PopulateSoundCombo(alarmSoundBox, SelectedSoundFile(alarmSoundBox));
@@ -1523,6 +1593,10 @@ public sealed class PreferencesForm : Form
         liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
         liveSettings.UpdateCheckFrequency = UpdateCheckFrequency;
         liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
+        liveSettings.DiagnosticsSpeakProgress = DiagnosticsSpeakProgress;
+        liveSettings.DiagnosticsPlaySounds = DiagnosticsPlaySounds;
+        liveSettings.DiagnosticsStartSoundFile = DiagnosticsStartSoundFile;
+        liveSettings.DiagnosticsCompleteSoundFile = DiagnosticsCompleteSoundFile;
         if (liveSettings.RunAtStartup || liveSettings.StartMinimizedToTray)
         {
             liveSettings.TrayStatusEnabled = true;

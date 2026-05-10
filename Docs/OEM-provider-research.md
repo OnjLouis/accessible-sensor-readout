@@ -87,7 +87,10 @@ Next safe step:
 
 ## ASUS ROG / TUF / Zephyrus
 
-Status: experimental Plug-In prepared for 1.6.1. It is disabled by default and read-only.
+Status: experimental Plug-In prepared for tester feedback. It is disabled by
+default. It can read ATKACPI temperature and fan duty-cycle values where
+available, and attempts fan control on models that accept the known fan curve
+or fan range calls.
 
 Sources:
 
@@ -99,22 +102,27 @@ Observed G-Helper implementation surface:
 - ASUS ACPI device methods expose CPU, GPU, and middle fan RPMs.
 - Fan curve and fan range setters exist inside the app.
 - No stable machine-readable CLI/API, named pipe, socket, or local HTTP endpoint was found in the source or docs.
+- Direct ATKACPI calls can expose useful read-only data on some machines, but
+  fan writes are model-sensitive and may be rejected even when reads work.
 
 Risk:
 
-- G-Helper is GPL. Sensor Readout should not copy its ACPI implementation.
+- G-Helper is GPL. The optional Asus ROG/TUF Plug-In is marked separately and
+  ships with its own GPL notice and GPL text because it uses G-Helper-derived
+  ACPI research.
 - If G-Helper adds a stable CLI/API, Sensor Readout can call it as an installed optional tool.
-- Direct ASUS ACPI support would need a clean-room provider and careful test hardware coverage.
+- Direct ASUS ACPI support needs careful test hardware coverage.
 
 Decision:
 
-- Do not ship the read-only ASUS/G-Helper presence Plug-In. It only confirmed that G-Helper exists and did not expose real Sensor Readout value.
-- Keep this research note so ASUS can be revisited if G-Helper adds a supported interface or if a clean-room provider becomes practical.
+- Ship as an experimental, opt-in Plug-In so Asus owners can provide logs and
+  confirm which models accept fan writes.
+- Keep this research note so ASUS can be revisited if G-Helper adds a supported interface or if a cleaner provider becomes practical.
 
 Next safe step:
 
 - Track G-Helper releases and docs for a stable CLI/API.
-- Add real sensor rows only if there is a safe installed-tool interface or a clean-room direct provider.
+- Use tester logs to identify model-specific fan-control requirements.
 
 ## Lenovo Legion
 

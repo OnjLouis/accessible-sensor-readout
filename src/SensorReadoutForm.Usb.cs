@@ -44,6 +44,8 @@ public sealed partial class SensorReadoutForm : Form
             var portDetailList = portDetails.Values.Distinct().ToList();
             var physicalUsbDevices = GetPhysicalUsbDeviceIndex();
             var driveLetters = GetUsbDriveLettersByPnpDeviceId();
+            var networkAdapters = GetUsbNetworkAdapters();
+            var storageIdentities = GetUsbStorageIdentitiesByPnpDeviceId();
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Description, Manufacturer, PNPClass, Status, Service, DeviceID, PNPDeviceID FROM Win32_PnPEntity"))
             {
                 foreach (ManagementObject device in searcher.Get())
@@ -92,6 +94,8 @@ public sealed partial class SensorReadoutForm : Form
                     var location = FirstNonEmpty(port == null ? "" : port.Location, GetDictionaryValue(registry, "LocationInformation"), GetDictionaryValue(registry, "LocationPaths"));
                     var containerId = GetDictionaryValue(registry, "ContainerID");
                     var letters = FindUsbDriveLetters(deviceId, driveLetters);
+                    var networkAdapter = FindUsbNetworkAdapter(networkAdapters, deviceId, effectiveVidPid, FirstNonEmpty(serial, physicalSerial));
+                    var storageIdentity = FindUsbStorageIdentity(deviceId, storageIdentities);
 
                     var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     AddDetail(details, "Name", name);
@@ -103,6 +107,12 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Power", power);
                     AddDetail(details, "Safe to unplug", safeToUnplug);
                     AddDetail(details, "Drive letters", letters);
+                    AddDetail(details, "Network adapter", networkAdapter == null ? "" : networkAdapter.Name);
+                    AddDetail(details, "MAC address", networkAdapter == null ? "" : networkAdapter.MacAddress);
+                    AddDetail(details, "MAC vendor", networkAdapter == null ? "" : networkAdapter.MacVendor);
+                    AddDetail(details, "Storage hardware ID", storageIdentity == null ? "" : storageIdentity.UniqueId);
+                    AddDetail(details, "Storage hardware ID format", storageIdentity == null ? "" : storageIdentity.UniqueIdFormat);
+                    AddDetail(details, "Storage OUI vendor", storageIdentity == null ? "" : storageIdentity.OuiVendor);
                     AddDetail(details, "VID/PID", effectiveVidPid);
                     AddDetail(details, "USB ID vendor", usbId == null ? "" : usbId.VendorName);
                     AddDetail(details, "USB ID product", usbId == null ? "" : usbId.ProductName);
@@ -117,11 +127,22 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Location", location);
                     AddDetail(details, "Container ID", containerId);
                     AddDetail(details, "Driver key", driverKey);
+                    AddDetail(details, "Network PNP device", networkAdapter == null ? "" : networkAdapter.PnpDeviceId);
                     AddDetail(details, "Physical USB device", physical == null ? "" : physical.DeviceId);
                     AddDetail(details, "Device ID", deviceId);
 
                     var summaryVendor = FirstNonEmpty(NonGenericUsbVendor(manufacturer), usbId == null ? "" : usbId.VendorName);
-                    var summary = BuildUsbSummary(name, deviceType, summaryVendor, speed, power, safeToUnplug, letters, status);
+                    var summary = BuildUsbSummary(
+                        name,
+                        deviceType,
+                        summaryVendor,
+                        speed,
+                        power,
+                        safeToUnplug,
+                        letters,
+                        status,
+                        networkAdapter == null ? "" : networkAdapter.MacAddress,
+                        networkAdapter == null ? "" : networkAdapter.MacVendor);
                     rows.Add(new SensorRow
                     {
                         Type = "USB",
@@ -174,6 +195,24 @@ public sealed partial class SensorReadoutForm : Form
         public string Serial;
         public string ContainerId;
         public Dictionary<string, string> Registry;
+    }
+
+    private sealed class UsbNetworkAdapterInfo
+    {
+        public string Name;
+        public string PnpDeviceId;
+        public string VidPid;
+        public string Serial;
+        public string MacAddress;
+        public string MacVendor;
+    }
+
+    private sealed class UsbStorageIdentity
+    {
+        public string PnpDeviceId;
+        public string UniqueId;
+        public string UniqueIdFormat;
+        public string OuiVendor;
     }
 
     private static List<PhysicalUsbDevice> GetPhysicalUsbDeviceIndex()
@@ -1019,7 +1058,7 @@ public sealed partial class SensorReadoutForm : Form
         return "";
     }
 
-    private static string BuildUsbSummary(string name, string deviceType, string manufacturer, string speed, string power, string safeToUnplug, string driveLetters, string status)
+    private static string BuildUsbSummary(string name, string deviceType, string manufacturer, string speed, string power, string safeToUnplug, string driveLetters, string status, string macAddress, string macVendor)
     {
         var parts = new List<string>();
         if (!IsGenericUsbType(deviceType))
@@ -1032,6 +1071,14 @@ public sealed partial class SensorReadoutForm : Form
         }
         AddSummaryPart(parts, speed);
         AddSummaryPart(parts, power);
+        if (!string.IsNullOrWhiteSpace(macAddress))
+        {
+            AddSummaryPart(parts, "MAC " + macAddress);
+        }
+        if (!IsRedundantUsbManufacturer(name, macVendor) && !ContainsWords(manufacturer, macVendor))
+        {
+            AddSummaryPart(parts, "MAC vendor " + macVendor);
+        }
         if (!string.IsNullOrWhiteSpace(driveLetters))
         {
             AddSummaryPart(parts, "drives " + driveLetters);
@@ -1180,6 +1227,237 @@ public sealed partial class SensorReadoutForm : Form
         return string.Join(", ", letters.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s).ToArray());
     }
 
+    private static List<UsbNetworkAdapterInfo> GetUsbNetworkAdapters()
+    {
+        var adapters = new List<UsbNetworkAdapterInfo>();
+        try
+        {
+            var oui = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"));
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, NetConnectionID, MACAddress, PNPDeviceID FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL"))
+            {
+                foreach (ManagementObject adapter in searcher.Get())
+                {
+                    var pnpDeviceId = Convert.ToString(adapter["PNPDeviceID"]);
+                    if (!IsUsbDeviceId(pnpDeviceId))
+                    {
+                        continue;
+                    }
+
+                    var macAddress = NormalizeUsbMacAddress(Convert.ToString(adapter["MACAddress"]));
+                    if (string.IsNullOrWhiteSpace(macAddress))
+                    {
+                        continue;
+                    }
+
+                    adapters.Add(new UsbNetworkAdapterInfo
+                    {
+                        Name = FirstNonEmpty(Convert.ToString(adapter["NetConnectionID"]), Convert.ToString(adapter["Name"]), "USB network adapter"),
+                        PnpDeviceId = pnpDeviceId,
+                        VidPid = ExtractUsbVidPid(pnpDeviceId),
+                        Serial = ExtractUsbSerial(pnpDeviceId),
+                        MacAddress = macAddress,
+                        MacVendor = oui.Lookup(macAddress)
+                    });
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return adapters;
+    }
+
+    private static UsbNetworkAdapterInfo FindUsbNetworkAdapter(List<UsbNetworkAdapterInfo> adapters, string deviceId, string vidPid, string serial)
+    {
+        if (adapters == null || adapters.Count == 0 || string.IsNullOrWhiteSpace(deviceId))
+        {
+            return null;
+        }
+
+        var normalizedDeviceId = NormalizeDeviceId(deviceId);
+        var exact = adapters.FirstOrDefault(a => string.Equals(NormalizeDeviceId(a.PnpDeviceId), normalizedDeviceId, StringComparison.OrdinalIgnoreCase));
+        if (exact != null)
+        {
+            return exact;
+        }
+
+        if (string.IsNullOrWhiteSpace(vidPid))
+        {
+            return null;
+        }
+
+        var matches = adapters.Where(a => string.Equals(a.VidPid, vidPid, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(serial))
+        {
+            var serialMatch = matches.FirstOrDefault(a => ShareUsbSerial(a.PnpDeviceId, deviceId) || ShareUsbSerial(a.Serial, serial));
+            if (serialMatch != null)
+            {
+                return serialMatch;
+            }
+        }
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
+
+    private static Dictionary<string, UsbStorageIdentity> GetUsbStorageIdentitiesByPnpDeviceId()
+    {
+        var result = new Dictionary<string, UsbStorageIdentity>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var disks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            using (var diskSearcher = new ManagementObjectSearcher("SELECT Index, PNPDeviceID, InterfaceType FROM Win32_DiskDrive"))
+            {
+                foreach (ManagementObject disk in diskSearcher.Get())
+                {
+                    var pnpDeviceId = Convert.ToString(disk["PNPDeviceID"]);
+                    var interfaceType = Convert.ToString(disk["InterfaceType"]);
+                    var index = Convert.ToString(disk["Index"]);
+                    if (!string.IsNullOrWhiteSpace(pnpDeviceId) &&
+                        !string.IsNullOrWhiteSpace(index) &&
+                        interfaceType.Equals("USB", StringComparison.OrdinalIgnoreCase))
+                    {
+                        disks[index] = pnpDeviceId;
+                    }
+                }
+            }
+
+            if (disks.Count == 0)
+            {
+                return result;
+            }
+
+            var oui = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"));
+            using (var physicalSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT DeviceId, UniqueId, UniqueIdFormat FROM MSFT_PhysicalDisk"))
+            {
+                foreach (ManagementObject disk in physicalSearcher.Get())
+                {
+                    var deviceId = Convert.ToString(disk["DeviceId"]);
+                    string pnpDeviceId;
+                    if (string.IsNullOrWhiteSpace(deviceId) || !disks.TryGetValue(deviceId, out pnpDeviceId))
+                    {
+                        continue;
+                    }
+
+                    var uniqueId = Convert.ToString(disk["UniqueId"]);
+                    if (string.IsNullOrWhiteSpace(uniqueId))
+                    {
+                        continue;
+                    }
+
+                    result[pnpDeviceId] = new UsbStorageIdentity
+                    {
+                        PnpDeviceId = pnpDeviceId,
+                        UniqueId = uniqueId,
+                        UniqueIdFormat = FriendlyStorageUniqueIdFormat(Convert.ToString(disk["UniqueIdFormat"]), uniqueId),
+                        OuiVendor = LookupOuiFromStorageUniqueId(oui, uniqueId)
+                    };
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
+    }
+
+    private static UsbStorageIdentity FindUsbStorageIdentity(string deviceId, Dictionary<string, UsbStorageIdentity> identities)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId) || identities == null || identities.Count == 0)
+        {
+            return null;
+        }
+
+        UsbStorageIdentity exact;
+        if (identities.TryGetValue(deviceId, out exact))
+        {
+            return exact;
+        }
+
+        foreach (var pair in identities)
+        {
+            if (pair.Key.IndexOf(deviceId, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                deviceId.IndexOf(pair.Key, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ShareUsbSerial(deviceId, pair.Key))
+            {
+                return pair.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string FriendlyStorageUniqueIdFormat(string format, string uniqueId)
+    {
+        if (!string.IsNullOrWhiteSpace(uniqueId) && uniqueId.Trim().StartsWith("eui.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "EUI";
+        }
+
+        if (!string.IsNullOrWhiteSpace(uniqueId) && Regex.IsMatch(uniqueId.Trim(), @"^[0-9A-Fa-f]{16,}$"))
+        {
+            return "WWN/EUI";
+        }
+
+        if (format == "0")
+        {
+            return "Vendor specific";
+        }
+
+        return string.IsNullOrWhiteSpace(format) ? "" : "Format " + format;
+    }
+
+    private static string LookupOuiFromStorageUniqueId(MacVendorDatabase oui, string uniqueId)
+    {
+        if (oui == null || string.IsNullOrWhiteSpace(uniqueId))
+        {
+            return "";
+        }
+
+        var value = uniqueId.Trim();
+        if (value.StartsWith("eui.", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value.Substring(4);
+        }
+
+        var hex = Regex.Replace(value, "[^0-9A-Fa-f]", "").ToUpperInvariant();
+        if (hex.Length < 12)
+        {
+            return "";
+        }
+
+        var pseudoMac = string.Join(":", Enumerable.Range(0, 6).Select(i => hex.Substring(i * 2, 2)).ToArray());
+        return oui.Lookup(pseudoMac);
+    }
+
+    private static string NormalizeUsbMacAddress(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        var hex = Regex.Replace(value, "[^0-9A-Fa-f]", "").ToUpperInvariant();
+        if (hex.Length != 12)
+        {
+            return "";
+        }
+
+        var parts = new List<string>();
+        for (var i = 0; i < 12; i += 2)
+        {
+            parts.Add(hex.Substring(i, 2));
+        }
+
+        return string.Join(":", parts.ToArray());
+    }
+
     private static string FindUsbDriveLetters(string deviceId, Dictionary<string, string> driveLetters)
     {
         if (string.IsNullOrWhiteSpace(deviceId) || driveLetters == null || driveLetters.Count == 0)
@@ -1320,12 +1598,12 @@ public sealed partial class SensorReadoutForm : Form
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool DeviceIoControl(IntPtr deviceHandle, uint ioControlCode, ref UsbNodeConnectionSuperSpeedPlusInformation inBuffer, int inBufferSize, ref UsbNodeConnectionSuperSpeedPlusInformation outBuffer, int outBufferSize, out uint bytesReturned, IntPtr overlapped);
 
-    private void ShowSelectedReadingDetails()
+    private bool ShowSelectedReadingDetails()
     {
         var row = GetSelectedReadingRow();
         if (row == null || row.Details == null || row.Details.Count == 0)
         {
-            return;
+            return false;
         }
 
         using (var dialog = new Form())
@@ -1395,6 +1673,8 @@ public sealed partial class SensorReadoutForm : Form
             };
             dialog.ShowDialog(this);
         }
+
+        return true;
     }
 
     private static int UsbDetailSortIndex(string field)
@@ -1407,9 +1687,16 @@ public sealed partial class SensorReadoutForm : Form
         if (field.Equals("Power", StringComparison.OrdinalIgnoreCase)) return 5;
         if (field.Equals("Safe to unplug", StringComparison.OrdinalIgnoreCase)) return 6;
         if (field.Equals("Drive letters", StringComparison.OrdinalIgnoreCase)) return 7;
-        if (field.Equals("VID/PID", StringComparison.OrdinalIgnoreCase)) return 8;
-        if (field.Equals("USB ID vendor", StringComparison.OrdinalIgnoreCase)) return 9;
-        if (field.Equals("USB ID product", StringComparison.OrdinalIgnoreCase)) return 10;
+        if (field.Equals("Network adapter", StringComparison.OrdinalIgnoreCase)) return 8;
+        if (field.Equals("MAC address", StringComparison.OrdinalIgnoreCase)) return 9;
+        if (field.Equals("MAC vendor", StringComparison.OrdinalIgnoreCase)) return 10;
+        if (field.Equals("Storage hardware ID", StringComparison.OrdinalIgnoreCase)) return 11;
+        if (field.Equals("Storage hardware ID format", StringComparison.OrdinalIgnoreCase)) return 12;
+        if (field.Equals("Storage OUI vendor", StringComparison.OrdinalIgnoreCase)) return 13;
+        if (field.Equals("VID/PID", StringComparison.OrdinalIgnoreCase)) return 14;
+        if (field.Equals("USB ID vendor", StringComparison.OrdinalIgnoreCase)) return 15;
+        if (field.Equals("USB ID product", StringComparison.OrdinalIgnoreCase)) return 16;
+        if (field.Equals("Network PNP device", StringComparison.OrdinalIgnoreCase)) return 97;
         return 100;
     }
 

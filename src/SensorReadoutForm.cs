@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "1.6.2";
+    public const string AppVersion = "2.0.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -23,6 +23,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem editRenameMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem batteryViewMenuItem;
+    private readonly ToolStripMenuItem returnToLiveReadingsMenuItem;
     private readonly ToolStripMenuItem autoRefreshMenuItem;
     private readonly ToolStripMenuItem refreshWhileFocusedMenuItem;
     private readonly ToolStripMenuItem trayStatusMenuItem;
@@ -53,7 +54,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly List<SensorRow> latestRows = new List<SensorRow>();
     private readonly object lhmLock = new object();
     private Computer lhmComputer;
-    private string selectedFilterKey = "type|Temperature";
+    private string selectedFilterKey = "type|Performance";
     private bool updatingFanControlBox;
     private bool refreshInProgress;
     private bool minimizingToTray;
@@ -95,6 +96,9 @@ public sealed partial class SensorReadoutForm : Form
     private List<SensorRow> cachedLhmRows = new List<SensorRow>();
     private DateTime cachedLhmRowsUtc = DateTime.MinValue;
     private Timer visibleRefreshTimer;
+    private bool reportViewMode;
+    private string loadedReportPath = "";
+    private string loadedReportTitle = "";
     private bool menuInteractionActive;
     private bool visibleRefreshPending;
     private DateTime lastUserNavigationUtc = DateTime.MinValue;
@@ -135,9 +139,13 @@ public sealed partial class SensorReadoutForm : Form
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
+        returnToLiveReadingsMenuItem.Visible = false;
+        fileMenu.DropDownItems.Add(returnToLiveReadingsMenuItem);
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Import Plug-In from ZIP...", Keys.Control | Keys.I, delegate { ImportPlugInFromZip(); }));
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
-        fileMenu.DropDownItems.Add("E&xit", null, delegate { Close(); });
+        fileMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("E&xit", "Alt+F4", delegate { Close(); }));
 
         var editMenu = new ToolStripMenuItem("&Edit");
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
@@ -154,7 +162,9 @@ public sealed partial class SensorReadoutForm : Form
         viewMenu.DropDownItems.Add("&SMART\tCtrl+3", null, delegate { SelectCategoryByKey("type|SMART"); });
         viewMenu.DropDownItems.Add("&Network\tCtrl+4", null, delegate { SelectCategoryByKey("type|Network"); });
         viewMenu.DropDownItems.Add("&USB\tCtrl+5", null, delegate { SelectCategoryByKey("type|USB"); });
-        batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+6", null, delegate { SelectCategoryByKey("type|Battery"); });
+        viewMenu.DropDownItems.Add("&Audio\tCtrl+6", null, delegate { SelectCategoryByKey("type|Audio"); });
+        viewMenu.DropDownItems.Add("&Display\tCtrl+7", null, delegate { SelectCategoryByKey("type|Display"); });
+        batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+8", null, delegate { SelectCategoryByKey("type|Battery"); });
         viewMenu.DropDownItems.Add(batteryViewMenuItem);
         viewMenu.DropDownOpening += delegate { UpdateViewMenuVisibility(); };
 
@@ -247,6 +257,7 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
         helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
 
@@ -329,7 +340,7 @@ public sealed partial class SensorReadoutForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Reading section",
-            AccessibleDescription = "Choose a section such as Temperatures, Fans, SMART, Performance, Network, or USB"
+            AccessibleDescription = "Choose a section such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery"
         };
         deviceList.SelectedIndexChanged += delegate
         {
@@ -379,9 +390,11 @@ public sealed partial class SensorReadoutForm : Form
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                ShowSelectedReadingDetails();
-                e.Handled = true;
-                e.SuppressKeyPress = true;
+                if (ShowSelectedReadingDetails())
+                {
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
             }
         };
         readingTree.AfterSelect += delegate
@@ -503,6 +516,12 @@ public sealed partial class SensorReadoutForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (keyData == Keys.Enter && readingTree != null && readingTree.Focused)
+        {
+            MarkUserNavigation();
+            return ShowSelectedReadingDetails();
+        }
+
         if (HandleAppShortcut(keyData))
         {
             return true;
@@ -519,6 +538,18 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == Keys.None && keyCode == Keys.F5)
         {
             RefreshSensors();
+            return true;
+        }
+
+        if (modifiers == Keys.Control && keyCode == Keys.O)
+        {
+            OpenReport();
+            return true;
+        }
+
+        if (modifiers == Keys.Control && keyCode == Keys.R && reportViewMode)
+        {
+            ReturnToLiveReadings();
             return true;
         }
 
@@ -563,6 +594,12 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
+        if (modifiers == Keys.Alt && keyCode == Keys.F1)
+        {
+            RunDiagnostics();
+            return true;
+        }
+
         if (modifiers == Keys.Control && keyCode == Keys.F1)
         {
             OpenProjectPage();
@@ -581,21 +618,31 @@ public sealed partial class SensorReadoutForm : Form
     private static ToolStripMenuItem CreateShortcutMenuItem(string text, Keys shortcutKeys, EventHandler handler)
     {
         var shortcutText = new KeysConverter().ConvertToString(shortcutKeys);
-        return new ToolStripMenuItem(text, null, handler)
+        return new ToolStripMenuItem(WithShortcutText(text, shortcutText), null, handler)
         {
             ShortcutKeys = shortcutKeys,
             ShortcutKeyDisplayString = shortcutText,
-            ShowShortcutKeys = true
+            ShowShortcutKeys = false
         };
     }
 
     private static ToolStripMenuItem CreateDisplayShortcutMenuItem(string text, string shortcutText, EventHandler handler)
     {
-        return new ToolStripMenuItem(text, null, handler)
+        return new ToolStripMenuItem(WithShortcutText(text, shortcutText), null, handler)
         {
             ShortcutKeyDisplayString = shortcutText,
-            ShowShortcutKeys = true
+            ShowShortcutKeys = false
         };
+    }
+
+    private static string WithShortcutText(string text, string shortcutText)
+    {
+        if (string.IsNullOrWhiteSpace(shortcutText))
+        {
+            return text;
+        }
+
+        return text.Contains("\t") ? text : text + "\t" + shortcutText;
     }
 
     private void MarkUserNavigation()

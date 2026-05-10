@@ -20,6 +20,12 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GetSystemTimes(out FileTime idleTime, out FileTime kernelTime, out FileTime userTime);
 
+    [DllImport("kernel32.dll", SetLastError = false)]
+    public static extern bool IsProcessorFeaturePresent(uint processorFeature);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct FileTime
     {

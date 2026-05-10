@@ -40,6 +40,16 @@ public sealed partial class SensorReadoutForm : Form
 
         if (keyCode == Keys.D6 || keyCode == Keys.NumPad6)
         {
+            return SelectCategoryByKey("type|Audio");
+        }
+
+        if (keyCode == Keys.D7 || keyCode == Keys.NumPad7)
+        {
+            return SelectCategoryByKey("type|Display");
+        }
+
+        if (keyCode == Keys.D8 || keyCode == Keys.NumPad8)
+        {
             return SelectCategoryByKey("type|Battery");
         }
 
@@ -114,6 +124,10 @@ public sealed partial class SensorReadoutForm : Form
             settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
             settings.UpdateCheckFrequency = dialog.UpdateCheckFrequency;
             settings.UpdateAvailableSoundFile = dialog.UpdateAvailableSoundFile;
+            settings.DiagnosticsSpeakProgress = dialog.DiagnosticsSpeakProgress;
+            settings.DiagnosticsPlaySounds = dialog.DiagnosticsPlaySounds;
+            settings.DiagnosticsStartSoundFile = dialog.DiagnosticsStartSoundFile;
+            settings.DiagnosticsCompleteSoundFile = dialog.DiagnosticsCompleteSoundFile;
             if (settings.RunAtStartup || settings.StartMinimizedToTray)
             {
                 settings.TrayStatusEnabled = true;

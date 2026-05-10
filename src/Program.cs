@@ -41,6 +41,16 @@ public static class Program
             saveReport = TryGetOptionValue(args, "--report-txt", out reportPath);
         }
 
+        string diagnosticsPath;
+        var runDiagnostics = TryGetOptionValue(args, "--diagnostics", out diagnosticsPath);
+        if (!runDiagnostics)
+        {
+            runDiagnostics = TryGetOptionValue(args, "--run-diagnostics", out diagnosticsPath);
+        }
+        var quietDiagnostics = HasArg(args, "--diagnostics-quiet");
+        var noDiagnosticsSpeech = quietDiagnostics || HasArg(args, "--no-diagnostics-speech");
+        var noDiagnosticsSounds = quietDiagnostics || HasArg(args, "--no-diagnostics-sounds");
+
         if (HasArg(args, "--help") || HasArg(args, "-?") || HasArg(args, "/?"))
         {
             ShowCommandLineHelp();
@@ -52,6 +62,13 @@ public static class Program
         if (saveReport)
         {
             SaveCommandLineReport(reportPath, reportHtml);
+            return;
+        }
+
+        if (runDiagnostics)
+        {
+            CloseOtherInstances();
+            SaveCommandLineDiagnostics(diagnosticsPath, noDiagnosticsSpeech ? (bool?)false : null, noDiagnosticsSounds ? (bool?)false : null);
             return;
         }
 
@@ -133,7 +150,7 @@ public static class Program
                 Application.ExecutablePath +
                 Environment.NewLine +
                 "OS: " +
-                Environment.OSVersion +
+                GetWindowsVersionText() +
                 Environment.NewLine +
                 "Restart requested: " +
                 restartRequested +
@@ -191,6 +208,51 @@ public static class Program
         }
     }
 
+    private static string GetWindowsVersionText()
+    {
+        try
+        {
+            using (var searcher = new System.Management.ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem"))
+            using (var results = searcher.Get())
+            {
+                foreach (System.Management.ManagementObject item in results)
+                {
+                    var caption = Convert.ToString(item["Caption"]);
+                    var version = Convert.ToString(item["Version"]);
+                    var build = Convert.ToString(item["BuildNumber"]);
+                    var architecture = Convert.ToString(item["OSArchitecture"]);
+                    var parts = new System.Collections.Generic.List<string>();
+                    if (!string.IsNullOrWhiteSpace(caption))
+                    {
+                        parts.Add(caption.Trim());
+                    }
+                    if (!string.IsNullOrWhiteSpace(version))
+                    {
+                        parts.Add("version " + version.Trim());
+                    }
+                    if (!string.IsNullOrWhiteSpace(build))
+                    {
+                        parts.Add("build " + build.Trim());
+                    }
+                    if (!string.IsNullOrWhiteSpace(architecture))
+                    {
+                        parts.Add(architecture.Trim());
+                    }
+
+                    if (parts.Count > 0)
+                    {
+                        return string.Join(", ", parts.ToArray());
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return Environment.OSVersion.ToString();
+    }
+
     private static bool ShouldRestartAfterCrash()
     {
         if (startupArgs == null)
@@ -201,6 +263,8 @@ public static class Program
         return !HasArg(startupArgs, "--close") &&
                !HasOption(startupArgs, "--report-txt") &&
                !HasOption(startupArgs, "--report-html") &&
+               !HasOption(startupArgs, "--diagnostics") &&
+               !HasOption(startupArgs, "--run-diagnostics") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
                !HasArg(startupArgs, "/?");
@@ -402,6 +466,14 @@ public static class Program
         }
     }
 
+    private static void SaveCommandLineDiagnostics(string path, bool? speakOverride, bool? soundOverride)
+    {
+        using (var form = new SensorReadoutForm(false))
+        {
+            form.SaveDiagnosticsToZip(path, speakOverride, soundOverride);
+        }
+    }
+
     private static void CloseOtherInstances()
     {
         var current = Process.GetCurrentProcess();
@@ -464,6 +536,12 @@ public static class Program
             "Save a text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--report-html [path]" + Environment.NewLine +
             "Save an HTML report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--diagnostics [path]" + Environment.NewLine +
+            "Run diagnostics, save a ZIP, and exit. If no path is supplied, a computer-named timestamped ZIP is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--diagnostics-quiet" + Environment.NewLine +
+            "Do not speak or play sounds when used with --diagnostics." + Environment.NewLine + Environment.NewLine +
+            "--no-diagnostics-speech or --no-diagnostics-sounds" + Environment.NewLine +
+            "Disable only speech or only sounds when used with --diagnostics." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

@@ -365,6 +365,10 @@ public sealed partial class SensorReadoutForm : Form
             UpdateCheckFrequency = value.UpdateCheckFrequency,
             LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
             UpdateAvailableSoundFile = value.UpdateAvailableSoundFile,
+            DiagnosticsSpeakProgress = value.DiagnosticsSpeakProgress,
+            DiagnosticsPlaySounds = value.DiagnosticsPlaySounds,
+            DiagnosticsStartSoundFile = value.DiagnosticsStartSoundFile,
+            DiagnosticsCompleteSoundFile = value.DiagnosticsCompleteSoundFile,
             StartupSoundFile = value.StartupSoundFile,
             ShutdownSoundFile = value.ShutdownSoundFile
         };
@@ -444,6 +448,10 @@ public sealed partial class SensorReadoutForm : Form
         target.UpdateCheckFrequency = shared.UpdateCheckFrequency;
         target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
         target.UpdateAvailableSoundFile = shared.UpdateAvailableSoundFile;
+        target.DiagnosticsSpeakProgress = shared.DiagnosticsSpeakProgress;
+        target.DiagnosticsPlaySounds = shared.DiagnosticsPlaySounds;
+        target.DiagnosticsStartSoundFile = shared.DiagnosticsStartSoundFile;
+        target.DiagnosticsCompleteSoundFile = shared.DiagnosticsCompleteSoundFile;
         target.StartupSoundFile = shared.StartupSoundFile;
         target.ShutdownSoundFile = shared.ShutdownSoundFile;
     }
@@ -469,6 +477,8 @@ public sealed partial class SensorReadoutForm : Form
         value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
+        value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
+        value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
     }
@@ -529,6 +539,8 @@ public sealed partial class SensorReadoutForm : Form
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
+        value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
+        value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
         value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds));
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)

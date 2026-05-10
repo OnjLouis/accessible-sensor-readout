@@ -34,6 +34,8 @@ SensorReadout
 
 Each Plug-In must have its own subfolder. The folder name is for humans; Sensor Readout identifies the Plug-In by the `id` inside `plugin.json`.
 
+If a Plug-In uses third-party code, constants, protocol research, or data that has its own license, include the relevant `NOTICE.txt`, `LICENSE.txt`, or similar files beside `plugin.json`. Sensor Readout's build copies top-level non-source files from each Plug-In folder into the portable Plug-In folder.
+
 ## User Settings
 
 Users enable or disable Plug-Ins from:

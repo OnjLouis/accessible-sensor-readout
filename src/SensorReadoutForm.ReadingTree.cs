@@ -65,6 +65,8 @@ public sealed partial class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" };
         yield return new DeviceFilter { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" };
         yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
+        yield return new DeviceFilter { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" };
+        yield return new DeviceFilter { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" };
         if (rows != null && rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
         {
             yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
@@ -95,7 +97,10 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
 
         var items = BuildReadingTree(rows, filter);
-        items = FilterHiddenReadingItems(items);
+        if (!reportViewMode)
+        {
+            items = FilterHiddenReadingItems(items);
+        }
         var signature = TreeSignature(items);
         var shapeSignature = TreeShapeSignature(items);
         if (string.Equals(lastReadingTreeSignature, signature, StringComparison.Ordinal))
@@ -473,9 +478,21 @@ public sealed partial class SensorReadoutForm : Form
                 return typeItem.Children;
             }
 
+            if (filter.Type == "Temperature")
+            {
+                AddTemperatureGroups(typeItem, rows);
+                return typeItem.Children;
+            }
+
             if (filter.Type == "USB")
             {
                 AddUsbGroups(typeItem, rows);
+                return typeItem.Children;
+            }
+
+            if (filter.Type == "Audio")
+            {
+                AddAudioGroups(typeItem, rows);
                 return typeItem.Children;
             }
 
@@ -573,7 +590,15 @@ public sealed partial class SensorReadoutForm : Form
                     Key = "hardware|performance|system|" + hardwareGroup.Key,
                     Text = hardwareGroup.Key
                 };
-                AddReadingRows(hardwareItem, hardwareGroup);
+                if (string.Equals(hardwareGroup.Key, "CPU", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddCpuPerformanceGroups(hardwareItem, hardwareGroup);
+                }
+                else
+                {
+                    AddReadingRows(hardwareItem, hardwareGroup);
+                }
+
                 systemItem.Children.Add(hardwareItem);
             }
 
@@ -589,6 +614,72 @@ public sealed partial class SensorReadoutForm : Form
             AddHardwareGroups(storageItem, storageRows);
             parent.Children.Add(storageItem);
         }
+    }
+
+    private static void AddTemperatureGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        AddTypedHardwareGroup(parent, rows, "temperature|system", T("group.System", "System"), IsSystemTemperatureRow);
+        AddTypedHardwareGroup(parent, rows, "temperature|graphics", T("group.Graphics", "Graphics"), IsGraphicsTemperatureRow);
+        AddTypedHardwareGroup(parent, rows, "temperature|storage", T("group.Storage", "Storage"), IsStorageTemperatureRow);
+
+        var grouped = new HashSet<SensorRow>(rows.Where(r => IsSystemTemperatureRow(r) || IsGraphicsTemperatureRow(r) || IsStorageTemperatureRow(r)));
+        var otherRows = rows.Where(r => !grouped.Contains(r)).ToList();
+        if (otherRows.Count > 0)
+        {
+            AddTypedHardwareGroup(parent, otherRows, "temperature|other", T("group.Other", "Other"), r => true);
+        }
+    }
+
+    private static void AddTypedHardwareGroup(ReadingTreeItem parent, IEnumerable<SensorRow> rows, string key, string text, Func<SensorRow, bool> predicate)
+    {
+        var groupRows = rows.Where(predicate).ToList();
+        if (groupRows.Count == 0)
+        {
+            return;
+        }
+
+        var item = new ReadingTreeItem { Key = key, Text = text };
+        AddHardwareGroups(item, groupRows);
+        parent.Children.Add(item);
+    }
+
+    private static bool IsSystemTemperatureRow(SensorRow row)
+    {
+        var hardware = ShortHardwareName(row == null ? "" : row.Hardware);
+        return IsCpuHardwareName(hardware) ||
+            hardware.IndexOf("motherboard", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("system", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("chipset", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsGraphicsTemperatureRow(SensorRow row)
+    {
+        var hardware = ShortHardwareName(row == null ? "" : row.Hardware);
+        return hardware.IndexOf("gpu", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("geforce", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("radeon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("nvidia", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("intel graphics", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsStorageTemperatureRow(SensorRow row)
+    {
+        var hardware = ShortHardwareName(row == null ? "" : row.Hardware);
+        return hardware.IndexOf("ssd", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("hdd", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("nvme", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("disk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("samsung", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("seagate", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("western digital", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("wd ", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("crucial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("micron", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("sandisk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("kingston", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("toshiba", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("m371", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardware.IndexOf("ct", StringComparison.OrdinalIgnoreCase) == 0;
     }
 
     private static void AddUsbGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
@@ -612,6 +703,196 @@ public sealed partial class SensorReadoutForm : Form
             AddReadingRows(hubsItem, hubs);
             parent.Children.Add(hubsItem);
         }
+    }
+
+    private static void AddAudioGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        foreach (var deviceGroup in rows
+            .GroupBy(r => AudioDeviceGroupName(r))
+            .OrderBy(g => AudioDeviceSortIndex(g.Key))
+            .ThenBy(g => g.Key))
+        {
+            var deviceItem = new ReadingTreeItem
+            {
+                Key = "audio|device|" + deviceGroup.Key,
+                Text = deviceGroup.Key
+            };
+
+            var deviceRows = deviceGroup
+                .Where(r => string.Equals(CleanSensorName(r.Name), "Device", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (deviceRows.Count > 0)
+            {
+                AddReadingRows(deviceItem, deviceRows);
+            }
+
+            AddAudioDirectionGroup(deviceItem, deviceGroup, "Playback");
+            AddAudioDirectionGroup(deviceItem, deviceGroup, "Recording");
+
+            var otherRows = deviceGroup
+                .Where(r => !string.Equals(CleanSensorName(r.Name), "Device", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(AudioEndpointDirection(r), "Playback", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(AudioEndpointDirection(r), "Recording", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (otherRows.Count > 0)
+            {
+                var otherItem = new ReadingTreeItem { Key = "audio|device|" + deviceGroup.Key + "|other", Text = T("group.Other", "Other") };
+                AddReadingRows(otherItem, otherRows);
+                deviceItem.Children.Add(otherItem);
+            }
+
+            parent.Children.Add(deviceItem);
+        }
+    }
+
+    private static void AddAudioDirectionGroup(ReadingTreeItem deviceItem, IEnumerable<SensorRow> rows, string direction)
+    {
+        var directionRows = rows
+            .Where(r => string.Equals(AudioEndpointDirection(r), direction, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(r => AudioEndpointSortIndex(r))
+            .ThenBy(r => AudioEndpointName(r))
+            .ToList();
+        if (directionRows.Count == 0)
+        {
+            return;
+        }
+
+        var directionItem = new ReadingTreeItem
+        {
+            Key = "audio|device|" + deviceItem.Text + "|" + direction.ToLowerInvariant(),
+            Text = T("group.Audio " + direction.ToLowerInvariant(), direction)
+        };
+        AddReadingRows(directionItem, directionRows);
+        deviceItem.Children.Add(directionItem);
+    }
+
+    private static void AddCpuPerformanceGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        AddNamedReadingGroup(parent, rows, "cpu|identity", T("group.CPU identity", "Identity"), new[]
+        {
+            "CPU name",
+            "CPU vendor",
+            "CPU architecture",
+            "CPU socket",
+            "CPU processor ID"
+        });
+        AddNamedReadingGroup(parent, rows, "cpu|cores-clocks", T("group.CPU cores and clocks", "Cores and clocks"), new[]
+        {
+            "CPU usage",
+            "CPU cores",
+            "CPU threads",
+            "CPU current clock",
+            "CPU max clock"
+        });
+        AddNamedReadingGroup(parent, rows, "cpu|features", T("group.CPU features", "Features"), new[]
+        {
+            "CPU instruction sets",
+            "CPU virtualization extensions",
+            "CPU virtualization enabled in firmware",
+            "CPU hardware VM memory translation (SLAT/EPT/NPT)",
+            "CPU data execution prevention"
+        });
+
+        var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "CPU name",
+            "CPU vendor",
+            "CPU architecture",
+            "CPU socket",
+            "CPU processor ID",
+            "CPU usage",
+            "CPU cores",
+            "CPU threads",
+            "CPU current clock",
+            "CPU max clock",
+            "CPU instruction sets",
+            "CPU virtualization extensions",
+            "CPU virtualization enabled in firmware",
+            "CPU hardware VM memory translation (SLAT/EPT/NPT)",
+            "CPU data execution prevention"
+        };
+
+        var remaining = rows.Where(r => !handled.Contains(CleanSensorName(r.Name))).ToList();
+        if (remaining.Count > 0)
+        {
+            AddNamedReadingGroup(parent, remaining, "cpu|other", T("group.Other", "Other"), remaining.Select(r => CleanSensorName(r.Name)).ToArray());
+        }
+    }
+
+    private static void AddNamedReadingGroup(ReadingTreeItem parent, IEnumerable<SensorRow> rows, string key, string text, string[] names)
+    {
+        var wanted = new HashSet<string>(names ?? new string[0], StringComparer.OrdinalIgnoreCase);
+        var groupRows = rows.Where(r => wanted.Contains(CleanSensorName(r.Name))).ToList();
+        if (groupRows.Count == 0)
+        {
+            return;
+        }
+
+        var item = new ReadingTreeItem { Key = key, Text = text };
+        AddReadingRows(item, groupRows);
+        parent.Children.Add(item);
+    }
+
+    private static string AudioDeviceGroupName(SensorRow row)
+    {
+        if (row == null)
+        {
+            return T("group.Audio devices", "Audio devices");
+        }
+
+        var deviceName = DetailValue(row, "Device name");
+        if (!string.IsNullOrWhiteSpace(deviceName))
+        {
+            return deviceName;
+        }
+
+        var hardware = ShortHardwareName(row.Hardware);
+        return string.IsNullOrWhiteSpace(hardware) ? T("group.Audio devices", "Audio devices") : hardware;
+    }
+
+    private static int AudioDeviceSortIndex(string name)
+    {
+        return string.Equals(name, T("group.Audio devices", "Audio devices"), StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+    }
+
+    private static string AudioEndpointDirection(SensorRow row)
+    {
+        return DetailValue(row, "Endpoint direction");
+    }
+
+    private static string AudioEndpointName(SensorRow row)
+    {
+        var name = DetailValue(row, "Name");
+        return string.IsNullOrWhiteSpace(name) ? ShortHardwareName(row == null ? "" : row.Hardware) : name;
+    }
+
+    private static int AudioEndpointSortIndex(SensorRow row)
+    {
+        var name = AudioEndpointName(row);
+        if (name.IndexOf("main", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("speaker", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 0;
+        }
+
+        if (name.IndexOf("spdif", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("s/pdif", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 2;
+        }
+
+        return 1;
+    }
+
+    private static string DetailValue(SensorRow row, string key)
+    {
+        if (row == null || row.Details == null || string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        string value;
+        return row.Details.TryGetValue(key, out value) ? value ?? "" : "";
     }
 
     private static bool IsUsbHubOrController(SensorRow row)
@@ -665,10 +946,17 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(new ReadingTreeItem
             {
                 Key = "row|" + RowSettingsKey(row),
-                Text = row.Type == "USB" ? ShortHardwareName(row.Hardware) + ": " + FormatValue(row) : DisplayReadingName(row.Name) + ": " + FormatValue(row),
+                Text = IsDeviceSummaryType(row.Type) ? ShortHardwareName(row.Hardware) + ": " + FormatValue(row) : DisplayReadingName(row.Name) + ": " + FormatValue(row),
                 Row = row
             });
         }
+    }
+
+    private static bool IsDeviceSummaryType(string type)
+    {
+        return string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "Display", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DisplayReadingName(string name)
@@ -795,12 +1083,22 @@ public sealed partial class SensorReadoutForm : Form
             return 6;
         }
 
+        if (type == "Audio")
+        {
+            return 7;
+        }
+
+        if (type == "Display")
+        {
+            return 8;
+        }
+
         if (type == "Battery")
         {
             return 4;
         }
 
-        return 7;
+        return 9;
     }
 
     public static string DisplayTypeName(string type)
@@ -840,6 +1138,16 @@ public sealed partial class SensorReadoutForm : Form
             return T("type.USB", "USB");
         }
 
+        if (type == "Audio")
+        {
+            return T("type.Audio", "Audio");
+        }
+
+        if (type == "Display")
+        {
+            return T("type.Display", "Display");
+        }
+
         return string.IsNullOrWhiteSpace(type) ? T("type.Readings", "Readings") : type;
     }
 
@@ -849,12 +1157,26 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Uptime", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("Manufacturer", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("Model", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("CPU name", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("CPU vendor", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("CPU architecture", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("CPU socket", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("CPU processor ID", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("CPU cores", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("CPU threads", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("CPU current clock", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("CPU max clock", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("CPU instruction sets", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("CPU virtualization extensions", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("CPU virtualization enabled in firmware", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("CPU hardware VM memory translation (SLAT/EPT/NPT)", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("CPU data execution prevention", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("BIOS vendor", StringComparison.OrdinalIgnoreCase)) return 3;
         if (clean.Equals("BIOS version", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("BIOS date", StringComparison.OrdinalIgnoreCase)) return 5;
         if (clean.Equals("Health", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("Temperature", StringComparison.OrdinalIgnoreCase)) return 1;
-        if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("Memory total", StringComparison.OrdinalIgnoreCase)) return 3;
         if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 5;
@@ -867,9 +1189,9 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Write activity", StringComparison.OrdinalIgnoreCase)) return 15;
         if (clean.Equals("Total activity", StringComparison.OrdinalIgnoreCase)) return 16;
         if (clean.Equals("Total space", StringComparison.OrdinalIgnoreCase)) return 20;
+        if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 21;
         if (clean.Equals("Space used", StringComparison.OrdinalIgnoreCase)) return 21;
         if (clean.Equals("Free space", StringComparison.OrdinalIgnoreCase)) return 22;
-        if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 23;
         if (clean.Equals("Size", StringComparison.OrdinalIgnoreCase)) return 23;
         if (clean.Equals("Status", StringComparison.OrdinalIgnoreCase)) return 30;
         if (clean.Equals("IP address", StringComparison.OrdinalIgnoreCase)) return 31;

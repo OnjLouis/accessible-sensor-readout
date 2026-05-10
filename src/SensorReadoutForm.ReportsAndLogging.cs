@@ -7,6 +7,8 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private bool forceDebugLogging;
+
     private void SaveReport()
     {
         using (var dialog = new SaveFileDialog())
@@ -104,6 +106,7 @@ public sealed partial class SensorReadoutForm : Form
     private string BuildTextReport(string timingLine)
     {
         var lines = new List<string>();
+        var snapshot = BuildReportSnapshot();
         lines.Add(BuildReportTitle());
         lines.Add("Generated " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         if (!string.IsNullOrWhiteSpace(timingLine))
@@ -112,41 +115,24 @@ public sealed partial class SensorReadoutForm : Form
         }
         lines.Add("");
 
-        foreach (var typeGroup in latestRows
-            .Where(r => r.Type != "Fan Control")
-            .OrderBy(r => TypeSortIndex(r.Type))
-            .ThenBy(r => r.Type)
-            .ThenBy(r => ShortHardwareName(r.Hardware))
-            .ThenBy(r => ReadingSortIndex(r.Name))
-            .ThenBy(r => CleanSensorName(r.Name))
-            .GroupBy(r => r.Type))
+        foreach (var typeGroup in ReportTypeGroups())
         {
-            lines.Add(typeGroup.Key);
-            foreach (var hardwareGroup in typeGroup.GroupBy(r => ShortHardwareName(r.Hardware)))
-            {
-                lines.Add("  " + hardwareGroup.Key);
-                foreach (var row in hardwareGroup)
-                {
-                    lines.Add("    " + CleanSensorName(row.Name) + ": " + FormatValue(row));
-                    if (row.Details != null && row.Details.Count > 0)
-                    {
-                        foreach (var detail in OrderedReportDetails(row))
-                        {
-                            lines.Add("      " + detail.Key + ": " + detail.Value);
-                        }
-                    }
-                }
-            }
-
+            lines.Add(DisplayTypeName(typeGroup.Key));
+            var items = BuildReadingTree(typeGroup.ToList(), new DeviceFilter { Type = typeGroup.Key });
+            AddTextReportTreeLines(lines, items, 1);
             lines.Add("");
         }
 
+        lines.Add("[SensorReadoutReportData]");
+        lines.Add(EncodeReportSnapshot(snapshot));
+        lines.Add("[/SensorReadoutReportData]");
         return string.Join(Environment.NewLine, lines.ToArray());
     }
 
     private string BuildHtmlReport(string timingLine)
     {
         var title = BuildReportTitle();
+        var snapshot = BuildReportSnapshot();
         var html = new System.Text.StringBuilder();
         html.AppendLine("<!doctype html>");
         html.AppendLine("<html><head><meta charset=\"utf-8\"><title>" + HtmlEncode(title) + "</title>");
@@ -158,42 +144,71 @@ public sealed partial class SensorReadoutForm : Form
         {
             html.AppendLine("<p>" + HtmlEncode(timingLine) + "</p>");
         }
-        foreach (var typeGroup in latestRows
+        foreach (var typeGroup in ReportTypeGroups())
+        {
+            html.AppendLine("<h2>" + HtmlEncode(DisplayTypeName(typeGroup.Key)) + "</h2>");
+            var items = BuildReadingTree(typeGroup.ToList(), new DeviceFilter { Type = typeGroup.Key });
+            AddHtmlReportTree(html, items);
+        }
+
+        html.AppendLine("<script type=\"application/sensor-readout-report\" id=\"sensor-readout-report-data\">" + EncodeReportSnapshot(snapshot) + "</script>");
+        html.AppendLine("</body></html>");
+        return html.ToString();
+    }
+
+    private IEnumerable<IGrouping<string, SensorRow>> ReportTypeGroups()
+    {
+        return latestRows
             .Where(r => r.Type != "Fan Control")
             .OrderBy(r => TypeSortIndex(r.Type))
             .ThenBy(r => r.Type)
-            .ThenBy(r => ShortHardwareName(r.Hardware))
-            .ThenBy(r => ReadingSortIndex(r.Name))
-            .ThenBy(r => CleanSensorName(r.Name))
-            .GroupBy(r => r.Type))
+            .GroupBy(r => r.Type)
+            .OrderBy(g => TypeSortIndex(g.Key))
+            .ThenBy(g => g.Key);
+    }
+
+    private static void AddTextReportTreeLines(List<string> lines, IEnumerable<ReadingTreeItem> items, int level)
+    {
+        foreach (var item in items)
         {
-            html.AppendLine("<h2>" + HtmlEncode(typeGroup.Key) + "</h2>");
-            foreach (var hardwareGroup in typeGroup.GroupBy(r => ShortHardwareName(r.Hardware)))
+            var indent = new string(' ', level * 2);
+            lines.Add(indent + item.Text);
+            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0)
             {
-                html.AppendLine("<h3>" + HtmlEncode(hardwareGroup.Key) + "</h3>");
-                html.AppendLine("<table><thead><tr><th>Sensor</th><th>Value</th><th>Source</th></tr></thead><tbody>");
-                foreach (var row in hardwareGroup)
+                foreach (var detail in OrderedReportDetails(item.Row))
                 {
-                    html.AppendLine("<tr><td>" + HtmlEncode(CleanSensorName(row.Name)) + "</td><td>" + HtmlEncode(FormatValue(row)) + "</td><td>" + HtmlEncode(row.Source) + "</td></tr>");
-                }
-
-                html.AppendLine("</tbody></table>");
-                foreach (var row in hardwareGroup.Where(r => r.Details != null && r.Details.Count > 0))
-                {
-                    html.AppendLine("<h4>Details for " + HtmlEncode(CleanSensorName(row.Name)) + "</h4>");
-                    html.AppendLine("<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
-                    foreach (var detail in OrderedReportDetails(row))
-                    {
-                        html.AppendLine("<tr><td>" + HtmlEncode(detail.Key) + "</td><td>" + HtmlEncode(detail.Value) + "</td></tr>");
-                    }
-
-                    html.AppendLine("</tbody></table>");
+                    lines.Add(indent + "  " + detail.Key + ": " + detail.Value);
                 }
             }
-        }
 
-        html.AppendLine("</body></html>");
-        return html.ToString();
+            AddTextReportTreeLines(lines, item.Children, level + 1);
+        }
+    }
+
+    private static void AddHtmlReportTree(System.Text.StringBuilder html, IEnumerable<ReadingTreeItem> items)
+    {
+        html.AppendLine("<ul>");
+        foreach (var item in items)
+        {
+            html.AppendLine("<li>" + HtmlEncode(item.Text));
+            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0)
+            {
+                html.AppendLine("<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
+                foreach (var detail in OrderedReportDetails(item.Row))
+                {
+                    html.AppendLine("<tr><td>" + HtmlEncode(detail.Key) + "</td><td>" + HtmlEncode(detail.Value) + "</td></tr>");
+                }
+                html.AppendLine("</tbody></table>");
+            }
+
+            if (item.Children.Count > 0)
+            {
+                AddHtmlReportTree(html, item.Children);
+            }
+
+            html.AppendLine("</li>");
+        }
+        html.AppendLine("</ul>");
     }
 
     private static string BuildReportTitle()
@@ -225,6 +240,15 @@ public sealed partial class SensorReadoutForm : Form
     private void SetLibreHardwareMonitorControl(string controlIdentifier, int percent, bool manual)
     {
         controlIdentifier = IdentifierFromSettingsKey(controlIdentifier);
+        if (TryPlugInFanControl(controlIdentifier, percent, manual))
+        {
+            return;
+        }
+        if (!controlIdentifier.StartsWith("/", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Plug-in fan control did not accept the requested change: " + controlIdentifier);
+        }
+
         lock (lhmLock)
         {
             EnsureLibreHardwareMonitorComputerOpen();
@@ -513,6 +537,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool ShouldLog(string level)
     {
+        if (forceDebugLogging)
+        {
+            return LoggingRank(level) <= LoggingRank("Debug");
+        }
+
         var configured = string.IsNullOrWhiteSpace(settings.LoggingLevel) ? "Off" : settings.LoggingLevel;
         var configuredRank = LoggingRank(configured);
         var levelRank = LoggingRank(level);

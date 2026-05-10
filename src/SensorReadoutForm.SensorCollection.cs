@@ -490,7 +490,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Type = "Performance",
                     Hardware = hardware,
-                    Name = "Space used",
+                    Name = "Used space",
                     Value = (float)usedPercent,
                     DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
                     Source = "Windows Logical Disk"
@@ -764,6 +764,170 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
             return false;
+        }
+    }
+
+    private static IEnumerable<SensorRow> GetCpuDetailRows()
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, Manufacturer, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, CurrentClockSpeed, Architecture, SocketDesignation, ProcessorId, VirtualizationFirmwareEnabled, SecondLevelAddressTranslationExtensions, VMMonitorModeExtensions FROM Win32_Processor"))
+            {
+                foreach (ManagementObject cpu in searcher.Get())
+                {
+                    AddCpuDetailRow(rows, "CPU name", Convert.ToString(cpu["Name"]));
+                    AddCpuDetailRow(rows, "CPU vendor", Convert.ToString(cpu["Manufacturer"]));
+                    AddCpuDetailRow(rows, "CPU cores", Convert.ToString(cpu["NumberOfCores"]));
+                    AddCpuDetailRow(rows, "CPU threads", Convert.ToString(cpu["NumberOfLogicalProcessors"]));
+                    AddCpuDetailRow(rows, "CPU max clock", FormatMegahertz(cpu["MaxClockSpeed"]));
+                    AddCpuDetailRow(rows, "CPU current clock", FormatMegahertz(cpu["CurrentClockSpeed"]));
+                    AddCpuDetailRow(rows, "CPU socket", Convert.ToString(cpu["SocketDesignation"]));
+                    AddCpuDetailRow(rows, "CPU architecture", FormatCpuArchitecture(cpu["Architecture"]));
+                    AddCpuDetailRow(rows, "CPU instruction sets", GetProcessorInstructionSetSummary());
+                    AddCpuDetailRow(rows, "CPU virtualization extensions", FormatWindowsReportedCpuFeature(cpu["VMMonitorModeExtensions"]));
+                    AddCpuDetailRow(rows, "CPU virtualization enabled in firmware", FormatYesNo(cpu["VirtualizationFirmwareEnabled"]));
+                    AddCpuDetailRow(rows, "CPU hardware VM memory translation (SLAT/EPT/NPT)", FormatWindowsReportedCpuFeature(cpu["SecondLevelAddressTranslationExtensions"]));
+                    AddCpuDetailRow(rows, "CPU data execution prevention", GetProcessorFeatureYesNo(12));
+                    AddCpuDetailRow(rows, "CPU processor ID", Convert.ToString(cpu["ProcessorId"]));
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static string GetProcessorInstructionSetSummary()
+    {
+        var features = new List<string>();
+        AddProcessorFeature(features, "MMX", 3);
+        AddProcessorFeature(features, "3DNow!", 7);
+        AddProcessorFeature(features, "SSE", 6);
+        AddProcessorFeature(features, "SSE2", 10);
+        AddProcessorFeature(features, "SSE3", 13);
+        AddProcessorFeature(features, "SSSE3", 36);
+        AddProcessorFeature(features, "SSE4.1", 37);
+        AddProcessorFeature(features, "SSE4.2", 38);
+        AddProcessorFeature(features, "AVX", 39);
+        AddProcessorFeature(features, "AVX2", 40);
+        AddProcessorFeature(features, "AVX-512F", 41);
+        return features.Count == 0 ? "" : string.Join(", ", features.ToArray());
+    }
+
+    private static void AddProcessorFeature(List<string> features, string name, uint featureId)
+    {
+        try
+        {
+            if (NativeMethods.IsProcessorFeaturePresent(featureId))
+            {
+                features.Add(name);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string FormatWindowsReportedCpuFeature(object value)
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        try
+        {
+            return Convert.ToBoolean(value) ? "Yes" : "Not reported by Windows";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string GetProcessorFeatureYesNo(uint featureId)
+    {
+        try
+        {
+            return NativeMethods.IsProcessorFeaturePresent(featureId) ? "Yes" : "No";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static void AddCpuDetailRow(List<SensorRow> rows, string name, string value)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "CPU",
+            Name = name,
+            DisplayValue = value.Trim(),
+            Source = "Windows WMI"
+        });
+    }
+
+    private static string FormatMegahertz(object value)
+    {
+        var text = Convert.ToString(value);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        double mhz;
+        return double.TryParse(text, out mhz) && mhz > 0
+            ? FormatNumber(Math.Round(mhz, 0), "0") + " MHz"
+            : "";
+    }
+
+    private static string FormatYesNo(object value)
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        bool flag;
+        if (bool.TryParse(Convert.ToString(value), out flag))
+        {
+            return flag ? "Yes" : "No";
+        }
+
+        return Convert.ToString(value);
+    }
+
+    private static string FormatCpuArchitecture(object value)
+    {
+        var text = Convert.ToString(value);
+        int code;
+        if (!int.TryParse(text, out code))
+        {
+            return text;
+        }
+
+        switch (code)
+        {
+            case 0: return "x86";
+            case 1: return "MIPS";
+            case 2: return "Alpha";
+            case 3: return "PowerPC";
+            case 5: return "ARM";
+            case 6: return "Itanium";
+            case 9: return "x64";
+            case 12: return "ARM64";
+            default: return text;
         }
     }
 
@@ -1281,7 +1445,7 @@ public sealed partial class SensorReadoutForm : Form
             var usedSpace = TakeRow(groupRows, "Used space");
             if (freeSpace != null && usedSpace != null)
             {
-                var display = usedSpace.DisplayValue + " " + T("value.usedSuffix", "used");
+                var display = usedSpace.DisplayValue;
                 double spaceUsedPercent;
                 double freeBytes;
                 if (TryParsePercent(usedSpace.DisplayValue, out spaceUsedPercent) && TryParseFormattedBytes(freeSpace.DisplayValue, out freeBytes) && spaceUsedPercent > 0 && spaceUsedPercent < 100)
@@ -1295,11 +1459,12 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Type = usedSpace.Type,
                     Hardware = usedSpace.Hardware,
-                    Name = "Space used",
+                    Name = "Used space",
                     Value = usedSpace.Value,
                     DisplayValue = display,
                     Source = MergeSources(usedSpace.Source, freeSpace.Source)
                 });
+                output.Add(freeSpace);
             }
             else
             {

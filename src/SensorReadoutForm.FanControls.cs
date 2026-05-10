@@ -181,11 +181,23 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RefreshSensors()
     {
+        if (reportViewMode)
+        {
+            ReturnToLiveReadings();
+            return;
+        }
+
         RefreshSensors(true, true, "manual");
     }
 
     private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
     {
+        if (reportViewMode)
+        {
+            ReturnToLiveReadings();
+            return;
+        }
+
         if (refreshInProgress)
         {
             return;
@@ -275,6 +287,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
         AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);
+        AddTimedRows(rows, "CpuDetails", GetCpuDetailRows, timings);
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
@@ -282,7 +295,7 @@ public sealed partial class SensorReadoutForm : Form
         rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
 
         var result = ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "USB" || s.Type == "Fan Control")
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList())
@@ -344,6 +357,8 @@ public sealed partial class SensorReadoutForm : Form
 
         var rows = GetWindowsSmartRows()
             .Concat(GetUsbRowsWithDiagnostics())
+            .Concat(GetAudioRows())
+            .Concat(GetDisplayRows())
             .Concat(GetOverviewRows())
             .ToList();
 
@@ -445,6 +460,12 @@ public sealed partial class SensorReadoutForm : Form
 
             var percent = FanControlPercentForFanRow(row, controls);
             if (!percent.HasValue)
+            {
+                return row;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.DisplayValue) &&
+                row.DisplayValue.IndexOf("RPM", StringComparison.OrdinalIgnoreCase) < 0)
             {
                 return row;
             }
@@ -660,7 +681,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 SaveFanControlSettings(controls.Select(c => c.Identifier), true, percent);
                 var suspendedCurveCount = SuspendFanCurvesForManualControls(controls.Select(c => c.Identifier));
-                SetFanActionStatus("LibreHardwareMonitor: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveSuspendedSuffix(suspendedCurveCount), suspendedCurveCount, true);
+                SetFanActionStatus("Fan control: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveSuspendedSuffix(suspendedCurveCount), suspendedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }

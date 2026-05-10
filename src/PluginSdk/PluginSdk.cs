@@ -9,6 +9,12 @@ namespace SensorReadout.PluginSdk
         IEnumerable<SensorReading> GetReadings(IPluginContext context);
     }
 
+    public interface IFanControllablePlugin
+    {
+        bool TrySetFanPercent(string identifier, int percent);
+        bool TryResetFan(string identifier);
+    }
+
     public interface IPluginContext
     {
         MachineInfo Machine { get; }

@@ -117,7 +117,7 @@ public sealed partial class SensorReadoutForm : Form
                 graphics.DrawString("!", font, brush, new RectangleF(0, 0, 16, 16), format);
             }
 
-            return Icon.FromHandle(bitmap.GetHicon());
+            return IconFromBitmap(bitmap);
         }
     }
 

@@ -18,6 +18,12 @@ public sealed partial class SensorReadoutForm : Form
         return plugInManager.GetRows();
     }
 
+    private bool TryPlugInFanControl(string identifier, int percent, bool manual)
+    {
+        EnsurePlugInManager();
+        return plugInManager.TrySetFanControl(identifier, percent, manual);
+    }
+
     public static List<PlugInPreferenceInfo> LoadPlugInPreferenceInfos(AppSettings settings)
     {
         return PlugInManager.LoadPreferenceInfos(settings, GetPlugInsFolderPath());
@@ -76,6 +82,32 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             return rows;
+        }
+
+        public bool TrySetFanControl(string identifier, int percent, bool manual)
+        {
+            EnsureLoaded();
+            foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance is IFanControllablePlugin))
+            {
+                var controllable = (IFanControllablePlugin)plugIn.Instance;
+                try
+                {
+                    var success = manual
+                        ? controllable.TrySetFanPercent(identifier, percent)
+                        : controllable.TryResetFan(identifier);
+                    log("Debug", "Plug-In " + plugIn.Id + " fan control " + (manual ? "manual" : "automatic") + " for " + identifier + " returned " + success + ".");
+                    if (success)
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log("Error", "Plug-In " + plugIn.Id + " fan control failed: " + ex.Message);
+                }
+            }
+
+            return false;
         }
 
         public static List<PlugInPreferenceInfo> LoadPreferenceInfos(AppSettings settings, string folder)

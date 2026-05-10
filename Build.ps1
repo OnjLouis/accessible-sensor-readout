@@ -55,6 +55,11 @@ if (Test-Path $plugInRoot) {
         if (Test-Path $manifestSource) {
             Copy-Item -LiteralPath $manifestSource -Destination (Join-Path $plugInTarget 'plugin.json') -Force
         }
+        Get-ChildItem -LiteralPath $plugIn.FullName -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -ne 'plugin.json' } |
+            ForEach-Object {
+                Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $plugInTarget $_.Name) -Force
+            }
 
         if ($plugInSources.Count -gt 0) {
             $plugInOutput = Join-Path $plugInTarget ($plugIn.Name + 'PlugIn.dll')

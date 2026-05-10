@@ -1,10 +1,10 @@
 # Sensor Readout
 
-Current version: 1.6.2.
+Current version: 2.0.0.
 
-Sensor Readout is a Windows utility for reading hardware sensors and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
+Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
-It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar.
+It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar. The goal is to make useful system information quick to reach without forcing blind users through inaccessible vendor tools or verbose Windows dialogs.
 
 Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://github.com/OnjLouis/accessible-sensor-readout)
 
@@ -14,12 +14,14 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 
 ## What It Does
 
-- Reads temperatures, fan RPM, storage health, storage capacity, and selected hardware counters.
-- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, memory usage, and storage read/write activity.
+- Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread information, memory usage, and storage read/write activity, grouped so related information stays together.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, and total traffic.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
-- Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, and detailed copyable device fields.
+- Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.
+- Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.
+- Shows a Display category for graphics adapters and monitors, including resolution, refresh rate, adapter memory, driver information, monitor vendor, and monitor identifiers where Windows exposes them.
 - Links back to the project page from the README, Help menu, and About dialog.
 - Uses bundled LibreHardwareMonitor libraries for sensor access.
 - Uses the PawnIO driver for low-level motherboard sensors and fan controls where hardware support is available.
@@ -30,6 +32,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Supports simple fan curves that set a fan control from a selected temperature reading.
 - Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
+- Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
 - Can run at Windows startup and start minimized to the notification area.
@@ -44,8 +47,8 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Can show selected readings in the notification area tooltip.
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
-- Can read Framework Laptop temperatures and fan RPMs from the optional Framework Control local API when that tool is installed and running.
-- Supports opt-in hardware plug-ins from the `Plug-Ins` folder. Installed plug-ins stay disabled until you enable them in Preferences.
+- Supports opt-in hardware plug-ins from the `Plug-Ins` folder for extra machine-specific hardware support. Installed plug-ins stay disabled until you enable them in Preferences.
+- Ships with optional plug-ins for selected laptop/vendor-specific hardware where useful community or vendor interfaces are available.
 - Can import a plug-in ZIP from Preferences without automatically enabling it.
 - Can show laptop battery charge, status, capacity, health, cycle count, voltage, and power rate where Windows exposes them.
 
@@ -72,9 +75,19 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [Tolk screen reader library](https://github.com/dkager/tolk)
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
-## Winget Install Commands
+## Prerequisite Installer
 
-Open Windows Terminal or PowerShell as administrator and run:
+Run `Install-Prerequisites.cmd` from this folder first. It calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.
+
+To also install the standalone LibreHardwareMonitor app with winget for troubleshooting, run:
+
+```powershell
+.\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
+```
+
+## Manual Install Commands
+
+If the prerequisite installer does not work on your system, open Windows Terminal or PowerShell as administrator and run:
 
 ```powershell
 winget install --id Microsoft.DotNet.Framework.Runtime -e --source winget
@@ -85,12 +98,6 @@ Optional troubleshooting tool:
 
 ```powershell
 winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
-```
-
-You can also run `Install-Prerequisites.cmd` from this folder. It calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime. To also install the standalone LibreHardwareMonitor app with winget, run:
-
-```powershell
-.\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
 ```
 
 ## First Run
@@ -105,12 +112,16 @@ If motherboard fans or controls are missing, check that PawnIO is installed and 
 
 You can rerun the prerequisite installer later from `Help` > `Install prerequisites...`.
 
+For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in the `Reports` folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, `--diagnostics [path]` creates the same ZIP and exits.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
+| `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
+| `Ctrl+R` | Return from a static report to live readings. |
 | `Ctrl+I` | Import a Plug-In ZIP. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
 | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
@@ -120,9 +131,10 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Ctrl+U` | Open fan curves. |
 | `Ctrl+,` | Open Preferences. |
 | `F1` | Open the manual. |
+| `Alt+F1` | Run diagnostics and create a support ZIP. |
 | `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. |
 | `Ctrl+F1` | Open the project page. |
-| `Ctrl+0` to `Ctrl+5` | Show Performance, Temperatures, Fans, SMART, Network, or USB. |
+| `Ctrl+0` to `Ctrl+8` | Show Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery where available. |
 | `Esc` | Close the Fan Controls dialog. |
 | `Alt+L` | Save the label for the selected fan control. |
 | `Alt+M` | Apply the manual percentage to the selected fan control. |
@@ -132,7 +144,7 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 | `Alt+X` | Set all visible fan controls to maximum. |
 | `Alt+S` | Show or hide stopped fan headers. |
 | `Alt+P` | Pause automatic updates. |
-| `Ctrl+1` to `Ctrl+6` | In Preferences, jump to General, Startup, Hotkeys, Alarms, Hidden items, or Language editor. |
+| `Ctrl+1` to `Ctrl+8` | In Preferences, jump to General, Startup, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
 | `F2` | In Preferences lists, jump to the name or rename field where applicable. |
 | `Enter` | In Preferences lists, jump to the main value field where applicable. |
 | `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
@@ -159,38 +171,95 @@ Sensor Readout can also be started with a few command-line options:
 | `--close` | Close any running Sensor Readout instance and exit. |
 | `--report-txt [path]` | Save a text report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
 | `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--diagnostics [path]` | Run diagnostics, save a ZIP, and exit. If no path is supplied, a computer-named timestamped ZIP is created in the `Reports` folder. If a folder is supplied, the ZIP is created there. |
+| `--diagnostics-quiet` | Do not speak diagnostic progress or play diagnostic sounds when used with `--diagnostics`. |
+| `--no-diagnostics-speech` | Run command-line diagnostics without spoken progress, while keeping diagnostic sounds enabled if preferences allow them. |
+| `--no-diagnostics-sounds` | Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
 
-Use `Options` > `Preferences` or `Ctrl+,` to configure:
+Use `Options` > `Preferences` or `Ctrl+,` to configure Sensor Readout. The dialog remembers the tab you used last during the current session. Press `Esc` or the Close button to leave Preferences.
 
-- Automatic refresh on or off.
-- Whether values refresh while Sensor Readout has keyboard focus.
-- Refresh interval in seconds.
-- Whether a notification area icon is shown.
-- How often Sensor Readout checks for GitHub updates: at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
-- Whether Sensor Readout runs at Windows startup.
-- Whether Sensor Readout starts minimized to the notification area.
-- Up to four readings to show in the notification area tooltip, with a configurable display order.
-- Hidden readings and groups.
+### General (`Ctrl+1`)
+
+The General tab controls the main reading experience.
+
+- Language: choose one of the installed language files. The interface refreshes immediately after a language change.
+- Automatic refresh: turn background refresh on or off.
+- Refresh while Sensor Readout has focus: choose whether readings continue updating while you are navigating the main window.
+- Refresh interval: set the normal refresh interval in seconds.
+- Show status in notification area: show or hide the tray icon and its tooltip.
+- Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
+- Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
-- Whether spoken feedback includes device names before selected readings.
-- Whether double-pressing a speech hotkey copies that spoken text to the clipboard, using Windows double-click timing by default.
+- Update checks: choose whether Sensor Readout checks GitHub Releases at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
+- Notification area items: choose up to four readings for the tray tooltip.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
 
-The startup option creates or removes a `Sensor Readout.lnk` shortcut in the current user's Windows Startup folder. If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
+Notification area readings are selected from an Available readings list and moved into a Tray order list. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
 
-Notification area readings are selected from an Available readings list and moved into a Tray order list. The tray order is limited to four readings because Windows notification tooltips are short. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
+### Startup (`Ctrl+2`)
 
-The Hotkeys tab can import spoken hotkey profiles from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
+The Startup tab controls what happens when Sensor Readout starts and exits.
+
+- Run at Windows startup: create or remove a `Sensor Readout.lnk` shortcut in the current user's Startup folder.
+- Start minimized to notification area: open directly to the tray instead of showing the main window.
+- Startup speech: choose whether Sensor Readout speaks when it starts and edit the spoken message.
+- Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
+- Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
+
+If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
+
+### Hotkeys (`Ctrl+3`)
+
+The Hotkeys tab controls global speech and visibility keys.
+
+- Show/hide hotkey: toggle the main window from anywhere.
+- Speak notification area status hotkey: speak the configured tray readings.
+- Include device names in spoken feedback: choose between fuller output such as `Ethernet Rx` and shorter output such as `Rx`.
+- Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
+- Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
+- Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
+
+Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
+
+### Fan Profiles (`Ctrl+4`)
+
+The Fan profiles tab builds named groups of fan actions. The layout matches the Hotkeys tab: create a profile, assign an optional global hotkey, add fan controls to the profile, then choose whether each fan should be set to a manual percentage or returned to automatic/default control.
+
+Fan profiles can be toggles. With that option enabled, pressing the profile hotkey once applies the profile, and pressing the same hotkey again returns those fans to automatic/default control. Each profile can speak a custom message and/or play a chosen sound when it is applied.
+
+### Alarms (`Ctrl+5`)
+
+The Alarms tab lets you monitor readings without watching the main window.
+
+- Choose a reading.
+- Choose Above or equal, Below or equal, or Equal.
+- Set the threshold and unit.
+- Set a cooldown so repeated alarms do not fire too often.
+- Choose whether the alarm speaks, plays a sound, or both.
+
+Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.
+
+### Plug-Ins (`Ctrl+6`)
+
+The Plug-Ins tab lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust. Imported plug-in ZIP files are copied into the `Plug-Ins` folder but stay disabled until you enable them yourself.
+
+### Hidden Items (`Ctrl+7`)
+
+The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again.
+
+### Language Editor (`Ctrl+8`)
+
+The Language editor tab edits installed language files without opening a separate text editor. English is the primary fallback language. Missing translated strings fall back to English, and corrupt language files are skipped rather than crashing the app.
 
 ## Alarms And Sounds
 
 Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
 
-Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on; users can add their own `.wav` files to the same folder.
+Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on, but user-added sounds can use any normal `.wav` file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.
 
 ## Plug-Ins
 
@@ -200,19 +269,29 @@ Installed plug-ins are disabled by default. Importing a plug-in ZIP copies it in
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-For developers, see `Docs\Plug-In-development.md`.
+Experimental HP, Dell Latitude, and Asus ROG/TUF plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
+
+For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
 ## Reading Sensors
 
-The readings pane is a tree view. Sections such as Temperatures, Fans, SMART, Performance, and Network group readings by device or purpose first, then list individual readings underneath. This keeps screen readers from announcing a long device name before every value.
+The readings pane is a tree view. Sections such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, and Battery group readings by device or purpose first, then list individual readings underneath. This keeps screen readers from announcing a long device name before every value.
 
 Use the left section list to move between broad areas. This changes the view only; it does not enable, disable, or permanently select devices.
 
-Sensor Readout opens on Temperatures by default. There is no combined Overview section; each reading belongs to its own section to reduce duplicate tree navigation.
+Sensor Readout opens on Performance/Overview by default. There is no combined all-readings page; each reading belongs to its own section so navigation stays predictable and device names are not repeated endlessly.
 
-The Performance section summarizes live system counters and storage activity. It groups CPU and memory under System, then groups storage activity by drive.
+The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device.
+
+Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
 The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters.
+
+The USB section shows connected devices, hubs, controllers, connection speed, capable speed where Windows exposes it, requested power, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, and other copyable details. USB data is partly dependent on what Windows and the device driver expose, so some devices may report less detail than others.
+
+The Audio section groups related endpoints under their device or interface name where possible, then separates playback and recording entries. It shows vendor, status, direction, and default format details such as channels, sample rate, and bit depth where Windows exposes them.
+
+The Display section shows graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.
 
 When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.
 
@@ -264,7 +343,21 @@ If a fan curve is enabled for the same fan, Sensor Readout temporarily pauses th
 - Quiet desktop: use a fan curve for the CPU fan, a quiet fan profile for case fans, and an alarm that warns if CPU or GPU temperature rises above your chosen limit.
 - Troubleshooting USB: open the USB category, press Enter on a device for details, select the useful fields, and copy them for sharing.
 
+## Diagnostics
+
+Use `Help` > `Run diagnostics...` or press `Alt+F1` when you need to collect support information. Sensor Readout creates a ZIP file in `Reports` with the computer name in the file name, opens the folder when finished, and removes the temporary staging folder after the ZIP is created.
+
+The diagnostic ZIP contains a TXT report, an HTML report, a debug log, a diagnostic summary, and timing information. The run briefly tests writable fan controls at 100%, then restores each fan to the previous manual, automatic/default, or fan-curve state.
+
+Diagnostics can speak progress and play start/completion sounds. Configure this in `Options` > `Preferences` > `Startup`. Command-line diagnostics use the same preferences unless you pass `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
+
+For unattended testing, run `Sensor Readout.exe --diagnostics [path]`. If `[path]` is a folder, the diagnostic ZIP is created there. If no path is supplied, Sensor Readout creates the ZIP in `Reports`.
+
 ## Reports
+
+Reports are useful in two different situations: keeping a snapshot of your own machine, or sending a snapshot to someone else so they can inspect it in Sensor Readout.
+
+### Saving A Report
 
 Press `Ctrl+S` or use `File` > `Save report...`.
 
@@ -274,6 +367,18 @@ The save dialog offers:
 - HTML report.
 
 TXT reports group values by reading type and device, so long hardware names are written once as headings instead of being repeated on every line. HTML reports use formatted tables with sensor, value, and source columns.
+
+The first save creates the `Reports` folder if it does not already exist. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
+
+### Opening Someone Else's Report
+
+Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report.
+
+The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.
+
+Details and copy commands still work where the report contains the relevant fields. This is useful when someone sends a USB, audio, display, network, fan, battery, or SMART report and you want to inspect specific rows without reading the whole file manually.
+
+Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. Reports saved by Sensor Readout 2.0 or later contain a machine-readable snapshot for the best import experience. Older TXT and HTML reports are opened on a best-effort basis.
 
 ## Files
 
@@ -286,14 +391,15 @@ Configuration and logging created by the app:
 - `Config\Shared.json`: portable preferences shared across machines, such as language, refresh behavior, temperature unit, startup/shutdown sounds, startup speech, notification-area visibility, update checks, and global hotkey choices.
 - `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and screen reader speech messages, created only when logging is enabled.
+- `Reports`: default folder for reports saved from the command line, from the first save dialog, or from `Help` > `Run diagnostics...`.
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 - `Data\usb.ids`: bundled USB vendor/product lookup data.
 - `Data\oui.csv`: bundled MAC/OUI vendor lookup data for network adapters.
 - `Plug-Ins\Framework`: optional Framework Laptop plug-in.
 - `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
+- `Plug-Ins\AsusRog`: experimental optional Asus ROG/TUF plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - Users can add third-party plug-ins in their own subfolders.
-- `Reports`: default folder for reports saved from the command line or from the first save dialog.
 
 Language files:
 
@@ -340,6 +446,19 @@ Framework Laptop owners who want Framework-specific fan RPM and temperature read
 Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
 
 ## Changelog
+
+### 2.0.0
+
+- Added: Audio category for sound devices and endpoints, grouped by device/interface with playback and recording entries, vendor/status details, and default format details such as channels, sample rate, and bit depth where Windows exposes them.
+- Added: Display category for graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.
+- Added: USB details now include connected devices, hubs, controllers, connection speed, capable speed, requested power, drive letters, safe-to-unplug status, copyable detail fields, USB network adapter MAC/OUI details, and USB storage hardware ID/OUI details where Windows exposes them.
+- Added: Saved TXT and HTML reports can be opened from `File` > `Open report...` or `Ctrl+O` as static snapshots in the normal Sensor Readout tree, so another user's report can be inspected without reading the raw file manually. Use `File` > `Return to live readings` or `Ctrl+R` to return to the current computer.
+- Improved: Performance/Overview now gives CPU details beyond usage, including CPU model, vendor, cores, threads, clocks, socket, architecture, instruction sets such as SSE and AVX, and clearer virtualization labels where Windows exposes them.
+- Improved: The Preferences manual section is now organized by tab, with shortcut keys and clearer explanations of what each pane controls.
+- Added: `Help` > `Run diagnostics...`, `Alt+F1`, and `--diagnostics [path]` create a support ZIP containing TXT and HTML reports, a debug log, timing data, a diagnostic summary, and a short fan-control test that restores the previous fan state afterward. Diagnostic ZIP names include the computer name, and temporary staging files are removed after the ZIP is created.
+- Added: Diagnostics can speak progress, say "Complete." when finished, and play configurable start/completion sounds from Preferences. Command-line diagnostics can be silenced with `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
+- Added: Experimental Asus ROG / TUF Support plug-in for opt-in tester feedback. It can read Asus ATKACPI temperature and fan duty-cycle data where available, and attempts fan control on supported models. Initial plug-in work by Jason Fayre and Claude Code; ACPI behavior is based in part on G-Helper research.
+- Fixed: Tray icon rendering now falls back safely if Windows/GDI+ refuses to create a dynamic icon, preventing a repeated crash/restart loop.
 
 ### 1.6.2
 
@@ -391,7 +510,7 @@ Sensor Readout only reads Framework Control's local API. It does not install Fra
 
 ### 1.5.0
 
-- New: USB category for connected devices, hubs, and controllers, with concise tree rows, copyable detail fields, bundled `Data\usb.ids` vendor/product lookup, and extra information such as connection speed, capable speed, requested power in mA, port, drive letters, safe-to-unplug status, VID/PID, driver key, service, and Windows device IDs where Windows exposes them.
+- New: USB category for connected devices, hubs, and controllers, with concise tree rows, copyable detail fields, bundled `Data\usb.ids` vendor/product lookup, and extra information such as connection speed, capable speed, requested power in mA, port, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, VID/PID, driver key, service, and Windows device IDs where Windows exposes them.
 - New: Fan curves can link a writable fan control to a temperature reading with low, high, and emergency points.
 - New: Fan profiles can apply several fan controls at once, including automatic/default control, and can be triggered from optional global hotkeys. New setups include empty starter profiles that users can fill with their own fans.
 - Added: `Ctrl+U` opens Fan Curves directly from anywhere in the main app.
@@ -458,7 +577,7 @@ Sensor Readout only reads Framework Control's local API. It does not install Fra
 ### 1.2.1
 
 - Fixed: Storage free/used-space readings now come from Windows logical drives, avoiding mismatched LibreHardwareMonitor space values on some SSDs.
-- Improved: The selected-reading progress meter now works for any valid percentage reading, including memory available, memory used, drive free space, drive space used, CPU usage, activity percentages, and localized comma-decimal percentages.
+- Improved: The selected-reading progress meter now works for any valid percentage reading, including memory available, memory used, drive free space, drive used space, CPU usage, activity percentages, and localized comma-decimal percentages.
 
 ### 1.2.0
 
@@ -530,10 +649,13 @@ Sensor Readout uses or bundles components from these projects:
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
 - [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
+- [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus ROG/TUF plug-in.
 - [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.
 - [MAC Address Vendor Database](https://github.com/uxmansarwar/mac-address-vendor-database), used under the MIT License for MAC/OUI vendor lookup.
 - Microsoft .NET Framework and support libraries.
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE.txt`.
+The main Sensor Readout application is licensed under the MIT License. See `LICENSE.txt`.
+
+Some optional bundled plug-ins or data files have their own licenses and notices. In particular, `Plug-Ins\AsusRog` contains G-Helper-derived ACPI work and ships with its own GPL notice and GPL text in that folder.
