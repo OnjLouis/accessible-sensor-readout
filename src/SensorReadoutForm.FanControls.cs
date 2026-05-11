@@ -284,6 +284,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
         AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);
+        AddTimedRows(rows, "SystemUptime", GetSystemUptimeRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
         AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);

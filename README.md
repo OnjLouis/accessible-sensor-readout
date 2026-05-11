@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 2.2.0.
+Current version: 2.2.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -477,6 +477,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 2.2.1
+
+- Fixed: System uptime now refreshes continuously with the normal sensor update cycle instead of staying on an older cached Overview value.
 
 ### 2.2.0
 

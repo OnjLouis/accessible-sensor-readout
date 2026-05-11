@@ -23,6 +23,9 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = false)]
     public static extern bool IsProcessorFeaturePresent(uint processorFeature);
 
+    [DllImport("kernel32.dll", SetLastError = false)]
+    public static extern ulong GetTickCount64();
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool DestroyIcon(IntPtr hIcon);
 

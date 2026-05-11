@@ -1094,6 +1094,32 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
+    private static IEnumerable<SensorRow> GetSystemUptimeRows()
+    {
+        TimeSpan uptime;
+        try
+        {
+            uptime = TimeSpan.FromMilliseconds(NativeMethods.GetTickCount64());
+        }
+        catch
+        {
+            uptime = TimeSpan.FromMilliseconds(Environment.TickCount & int.MaxValue);
+        }
+
+        return new[]
+        {
+            new SensorRow
+            {
+                Type = "Performance",
+                Hardware = "Overview",
+                Name = "System uptime",
+                Value = (float)Math.Max(0, uptime.TotalMinutes),
+                DisplayValue = FormatUptime(uptime),
+                Source = "Windows"
+            }
+        };
+    }
+
     private static string CleanWmiText(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
