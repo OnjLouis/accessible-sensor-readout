@@ -79,10 +79,27 @@ if (Test-Path $plugInRoot) {
 }
 
 $dataSource = Join-Path $PSScriptRoot 'Data'
+$dataTarget = Join-Path $portable 'Data'
 if (Test-Path $dataSource) {
-    $dataTarget = Join-Path $portable 'Data'
     New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
     Copy-Item -LiteralPath (Join-Path $dataSource '*') -Destination $dataTarget -Force
+}
+
+$langTarget = Join-Path $portable 'Langs'
+if (Test-Path $langTarget) {
+    New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
+    $languageHashes = [ordered]@{}
+    foreach ($languageFile in Get-ChildItem -LiteralPath $langTarget -Recurse -File | Sort-Object FullName) {
+        $relative = $languageFile.FullName.Substring($langTarget.Length).TrimStart('\')
+        $languageHashes[$relative] = (Get-FileHash -LiteralPath $languageFile.FullName -Algorithm SHA256).Hash
+    }
+
+    $manifest = [ordered]@{
+        Version = 1
+        UpdatedUtc = [DateTime]::UtcNow.ToString('o')
+        Files = $languageHashes
+    }
+    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataTarget 'BundledLanguageHashes.json') -Encoding UTF8
 }
 
 Write-Host "Built $OutputPath"

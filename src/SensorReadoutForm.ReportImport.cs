@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -39,7 +40,7 @@ public sealed partial class SensorReadoutForm : Form
         using (var dialog = new OpenFileDialog())
         {
             dialog.Title = T("ui.Open Sensor Readout report", "Open Sensor Readout report");
-            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.txt)|*.html;*.htm;*.txt|All files (*.*)|*.*";
+            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.txt;*.zip)|*.html;*.htm;*.txt;*.zip|All files (*.*)|*.*";
             dialog.InitialDirectory = GetReportsFolderPath();
             dialog.CheckFileExists = true;
             dialog.Multiselect = false;
@@ -135,6 +136,12 @@ public sealed partial class SensorReadoutForm : Form
     private void UpdateWindowTitle()
     {
         var title = T("app.title", "Sensor Readout") + " " + AppVersion;
+        var machineName = Environment.MachineName ?? "";
+        if (!string.IsNullOrWhiteSpace(machineName))
+        {
+            title += " - " + machineName;
+        }
+
         if (reportViewMode && !string.IsNullOrWhiteSpace(loadedReportTitle))
         {
             title += " - " + T("ui.Report", "Report") + ": " + loadedReportTitle;
@@ -201,7 +208,17 @@ public sealed partial class SensorReadoutForm : Form
 
     private ReportSnapshot ReadReportSnapshot(string path)
     {
+        if (IsZipReportPath(path))
+        {
+            return ReadReportSnapshotFromZip(path);
+        }
+
         var text = File.ReadAllText(path);
+        return ReadReportSnapshotText(text, path);
+    }
+
+    private ReportSnapshot ReadReportSnapshotText(string text, string path)
+    {
         ReportSnapshot snapshot;
         if (TryReadEmbeddedReportSnapshot(text, out snapshot))
         {
@@ -209,6 +226,50 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return IsHtmlReportPath(path) ? ReadLegacyHtmlReport(text, path) : ReadLegacyTextReport(text, path);
+    }
+
+    private ReportSnapshot ReadReportSnapshotFromZip(string path)
+    {
+        using (var archive = ZipFile.OpenRead(path))
+        {
+            foreach (var entry in archive.Entries
+                .Where(IsReportArchiveEntry)
+                .OrderBy(e => ReportArchiveEntryPriority(e.FullName))
+                .ThenBy(e => e.FullName, StringComparer.OrdinalIgnoreCase))
+            {
+                if (entry.Length > 50 * 1024 * 1024)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string text;
+                    using (var stream = entry.Open())
+                    using (var reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        text = reader.ReadToEnd();
+                    }
+
+                    var snapshot = ReadReportSnapshotText(text, entry.FullName);
+                    if (snapshot != null && snapshot.Rows != null && snapshot.Rows.Count > 0)
+                    {
+                        if (string.IsNullOrWhiteSpace(snapshot.Title))
+                        {
+                            snapshot.Title = Path.GetFileName(entry.FullName);
+                        }
+
+                        return snapshot;
+                    }
+                }
+                catch
+                {
+                    // Keep scanning; a ZIP may contain unrelated text or HTML files.
+                }
+            }
+        }
+
+        return null;
     }
 
     private static bool TryReadEmbeddedReportSnapshot(string text, out ReportSnapshot snapshot)
@@ -262,6 +323,35 @@ public sealed partial class SensorReadoutForm : Form
     {
         var extension = Path.GetExtension(path) ?? "";
         return extension.Equals(".html", StringComparison.OrdinalIgnoreCase) || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsZipReportPath(string path)
+    {
+        return string.Equals(Path.GetExtension(path) ?? "", ".zip", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReportArchiveEntry(ZipArchiveEntry entry)
+    {
+        if (entry == null || string.IsNullOrWhiteSpace(entry.Name))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(entry.Name) ?? "";
+        return extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ReportArchiveEntryPriority(string path)
+    {
+        var extension = Path.GetExtension(path) ?? "";
+        if (extension.Equals(".html", StringComparison.OrdinalIgnoreCase) || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
     }
 
     private ReportSnapshot ReadLegacyTextReport(string text, string path)

@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "2.2.1";
+    public const string AppVersion = "2.3.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -133,7 +133,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             settings.TrayStatusEnabled = true;
         }
-        Text = "Sensor Readout " + AppVersion;
+        UpdateWindowTitle();
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(980, 620);
         MinimumSize = new Size(700, 420);

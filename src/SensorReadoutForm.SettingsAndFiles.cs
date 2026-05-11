@@ -363,6 +363,7 @@ public sealed partial class SensorReadoutForm : Form
             StartMinimizedToTray = value.StartMinimizedToTray,
             CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
             UpdateCheckFrequency = value.UpdateCheckFrequency,
+            InstallUpdatesQuietly = value.InstallUpdatesQuietly,
             LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
             UpdateAvailableSoundFile = value.UpdateAvailableSoundFile,
             DiagnosticsSpeakProgress = value.DiagnosticsSpeakProgress,
@@ -446,6 +447,7 @@ public sealed partial class SensorReadoutForm : Form
         target.StartMinimizedToTray = shared.StartMinimizedToTray;
         target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
         target.UpdateCheckFrequency = shared.UpdateCheckFrequency;
+        target.InstallUpdatesQuietly = shared.InstallUpdatesQuietly;
         target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
         target.UpdateAvailableSoundFile = shared.UpdateAvailableSoundFile;
         target.DiagnosticsSpeakProgress = shared.DiagnosticsSpeakProgress;

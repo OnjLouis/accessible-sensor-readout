@@ -95,6 +95,11 @@ public sealed partial class SensorReadoutForm : Form
                 ApplyPreferencesFromDialog(dialog, false, false);
                 InstallToLocalAppDataAndRestart();
             };
+            dialog.UninstallLocalAppDataRequested += delegate
+            {
+                ApplyPreferencesFromDialog(dialog, false, false);
+                UninstallLocalInstallAndClose();
+            };
             if (latestRows.Count > 0)
             {
                 dialog.UpdateSensorRows(latestRows);

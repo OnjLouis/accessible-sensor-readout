@@ -12,8 +12,10 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;
     private readonly CheckBox runAtStartupCheckBox;
+    private readonly CheckBox desktopShortcutCheckBox;
     private readonly CheckBox startMinimizedCheckBox;
     private readonly ComboBox updateCheckFrequencyBox;
+    private readonly CheckBox installUpdatesQuietlyCheckBox;
     private readonly ComboBox updateAvailableSoundBox;
     private readonly CheckBox diagnosticsSpeakProgressCheckBox;
     private readonly CheckBox diagnosticsPlaySoundsCheckBox;
@@ -103,6 +105,7 @@ public sealed class PreferencesForm : Form
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
+    public bool InstallUpdatesQuietly { get { return installUpdatesQuietlyCheckBox != null && installUpdatesQuietlyCheckBox.Checked; } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
     public bool DiagnosticsPlaySounds { get { return diagnosticsPlaySoundsCheckBox == null || diagnosticsPlaySoundsCheckBox.Checked; } }
@@ -296,6 +299,14 @@ public sealed class PreferencesForm : Form
             AccessibleName = "Run at Windows startup"
         };
 
+        desktopShortcutCheckBox = new CheckBox
+        {
+            Text = "Create desktop shortcut",
+            Checked = SensorReadoutForm.DesktopShortcutExists(),
+            AutoSize = true,
+            AccessibleName = "Create desktop shortcut"
+        };
+
         startMinimizedCheckBox = new CheckBox
         {
             Text = "Start minimized to notification area",
@@ -310,6 +321,7 @@ public sealed class PreferencesForm : Form
             {
                 startMinimizedCheckBox.Checked = true;
                 trayStatusCheckBox.Checked = true;
+                desktopShortcutCheckBox.Checked = true;
             }
         };
 
@@ -442,7 +454,7 @@ public sealed class PreferencesForm : Form
             AutoSize = true,
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 3
+            RowCount = 4
         };
         updatesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         updatesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -459,7 +471,16 @@ public sealed class PreferencesForm : Form
         updateCheckFrequencyBox.Items.AddRange(UpdateCheckFrequencyOptions().Cast<object>().ToArray());
         updateCheckFrequencyBox.SelectedIndex = UpdateCheckFrequencyIndex(settings.UpdateCheckFrequency);
         updatesPanel.Controls.Add(updateCheckFrequencyBox, 1, 1);
-        updatesPanel.Controls.Add(new Label { Text = "Update available sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
+        installUpdatesQuietlyCheckBox = new CheckBox
+        {
+            Text = "Install updates &quietly",
+            Checked = settings.InstallUpdatesQuietly,
+            AutoSize = true,
+            AccessibleName = "Install updates quietly",
+            AccessibleDescription = "When checked, an available update is downloaded, installed, and reopened without first showing release notes or asking for confirmation."
+        };
+        updatesPanel.Controls.Add(installUpdatesQuietlyCheckBox, 1, 2);
+        updatesPanel.Controls.Add(new Label { Text = "Update available sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 3);
         updateAvailableSoundBox = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
@@ -467,7 +488,7 @@ public sealed class PreferencesForm : Form
             AccessibleName = "Update available sound"
         };
         PopulateSoundCombo(updateAvailableSoundBox, settings.UpdateAvailableSoundFile);
-        updatesPanel.Controls.Add(updateAvailableSoundBox, 1, 2);
+        updatesPanel.Controls.Add(updateAvailableSoundBox, 1, 3);
 
         var diagnosticsPanel = new TableLayoutPanel
         {
@@ -1025,17 +1046,24 @@ public sealed class PreferencesForm : Form
             AccessibleName = "Install location"
         });
 
+        var runningInstalled = SensorReadoutForm.IsRunningFromLocalInstallFolder();
         var installToLocalAppDataButton = new Button
         {
-            Text = "&Install to this PC...",
+            Text = runningInstalled
+                ? SensorReadoutForm.L("ui.&Uninstall from this PC...", "&Uninstall from this PC...")
+                : SensorReadoutForm.L("ui.&Install to this PC...", "&Install to this PC..."),
             AutoSize = true,
-            AccessibleName = "Install to this PC",
-            AccessibleDescription = "Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates a desktop shortcut, closes this copy, and starts the installed copy."
+            AccessibleName = runningInstalled
+                ? SensorReadoutForm.L("a11y.Uninstall from this PC", "Uninstall from this PC")
+                : SensorReadoutForm.L("a11y.Install to this PC", "Install to this PC"),
+            AccessibleDescription = runningInstalled
+                ? SensorReadoutForm.L("a11y.Remove the installed Sensor Readout app files from this PC while keeping Config, Logs, and Reports.", "Remove the installed Sensor Readout app files from this PC while keeping Config, Logs, and Reports.")
+                : SensorReadoutForm.L("a11y.Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates desktop and startup shortcuts, closes this copy, and starts the installed copy.", "Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates desktop and startup shortcuts, closes this copy, and starts the installed copy.")
         };
         installToLocalAppDataButton.Click += delegate
         {
             CommitPreferences();
-            var handler = InstallToLocalAppDataRequested;
+            var handler = runningInstalled ? UninstallLocalAppDataRequested : InstallToLocalAppDataRequested;
             if (handler != null)
             {
                 handler();
@@ -1061,11 +1089,12 @@ public sealed class PreferencesForm : Form
         startupLayout.Controls.Add(installLocationPanel, 0, 0);
         startupLayout.Controls.Add(installToLocalAppDataButton, 0, 1);
         startupLayout.Controls.Add(runAtStartupCheckBox, 0, 2);
-        startupLayout.Controls.Add(startMinimizedCheckBox, 0, 3);
-        startupLayout.Controls.Add(startupSpeechEnabledCheckBox, 0, 4);
-        startupLayout.Controls.Add(startupSpeechPanel, 0, 5);
-        startupLayout.Controls.Add(startupSoundPanel, 0, 6);
-        startupLayout.Controls.Add(shutdownSoundPanel, 0, 7);
+        startupLayout.Controls.Add(desktopShortcutCheckBox, 0, 3);
+        startupLayout.Controls.Add(startMinimizedCheckBox, 0, 4);
+        startupLayout.Controls.Add(startupSpeechEnabledCheckBox, 0, 5);
+        startupLayout.Controls.Add(startupSpeechPanel, 0, 6);
+        startupLayout.Controls.Add(startupSoundPanel, 0, 7);
+        startupLayout.Controls.Add(shutdownSoundPanel, 0, 8);
         startupTab.Controls.Add(startupLayout);
         preferencesTabs.TabPages.Add(startupTab);
 
@@ -1111,8 +1140,10 @@ public sealed class PreferencesForm : Form
         refreshWhileFocusedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayStatusCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         runAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        desktopShortcutCheckBox.CheckedChanged += ApplyDesktopShortcutPreferenceHandler;
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateCheckFrequencyBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        installUpdatesQuietlyCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateAvailableSoundBox.SelectedIndexChanged += delegate
         {
             SaveLivePreferences();
@@ -1673,6 +1704,7 @@ public sealed class PreferencesForm : Form
         liveSettings.StartMinimizedToTray = StartMinimizedToTray;
         liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
         liveSettings.UpdateCheckFrequency = UpdateCheckFrequency;
+        liveSettings.InstallUpdatesQuietly = InstallUpdatesQuietly;
         liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
         liveSettings.DiagnosticsSpeakProgress = DiagnosticsSpeakProgress;
         liveSettings.DiagnosticsPlaySounds = DiagnosticsPlaySounds;
@@ -1699,6 +1731,32 @@ public sealed class PreferencesForm : Form
         liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SensorReadoutForm.SaveSettings(liveSettings);
+    }
+
+    private void ApplyDesktopShortcutPreference()
+    {
+        if (loadingPreferences)
+        {
+            return;
+        }
+
+        try
+        {
+            SensorReadoutForm.SetDesktopShortcut(desktopShortcutCheckBox.Checked);
+        }
+        catch (Exception ex)
+        {
+            var desired = desktopShortcutCheckBox.Checked;
+            desktopShortcutCheckBox.CheckedChanged -= ApplyDesktopShortcutPreferenceHandler;
+            desktopShortcutCheckBox.Checked = !desired;
+            desktopShortcutCheckBox.CheckedChanged += ApplyDesktopShortcutPreferenceHandler;
+            MessageBox.Show(this, SensorReadoutForm.L("message.Could not update desktop shortcut:", "Could not update desktop shortcut:") + " " + ex.Message, SensorReadoutForm.L("ui.Desktop shortcut", "Desktop shortcut"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ApplyDesktopShortcutPreferenceHandler(object sender, EventArgs e)
+    {
+        ApplyDesktopShortcutPreference();
     }
 
     private void CommitPreferences()
@@ -4190,6 +4248,7 @@ public sealed class PreferencesForm : Form
 
     public event Action<FanProfileSetting> ApplyFanProfileRequested;
     public event Action InstallToLocalAppDataRequested;
+    public event Action UninstallLocalAppDataRequested;
 
     private void FanProfileAvailableListKeyDown(object sender, KeyEventArgs e)
     {

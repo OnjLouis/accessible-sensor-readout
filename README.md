@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 2.2.1.
+Current version: 2.3.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -32,6 +32,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Supports simple fan curves that set a fan control from a selected temperature reading.
 - Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
+- Opens saved report files directly, including TXT or HTML reports sent inside a ZIP file.
 - Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
@@ -139,7 +140,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Ctrl+,` | Open Preferences. |
 | `F1` | Open the manual. |
 | `Alt+F1` | Run diagnostics and create a support ZIP. |
-| `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. |
+| `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. If quiet update installs are enabled, an available update installs without showing release notes first. |
 | `Ctrl+F1` | Open the project page. |
 | `Ctrl+0` to `Ctrl+8` | Show Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery where available. |
 | `Esc` | Close the Fan Controls dialog. |
@@ -159,6 +160,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
 | `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
 | `Alt+I` | In Preferences > Startup and Install, install to this PC. |
+| `Alt+U` | In Preferences > Startup and Install, uninstall from this PC when running from the installed copy. |
 | `Alt+I` | In Preferences > Plug-Ins, import a plug-in ZIP. |
 | `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
 | `Alt+I` | In Preferences > Hotkeys, import spoken hotkey profiles from another machine config. |
@@ -203,6 +205,7 @@ The General tab controls the main reading experience.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
 - Update checks: choose whether Sensor Readout checks GitHub Releases at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
+- Quiet update installs: download, install, close, and reopen automatically when an update is available. Use `Help` > `Version history...` to review the latest release notes later.
 - Notification area items: choose up to eight readings for the tray tooltip and spoken tray status.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
@@ -213,14 +216,16 @@ Notification area readings are selected from an Available readings list and move
 
 The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.
 
-- Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut, close the current copy, and start the installed copy.
+- Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and Windows startup shortcut, close the current copy, and start the installed copy.
+- Uninstall from this PC: when running from the installed copy, remove the installed app files and shortcuts while leaving `Config`, `Logs`, and `Reports` in place.
 - Run at Windows startup: create or remove a `Sensor Readout.lnk` shortcut in the current user's Startup folder.
+- Create desktop shortcut: create or remove a `Sensor Readout.lnk` shortcut on the desktop.
 - Start minimized to notification area: open directly to the tray instead of showing the main window.
 - Startup speech: choose whether Sensor Readout speaks when it starts and edit the spoken message.
 - Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
-The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
+The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
 
 If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
@@ -390,7 +395,7 @@ The first save creates the `Reports` folder if it does not already exist. Use `F
 
 ### Opening Someone Else's Report
 
-Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report.
+Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report. If someone sends a report inside a ZIP file, open the ZIP directly and Sensor Readout will use the first readable report inside it.
 
 The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.
 
@@ -477,6 +482,15 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 2.3.0
+
+- Added: Optional quiet update installs can download, install, close, and reopen without showing release notes first. `Help` > `Version history...` opens the latest release notes on demand.
+- Improved: Startup and Install now shows Uninstall from this PC when Sensor Readout is already running from the installed location, and can create a desktop shortcut directly from the same tab.
+- Improved: Install to this PC now offers desktop and Windows startup shortcut choices in one dialog before copying and reopening the installed copy.
+- Improved: The title bar shows the current computer name after the Sensor Readout version, matching the extra context shown while viewing a saved report.
+- Improved: Automatic updates only preserve changed or custom language files instead of backing up the whole language folder on every update.
+- Improved: `File` > `Open report...` can open a ZIP file that contains a Sensor Readout TXT or HTML report, so users do not have to extract a report manually before viewing it.
 
 ### 2.2.1
 

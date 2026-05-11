@@ -36,6 +36,11 @@ public sealed partial class SensorReadoutForm : Form
             Version remote;
             if (Version.TryParse(AppVersion, out current) && Version.TryParse(latestVersion, out remote) && remote > current)
             {
+                if (TryStartQuietUpdate(release, showErrors))
+                {
+                    return;
+                }
+
                 ShowUpdateAvailableDialog(release, latest, BuildUpdateReleaseNotes(releases, current, remote));
                 CheckPawnIoFromManualUpdateCheck(showUpToDate, showErrors);
                 return;
@@ -156,6 +161,11 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     if (!IsDisposed)
                     {
+                        if (TryStartQuietUpdate(release, false))
+                        {
+                            return;
+                        }
+
                         ShowUpdateAvailableDialog(release, latest, BuildUpdateReleaseNotes(releases, current, remote));
                     }
                 });
@@ -340,6 +350,27 @@ public sealed partial class SensorReadoutForm : Form
         return string.IsNullOrWhiteSpace(text) ? fallback : text;
     }
 
+    private bool TryStartQuietUpdate(GitHubReleaseInfo release, bool showErrors)
+    {
+        if (!settings.InstallUpdatesQuietly)
+        {
+            return false;
+        }
+
+        var zipAsset = FindPortableZipAsset(release);
+        if (zipAsset == null || string.IsNullOrWhiteSpace(zipAsset.BrowserDownloadUrl))
+        {
+            if (showErrors)
+            {
+                MessageBox.Show(this, T("message.noUpdatePackage", "This GitHub release does not include a downloadable ZIP package. Please open the release page instead."), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            return false;
+        }
+
+        StartSelfUpdate(zipAsset.BrowserDownloadUrl, true);
+        return true;
+    }
+
     private void ShowUpdateAvailableDialog(GitHubReleaseInfo release, string latest, string releaseNotes)
     {
         var releaseUrl = release == null || string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl;
@@ -408,7 +439,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     dialog.DialogResult = DialogResult.OK;
                     dialog.Close();
-                    StartSelfUpdate(zipAsset.BrowserDownloadUrl);
+                    StartSelfUpdate(zipAsset.BrowserDownloadUrl, false);
                 };
                 buttons.Controls.Add(installButton);
                 dialog.AcceptButton = installButton;
@@ -422,6 +453,90 @@ public sealed partial class SensorReadoutForm : Form
             layout.Controls.Add(buttons, 0, 2);
             dialog.Controls.Add(layout);
             dialog.ShowDialog(this);
+        }
+    }
+
+    private void ShowVersionHistoryDialog()
+    {
+        try
+        {
+            UseWaitCursor = true;
+            var releases = FetchReleases();
+            var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
+            var version = release == null ? AppVersion : (release.TagName ?? AppVersion).Trim().TrimStart('v', 'V');
+            var releaseUrl = release == null || string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl;
+            var notesText = FormatReleaseNotesForDialog(release == null ? "" : release.Body, T("message.noReleaseNotes", "No release notes were provided for this update."));
+
+            using (var dialog = new Form())
+            {
+                dialog.Text = T("ui.Version history", "Version history");
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.Width = 720;
+                dialog.Height = 520;
+                dialog.MinimizeBox = false;
+                dialog.MaximizeBox = false;
+                dialog.ShowIcon = false;
+                dialog.ShowInTaskbar = false;
+
+                var layout = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 1,
+                    RowCount = 3,
+                    Padding = new Padding(12)
+                };
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+                layout.Controls.Add(new Label
+                {
+                    AutoSize = true,
+                    Dock = DockStyle.Top,
+                    Text = string.Format(T("message.latestReleaseHeader", "Latest release: {0}"), version),
+                    Padding = new Padding(0, 0, 0, 8)
+                }, 0, 0);
+
+                layout.Controls.Add(new TextBox
+                {
+                    Dock = DockStyle.Fill,
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    Text = notesText,
+                    AccessibleName = T("a11y.Version history", "Version history")
+                }, 0, 1);
+
+                var buttons = new FlowLayoutPanel
+                {
+                    AutoSize = true,
+                    Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.LeftToRight,
+                    Padding = new Padding(0, 8, 0, 0)
+                };
+                var releaseButton = new Button { Text = T("ui.Open release page", "Open &release page"), AutoSize = true };
+                releaseButton.Click += delegate { Process.Start(new ProcessStartInfo { FileName = releaseUrl, UseShellExecute = true }); };
+                var allReleasesButton = new Button { Text = T("ui.Open all releases", "Open &all releases"), AutoSize = true };
+                allReleasesButton.Click += delegate { Process.Start(new ProcessStartInfo { FileName = ProjectUrl + "/releases", UseShellExecute = true }); };
+                var closeButton = new Button { Text = T("ui.Close", "&Close"), DialogResult = DialogResult.OK, AutoSize = true };
+                buttons.Controls.Add(releaseButton);
+                buttons.Controls.Add(allReleasesButton);
+                buttons.Controls.Add(closeButton);
+
+                layout.Controls.Add(buttons, 0, 2);
+                dialog.Controls.Add(layout);
+                dialog.AcceptButton = closeButton;
+                dialog.CancelButton = closeButton;
+                dialog.ShowDialog(this);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, T("message.couldNotCheckUpdates", "Could not check for updates. GitHub releases may not exist yet, or the network request failed.") + Environment.NewLine + Environment.NewLine + ex.Message, T("ui.Version history", "Version history"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        finally
+        {
+            UseWaitCursor = false;
         }
     }
 
@@ -440,7 +555,7 @@ public sealed partial class SensorReadoutForm : Form
             .FirstOrDefault();
     }
 
-    private void StartSelfUpdate(string zipUrl)
+    private void StartSelfUpdate(string zipUrl, bool quiet)
     {
         if (string.IsNullOrWhiteSpace(zipUrl))
         {
@@ -448,15 +563,18 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var confirm = MessageBox.Show(
-            this,
-            T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your settings and logs will be kept."),
-            StripMenuMnemonic(T("ui.Download and install", "Download and install")),
-            MessageBoxButtons.OKCancel,
-            MessageBoxIcon.Information);
-        if (confirm != DialogResult.OK)
+        if (!quiet)
         {
-            return;
+            var confirm = MessageBox.Show(
+                this,
+                T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your settings and logs will be kept."),
+                StripMenuMnemonic(T("ui.Download and install", "Download and install")),
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Information);
+            if (confirm != DialogResult.OK)
+            {
+                return;
+            }
         }
 
         try
@@ -536,6 +654,29 @@ public sealed partial class SensorReadoutForm : Form
             "$exe = " + PowerShellQuote(exePath) + "\r\n" +
             "$tempBase = " + PowerShellQuote(tempDir) + "\r\n" +
             "$pidToWait = " + processId.ToString(CultureInfo.InvariantCulture) + "\r\n" +
+            "function Get-FileSha256($path) {\r\n" +
+            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '' }\r\n" +
+            "  return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash\r\n" +
+            "}\r\n" +
+            "function Read-LanguageHashManifest($path) {\r\n" +
+            "  $map = @{}\r\n" +
+            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $map }\r\n" +
+            "  try {\r\n" +
+            "    $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json\r\n" +
+            "    if ($manifest -and $manifest.Files) { $manifest.Files.PSObject.Properties | ForEach-Object { $map[$_.Name] = [string]$_.Value } }\r\n" +
+            "  } catch {}\r\n" +
+            "  return $map\r\n" +
+            "}\r\n" +
+            "function Get-LanguageHashMap($langRoot) {\r\n" +
+            "  $map = @{}\r\n" +
+            "  if (Test-Path -LiteralPath $langRoot) {\r\n" +
+            "    Get-ChildItem -LiteralPath $langRoot -Recurse -File | ForEach-Object {\r\n" +
+            "      $relative = $_.FullName.Substring($langRoot.Length).TrimStart('\\')\r\n" +
+            "      $map[$relative] = Get-FileSha256 $_.FullName\r\n" +
+            "    }\r\n" +
+            "  }\r\n" +
+            "  return $map\r\n" +
+            "}\r\n" +
             "try {\r\n" +
             "  if ([string]::IsNullOrWhiteSpace($tempBase)) { throw 'No updater temporary folder was provided.' }\r\n" +
             "  [System.IO.Directory]::CreateDirectory($tempBase) | Out-Null\r\n" +
@@ -553,10 +694,27 @@ public sealed partial class SensorReadoutForm : Form
             "  }\r\n" +
             "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) { throw 'The downloaded ZIP does not contain Sensor Readout.exe.' }\r\n" +
             "  Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Wait-Process\r\n" +
+            "  $previousLanguageHashes = Read-LanguageHashManifest (Join-Path (Join-Path $target 'Data') 'BundledLanguageHashes.json')\r\n" +
+            "  $incomingLangs = Join-Path $source 'Langs'\r\n" +
+            "  $existingLangs = Join-Path $target 'Langs'\r\n" +
+            "  $incomingLanguageHashes = Read-LanguageHashManifest (Join-Path (Join-Path $source 'Data') 'BundledLanguageHashes.json')\r\n" +
+            "  if ($incomingLanguageHashes.Count -eq 0) { $incomingLanguageHashes = Get-LanguageHashMap $incomingLangs }\r\n" +
             "  $backup = Join-Path (Join-Path $target 'Config\\Update Backups') (Get-Date -Format 'yyyyMMdd-HHmmss')\r\n" +
-            "  foreach ($name in @('Langs')) {\r\n" +
-            "    $existing = Join-Path $target $name\r\n" +
-            "    if (Test-Path -LiteralPath $existing) { New-Item -ItemType Directory -Force -Path $backup | Out-Null; Copy-Item -LiteralPath $existing -Destination (Join-Path $backup $name) -Recurse -Force }\r\n" +
+            "  if (Test-Path -LiteralPath $existingLangs) {\r\n" +
+            "    Get-ChildItem -LiteralPath $existingLangs -Recurse -File | ForEach-Object {\r\n" +
+            "      $relative = $_.FullName.Substring($existingLangs.Length).TrimStart('\\')\r\n" +
+            "      $currentHash = Get-FileSha256 $_.FullName\r\n" +
+            "      $previousHash = if ($previousLanguageHashes.ContainsKey($relative)) { $previousLanguageHashes[$relative] } else { '' }\r\n" +
+            "      $incomingHash = if ($incomingLanguageHashes.ContainsKey($relative)) { $incomingLanguageHashes[$relative] } else { '' }\r\n" +
+            "      $matchesPreviousBundle = (-not [string]::IsNullOrWhiteSpace($previousHash)) -and [string]::Equals($currentHash, $previousHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
+            "      $matchesIncomingBundle = (-not [string]::IsNullOrWhiteSpace($incomingHash)) -and [string]::Equals($currentHash, $incomingHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
+            "      if (-not $matchesPreviousBundle -and -not $matchesIncomingBundle) {\r\n" +
+            "        $destination = Join-Path (Join-Path $backup 'Langs') $relative\r\n" +
+            "        $destinationFolder = Split-Path -Parent $destination\r\n" +
+            "        New-Item -ItemType Directory -Force -Path $destinationFolder | Out-Null\r\n" +
+            "        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force\r\n" +
+            "      }\r\n" +
+            "    }\r\n" +
             "  }\r\n" +
             "  foreach ($name in @('Docs','Langs')) {\r\n" +
             "    $lower = Join-Path $target $name.ToLowerInvariant()\r\n" +
