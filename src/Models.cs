@@ -126,6 +126,16 @@ public sealed class MachineAppSettings
     public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 }
 
+public sealed class SettingsTransferPackage
+{
+    public string Format = "SensorReadoutSettingsTransfer";
+    public string AppVersion = "";
+    public string MachineName = "";
+    public string ExportedAtUtc = "";
+    public SharedAppSettings SharedSettings;
+    public MachineAppSettings MachineSettings;
+}
+
 public sealed class PlugInPreferenceInfo
 {
     public string Id = "";

@@ -318,6 +318,7 @@ public sealed class PreferencesForm : Form
             if (startMinimizedCheckBox.Checked)
             {
                 trayStatusCheckBox.Checked = true;
+                PromptForShowHideHotKeyIfNeeded();
             }
         };
 
@@ -608,7 +609,7 @@ public sealed class PreferencesForm : Form
 
         var trayLabel = new Label
         {
-            Text = "Notification area items. Maximum four readings. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.",
+            Text = "Notification area items. Maximum eight readings. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.",
             AutoSize = true,
             Dock = DockStyle.Fill
         };
@@ -1393,6 +1394,46 @@ public sealed class PreferencesForm : Form
 
         preferencesTabs.SelectedIndex = index;
         return true;
+    }
+
+    private void PromptForShowHideHotKeyIfNeeded()
+    {
+        if (loadingPreferences || showHideHotKeyBox == null || !string.IsNullOrWhiteSpace(ShowHideHotKey))
+        {
+            return;
+        }
+
+        var message = SensorReadoutForm.L(
+            "message.noShowHideHotKeyForMinimizedStart",
+            "You do not have a show/hide hotkey set yet. If Windows hides the notification area icon, a show/hide hotkey is the fastest way back to Sensor Readout. Configure it now?");
+        var title = SensorReadoutForm.L("ui.Show/hide hotkey", "Show/hide hotkey");
+        if (MessageBox.Show(this, message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        FocusShowHideHotKeyBox();
+    }
+
+    private void FocusShowHideHotKeyBox()
+    {
+        if (preferencesTabs != null)
+        {
+            foreach (TabPage page in preferencesTabs.TabPages)
+            {
+                if (string.Equals(page.Name, "Hotkeys", StringComparison.OrdinalIgnoreCase))
+                {
+                    preferencesTabs.SelectedTab = page;
+                    break;
+                }
+            }
+        }
+
+        if (showHideHotKeyBox != null)
+        {
+            showHideHotKeyBox.Focus();
+            showHideHotKeyBox.SelectAll();
+        }
     }
 
     private static bool PerformShortcutButton(Control.ControlCollection controls, Keys key)
@@ -2744,9 +2785,9 @@ public sealed class PreferencesForm : Form
             return;
         }
 
-        if (traySelectedList.Items.Count >= 4)
+        if (traySelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings)
         {
-            SetTraySelectionStatus("The notification area can show up to four readings.");
+            SetTraySelectionStatus("The notification area can show up to eight readings.");
             System.Media.SystemSounds.Beep.Play();
             return;
         }
@@ -2808,7 +2849,13 @@ public sealed class PreferencesForm : Form
 
     private void TrayAvailableListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Control && e.KeyCode == Keys.Right)
+        if (e.KeyCode == Keys.F3)
+        {
+            ShowPreferenceListSearch(trayAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading"));
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Right)
         {
             AddSelectedTrayChoice();
             e.Handled = true;
@@ -2861,6 +2908,55 @@ public sealed class PreferencesForm : Form
         }
 
         RenameSpeechLabel(item, SetTraySelectionStatus);
+    }
+
+    private void ShowPreferenceListSearch(ListBox list, string title)
+    {
+        if (list == null || list.Items.Count == 0)
+        {
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var choices = list.Items.Cast<object>().ToList();
+        var selected = SensorReadoutForm.ShowSearchDialog(
+            this,
+            title,
+            SensorReadoutForm.L("ui.Search:", "Search:"),
+            choices,
+            delegate(object item) { return item == null ? "" : item.ToString(); },
+            delegate(object item) { return PreferenceListSearchText(item); });
+        if (selected == null)
+        {
+            list.Focus();
+            return;
+        }
+
+        var index = list.Items.IndexOf(selected);
+        if (index >= 0)
+        {
+            list.SelectedIndex = index;
+            list.TopIndex = Math.Max(0, index - 2);
+        }
+
+        list.Focus();
+    }
+
+    private static string PreferenceListSearchText(object item)
+    {
+        var trayChoice = item as TrayItemChoice;
+        if (trayChoice != null)
+        {
+            return trayChoice.Type + " " + trayChoice.Hardware + " " + trayChoice.Name + " " + trayChoice.Key;
+        }
+
+        var fanChoice = item as FanControlChoice;
+        if (fanChoice != null)
+        {
+            return fanChoice.Hardware + " " + fanChoice.Name + " " + fanChoice.Action + " " + fanChoice.Key;
+        }
+
+        return item == null ? "" : item.ToString();
     }
 
     private void AttachIncrementalListSearch(ListBox list)
@@ -2989,7 +3085,7 @@ public sealed class PreferencesForm : Form
             return;
         }
 
-        SetTraySelectionStatus(SensorReadoutForm.L("ui.Tray order has", "Tray order has") + " " + traySelectedList.Items.Count + " " + SensorReadoutForm.L("ui.of 4 readings.", "of 4 readings."));
+        SetTraySelectionStatus(SensorReadoutForm.L("ui.Tray order has", "Tray order has") + " " + traySelectedList.Items.Count + " " + SensorReadoutForm.L("ui.of 8 readings.", "of 8 readings."));
     }
 
     public void UpdateSensorRows(List<SensorRow> latestRows)
@@ -3070,6 +3166,7 @@ public sealed class PreferencesForm : Form
 
         var name = SensorReadoutForm.CleanSensorName(row.Name);
         return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
@@ -3182,7 +3279,7 @@ public sealed class PreferencesForm : Form
     {
         return traySelectedList.Items
             .Cast<TrayItemChoice>()
-            .Take(4)
+            .Take(SensorReadoutForm.MaxTrayStatusReadings)
             .Select(i => i.Key)
             .ToList();
     }
@@ -3671,7 +3768,13 @@ public sealed class PreferencesForm : Form
 
     private void SpokenAvailableListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Control && e.KeyCode == Keys.Right)
+        if (e.KeyCode == Keys.F3)
+        {
+            ShowPreferenceListSearch(spokenAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading"));
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Right)
         {
             AddSelectedSpokenChoice();
             e.Handled = true;
@@ -4090,7 +4193,13 @@ public sealed class PreferencesForm : Form
 
     private void FanProfileAvailableListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Control && e.KeyCode == Keys.Right)
+        if (e.KeyCode == Keys.F3)
+        {
+            ShowPreferenceListSearch(fanProfileAvailableList, SensorReadoutForm.L("ui.Find fan control", "Find fan control"));
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.Right)
         {
             AddSelectedFanProfileChoice();
             e.Handled = true;
@@ -4516,6 +4625,11 @@ public sealed class PreferencesForm : Form
             return new[] { "RPM" };
         }
 
+        if (name.Contains("link speed"))
+        {
+            return new[] { "bits/s", "Kbit/s", "Mbit/s", "Gbit/s" };
+        }
+
         if (name.Contains("rate") || display.Contains("/s"))
         {
             return new[] { "B/s", "KB/s", "MB/s", "GB/s" };
@@ -4574,6 +4688,11 @@ public sealed class PreferencesForm : Form
     private static double AlarmThresholdMultiplier(string unit, SensorRow row)
     {
         unit = (unit ?? "").Trim().ToUpperInvariant();
+        if (unit == "BITS/S") return 1.0;
+        if (unit == "KBIT/S") return 1000.0;
+        if (unit == "MBIT/S") return 1000.0 * 1000.0;
+        if (unit == "GBIT/S") return 1000.0 * 1000.0 * 1000.0;
+        if (unit == "B/S") return 1.0;
         if (unit == "KB/S") return 1000.0;
         if (unit == "MB/S") return 1000.0 * 1000.0;
         if (unit == "GB/S") return 1000.0 * 1000.0 * 1000.0;

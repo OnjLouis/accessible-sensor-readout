@@ -637,7 +637,7 @@ public sealed partial class SensorReadoutForm : Form
         var selectedRows = selectedKeys
             .Select(FindTrayRowByKey)
             .Where(r => r != null)
-            .Take(4)
+            .Take(MaxTrayStatusReadings)
             .ToList();
 
         if (selectedRows.Count == 0)

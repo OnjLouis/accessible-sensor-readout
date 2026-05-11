@@ -197,6 +197,31 @@ public sealed partial class SensorReadoutForm : Form
             return "Tx total";
         }
 
+        if (text.Equals("Wi-Fi network", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SSID";
+        }
+
+        if (text.Equals("Wi-Fi signal strength", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Signal";
+        }
+
+        if (text.Equals("Wi-Fi signal RSSI", StringComparison.OrdinalIgnoreCase))
+        {
+            return "RSSI";
+        }
+
+        if (text.Equals("Wi-Fi channel", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Ch";
+        }
+
+        if (text.Equals("System uptime", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Uptime";
+        }
+
         if (text.Equals("CPU usage", StringComparison.OrdinalIgnoreCase))
         {
             return "CPU";

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 2.1.0.
+Current version: 2.2.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -17,7 +17,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread information, memory usage, and storage read/write activity, grouped so related information stays together.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
-- Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, and total traffic.
+- Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
 - Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.
 - Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.
@@ -122,11 +122,15 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
 | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
+| `Ctrl+E` | Export selected settings and profiles to a transfer package. |
+| `Ctrl+Shift+I` | Import selected settings and profiles from a transfer package. |
 | `Ctrl+Shift+O` | Open the Reports folder. |
 | `Ctrl+Shift+L` | Open the Logs folder. |
 | `Ctrl+R` | Return from a static report to live readings. |
 | `Ctrl+I` | Import a Plug-In ZIP. |
+| `F3` | Find a reading across all categories. Type to narrow the results, Tab to the results list, Enter to choose, Esc to return, or Alt+L to clear the search. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
+| `F4` | Review the selected reading or tree branch in a read-only text box. |
 | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
 | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | `Del` | Hide the selected reading or tree branch. |
@@ -148,6 +152,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Alt+S` | Show or hide stopped fan headers. |
 | `Alt+P` | Pause automatic updates. |
 | `Ctrl+1` to `Ctrl+8` | In Preferences, jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
+| `F3` | In Preferences reading lists, find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
 | `F2` | In Preferences lists, jump to the name or rename field where applicable. |
 | `Enter` | In Preferences lists, jump to the main value field where applicable. |
 | `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
@@ -198,7 +203,7 @@ The General tab controls the main reading experience.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
 - Update checks: choose whether Sensor Readout checks GitHub Releases at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
-- Notification area items: choose up to four readings for the tray tooltip.
+- Notification area items: choose up to eight readings for the tray tooltip and spoken tray status.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
 
@@ -215,9 +220,11 @@ The Startup and Install tab controls installation plus what happens when Sensor 
 - Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
-The install flow is for people who started from a portable or Dropbox folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
+The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
 
 If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
+
+If Sensor Readout restarts after install or update and the main window does not appear, check whether Start minimized to notification area is enabled. Windows may also hide the tray icon until you allow it in Windows notification area or system tray settings. Showing the Sensor Readout tray icon lets you open the main window from that icon.
 
 ### Hotkeys (`Ctrl+3`)
 
@@ -294,7 +301,7 @@ The Performance section summarizes live system counters and storage activity. It
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
-The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters.
+The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
 
 The USB section shows connected devices, hubs, controllers, connection speed, capable speed where Windows exposes it, requested power, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, and other copyable details. USB data is partly dependent on what Windows and the device driver expose, so some devices may report less detail than others.
 
@@ -304,7 +311,9 @@ The Display section shows graphics adapters and monitors, including adapter memo
 
 When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.
 
-Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, open Details where available, rename a fan, or hide it. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
+
+Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, rename a fan, or hide it. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
 ## Fan Control Workflow
 
@@ -389,6 +398,12 @@ Details and copy commands still work where the report contains the relevant fiel
 
 Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. Reports saved by Sensor Readout 2.0 or later contain a machine-readable snapshot for the best import experience. Older TXT and HTML reports are opened on a best-effort basis.
 
+## Settings Transfer
+
+Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, or plug-in choices.
+
+Use `File` > `Import settings and profiles...` or `Ctrl+Shift+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
+
 ## Files
 
 Portable build:
@@ -399,6 +414,7 @@ Configuration and logging created by the app:
 
 - `Config\Shared.json`: portable preferences shared across machines, such as language, refresh behavior, temperature unit, startup/shutdown sounds, startup speech, notification-area visibility, update checks, and global hotkey choices.
 - `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
+- `*.srsettings.json`: optional settings transfer packages created by `File` > `Export settings and profiles...`.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and screen reader speech messages, created only when logging is enabled.
 - `Reports`: default folder for reports saved from the command line, from the first save dialog, or from `Help` > `Run diagnostics...`.
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
@@ -462,9 +478,19 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 2.2.0
+
+- Added: `Edit` > `Find reading...` (`F3`) searches readings across all categories. The same F3 search dialog is available in Preferences reading lists when choosing notification area readings, spoken hotkey readings, or fan-profile controls.
+- Added: `Edit` > `Review text...` (`F4`) opens the selected reading or tree branch in a read-only edit box, making it easier to inspect exact spelling or punctuation after screen-reader speech. The Copy command confirms through the active screen reader after copying.
+- Added: `File` > `Export settings and profiles...` (`Ctrl+E`) and `File` > `Import settings and profiles...` (`Ctrl+Shift+I`) create selective transfer packages for general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, and plug-in choices. Hardware-specific items are imported unassigned, disabled, or ready for review so they can be bound safely on the current computer.
+- Added: Wi-Fi adapters can show connection state, SSID, access point, signal strength percentage, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details when Windows exposes them. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can also be used for notification area status, spoken hotkeys, and alarms where numeric thresholds make sense. This closes [GitHub issue #1](https://github.com/OnjLouis/accessible-sensor-readout/issues/1).
+- Improved: Notification area status can include up to eight selected readings, making room for Wi-Fi signal, System uptime, and other key readings alongside CPU, GPU, fan, or network values.
+- Improved: Startup and Install warns when minimized startup is enabled without a show/hide hotkey, and the manual explains how to reveal the tray icon if Windows hides it.
+- Improved: Context menus hide unavailable Details or Rename commands for the selected reading.
+
 ### 2.1.0
 
-- Added: Startup and Install adds an `Alt+I` Install to this PC command that can move a portable or Dropbox copy into the normal Windows programs folder for this user. It can also create a desktop shortcut, keep Windows startup pointing at the installed copy, close the old copy, and reopen Sensor Readout from the installed location.
+- Added: Startup and Install adds an `Alt+I` Install to this PC command that can move a portable or synced-folder copy into the normal Windows programs folder for this user. It can also create a desktop shortcut, keep Windows startup pointing at the installed copy, close the old copy, and reopen Sensor Readout from the installed location.
 - Added: `File` > `Open Reports folder` (`Ctrl+Shift+O`) and `File` > `Open Logs folder` (`Ctrl+Shift+L`) make saved reports and logs easier to find.
 - Added: Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for Dell, Asus, HP, OMEN, Victus, and Framework laptops.
 - Improved: Automatic updates handle unusual Windows temporary-folder settings more reliably.

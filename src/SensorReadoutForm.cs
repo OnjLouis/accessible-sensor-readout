@@ -7,10 +7,11 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "2.1.0";
+    public const string AppVersion = "2.2.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
+    public const int MaxTrayStatusReadings = 8;
     private const int RefreshIntervalMs = 5000;
     private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
     private const int ShowHideHotKeyId = 2001;
@@ -21,6 +22,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
+    private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem batteryViewMenuItem;
     private readonly ToolStripMenuItem returnToLiveReadingsMenuItem;
@@ -141,6 +143,8 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import settings and &profiles...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Reports folder", Keys.Control | Keys.Shift | Keys.O, delegate { OpenReportsFolder(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Logs folder", Keys.Control | Keys.Shift | Keys.L, delegate { OpenLogsFolder(); }));
         returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
@@ -151,7 +155,9 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("E&xit", "Alt+F4", delegate { Close(); }));
 
         var editMenu = new ToolStripMenuItem("&Edit");
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
@@ -359,12 +365,15 @@ public sealed partial class SensorReadoutForm : Form
             AccessibleDescription = "Current readings grouped by category or device"
         };
         readingTree.ContextMenuStrip = new ContextMenuStrip();
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
-        readingTree.ContextMenuStrip.Items.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
+        treeDetailsMenuItem = CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); });
+        readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
         treeRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         readingTree.ContextMenuStrip.Items.Add(treeRenameMenuItem);
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
-        readingTree.ContextMenuStrip.Opening += delegate { UpdateRenameMenuVisibility(); };
+        readingTree.ContextMenuStrip.Opening += delegate { UpdateSelectedTreeCommandVisibility(); };
         readingTree.KeyDown += delegate(object sender, KeyEventArgs e)
         {
             MarkUserNavigation();
@@ -373,10 +382,22 @@ public sealed partial class SensorReadoutForm : Form
                 CopySelectedTreeNode();
                 e.Handled = true;
             }
+            else if (e.KeyCode == Keys.F3)
+            {
+                ShowReadingSearchDialog();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
             else if (e.KeyCode == Keys.F2)
             {
                 RenameSelectedTreeNode();
                 e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.F4)
+            {
+                ShowSelectedTreeTextReview();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
             }
             else if (e.KeyCode == Keys.Delete)
             {
@@ -395,7 +416,7 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.AfterSelect += delegate
         {
             UpdateSelectedMeterProgress();
-            UpdateRenameMenuVisibility();
+            UpdateSelectedTreeCommandVisibility();
         };
 
         selectedMeterValueLabel = new Label

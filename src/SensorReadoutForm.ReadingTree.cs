@@ -1154,7 +1154,7 @@ public sealed partial class SensorReadoutForm : Form
     public static int ReadingSortIndex(string name)
     {
         var clean = CleanSensorName(name);
-        if (clean.Equals("Uptime", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("System uptime", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("Manufacturer", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("Model", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 0;
@@ -1200,7 +1200,18 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Send rate", StringComparison.OrdinalIgnoreCase)) return 34;
         if (clean.Equals("Data received", StringComparison.OrdinalIgnoreCase)) return 35;
         if (clean.Equals("Data sent", StringComparison.OrdinalIgnoreCase)) return 36;
-        if (clean.Equals("Device", StringComparison.OrdinalIgnoreCase)) return 40;
+        if (clean.Equals("Wi-Fi network", StringComparison.OrdinalIgnoreCase)) return 37;
+        if (clean.Equals("Wi-Fi signal strength", StringComparison.OrdinalIgnoreCase)) return 38;
+        if (clean.Equals("Wi-Fi signal RSSI", StringComparison.OrdinalIgnoreCase)) return 39;
+        if (clean.Equals("Wi-Fi channel", StringComparison.OrdinalIgnoreCase)) return 40;
+        if (clean.Equals("Wi-Fi frequency", StringComparison.OrdinalIgnoreCase)) return 41;
+        if (clean.Equals("Wi-Fi radio type", StringComparison.OrdinalIgnoreCase)) return 42;
+        if (clean.Equals("Wi-Fi receive link speed", StringComparison.OrdinalIgnoreCase)) return 43;
+        if (clean.Equals("Wi-Fi transmit link speed", StringComparison.OrdinalIgnoreCase)) return 44;
+        if (clean.Equals("Wi-Fi security", StringComparison.OrdinalIgnoreCase)) return 45;
+        if (clean.Equals("Wi-Fi authentication", StringComparison.OrdinalIgnoreCase)) return 46;
+        if (clean.Equals("Wi-Fi cipher", StringComparison.OrdinalIgnoreCase)) return 47;
+        if (clean.Equals("Device", StringComparison.OrdinalIgnoreCase)) return 60;
         return 100;
     }
 
@@ -1271,6 +1282,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return name
+            .Replace("Uptime", "System uptime")
             .Replace("Core (Tctl/Tdie)", "CPU package")
             .Replace("CCD1 (Tdie)", "CCD1 Tdie");
     }

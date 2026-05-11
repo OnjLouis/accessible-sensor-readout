@@ -978,7 +978,7 @@ public sealed partial class SensorReadoutForm : Form
                     if (bootTime > DateTime.MinValue)
                     {
                         AddOverviewTextRow(rows, "Windows boot time", FormatDateTime(bootTime), "Windows WMI");
-                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "Uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI" });
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI" });
                     }
                     break;
                 }
@@ -986,7 +986,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
-            rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "Uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows" });
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows" });
         }
 
         string baseboardManufacturer = "";
@@ -1616,6 +1616,7 @@ public sealed partial class SensorReadoutForm : Form
     private IEnumerable<SensorRow> GetNetworkRows()
     {
         var rows = new List<SensorRow>();
+        var wifiInterfaces = GetWifiInterfaceInfos();
         foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
         {
             try
@@ -1684,6 +1685,13 @@ public sealed partial class SensorReadoutForm : Form
                 if (addresses.Count > 0)
                 {
                     rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "IP address", DisplayValue = string.Join(", ", addresses.ToArray()), Source = "Windows Network" });
+                }
+
+                Guid adapterGuid;
+                WifiInterfaceInfo wifi;
+                if (Guid.TryParse(id, out adapterGuid) && wifiInterfaces.TryGetValue(adapterGuid, out wifi))
+                {
+                    rows.AddRange(BuildWifiRows(name, wifi));
                 }
             }
             catch
