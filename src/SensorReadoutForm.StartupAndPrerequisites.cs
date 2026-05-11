@@ -203,6 +203,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void SetRunAtStartup(bool enabled, bool startMinimized)
     {
+        SetRunAtStartup(enabled, startMinimized, Application.ExecutablePath, AppDomain.CurrentDomain.BaseDirectory);
+    }
+
+    private static void SetRunAtStartup(bool enabled, bool startMinimized, string targetPath, string workingDirectory)
+    {
         var shortcutPath = GetStartupShortcutPath();
         if (!enabled)
         {
@@ -214,6 +219,11 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        CreateShortcut(shortcutPath, targetPath, startMinimized ? "--minimized" : "", workingDirectory, "Sensor Readout");
+    }
+
+    private static void CreateShortcut(string shortcutPath, string targetPath, string arguments, string workingDirectory, string description)
+    {
         var shellType = Type.GetTypeFromProgID("WScript.Shell");
         if (shellType == null)
         {
@@ -228,10 +238,10 @@ public sealed partial class SensorReadoutForm : Form
             shell,
             new object[] { shortcutPath });
         var shortcutType = shortcut.GetType();
-        shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { Application.ExecutablePath });
-        shortcutType.InvokeMember("Arguments", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { startMinimized ? "--minimized" : "" });
-        shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { AppDomain.CurrentDomain.BaseDirectory });
-        shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { "Sensor Readout" });
+        shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { targetPath });
+        shortcutType.InvokeMember("Arguments", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { arguments ?? "" });
+        shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { workingDirectory });
+        shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { description });
         shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
     }
 

@@ -463,8 +463,9 @@ public sealed partial class SensorReadoutForm : Form
         {
             var appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
             var exePath = Application.ExecutablePath;
-            var scriptPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SensorReadoutUpdater-" + Guid.NewGuid().ToString("N") + ".ps1");
-            System.IO.File.WriteAllText(scriptPath, BuildUpdaterScript(zipUrl, appDir, exePath, Process.GetCurrentProcess().Id));
+            var updaterTempDir = GetUpdaterTempDirectory(appDir);
+            var scriptPath = System.IO.Path.Combine(updaterTempDir, "SensorReadoutUpdater-" + Guid.NewGuid().ToString("N") + ".ps1");
+            System.IO.File.WriteAllText(scriptPath, BuildUpdaterScript(zipUrl, appDir, exePath, updaterTempDir, Process.GetCurrentProcess().Id));
             Process.Start(new ProcessStartInfo
             {
                 FileName = "powershell.exe",
@@ -485,7 +486,47 @@ public sealed partial class SensorReadoutForm : Form
         return StripMenuMnemonic(T("ui.Check for updates...", "Check for updates..."));
     }
 
-    private static string BuildUpdaterScript(string zipUrl, string targetDir, string exePath, int processId)
+    private static string GetUpdaterTempDirectory(string appDir)
+    {
+        var candidates = new List<string>();
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            candidates.Add(System.IO.Path.Combine(localAppData, "Temp"));
+        }
+
+        try
+        {
+            candidates.Add(System.IO.Path.GetTempPath());
+        }
+        catch
+        {
+        }
+
+        candidates.Add(System.IO.Path.Combine(appDir, "Config", "Update Temp"));
+
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                continue;
+            }
+
+            try
+            {
+                var fullPath = System.IO.Path.GetFullPath(Environment.ExpandEnvironmentVariables(candidate));
+                System.IO.Directory.CreateDirectory(fullPath);
+                return fullPath;
+            }
+            catch
+            {
+            }
+        }
+
+        throw new InvalidOperationException("Could not create a temporary folder for the updater.");
+    }
+
+    private static string BuildUpdaterScript(string zipUrl, string targetDir, string exePath, string tempDir, int processId)
     {
         return
             "$ErrorActionPreference = 'Stop'\r\n" +
@@ -493,12 +534,16 @@ public sealed partial class SensorReadoutForm : Form
             "$zipUrl = " + PowerShellQuote(zipUrl) + "\r\n" +
             "$target = " + PowerShellQuote(targetDir) + "\r\n" +
             "$exe = " + PowerShellQuote(exePath) + "\r\n" +
+            "$tempBase = " + PowerShellQuote(tempDir) + "\r\n" +
             "$pidToWait = " + processId.ToString(CultureInfo.InvariantCulture) + "\r\n" +
             "try {\r\n" +
-            "  $root = Join-Path $env:TEMP ('SensorReadoutUpdate_' + [guid]::NewGuid().ToString('N'))\r\n" +
+            "  if ([string]::IsNullOrWhiteSpace($tempBase)) { throw 'No updater temporary folder was provided.' }\r\n" +
+            "  [System.IO.Directory]::CreateDirectory($tempBase) | Out-Null\r\n" +
+            "  $root = Join-Path $tempBase ('SensorReadoutUpdate_' + [guid]::NewGuid().ToString('N'))\r\n" +
             "  $zip = Join-Path $root 'update.zip'\r\n" +
             "  $stage = Join-Path $root 'stage'\r\n" +
-            "  New-Item -ItemType Directory -Force -Path $root, $stage | Out-Null\r\n" +
+            "  [System.IO.Directory]::CreateDirectory($root) | Out-Null\r\n" +
+            "  [System.IO.Directory]::CreateDirectory($stage) | Out-Null\r\n" +
             "  Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing\r\n" +
             "  Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force\r\n" +
             "  $source = $stage\r\n" +

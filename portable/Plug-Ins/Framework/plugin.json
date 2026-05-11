@@ -5,5 +5,15 @@
   "author": "Sensor Readout",
   "description": "Adds Framework laptop temperatures and fan readings from Framework Control or optional Framework EC helper tools.",
   "assembly": "FrameworkPlugIn.dll",
-  "type": "SensorReadout.FrameworkPlugIn.FrameworkPlugIn"
+  "type": "SensorReadout.FrameworkPlugIn.FrameworkPlugIn",
+  "helpLinks": [
+    {
+      "label": "Framework &BIOS and Drivers page",
+      "url": "https://knowledgebase.frame.work/bios-and-drivers-downloads-rJ3PaCexh"
+    },
+    {
+      "label": "Framework &Control page",
+      "url": "https://github.com/ozturkkl/framework-control"
+    }
+  ]
 }

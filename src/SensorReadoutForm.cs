@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "2.0.0";
+    public const string AppVersion = "2.1.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -32,6 +32,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
     private readonly ToolStripMenuItem fahrenheitCelsiusMenuItem;
     private readonly ToolStripMenuItem languageMenuItem;
+    private readonly ToolStripMenuItem helpMenu;
     private readonly ListBox deviceList;
     private readonly TreeView readingTree;
     private readonly MeterProgressBar selectedMeterProgressBar;
@@ -140,6 +141,8 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Reports folder", Keys.Control | Keys.Shift | Keys.O, delegate { OpenReportsFolder(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Logs folder", Keys.Control | Keys.Shift | Keys.L, delegate { OpenLogsFolder(); }));
         returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
         returnToLiveReadingsMenuItem.Visible = false;
         fileMenu.DropDownItems.Add(returnToLiveReadingsMenuItem);
@@ -249,17 +252,9 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan c&urves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
 
-        var helpMenu = new ToolStripMenuItem("&Help");
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Manual", Keys.F1, delegate { ShowManual(); }));
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));
-        helpMenu.DropDownItems.Add("Con&tact", null, delegate { OpenContactPage(); });
-        helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
-        helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
-        helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
-        helpMenu.DropDownItems.Add(new ToolStripSeparator());
-        helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
+        helpMenu = new ToolStripMenuItem("&Help");
+        BuildHelpMenu();
+        helpMenu.DropDownOpening += delegate { BuildHelpMenu(); };
 
         menuStrip.Items.Add(fileMenu);
         menuStrip.Items.Add(editMenu);
@@ -544,6 +539,18 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == Keys.Control && keyCode == Keys.O)
         {
             OpenReport();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.O)
+        {
+            OpenReportsFolder();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.L)
+        {
+            OpenLogsFolder();
             return true;
         }
 

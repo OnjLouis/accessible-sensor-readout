@@ -90,6 +90,11 @@ public sealed partial class SensorReadoutForm : Form
             {
                 ApplyFanProfile(profile, true);
             };
+            dialog.InstallToLocalAppDataRequested += delegate
+            {
+                ApplyPreferencesFromDialog(dialog, false, false);
+                InstallToLocalAppDataAndRestart();
+            };
             if (latestRows.Count > 0)
             {
                 dialog.UpdateSensorRows(latestRows);
@@ -105,45 +110,54 @@ public sealed partial class SensorReadoutForm : Form
                 return;
             }
 
-            settings.AutoRefreshEnabled = dialog.AutoRefreshEnabled;
-            settings.RefreshWhileFocused = dialog.RefreshWhileFocused;
-            settings.RefreshIntervalSeconds = dialog.RefreshIntervalSeconds;
-            settings.TemperatureUnit = dialog.TemperatureUnit;
-            settings.DecimalSeparator = dialog.DecimalSeparator;
-            settings.LanguageFile = dialog.LanguageFile;
-            settings.LanguagePreferenceInitialized = true;
-            settings.ShowHideHotKey = dialog.ShowHideHotKey;
-            settings.SpeakTrayHotKey = dialog.SpeakTrayHotKey;
-            settings.HotKeyCopyDoublePressMs = dialog.HotKeyCopyDoublePressMs;
-            settings.StartupSpeechEnabled = dialog.StartupSpeechEnabled;
-            settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
-            settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
-            settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
-            settings.RunAtStartup = dialog.RunAtStartup;
-            settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
-            settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
-            settings.UpdateCheckFrequency = dialog.UpdateCheckFrequency;
-            settings.UpdateAvailableSoundFile = dialog.UpdateAvailableSoundFile;
-            settings.DiagnosticsSpeakProgress = dialog.DiagnosticsSpeakProgress;
-            settings.DiagnosticsPlaySounds = dialog.DiagnosticsPlaySounds;
-            settings.DiagnosticsStartSoundFile = dialog.DiagnosticsStartSoundFile;
-            settings.DiagnosticsCompleteSoundFile = dialog.DiagnosticsCompleteSoundFile;
-            if (settings.RunAtStartup || settings.StartMinimizedToTray)
-            {
-                settings.TrayStatusEnabled = true;
-            }
-            settings.LoggingLevel = dialog.LoggingLevel;
-            settings.TrayItemKeys = dialog.TrayItemKeys;
-            settings.SpokenHotKeys = dialog.SpokenHotKeys;
-            settings.FanProfiles = dialog.FanProfiles;
-            settings.Alarms = dialog.Alarms;
-            settings.StartupSoundFile = dialog.StartupSoundFile;
-            settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
-            settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
-            settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
-            settings.PlugInsEnabled = dialog.PlugInsEnabled;
-            plugInManager = null;
-            SaveSettings(settings);
+            ApplyPreferencesFromDialog(dialog, true, true);
+        }
+    }
+
+    private void ApplyPreferencesFromDialog(PreferencesForm dialog, bool updateStartupShortcut, bool refreshAfterSave)
+    {
+        settings.AutoRefreshEnabled = dialog.AutoRefreshEnabled;
+        settings.RefreshWhileFocused = dialog.RefreshWhileFocused;
+        settings.RefreshIntervalSeconds = dialog.RefreshIntervalSeconds;
+        settings.TemperatureUnit = dialog.TemperatureUnit;
+        settings.DecimalSeparator = dialog.DecimalSeparator;
+        settings.LanguageFile = dialog.LanguageFile;
+        settings.LanguagePreferenceInitialized = true;
+        settings.ShowHideHotKey = dialog.ShowHideHotKey;
+        settings.SpeakTrayHotKey = dialog.SpeakTrayHotKey;
+        settings.HotKeyCopyDoublePressMs = dialog.HotKeyCopyDoublePressMs;
+        settings.StartupSpeechEnabled = dialog.StartupSpeechEnabled;
+        settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
+        settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
+        settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
+        settings.RunAtStartup = dialog.RunAtStartup;
+        settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
+        settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
+        settings.UpdateCheckFrequency = dialog.UpdateCheckFrequency;
+        settings.UpdateAvailableSoundFile = dialog.UpdateAvailableSoundFile;
+        settings.DiagnosticsSpeakProgress = dialog.DiagnosticsSpeakProgress;
+        settings.DiagnosticsPlaySounds = dialog.DiagnosticsPlaySounds;
+        settings.DiagnosticsStartSoundFile = dialog.DiagnosticsStartSoundFile;
+        settings.DiagnosticsCompleteSoundFile = dialog.DiagnosticsCompleteSoundFile;
+        if (settings.RunAtStartup || settings.StartMinimizedToTray)
+        {
+            settings.TrayStatusEnabled = true;
+        }
+        settings.LoggingLevel = dialog.LoggingLevel;
+        settings.TrayItemKeys = dialog.TrayItemKeys;
+        settings.SpokenHotKeys = dialog.SpokenHotKeys;
+        settings.FanProfiles = dialog.FanProfiles;
+        settings.Alarms = dialog.Alarms;
+        settings.StartupSoundFile = dialog.StartupSoundFile;
+        settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
+        settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
+        settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
+        settings.PlugInsEnabled = dialog.PlugInsEnabled;
+        plugInManager = null;
+        SaveSettings(settings);
+
+        if (updateStartupShortcut)
+        {
             try
             {
                 SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray);
@@ -152,34 +166,39 @@ public sealed partial class SensorReadoutForm : Form
             {
                 MessageBox.Show(this, "Could not update Windows startup shortcut: " + ex.Message, "Sensor Readout startup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
-
-            if (settings.TrayStatusEnabled)
-            {
-                ShowInTaskbar = true;
-            }
-            else
-            {
-                Show();
-                ShowInTaskbar = true;
-                WindowState = FormWindowState.Normal;
-            }
-
-            autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
-            refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
-            trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
-            pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
-            activeTemperatureUnit = settings.TemperatureUnit;
-            activeDecimalSeparator = settings.DecimalSeparator;
-            LoadSelectedLanguage();
-            UpdateTemperatureUnitMenu();
-            BuildLanguageMenu();
-            ApplyLanguage();
-            RegisterGlobalHotKeys();
-            ApplyTimerSettings();
-            StartAutomaticUpdateChecks();
-            RefreshSensors(false, false, "plug-in preferences");
-            statusLabel.Text = "Preferences saved.";
         }
+
+        if (!refreshAfterSave)
+        {
+            return;
+        }
+
+        if (settings.TrayStatusEnabled)
+        {
+            ShowInTaskbar = true;
+        }
+        else
+        {
+            Show();
+            ShowInTaskbar = true;
+            WindowState = FormWindowState.Normal;
+        }
+
+        autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
+        refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
+        trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
+        pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
+        activeTemperatureUnit = settings.TemperatureUnit;
+        activeDecimalSeparator = settings.DecimalSeparator;
+        LoadSelectedLanguage();
+        UpdateTemperatureUnitMenu();
+        BuildLanguageMenu();
+        ApplyLanguage();
+        RegisterGlobalHotKeys();
+        ApplyTimerSettings();
+        StartAutomaticUpdateChecks();
+        RefreshSensors(false, false, "plug-in preferences");
+        statusLabel.Text = "Preferences saved.";
     }
 
     private void ImportPlugInFromZip()

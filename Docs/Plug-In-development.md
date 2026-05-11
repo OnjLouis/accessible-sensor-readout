@@ -64,7 +64,13 @@ Every Plug-In must include a `plugin.json` file:
   "author": "Your Name",
   "description": "Adds optional readings for My Laptop firmware.",
   "assembly": "MyLaptopPlugIn.dll",
-  "type": "Example.MyLaptopPlugIn"
+  "type": "Example.MyLaptopPlugIn",
+  "helpLinks": [
+    {
+      "label": "My Laptop &support page",
+      "url": "https://example.com/my-laptop-support"
+    }
+  ]
 }
 ```
 
@@ -77,6 +83,7 @@ Fields:
 - `description`: Short user-facing description.
 - `assembly`: DLL file name inside the Plug-In folder.
 - `type`: Fully qualified class name implementing `ISensorReadoutPlugin`.
+- `helpLinks`: Optional array of support links. When the Plug-In is enabled, these links appear in the Help menu. Use `http` or `https` URLs only, and include an `&` accelerator in each menu label where it makes sense.
 
 Do not change `id` between versions unless you intentionally want Sensor Readout to treat it as a different Plug-In.
 

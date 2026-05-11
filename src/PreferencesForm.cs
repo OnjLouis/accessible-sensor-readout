@@ -235,7 +235,7 @@ public sealed class PreferencesForm : Form
 
         preferencesTabs = new TabControl { Dock = DockStyle.Fill };
         var generalTab = new TabPage("General") { Name = "General" };
-        var startupTab = new TabPage("Startup") { Name = "Startup" };
+        var startupTab = new TabPage("Startup and Install") { Name = "Startup" };
         var hotKeysTab = new TabPage("Hotkeys") { Name = "Hotkeys" };
         var fanProfilesTab = new TabPage("Fan profiles") { Name = "Fan profiles" };
         var alarmsTab = new TabPage("Alarms") { Name = "Alarms" };
@@ -1005,11 +1005,47 @@ public sealed class PreferencesForm : Form
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
+        var installLocationPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight
+        };
+        installLocationPanel.Controls.Add(new Label
+        {
+            Text = "Install location:",
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0)
+        });
+        installLocationPanel.Controls.Add(new Label
+        {
+            Text = "Windows programs folder for this user",
+            AutoSize = true,
+            Padding = new Padding(0, 6, 0, 0),
+            AccessibleName = "Install location"
+        });
+
+        var installToLocalAppDataButton = new Button
+        {
+            Text = "&Install to this PC...",
+            AutoSize = true,
+            AccessibleName = "Install to this PC",
+            AccessibleDescription = "Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates a desktop shortcut, closes this copy, and starts the installed copy."
+        };
+        installToLocalAppDataButton.Click += delegate
+        {
+            CommitPreferences();
+            var handler = InstallToLocalAppDataRequested;
+            if (handler != null)
+            {
+                handler();
+            }
+        };
+
         var startupLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 9,
             Padding = new Padding(10)
         };
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1018,13 +1054,17 @@ public sealed class PreferencesForm : Form
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        startupLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         startupLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        startupLayout.Controls.Add(runAtStartupCheckBox, 0, 0);
-        startupLayout.Controls.Add(startMinimizedCheckBox, 0, 1);
-        startupLayout.Controls.Add(startupSpeechEnabledCheckBox, 0, 2);
-        startupLayout.Controls.Add(startupSpeechPanel, 0, 3);
-        startupLayout.Controls.Add(startupSoundPanel, 0, 4);
-        startupLayout.Controls.Add(shutdownSoundPanel, 0, 5);
+        startupLayout.Controls.Add(installLocationPanel, 0, 0);
+        startupLayout.Controls.Add(installToLocalAppDataButton, 0, 1);
+        startupLayout.Controls.Add(runAtStartupCheckBox, 0, 2);
+        startupLayout.Controls.Add(startMinimizedCheckBox, 0, 3);
+        startupLayout.Controls.Add(startupSpeechEnabledCheckBox, 0, 4);
+        startupLayout.Controls.Add(startupSpeechPanel, 0, 5);
+        startupLayout.Controls.Add(startupSoundPanel, 0, 6);
+        startupLayout.Controls.Add(shutdownSoundPanel, 0, 7);
         startupTab.Controls.Add(startupLayout);
         preferencesTabs.TabPages.Add(startupTab);
 
@@ -4046,6 +4086,7 @@ public sealed class PreferencesForm : Form
     }
 
     public event Action<FanProfileSetting> ApplyFanProfileRequested;
+    public event Action InstallToLocalAppDataRequested;
 
     private void FanProfileAvailableListKeyDown(object sender, KeyEventArgs e)
     {

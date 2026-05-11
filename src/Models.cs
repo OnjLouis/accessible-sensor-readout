@@ -144,6 +144,19 @@ public sealed class PlugInPreferenceInfo
     }
 }
 
+public sealed class PlugInHelpLink
+{
+    public string PlugInId = "";
+    public string PlugInName = "";
+    public string Label = "";
+    public string Url = "";
+
+    public override string ToString()
+    {
+        return string.IsNullOrWhiteSpace(Label) ? Url : Label;
+    }
+}
+
 public sealed class FanControlSetting
 {
     public bool Manual;

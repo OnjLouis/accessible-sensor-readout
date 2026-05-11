@@ -29,6 +29,16 @@ public sealed partial class SensorReadoutForm : Form
         return PlugInManager.LoadPreferenceInfos(settings, GetPlugInsFolderPath());
     }
 
+    private static List<PlugInHelpLink> LoadEnabledPlugInHelpLinks(AppSettings settings)
+    {
+        return PlugInManager.LoadEnabledHelpLinks(settings, GetPlugInsFolderPath());
+    }
+
+    private List<PlugInHelpLink> LoadEnabledPlugInHelpLinks()
+    {
+        return LoadEnabledPlugInHelpLinks(settings);
+    }
+
     private void EnsurePlugInManager()
     {
         if (plugInManager != null)
@@ -140,6 +150,27 @@ public sealed partial class SensorReadoutForm : Form
                 .ToList();
         }
 
+        public static List<PlugInHelpLink> LoadEnabledHelpLinks(AppSettings settings, string folder)
+        {
+            settings = settings ?? new AppSettings();
+            var links = new List<PlugInHelpLink>();
+            foreach (var manifest in FindManifestPaths(folder))
+            {
+                var descriptor = ReadDescriptor(manifest, null);
+                if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id) || !IsEnabled(settings, descriptor))
+                {
+                    continue;
+                }
+
+                links.AddRange(descriptor.HelpLinks ?? new List<PlugInHelpLink>());
+            }
+
+            return links
+                .OrderBy(l => l.PlugInName)
+                .ThenBy(l => l.Label)
+                .ToList();
+        }
+
         private void EnsureLoaded()
         {
             if (loadedOnce)
@@ -217,7 +248,7 @@ public sealed partial class SensorReadoutForm : Form
             try
             {
                 var obj = JObject.Parse(File.ReadAllText(manifest));
-                return new PlugInDescriptor
+                var descriptor = new PlugInDescriptor
                 {
                     Id = SafeManifestValue(obj, "id"),
                     Name = SafeManifestValue(obj, "name"),
@@ -227,6 +258,8 @@ public sealed partial class SensorReadoutForm : Form
                     Assembly = SafeManifestValue(obj, "assembly"),
                     Type = SafeManifestValue(obj, "type")
                 };
+                descriptor.HelpLinks = ReadHelpLinks(obj, descriptor);
+                return descriptor;
             }
             catch (Exception ex)
             {
@@ -237,6 +270,44 @@ public sealed partial class SensorReadoutForm : Form
 
                 return null;
             }
+        }
+
+        private static List<PlugInHelpLink> ReadHelpLinks(JObject obj, PlugInDescriptor descriptor)
+        {
+            var links = new List<PlugInHelpLink>();
+            var array = obj == null ? null : obj["helpLinks"] as JArray;
+            if (array == null)
+            {
+                return links;
+            }
+
+            foreach (var item in array.OfType<JObject>())
+            {
+                var label = SafeManifestValue(item, "label");
+                var url = SafeManifestValue(item, "url");
+                if (string.IsNullOrWhiteSpace(label) || string.IsNullOrWhiteSpace(url) || !IsSafeHelpUrl(url))
+                {
+                    continue;
+                }
+
+                links.Add(new PlugInHelpLink
+                {
+                    PlugInId = descriptor == null ? "" : descriptor.Id,
+                    PlugInName = descriptor == null ? "" : descriptor.Name,
+                    Label = label,
+                    Url = url
+                });
+            }
+
+            return links;
+        }
+
+        private static bool IsSafeHelpUrl(string url)
+        {
+            Uri uri;
+            return Uri.TryCreate(url, UriKind.Absolute, out uri) &&
+                (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase));
         }
 
         private static string SafeManifestValue(JObject obj, string key)
@@ -340,5 +411,6 @@ public sealed partial class SensorReadoutForm : Form
         public string Description = "";
         public string Assembly = "";
         public string Type = "";
+        public List<PlugInHelpLink> HelpLinks = new List<PlugInHelpLink>();
     }
 }

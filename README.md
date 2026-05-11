@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 2.0.0.
+Current version: 2.1.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -48,6 +48,7 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
 - Supports opt-in hardware plug-ins from the `Plug-Ins` folder for extra machine-specific hardware support. Installed plug-ins stay disabled until you enable them in Preferences.
+- Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for laptop-specific sensor support.
 - Ships with optional plug-ins for selected laptop/vendor-specific hardware where useful community or vendor interfaces are available.
 - Can import a plug-in ZIP from Preferences without automatically enabling it.
 - Can show laptop battery charge, status, capacity, health, cycle count, voltage, and power rate where Windows exposes them.
@@ -121,6 +122,8 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `F5` | Refresh now. |
 | `Ctrl+S` | Save report. |
 | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
+| `Ctrl+Shift+O` | Open the Reports folder. |
+| `Ctrl+Shift+L` | Open the Logs folder. |
 | `Ctrl+R` | Return from a static report to live readings. |
 | `Ctrl+I` | Import a Plug-In ZIP. |
 | `Ctrl+C` | Copy the selected reading or tree branch. |
@@ -144,12 +147,13 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Alt+X` | Set all visible fan controls to maximum. |
 | `Alt+S` | Show or hide stopped fan headers. |
 | `Alt+P` | Pause automatic updates. |
-| `Ctrl+1` to `Ctrl+8` | In Preferences, jump to General, Startup, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
+| `Ctrl+1` to `Ctrl+8` | In Preferences, jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
 | `F2` | In Preferences lists, jump to the name or rename field where applicable. |
 | `Enter` | In Preferences lists, jump to the main value field where applicable. |
 | `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
 | `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
 | `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
+| `Alt+I` | In Preferences > Startup and Install, install to this PC. |
 | `Alt+I` | In Preferences > Plug-Ins, import a plug-in ZIP. |
 | `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
 | `Alt+I` | In Preferences > Hotkeys, import spoken hotkey profiles from another machine config. |
@@ -200,15 +204,18 @@ When notification area status is enabled, minimizing Sensor Readout hides it fro
 
 Notification area readings are selected from an Available readings list and moved into a Tray order list. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
 
-### Startup (`Ctrl+2`)
+### Startup and Install (`Ctrl+2`)
 
-The Startup tab controls what happens when Sensor Readout starts and exits.
+The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.
 
+- Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut, close the current copy, and start the installed copy.
 - Run at Windows startup: create or remove a `Sensor Readout.lnk` shortcut in the current user's Startup folder.
 - Start minimized to notification area: open directly to the tray instead of showing the main window.
 - Startup speech: choose whether Sensor Readout speaks when it starts and edit the spoken message.
 - Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
+
+The install flow is for people who started from a portable or Dropbox folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
 
 If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
@@ -259,13 +266,15 @@ The Language editor tab edits installed language files without opening a separat
 
 Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
 
-Preferences > Startup includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on, but user-added sounds can use any normal `.wav` file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.
+Preferences > Startup and Install includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on, but user-added sounds can use any normal `.wav` file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.
 
 ## Plug-Ins
 
 Preferences > Plug-Ins lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust.
 
 Installed plug-ins are disabled by default. Importing a plug-in ZIP copies it into the `Plug-Ins` folder but still leaves it disabled until you check it yourself.
+
+When an enabled plug-in includes related support pages, those links appear in the Help menu. For example, the bundled laptop plug-ins can show the Dell Command | Monitor, G-Helper, HP Support Assistant, OMEN Gaming Hub, Framework BIOS and Drivers, or Framework Control pages.
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
@@ -349,7 +358,7 @@ Use `Help` > `Run diagnostics...` or press `Alt+F1` when you need to collect sup
 
 The diagnostic ZIP contains a TXT report, an HTML report, a debug log, a diagnostic summary, and timing information. The run briefly tests writable fan controls at 100%, then restores each fan to the previous manual, automatic/default, or fan-curve state.
 
-Diagnostics can speak progress and play start/completion sounds. Configure this in `Options` > `Preferences` > `Startup`. Command-line diagnostics use the same preferences unless you pass `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
+Diagnostics can speak progress and play start/completion sounds. Configure this in `Options` > `Preferences` > `Startup and Install`. Command-line diagnostics use the same preferences unless you pass `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
 
 For unattended testing, run `Sensor Readout.exe --diagnostics [path]`. If `[path]` is a folder, the diagnostic ZIP is created there. If no path is supplied, Sensor Readout creates the ZIP in `Reports`.
 
@@ -368,7 +377,7 @@ The save dialog offers:
 
 TXT reports group values by reading type and device, so long hardware names are written once as headings instead of being repeated on every line. HTML reports use formatted tables with sensor, value, and source columns.
 
-The first save creates the `Reports` folder if it does not already exist. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
+The first save creates the `Reports` folder if it does not already exist. Use `File` > `Open Reports folder` or `Ctrl+Shift+O` to jump to saved reports, and use `File` > `Open Logs folder` or `Ctrl+Shift+L` when support needs the log folder. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
 
 ### Opening Someone Else's Report
 
@@ -432,9 +441,11 @@ If CPU temperature or CPU load readings are missing, installing and running Core
 
 If fan controls appear to be missing, open `Options` > `Fan controls...` and enable `Show stopped`. Some boards report controllable headers as stopped or undefined until they begin spinning, and this option makes those hidden entries visible for testing.
 
-### Framework Laptops
+### Laptop Brand Plug-Ins
 
-Framework Laptop owners who want Framework-specific fan RPM and temperature readings should prepare Framework Control before reporting missing Framework readings:
+Framework, Dell, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
+
+Framework Laptop users should also prepare Framework Control before reporting missing Framework readings:
 
 1. Update the laptop BIOS from Framework's BIOS and drivers page: <https://knowledgebase.frame.work/bios-and-drivers-downloads-rJ3PaCexh>
 2. Install and run Framework Control: <https://github.com/ozturkkl/framework-control>
@@ -443,9 +454,23 @@ Framework Laptop owners who want Framework-specific fan RPM and temperature read
 5. Open `Options` > `Preferences` > `Plug-Ins`, enable the Framework Laptop plug-in, and close Preferences.
 6. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
-Sensor Readout only reads Framework Control's local API. It does not install Framework Control, change Framework fan settings through that API, flash firmware, or replace Framework's own setup steps.
+Dell, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
+
+Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
+
+Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 2.1.0
+
+- Added: Startup and Install adds an `Alt+I` Install to this PC command that can move a portable or Dropbox copy into the normal Windows programs folder for this user. It can also create a desktop shortcut, keep Windows startup pointing at the installed copy, close the old copy, and reopen Sensor Readout from the installed location.
+- Added: `File` > `Open Reports folder` (`Ctrl+Shift+O`) and `File` > `Open Logs folder` (`Ctrl+Shift+L`) make saved reports and logs easier to find.
+- Added: Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for Dell, Asus, HP, OMEN, Victus, and Framework laptops.
+- Improved: Automatic updates handle unusual Windows temporary-folder settings more reliably.
+- Improved: Saved report file names include the computer name, making reports from several machines easier to sort.
+- Improved: Desktop PCs with vague Windows model names now show clearer motherboard information when Windows provides it.
+- Improved: Performance/Overview shows more Windows and firmware details, including Windows edition, version, build, architecture, install date with age, boot time, BIOS mode, Secure Boot, SMBIOS version, and embedded controller version when Windows provides them.
 
 ### 2.0.0
 

@@ -457,7 +457,7 @@ public static class Program
         {
             path = System.IO.Path.Combine(
                 SensorReadoutForm.GetReportsFolderPath(),
-                "SensorReadout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt"));
+                SensorReadoutForm.DefaultReportFileName(html));
         }
 
         using (var form = new SensorReadoutForm(false))

@@ -764,7 +764,7 @@ public sealed partial class SensorReadoutForm : Form
         return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config");
     }
 
-    private static string GetLogsFolderPath()
+    public static string GetLogsFolderPath()
     {
         return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
     }

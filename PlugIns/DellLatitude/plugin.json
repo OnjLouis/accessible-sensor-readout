@@ -5,5 +5,11 @@
   "author": "Sensor Readout",
   "description": "Experimental, opt-in Dell Latitude probe. Checks Dell Command | Monitor WMI interfaces for additional thermal and fan readings. Read-only in this build.",
   "assembly": "DellLatitudePlugIn.dll",
-  "type": "SensorReadout.DellLatitudePlugIn.DellLatitudePlugIn"
+  "type": "SensorReadout.DellLatitudePlugIn.DellLatitudePlugIn",
+  "helpLinks": [
+    {
+      "label": "Dell Command | &Monitor page",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor"
+    }
+  ]
 }

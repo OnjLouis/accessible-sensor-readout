@@ -5,5 +5,15 @@
   "author": "Sensor Readout",
   "description": "Experimental, opt-in HP laptop probe. Checks for HP/OMEN/Victus WMI interfaces that may expose additional thermal or fan data. Read-only in this build.",
   "assembly": "HPPlugIn.dll",
-  "type": "SensorReadout.HPPlugIn.HPPlugIn"
+  "type": "SensorReadout.HPPlugIn.HPPlugIn",
+  "helpLinks": [
+    {
+      "label": "HP Support &Assistant page",
+      "url": "https://support.hp.com/us-en/help/hp-support-assistant"
+    },
+    {
+      "label": "&OMEN Gaming Hub page",
+      "url": "https://www.omen.com/us/en/omen-gaming-hub.html"
+    }
+  ]
 }

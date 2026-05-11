@@ -5,5 +5,11 @@
   "author": "Jason Fayre, Claude Code, and Sensor Readout contributors",
   "description": "Experimental, opt-in Asus ROG/TUF probe. Reads temperatures and fan duty-cycle percentages through ATKACPI, and attempts fan control on supported models. Based in part on G-Helper ACPI research.",
   "assembly": "AsusRogPlugIn.dll",
-  "type": "SensorReadout.AsusRogPlugIn.AsusRogPlugIn"
+  "type": "SensorReadout.AsusRogPlugIn.AsusRogPlugIn",
+  "helpLinks": [
+    {
+      "label": "&G-Helper page",
+      "url": "https://g-helper.com/"
+    }
+  ]
 }

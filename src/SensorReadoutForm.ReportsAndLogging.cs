@@ -17,7 +17,7 @@ public sealed partial class SensorReadoutForm : Form
             System.IO.Directory.CreateDirectory(reportsFolder);
             dialog.Title = "Save Sensor Report";
             dialog.Filter = "Text report (*.txt)|*.txt|Formatted HTML report (*.html)|*.html";
-            dialog.FileName = "SensorReadout-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt";
+            dialog.FileName = DefaultReportFileName(false);
             dialog.InitialDirectory = reportsFolder;
             dialog.DefaultExt = "txt";
             dialog.AddExtension = true;
@@ -38,6 +38,29 @@ public sealed partial class SensorReadoutForm : Form
             SaveReportToFile(dialog.FileName, html, false);
             stopwatch.Stop();
             statusLabel.Text = "Saved report to " + dialog.FileName + " in " + FormatElapsed(stopwatch.Elapsed) + ".";
+        }
+    }
+
+    private void OpenReportsFolder()
+    {
+        OpenFolder(GetReportsFolderPath(), T("ui.Open Reports folder", "Open Reports folder"));
+    }
+
+    private void OpenLogsFolder()
+    {
+        OpenFolder(GetLogsFolderPath(), T("ui.Open Logs folder", "Open Logs folder"));
+    }
+
+    private void OpenFolder(string folder, string title)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(folder);
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, T("message.Could not open folder:", "Could not open folder:") + " " + ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -88,6 +111,26 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return FormatNumber(elapsed.TotalMilliseconds, "0") + " ms";
+    }
+
+    public static string DefaultReportFileName(bool html)
+    {
+        return "SensorReadout-" + SafeReportFileName(Environment.MachineName) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt");
+    }
+
+    private static string SafeReportFileName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Computer";
+        }
+
+        foreach (var invalid in System.IO.Path.GetInvalidFileNameChars())
+        {
+            value = value.Replace(invalid, '_');
+        }
+
+        return string.IsNullOrWhiteSpace(value) ? "Computer" : value.Trim();
     }
 
     private static string BuildReportTimingLine(bool refreshed, TimeSpan refreshElapsed, TimeSpan renderElapsed, TimeSpan totalElapsed, bool includeWrite)

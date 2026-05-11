@@ -471,6 +471,54 @@ public sealed partial class SensorReadoutForm : Form
             : "";
     }
 
+    private void BuildHelpMenu()
+    {
+        if (helpMenu == null)
+        {
+            return;
+        }
+
+        helpMenu.DropDownItems.Clear();
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Manual", Keys.F1, delegate { ShowManual(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));
+        helpMenu.DropDownItems.Add("Con&tact", null, delegate { OpenContactPage(); });
+        helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
+        helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
+        helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
+        AddPlugInHelpMenuItems(helpMenu);
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
+        helpMenu.DropDownItems.Add(new ToolStripSeparator());
+        helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
+    }
+
+    private void AddPlugInHelpMenuItems(ToolStripMenuItem menu)
+    {
+        var links = LoadEnabledPlugInHelpLinks();
+        if (links.Count == 0)
+        {
+            return;
+        }
+
+        menu.DropDownItems.Add(new ToolStripSeparator());
+        foreach (var helpLink in links)
+        {
+            var link = helpLink;
+            menu.DropDownItems.Add(link.Label, null, delegate { OpenPlugInHelpLink(link); });
+        }
+        menu.DropDownItems.Add(new ToolStripSeparator());
+    }
+
+    private void OpenPlugInHelpLink(PlugInHelpLink link)
+    {
+        if (link == null || string.IsNullOrWhiteSpace(link.Url))
+        {
+            return;
+        }
+
+        OpenExternalPage(link.Url, "Could not open " + (string.IsNullOrWhiteSpace(link.Label) ? "Plug-In help page" : link.Label.Replace("&", "")));
+    }
+
     private void ShowAbout()
     {
         using (var dialog = new Form())
@@ -533,37 +581,28 @@ public sealed partial class SensorReadoutForm : Form
 
     private void OpenProjectPage()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = ProjectUrl, UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, "Could not open project page", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
+        OpenExternalPage(ProjectUrl, "Could not open project page");
     }
 
     private void OpenDonatePage()
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = "https://www.paypal.me/AndreLouis", UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this, ex.Message, T("ui.Could not open donate page", "Could not open donate page"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
+        OpenExternalPage("https://www.paypal.me/AndreLouis", T("ui.Could not open donate page", "Could not open donate page"));
     }
 
     private void OpenContactPage()
     {
+        OpenExternalPage("https://onj.me/contact", T("ui.Could not open contact page", "Could not open contact page"));
+    }
+
+    private void OpenExternalPage(string url, string errorTitle)
+    {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = "https://onj.me/contact", UseShellExecute = true });
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, T("ui.Could not open contact page", "Could not open contact page"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, errorTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
