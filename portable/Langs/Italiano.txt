@@ -648,6 +648,7 @@ ui.&Export=&Esporta
 ui.Archive folder:=Cartella archivio:
 
 group.Device PCI and system=Dispositivi PCI e di sistema
+group.Device nonworking=Dispositivi non funzionanti
 group.Device storage=Dispositivi e controller di archiviazione
 group.Device USB=Dispositivi e controller USB
 group.Device network=Dispositivi di rete

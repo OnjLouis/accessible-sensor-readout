@@ -648,6 +648,7 @@ ui.&Export=&Exportieren
 ui.Archive folder:=Archivordner:
 
 group.Device PCI and system=PCI- und Systemgeraete
+group.Device nonworking=Nicht funktionierende Geraete
 group.Device storage=Speichergeraete und Controller
 group.Device USB=USB-Geraete und Controller
 group.Device network=Netzwerkgeraete

@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.1.0";
+    public const string AppVersion = "3.1.1";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -409,7 +409,7 @@ public sealed partial class SensorReadoutForm : Form
                 RenameSelectedTreeNode();
                 e.Handled = true;
             }
-            else if (e.KeyCode == Keys.F4)
+            else if (e.Modifiers == Keys.None && e.KeyCode == Keys.F4)
             {
                 ShowSelectedTreeTextReview();
                 e.Handled = true;
@@ -554,6 +554,12 @@ public sealed partial class SensorReadoutForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if ((keyData & Keys.Modifiers) == Keys.Alt && (keyData & Keys.KeyCode) == Keys.F4)
+        {
+            Close();
+            return true;
+        }
+
         if (keyData == Keys.Enter && readingTree != null && readingTree.Focused)
         {
             MarkUserNavigation();

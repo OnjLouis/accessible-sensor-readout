@@ -648,6 +648,7 @@ ui.&Export=&Exporter
 ui.Archive folder:=Dossier de l archive :
 
 group.Device PCI and system=Peripheriques PCI et systeme
+group.Device nonworking=Peripheriques qui ne fonctionnent pas
 group.Device storage=Peripheriques et controleurs de stockage
 group.Device USB=Peripheriques et controleurs USB
 group.Device network=Peripheriques reseau

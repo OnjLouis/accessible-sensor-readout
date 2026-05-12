@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 3.1.0.
+Current version: 3.1.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -26,6 +26,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 
 - Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, and storage read/write activity, grouped so related information stays together.
+- Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
@@ -44,6 +45,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Saves TXT or HTML sensor reports.
 - Opens saved report files directly, including TXT or HTML reports sent inside a ZIP file.
 - Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.
+- Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.
 - Keeps the main tree readable while putting deeper technical fields behind Details, including PnP identifiers, driver data, CPU WMI fields, cache records, and memory module information where Windows exposes them.
 - Exports a portable copy ZIP of the current app, including settings, Plug-Ins, language files, custom sounds, and optional reports or logs.
 - Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
@@ -501,6 +503,14 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.1.1
+
+- Fixed: SMART lifetime `Data read` and `Data written` totals are shown again when LibreHardwareMonitor exposes them.
+- Improved: Sensor Readout now tries additional Windows NVMe SMART paths for storage devices, including standard NVMe health-log data and ASMedia-style USB NVMe bridge data where Windows permits access.
+- Added: Performance/Overview now includes Windows printer status, configuration, and ink or toner level percentages when the printer driver exposes them.
+- Added: Devices now places problem devices in a clear Non-working devices group, making Device Manager-style driver or hardware failures easier to find with a screen reader.
+- Fixed: `Alt+F4` now closes Sensor Readout from the reading tree even when the selected row also supports Details.
 
 ### 3.1.0
 

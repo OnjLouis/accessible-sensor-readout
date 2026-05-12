@@ -5,6 +5,7 @@ using System.Linq;
 using System.Management;
 using System.Net.NetworkInformation;
 using System.IO.MemoryMappedFiles;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -38,6 +39,99 @@ public sealed partial class SensorReadoutForm : Form
             TotalActivity.Dispose();
         }
     }
+
+    private sealed class PhysicalStorageDevice
+    {
+        public int Index;
+        public string Model;
+        public string PnpDeviceId;
+        public string InterfaceType;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct StoragePropertyQueryWithProtocol
+    {
+        public uint PropertyId;
+        public uint QueryType;
+        public StorageProtocolSpecificData ProtocolSpecific;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct StorageProtocolSpecificData
+    {
+        public uint ProtocolType;
+        public uint DataType;
+        public uint ProtocolDataRequestValue;
+        public uint ProtocolDataRequestSubValue;
+        public uint ProtocolDataOffset;
+        public uint ProtocolDataLength;
+        public uint FixedProtocolReturnData;
+        public uint ProtocolDataRequestSubValue2;
+        public uint ProtocolDataRequestSubValue3;
+        public uint ProtocolDataRequestSubValue4;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ScsiPassThrough
+    {
+        public ushort Length;
+        public byte ScsiStatus;
+        public byte PathId;
+        public byte TargetId;
+        public byte Lun;
+        public byte CdbLength;
+        public byte SenseInfoLength;
+        public byte DataIn;
+        public uint DataTransferLength;
+        public uint TimeOutValue;
+        public IntPtr DataBufferOffset;
+        public uint SenseInfoOffset;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        public byte[] Cdb;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ScsiPassThroughWithBuffers
+    {
+        public ScsiPassThrough Spt;
+        public uint Filler;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+        public byte[] SenseBuf;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4096)]
+        public byte[] DataBuf;
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern SafeFileHandle StorageCreateFile(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        IntPtr lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+    private static extern bool StorageDeviceIoControl(
+        SafeFileHandle hDevice,
+        uint dwIoControlCode,
+        byte[] lpInBuffer,
+        int nInBufferSize,
+        byte[] lpOutBuffer,
+        int nOutBufferSize,
+        out int lpBytesReturned,
+        IntPtr lpOverlapped);
+
+    [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+    private static extern bool StorageDeviceIoControl(
+        SafeFileHandle hDevice,
+        uint dwIoControlCode,
+        IntPtr lpInBuffer,
+        int nInBufferSize,
+        IntPtr lpOutBuffer,
+        int nOutBufferSize,
+        out int lpBytesReturned,
+        IntPtr lpOverlapped);
 
     private IEnumerable<SensorRow> GetLibreHardwareMonitorSensors(bool includeSlowHardware)
     {
@@ -356,6 +450,11 @@ public sealed partial class SensorReadoutForm : Form
             yield return row;
         }
 
+        foreach (var row in GetDirectNvmeSmartRows())
+        {
+            yield return row;
+        }
+
         foreach (var row in GetStorageReliabilityRows())
         {
             yield return row;
@@ -390,6 +489,295 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static IEnumerable<SensorRow> GetDirectNvmeSmartRows()
+    {
+        var rows = new List<SensorRow>();
+        foreach (var disk in GetPhysicalStorageDevices())
+        {
+            if (disk.Index < 0)
+            {
+                continue;
+            }
+
+            byte[] smartLog;
+            var source = "";
+            if (LooksLikeNvmeDisk(disk) && TryReadNvmeSmartLogWithStorageQuery(disk.Index, out smartLog))
+            {
+                source = "Windows NVMe";
+            }
+            else if (LooksLikeUsbStorageDisk(disk) && TryReadNvmeSmartLogWithAsmediaPassThrough(disk.Index, out smartLog))
+            {
+                source = "USB NVMe bridge";
+            }
+            else
+            {
+                continue;
+            }
+
+            AddNvmeSmartRows(rows, NormalizeStorageHardwareName(disk.Model), smartLog, source);
+        }
+
+        return rows;
+    }
+
+    private static IEnumerable<PhysicalStorageDevice> GetPhysicalStorageDevices()
+    {
+        var devices = new List<PhysicalStorageDevice>();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Index, Model, PNPDeviceID, InterfaceType FROM Win32_DiskDrive"))
+            {
+                foreach (ManagementObject drive in searcher.Get())
+                {
+                    int index;
+                    if (!int.TryParse(Convert.ToString(drive["Index"]), out index))
+                    {
+                        continue;
+                    }
+
+                    var model = Convert.ToString(drive["Model"]);
+                    if (string.IsNullOrWhiteSpace(model))
+                    {
+                        model = "Physical drive " + index;
+                    }
+
+                    devices.Add(new PhysicalStorageDevice
+                    {
+                        Index = index,
+                        Model = model,
+                        PnpDeviceId = Convert.ToString(drive["PNPDeviceID"]) ?? "",
+                        InterfaceType = Convert.ToString(drive["InterfaceType"]) ?? ""
+                    });
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return devices;
+    }
+
+    private static bool LooksLikeNvmeDisk(PhysicalStorageDevice disk)
+    {
+        var text = ((disk == null ? "" : disk.Model) + " " + (disk == null ? "" : disk.PnpDeviceId) + " " + (disk == null ? "" : disk.InterfaceType));
+        return text.IndexOf("NVME", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool LooksLikeUsbStorageDisk(PhysicalStorageDevice disk)
+    {
+        var text = ((disk == null ? "" : disk.PnpDeviceId) + " " + (disk == null ? "" : disk.InterfaceType));
+        return text.IndexOf("USB", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            text.IndexOf("USBSTOR", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void AddNvmeSmartRows(List<SensorRow> rows, string hardware, byte[] smartLog, string source)
+    {
+        if (smartLog == null || smartLog.Length < 80)
+        {
+            return;
+        }
+
+        var dataUnitsRead = ReadUInt64LittleEndian(smartLog, 0x20);
+        var dataUnitsWritten = ReadUInt64LittleEndian(smartLog, 0x30);
+        AddNvmeDataUnitCounter(rows, hardware, "Data read", dataUnitsRead, source);
+        AddNvmeDataUnitCounter(rows, hardware, "Data written", dataUnitsWritten, source);
+    }
+
+    private static void AddNvmeDataUnitCounter(List<SensorRow> rows, string hardware, string name, ulong dataUnits, string source)
+    {
+        if (dataUnits == 0)
+        {
+            return;
+        }
+
+        var bytes = (double)dataUnits * 512000.0;
+        rows.Add(new SensorRow
+        {
+            Type = "SMART",
+            Hardware = hardware,
+            Name = name,
+            Value = (float)(bytes / 1024.0 / 1024.0 / 1024.0),
+            DisplayValue = FormatBytes(bytes),
+            Source = source
+        });
+    }
+
+    private static ulong ReadUInt64LittleEndian(byte[] data, int offset)
+    {
+        if (data == null || offset < 0 || offset + 8 > data.Length)
+        {
+            return 0;
+        }
+
+        return BitConverter.ToUInt64(data, offset);
+    }
+
+    private static bool TryReadNvmeSmartLogWithStorageQuery(int physicalDriveIndex, out byte[] smartLog)
+    {
+        smartLog = null;
+        const uint fileShareRead = 0x00000001;
+        const uint fileShareWrite = 0x00000002;
+        const uint openExisting = 3;
+        const uint ioctlStorageQueryProperty = 0x002D1400;
+        const uint storageDeviceProtocolSpecificProperty = 49;
+        const uint propertyStandardQuery = 0;
+        const uint protocolTypeNvme = 3;
+        const uint nvmeDataTypeLogPage = 2;
+        const uint nvmeSmartHealthLog = 2;
+        const int nvmeSmartLogLength = 512;
+
+        try
+        {
+            using (var handle = StorageCreateFile(@"\\.\PhysicalDrive" + physicalDriveIndex, 0, fileShareRead | fileShareWrite, IntPtr.Zero, openExisting, 0, IntPtr.Zero))
+            {
+                if (handle == null || handle.IsInvalid)
+                {
+                    return false;
+                }
+
+                var protocolDataSize = Marshal.SizeOf(typeof(StorageProtocolSpecificData));
+                var querySize = Marshal.SizeOf(typeof(StoragePropertyQueryWithProtocol));
+                var descriptorHeaderSize = 8;
+                var outputDataOffset = descriptorHeaderSize + protocolDataSize;
+                var query = new StoragePropertyQueryWithProtocol
+                {
+                    PropertyId = storageDeviceProtocolSpecificProperty,
+                    QueryType = propertyStandardQuery,
+                    ProtocolSpecific = new StorageProtocolSpecificData
+                    {
+                        ProtocolType = protocolTypeNvme,
+                        DataType = nvmeDataTypeLogPage,
+                        ProtocolDataRequestValue = nvmeSmartHealthLog,
+                        ProtocolDataOffset = (uint)protocolDataSize,
+                        ProtocolDataLength = nvmeSmartLogLength
+                    }
+                };
+
+                var buffer = new byte[querySize + nvmeSmartLogLength];
+                var pointer = Marshal.AllocHGlobal(querySize);
+                try
+                {
+                    Marshal.StructureToPtr(query, pointer, false);
+                    Marshal.Copy(pointer, buffer, 0, querySize);
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(pointer);
+                }
+
+                int returned;
+                if (!StorageDeviceIoControl(handle, ioctlStorageQueryProperty, buffer, buffer.Length, buffer, buffer.Length, out returned, IntPtr.Zero))
+                {
+                    return false;
+                }
+
+                if (outputDataOffset + nvmeSmartLogLength > buffer.Length)
+                {
+                    return false;
+                }
+
+                smartLog = new byte[nvmeSmartLogLength];
+                Buffer.BlockCopy(buffer, outputDataOffset, smartLog, 0, nvmeSmartLogLength);
+                return SmartLogHasContent(smartLog);
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryReadNvmeSmartLogWithAsmediaPassThrough(int physicalDriveIndex, out byte[] smartLog)
+    {
+        smartLog = null;
+        const uint fileShareRead = 0x00000001;
+        const uint fileShareWrite = 0x00000002;
+        const uint openExisting = 3;
+        const uint ioctlScsiPassThrough = 0x0004D004;
+        const byte scsiIoctlDataIn = 1;
+        const int nvmeSmartLogLength = 512;
+
+        try
+        {
+            using (var handle = StorageCreateFile(@"\\.\PhysicalDrive" + physicalDriveIndex, 0, fileShareRead | fileShareWrite, IntPtr.Zero, openExisting, 0, IntPtr.Zero))
+            {
+                if (handle == null || handle.IsInvalid)
+                {
+                    return false;
+                }
+
+                var request = new ScsiPassThroughWithBuffers
+                {
+                    Spt = new ScsiPassThrough { Cdb = new byte[16] },
+                    SenseBuf = new byte[32],
+                    DataBuf = new byte[4096]
+                };
+                request.Spt.Length = (ushort)Marshal.SizeOf(typeof(ScsiPassThrough));
+                request.Spt.SenseInfoLength = 24;
+                request.Spt.DataTransferLength = nvmeSmartLogLength;
+                request.Spt.TimeOutValue = 2;
+                request.Spt.DataBufferOffset = Marshal.OffsetOf(typeof(ScsiPassThroughWithBuffers), "DataBuf");
+                request.Spt.SenseInfoOffset = (uint)Marshal.OffsetOf(typeof(ScsiPassThroughWithBuffers), "SenseBuf").ToInt32();
+                request.Spt.CdbLength = 16;
+                request.Spt.DataIn = scsiIoctlDataIn;
+                request.Spt.Cdb[0] = 0xE6;
+                request.Spt.Cdb[1] = 0x02;
+                request.Spt.Cdb[3] = 0x02;
+                request.Spt.Cdb[7] = 0x7F;
+
+                var dataOffset = Marshal.OffsetOf(typeof(ScsiPassThroughWithBuffers), "DataBuf").ToInt32();
+                var length = dataOffset + nvmeSmartLogLength;
+                var pointer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(ScsiPassThroughWithBuffers)));
+                try
+                {
+                    Marshal.StructureToPtr(request, pointer, false);
+                    int returned;
+                    if (!StorageDeviceIoControl(handle, ioctlScsiPassThrough, pointer, length, pointer, length, out returned, IntPtr.Zero))
+                    {
+                        return false;
+                    }
+
+                    var response = (ScsiPassThroughWithBuffers)Marshal.PtrToStructure(pointer, typeof(ScsiPassThroughWithBuffers));
+                    if (response.DataBuf == null || response.DataBuf.Length < nvmeSmartLogLength)
+                    {
+                        return false;
+                    }
+
+                    smartLog = new byte[nvmeSmartLogLength];
+                    Buffer.BlockCopy(response.DataBuf, 0, smartLog, 0, nvmeSmartLogLength);
+                    return SmartLogHasContent(smartLog);
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(pointer);
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool SmartLogHasContent(byte[] smartLog)
+    {
+        if (smartLog == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < smartLog.Length; i++)
+        {
+            if (smartLog[i] != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerable<SensorRow> GetStorageReliabilityRows()
@@ -1738,6 +2126,8 @@ public sealed partial class SensorReadoutForm : Form
         {
         }
 
+        AddPrinterOverviewRows(rows);
+
         return rows;
     }
 
@@ -2723,9 +3113,7 @@ public sealed partial class SensorReadoutForm : Form
     private static bool IsLibreHardwareMonitorStorageVolatileCounter(string sensorName)
     {
         return !string.IsNullOrWhiteSpace(sensorName) &&
-            (sensorName.Equals("Data Read", StringComparison.OrdinalIgnoreCase) ||
-            sensorName.Equals("Data Written", StringComparison.OrdinalIgnoreCase) ||
-            sensorName.Equals("Read Activity", StringComparison.OrdinalIgnoreCase) ||
+            (sensorName.Equals("Read Activity", StringComparison.OrdinalIgnoreCase) ||
             sensorName.Equals("Write Activity", StringComparison.OrdinalIgnoreCase) ||
             sensorName.Equals("Total Activity", StringComparison.OrdinalIgnoreCase));
     }

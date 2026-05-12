@@ -56,6 +56,10 @@ public sealed partial class SensorReadoutForm
                     var group = FriendlyDeviceGroup(pnpClass, deviceId, name);
                     var details = BuildDeviceDetails(device, drivers, resources, deviceId, name, group, pnpClass);
                     AddDeviceInventoryRows(rows, group, name, deviceId, details);
+                    if (IsProblemDevice(details))
+                    {
+                        AddDeviceInventoryRow(rows, DeviceGroupText("group.Device nonworking", "Non-working devices"), name, deviceId, BuildProblemDeviceSummary(details, deviceId), details);
+                    }
                 }
             }
         }
@@ -266,6 +270,7 @@ public sealed partial class SensorReadoutForm
         AddDeviceDetail(details, "Device ID", CleanWmiText(GetWmiPropertyText(device, "DeviceID")));
         AddDeviceDetail(details, "Class GUID", CleanWmiText(GetWmiPropertyText(device, "ClassGuid")));
         AddDeviceDetail(details, "Config manager error code", CleanWmiText(Convert.ToString(GetWmiPropertyValue(device, "ConfigManagerErrorCode"))));
+        AddDeviceDetail(details, "Config manager problem", DecodeConfigManagerErrorCode(GetWmiPropertyValue(device, "ConfigManagerErrorCode")));
         AddDeviceDetail(details, "Config manager user config", FormatYesNo(GetWmiPropertyValue(device, "ConfigManagerUserConfig")));
         AddDeviceDetail(details, "Hardware IDs", StringArrayWmiValue(GetWmiPropertyValue(device, "HardwareID")));
         AddDeviceDetail(details, "Compatible IDs", StringArrayWmiValue(GetWmiPropertyValue(device, "CompatibleID")));
@@ -445,6 +450,61 @@ public sealed partial class SensorReadoutForm
     {
         var parts = new List<string>();
         AddDeviceSummaryPart(parts, DetailValue(details, "Status"));
+        AddDeviceSummaryPart(parts, DetailValue(details, "Config manager problem"));
+        AddDeviceSummaryPart(parts, DetailValue(details, "Manufacturer"));
+        AddDeviceSummaryPart(parts, DetailValue(details, "Windows class"));
+        AddDeviceSummaryPart(parts, DeviceBusName(deviceId));
+
+        var errorCode = DetailValue(details, "Config manager error code");
+        if (!string.IsNullOrWhiteSpace(errorCode) && errorCode != "0")
+        {
+            AddDeviceSummaryPart(parts, "Problem code " + errorCode);
+        }
+
+        return string.Join(", ", parts.ToArray());
+    }
+
+    private static bool IsProblemDevice(Dictionary<string, string> details)
+    {
+        if (details == null)
+        {
+            return false;
+        }
+
+        int errorCode;
+        if (int.TryParse(DetailValue(details, "Config manager error code"), out errorCode) && errorCode != 0)
+        {
+            return true;
+        }
+
+        var status = DetailValue(details, "Status");
+        if (!string.IsNullOrWhiteSpace(status) &&
+            !status.Equals("OK", StringComparison.OrdinalIgnoreCase) &&
+            !status.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(DetailValue(details, "Error description")))
+        {
+            return true;
+        }
+
+        int lastError;
+        if (int.TryParse(DetailValue(details, "Last error code"), out lastError) && lastError != 0)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string BuildProblemDeviceSummary(Dictionary<string, string> details, string deviceId)
+    {
+        var parts = new List<string>();
+        AddDeviceSummaryPart(parts, DetailValue(details, "Config manager problem"));
+        AddDeviceSummaryPart(parts, DetailValue(details, "Error description"));
+        AddDeviceSummaryPart(parts, DetailValue(details, "Status"));
         AddDeviceSummaryPart(parts, DetailValue(details, "Manufacturer"));
         AddDeviceSummaryPart(parts, DetailValue(details, "Windows class"));
         AddDeviceSummaryPart(parts, DeviceBusName(deviceId));
@@ -589,6 +649,57 @@ public sealed partial class SensorReadoutForm
         }
 
         return DeviceGroupText("group.Device other", "Other devices");
+    }
+
+    private static string DecodeConfigManagerErrorCode(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code) || code == 0)
+        {
+            return "";
+        }
+
+        switch (code)
+        {
+            case 1: return "Device is not configured correctly";
+            case 3: return "Driver may be corrupted or missing";
+            case 10: return "Device cannot start";
+            case 12: return "Not enough free resources";
+            case 14: return "Computer restart required";
+            case 16: return "Windows cannot identify all resources";
+            case 18: return "Drivers need reinstalling";
+            case 19: return "Registry configuration is incomplete or damaged";
+            case 21: return "Windows is removing this device";
+            case 22: return "Device is disabled";
+            case 24: return "Device is not present, not working properly, or drivers are missing";
+            case 28: return "Drivers are not installed";
+            case 29: return "Device firmware did not give required resources";
+            case 31: return "Device is not working properly because Windows cannot load required drivers";
+            case 32: return "Driver service is disabled";
+            case 33: return "Windows cannot determine required resources";
+            case 34: return "Device requires manual configuration";
+            case 35: return "Computer firmware does not include enough information";
+            case 36: return "Device is requesting a PCI interrupt";
+            case 37: return "Windows cannot initialize the driver";
+            case 38: return "Windows cannot load the driver because a previous instance is still in memory";
+            case 39: return "Windows cannot load the driver";
+            case 40: return "Windows cannot access this hardware";
+            case 41: return "Driver loaded but device was not found";
+            case 42: return "Duplicate device is already running";
+            case 43: return "Device reported a problem";
+            case 44: return "Application or service shut down this device";
+            case 45: return "Device is not connected";
+            case 46: return "Windows cannot access this device because it is shutting down";
+            case 47: return "Device is prepared for safe removal";
+            case 48: return "Driver is blocked from starting";
+            case 49: return "Windows cannot start new hardware devices";
+            case 50: return "Windows cannot apply all device properties";
+            case 51: return "Device is waiting on another device";
+            case 52: return "Windows cannot verify the driver signature";
+            case 53: return "Device is reserved for kernel debugger";
+            case 54: return "Device failed and is being reset";
+            default: return "Problem code " + code;
+        }
     }
 
     private static string DeviceGroupText(string key, string fallback)

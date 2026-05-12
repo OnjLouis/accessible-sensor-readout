@@ -648,6 +648,7 @@ ui.&Export=&Exportar
 ui.Archive folder:=Carpeta del archivo:
 
 group.Device PCI and system=Dispositivos PCI y de sistema
+group.Device nonworking=Dispositivos que no funcionan
 group.Device storage=Dispositivos y controladores de almacenamiento
 group.Device USB=Dispositivos y controladores USB
 group.Device network=Dispositivos de red

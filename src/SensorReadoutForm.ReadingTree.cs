@@ -977,17 +977,18 @@ public sealed partial class SensorReadoutForm : Form
 
     private static int DeviceInventoryGroupSortIndex(string group)
     {
-        if (DeviceInventoryGroupEquals(group, "group.Device PCI and system", "PCI and system devices")) return 0;
-        if (DeviceInventoryGroupEquals(group, "group.Device storage", "Storage devices and controllers")) return 1;
-        if (DeviceInventoryGroupEquals(group, "group.Device USB", "USB devices and controllers")) return 2;
-        if (DeviceInventoryGroupEquals(group, "group.Device network", "Network devices")) return 3;
-        if (DeviceInventoryGroupEquals(group, "group.Device audio", "Audio devices")) return 4;
-        if (DeviceInventoryGroupEquals(group, "group.Device display", "Display devices")) return 5;
-        if (DeviceInventoryGroupEquals(group, "group.Device input", "Input devices")) return 6;
-        if (DeviceInventoryGroupEquals(group, "group.Device bluetooth", "Bluetooth")) return 7;
-        if (DeviceInventoryGroupEquals(group, "group.Device imaging", "Cameras and imaging")) return 8;
-        if (DeviceInventoryGroupEquals(group, "group.Device printers", "Printers")) return 9;
-        if (DeviceInventoryGroupEquals(group, "group.Device security", "Security devices")) return 10;
+        if (DeviceInventoryGroupEquals(group, "group.Device nonworking", "Non-working devices")) return 0;
+        if (DeviceInventoryGroupEquals(group, "group.Device PCI and system", "PCI and system devices")) return 1;
+        if (DeviceInventoryGroupEquals(group, "group.Device storage", "Storage devices and controllers")) return 2;
+        if (DeviceInventoryGroupEquals(group, "group.Device USB", "USB devices and controllers")) return 3;
+        if (DeviceInventoryGroupEquals(group, "group.Device network", "Network devices")) return 4;
+        if (DeviceInventoryGroupEquals(group, "group.Device audio", "Audio devices")) return 5;
+        if (DeviceInventoryGroupEquals(group, "group.Device display", "Display devices")) return 6;
+        if (DeviceInventoryGroupEquals(group, "group.Device input", "Input devices")) return 7;
+        if (DeviceInventoryGroupEquals(group, "group.Device bluetooth", "Bluetooth")) return 8;
+        if (DeviceInventoryGroupEquals(group, "group.Device imaging", "Cameras and imaging")) return 9;
+        if (DeviceInventoryGroupEquals(group, "group.Device printers", "Printers")) return 10;
+        if (DeviceInventoryGroupEquals(group, "group.Device security", "Security devices")) return 11;
         return 99;
     }
 
