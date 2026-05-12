@@ -50,6 +50,7 @@ public sealed class AppSettings
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
+    public bool TrayTooltipShowsPartialReadings = true;
     public bool RunAtStartup = false;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
@@ -96,6 +97,7 @@ public sealed class SharedAppSettings
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
+    public bool TrayTooltipShowsPartialReadings = true;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";

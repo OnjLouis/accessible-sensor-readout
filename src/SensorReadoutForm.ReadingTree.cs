@@ -89,7 +89,8 @@ public sealed partial class SensorReadoutForm : Form
         var selectedKey = readingTree.SelectedNode == null ? "" : readingTree.SelectedNode.Name;
         var filter = deviceList.SelectedItem as DeviceFilter;
         var filterKey = filter == null ? "" : filter.Key ?? "";
-        var expandAll = !readingTreeExpansionInitialized || !string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal);
+        var wasPlaceholderOnly = readingTree.Nodes.Count == 1 && string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal);
+        var expandAll = !readingTreeExpansionInitialized || !string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) || wasPlaceholderOnly;
         var expandedKeys = expandAll ? new HashSet<string>() : GetExpandedNodeKeys(readingTree.Nodes);
         var rows = ApplyFilter(latestRows, filter)
             .OrderBy(r => TypeSortIndex(r.Type))
@@ -455,6 +456,81 @@ public sealed partial class SensorReadoutForm : Form
 
             ApplyExpandedNodeKeys(node.Nodes, expandedKeys, expandAll);
         }
+    }
+
+    private void CaptureReadingExpansionBeforeHide()
+    {
+        hiddenReadingExpandedKeys = readingTree == null
+            ? new HashSet<string>()
+            : GetExpandedNodeKeys(readingTree.Nodes);
+    }
+
+    private void RestoreReadingExpansionAfterShow()
+    {
+        if (readingTree == null || hiddenReadingExpandedKeys == null || hiddenReadingExpandedKeys.Count == 0)
+        {
+            return;
+        }
+
+        readingTree.BeginUpdate();
+        try
+        {
+            ApplyExpandedNodeKeys(readingTree.Nodes, hiddenReadingExpandedKeys, false);
+            if (readingTree.SelectedNode != null)
+            {
+                readingTree.SelectedNode.EnsureVisible();
+            }
+        }
+        finally
+        {
+            readingTree.EndUpdate();
+        }
+    }
+
+    private void ExpandAllReadings()
+    {
+        if (readingTree == null || readingTree.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        readingTree.BeginUpdate();
+        try
+        {
+            readingTree.ExpandAll();
+        }
+        finally
+        {
+            readingTree.EndUpdate();
+        }
+        readingTreeExpansionInitialized = true;
+        statusLabel.Text = T("status.Expanded all readings.", "Expanded all readings.");
+        readingTree.Focus();
+    }
+
+    private void CollapseAllReadings()
+    {
+        if (readingTree == null || readingTree.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        readingTree.BeginUpdate();
+        try
+        {
+            readingTree.CollapseAll();
+            if (readingTree.SelectedNode != null)
+            {
+                readingTree.SelectedNode.EnsureVisible();
+            }
+        }
+        finally
+        {
+            readingTree.EndUpdate();
+        }
+        readingTreeExpansionInitialized = true;
+        statusLabel.Text = T("status.Collapsed all readings.", "Collapsed all readings.");
+        readingTree.Focus();
     }
 
     private static List<ReadingTreeItem> BuildReadingTree(List<SensorRow> rows, DeviceFilter filter)

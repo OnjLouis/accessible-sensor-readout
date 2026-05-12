@@ -9,6 +9,9 @@ using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private const int WinFormsTrayTooltipTextLimit = 63;
+    private const int ExtendedTrayTooltipTextLimit = 127;
+
     private void RegisterGlobalHotKeys()
     {
         UnregisterGlobalHotKeys();
@@ -152,6 +155,7 @@ public sealed partial class SensorReadoutForm : Form
         if (Visible && WindowState != FormWindowState.Minimized && ShowInTaskbar)
         {
             LogMessage("Normal", "Hiding Sensor Readout from global hotkey.");
+            CaptureReadingExpansionBeforeHide();
             WindowState = FormWindowState.Minimized;
             ShowInTaskbar = false;
             if (settings.TrayStatusEnabled)
@@ -378,6 +382,7 @@ public sealed partial class SensorReadoutForm : Form
         WindowState = FormWindowState.Normal;
         UpdateDeviceList();
         UpdateReadingList();
+        RestoreReadingExpansionAfterShow();
         UpdateFanControlBox();
         Activate();
     }
@@ -623,7 +628,7 @@ public sealed partial class SensorReadoutForm : Form
         var selectedRows = GetTrayStatusRows();
         var speechText = BuildSpeechStatusText(selectedRows);
         currentTrayStatusText = speechText;
-        trayIcon.Text = BuildTrayTooltipText(selectedRows, speechText);
+        SetTrayTooltipText(BuildTrayTooltipText(selectedRows, speechText));
         SetTrayIcon(selectedRows.FirstOrDefault());
     }
 
@@ -1053,9 +1058,9 @@ public sealed partial class SensorReadoutForm : Form
             : trimmed;
     }
 
-    private static string BuildTrayTooltipText(List<SensorRow> selectedRows, string speechText)
+    private string BuildTrayTooltipText(List<SensorRow> selectedRows, string speechText)
     {
-        if (!string.IsNullOrWhiteSpace(speechText) && speechText.Length <= 63)
+        if (!string.IsNullOrWhiteSpace(speechText) && speechText.Length <= ExtendedTrayTooltipTextLimit)
         {
             return speechText;
         }
@@ -1063,15 +1068,76 @@ public sealed partial class SensorReadoutForm : Form
         var count = selectedRows == null ? 0 : selectedRows.Count;
         if (count <= 0)
         {
-            return ShortenTrayText(T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), false);
+            return ShortenTrayText(T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), true);
         }
 
-        return ShortenTrayText(
-            string.Format(
-                CultureInfo.CurrentCulture,
-                T("ui.Sensor Readout: {0} readings. Speak tray status for full text.", "Sensor Readout: {0} readings. Speak tray status for full text."),
-                count),
-            false);
+        if (!settings.TrayTooltipShowsPartialReadings)
+        {
+            return "Sensor Readout";
+        }
+
+        var items = selectedRows
+            .Select(r => ShortSpeechReadingText(r, settings.SpeechIncludesDeviceNames, settings.ReadingSpeechLabels))
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .Select(i => i.Trim())
+            .ToList();
+
+        return BuildFittingTrayTooltipText(items);
+    }
+
+    private static string BuildFittingTrayTooltipText(List<string> items)
+    {
+        const int maxLength = ExtendedTrayTooltipTextLimit;
+        const string separator = "; ";
+        if (items == null || items.Count == 0)
+        {
+            return "Sensor Readout";
+        }
+
+        var text = "";
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var candidate = string.IsNullOrEmpty(text) ? item : text + separator + item;
+            var hasMore = i < items.Count - 1;
+            if (hasMore && candidate.Length + 3 > maxLength)
+            {
+                break;
+            }
+
+            if (!hasMore && candidate.Length <= maxLength)
+            {
+                return candidate;
+            }
+
+            if (candidate.Length <= maxLength)
+            {
+                text = candidate;
+            }
+        }
+
+        return string.IsNullOrEmpty(text)
+            ? ShortenTrayText(items[0], true)
+            : AppendTrayTooltipEllipsis(text);
+    }
+
+    private static string AppendTrayTooltipEllipsis(string text)
+    {
+        const int maxLength = ExtendedTrayTooltipTextLimit;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "Sensor Readout";
+        }
+
+        text = text.Trim();
+        if (text.Length + 5 <= maxLength)
+        {
+            return text + "; ...";
+        }
+
+        return text.Length + 3 <= maxLength
+            ? text + "..."
+            : ShortenTrayText(text, true);
     }
 
     private static string ShortenTrayText(string text, bool showEllipsis)
@@ -1081,12 +1147,91 @@ public sealed partial class SensorReadoutForm : Form
             return "Sensor Readout";
         }
 
-        if (text.Length <= 63)
+        if (text.Length <= ExtendedTrayTooltipTextLimit)
         {
             return text;
         }
 
-        return showEllipsis ? text.Substring(0, 60) + "..." : text.Substring(0, 63);
+        return showEllipsis
+            ? text.Substring(0, ExtendedTrayTooltipTextLimit - 3) + "..."
+            : text.Substring(0, ExtendedTrayTooltipTextLimit);
+    }
+
+    private void SetTrayTooltipText(string text)
+    {
+        if (trayIcon == null)
+        {
+            return;
+        }
+
+        text = string.IsNullOrWhiteSpace(text) ? "Sensor Readout" : text.Trim();
+        var fallback = text.Length <= WinFormsTrayTooltipTextLimit
+            ? text
+            : ShortenWinFormsTrayText(text);
+
+        try
+        {
+            trayIcon.Text = fallback;
+        }
+        catch (Exception ex)
+        {
+            LogError("Could not set tray tooltip text. " + ex.Message);
+            try
+            {
+                trayIcon.Text = "Sensor Readout";
+            }
+            catch
+            {
+            }
+        }
+
+        if (text.Length > WinFormsTrayTooltipTextLimit)
+        {
+            TrySetExtendedTrayTooltipText(text);
+        }
+    }
+
+    private static string ShortenWinFormsTrayText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "Sensor Readout";
+        }
+
+        text = text.Trim();
+        return text.Length <= WinFormsTrayTooltipTextLimit
+            ? text
+            : text.Substring(0, WinFormsTrayTooltipTextLimit - 3) + "...";
+    }
+
+    private void TrySetExtendedTrayTooltipText(string text)
+    {
+        try
+        {
+            var iconType = typeof(NotifyIcon);
+            var windowField = iconType.GetField("window", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var idField = iconType.GetField("id", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var window = windowField == null ? null : windowField.GetValue(trayIcon) as NativeWindow;
+            if (window == null || window.Handle == IntPtr.Zero || idField == null)
+            {
+                return;
+            }
+
+            var id = Convert.ToUInt32(idField.GetValue(trayIcon), CultureInfo.InvariantCulture);
+            var data = new NativeMethods.NotifyIconData
+            {
+                cbSize = (uint)Marshal.SizeOf(typeof(NativeMethods.NotifyIconData)),
+                hWnd = window.Handle,
+                uID = id,
+                uFlags = NativeMethods.NifTip,
+                szTip = ShortenTrayText(text, true)
+            };
+            NativeMethods.Shell_NotifyIcon(NativeMethods.NimModify, ref data);
+        }
+        catch (Exception ex)
+        {
+            LogMessage("Debug", "Extended tray tooltip update unavailable: " + ex.Message);
+        }
     }
 
     private void SetTrayIcon(SensorRow row)

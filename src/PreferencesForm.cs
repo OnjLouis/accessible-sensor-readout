@@ -11,6 +11,7 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox autoRefreshCheckBox;
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;
+    private readonly CheckBox trayTooltipPartialReadingsCheckBox;
     private readonly CheckBox runAtStartupCheckBox;
     private readonly CheckBox desktopShortcutCheckBox;
     private readonly CheckBox startMinimizedCheckBox;
@@ -102,6 +103,7 @@ public sealed class PreferencesForm : Form
     public bool AutoRefreshEnabled { get { return autoRefreshCheckBox.Checked; } }
     public bool RefreshWhileFocused { get { return refreshWhileFocusedCheckBox.Checked; } }
     public bool TrayStatusEnabled { get { return trayStatusCheckBox.Checked; } }
+    public bool TrayTooltipShowsPartialReadings { get { return trayTooltipPartialReadingsCheckBox == null || trayTooltipPartialReadingsCheckBox.Checked; } }
     public bool RunAtStartup { get { return runAtStartupCheckBox.Checked; } }
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
@@ -229,7 +231,7 @@ public sealed class PreferencesForm : Form
         latestSensorRows = (latestRows ?? new List<SensorRow>()).Where(r => r != null).ToList();
 
         rows = latestSensorRows
-            .Where(IsSelectableReadoutRow)
+            .Where(SensorReadoutForm.IsSelectableReadoutRow)
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
@@ -252,9 +254,11 @@ public sealed class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 13,
+            RowCount = 15,
             Padding = new Padding(10)
         };
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -292,6 +296,21 @@ public sealed class PreferencesForm : Form
             AutoSize = true,
             AccessibleName = "Show status in notification area"
         };
+
+        trayTooltipPartialReadingsCheckBox = new CheckBox
+        {
+            Text = "Show as many &readings as possible in notification area tooltip",
+            Checked = settings.TrayTooltipShowsPartialReadings,
+            AutoSize = true,
+            AccessibleName = "Show as many readings as possible in notification area tooltip",
+            AccessibleDescription = "When checked, a long notification area tooltip shows as many configured readings as Windows allows, followed by three dots. When unchecked, long tooltips only show Sensor Readout."
+        };
+
+        trayStatusCheckBox.CheckedChanged += delegate
+        {
+            trayTooltipPartialReadingsCheckBox.Enabled = trayStatusCheckBox.Checked;
+        };
+        trayTooltipPartialReadingsCheckBox.Enabled = trayStatusCheckBox.Checked;
 
         runAtStartupCheckBox = new CheckBox
         {
@@ -1027,15 +1046,16 @@ public sealed class PreferencesForm : Form
         main.Controls.Add(autoRefreshCheckBox, 0, 2);
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 3);
         main.Controls.Add(trayStatusCheckBox, 0, 4);
-        main.Controls.Add(intervalPanel, 0, 5);
-        main.Controls.Add(temperaturePanel, 0, 6);
-        main.Controls.Add(decimalSeparatorPanel, 0, 7);
-        main.Controls.Add(updatesPanel, 0, 8);
-        main.Controls.Add(diagnosticsPanel, 0, 9);
-        main.Controls.Add(loggingPanel, 0, 10);
-        main.Controls.Add(trayLabel, 0, 11);
-        main.Controls.Add(BuildTraySelectionPanel(), 0, 12);
-        main.Controls.Add(traySelectionStatusLabel, 0, 13);
+        main.Controls.Add(trayTooltipPartialReadingsCheckBox, 0, 5);
+        main.Controls.Add(intervalPanel, 0, 6);
+        main.Controls.Add(temperaturePanel, 0, 7);
+        main.Controls.Add(decimalSeparatorPanel, 0, 8);
+        main.Controls.Add(updatesPanel, 0, 9);
+        main.Controls.Add(diagnosticsPanel, 0, 10);
+        main.Controls.Add(loggingPanel, 0, 11);
+        main.Controls.Add(trayLabel, 0, 12);
+        main.Controls.Add(BuildTraySelectionPanel(), 0, 13);
+        main.Controls.Add(traySelectionStatusLabel, 0, 14);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
@@ -1151,6 +1171,7 @@ public sealed class PreferencesForm : Form
         autoRefreshCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         refreshWhileFocusedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayStatusCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        trayTooltipPartialReadingsCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         runAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         desktopShortcutCheckBox.CheckedChanged += ApplyDesktopShortcutPreferenceHandler;
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
@@ -1713,6 +1734,7 @@ public sealed class PreferencesForm : Form
         liveSettings.StartupSpeechMessage = StartupSpeechMessage;
         liveSettings.SpeechIncludesDeviceNames = SpeechIncludesDeviceNames;
         liveSettings.TrayStatusEnabled = TrayStatusEnabled;
+        liveSettings.TrayTooltipShowsPartialReadings = TrayTooltipShowsPartialReadings;
         liveSettings.RunAtStartup = RunAtStartup;
         liveSettings.StartMinimizedToTray = StartMinimizedToTray;
         liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
@@ -3168,7 +3190,7 @@ public sealed class PreferencesForm : Form
         }
 
         var newRows = latestRows
-            .Where(IsSelectableReadoutRow)
+            .Where(SensorReadoutForm.IsSelectableReadoutRow)
             .OrderBy(r => SensorReadoutForm.TypeSortIndex(r.Type))
             .ThenBy(r => r.Hardware)
             .ThenBy(r => r.Name)
@@ -3216,38 +3238,6 @@ public sealed class PreferencesForm : Form
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .OrderBy(k => k)
             .ToArray());
-    }
-
-    private static bool IsSelectableReadoutRow(SensorRow row)
-    {
-        if (row == null)
-        {
-            return false;
-        }
-
-        var type = row.Type ?? "";
-        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery")
-        {
-            return true;
-        }
-
-        if (type != "Performance")
-        {
-            return false;
-        }
-
-        var name = SensorReadoutForm.CleanSensorName(row.Name);
-        return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Free space", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Read rate", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Write rate", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Read activity", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Write activity", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("Total activity", StringComparison.OrdinalIgnoreCase);
     }
 
     private void PopulateTrayReadingLists(List<string> selectedKeys)

@@ -140,6 +140,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
         settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
         settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
+        settings.TrayTooltipShowsPartialReadings = dialog.TrayTooltipShowsPartialReadings;
         settings.RunAtStartup = dialog.RunAtStartup;
         settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
         settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
@@ -667,9 +668,20 @@ public sealed partial class SensorReadoutForm : Form
             editRenameMenuItem.Visible = visible;
         }
 
+        var spokenHotKeyVisible = CanAssignSelectedReadingToSpokenHotKey();
+        if (editSpokenHotKeyMenuItem != null)
+        {
+            editSpokenHotKeyMenuItem.Visible = spokenHotKeyVisible;
+        }
+
         if (treeDetailsMenuItem != null)
         {
             treeDetailsMenuItem.Visible = CanShowSelectedReadingDetails();
+        }
+
+        if (treeSpokenHotKeyMenuItem != null)
+        {
+            treeSpokenHotKeyMenuItem.Visible = spokenHotKeyVisible;
         }
 
         if (treeRenameMenuItem != null)
@@ -692,6 +704,187 @@ public sealed partial class SensorReadoutForm : Form
     {
         var row = GetSelectedReadingRow();
         return row != null && row.Details != null && row.Details.Count > 0;
+    }
+
+    private bool CanAssignSelectedReadingToSpokenHotKey()
+    {
+        if (reportViewMode)
+        {
+            return false;
+        }
+
+        var row = GetSelectedReadingRow();
+        return IsSelectableReadoutRow(row) &&
+            settings.SpokenHotKeys != null &&
+            settings.SpokenHotKeys.Any(p => p != null);
+    }
+
+    private bool ShowSpokenHotKeyAssignmentDialog()
+    {
+        var row = GetSelectedReadingRow();
+        if (reportViewMode || !IsSelectableReadoutRow(row))
+        {
+            System.Media.SystemSounds.Beep.Play();
+            statusLabel.Text = L("status.Select a reading that can be spoken by a hotkey.", "Select a reading that can be spoken by a hotkey.");
+            return false;
+        }
+
+        settings.SpokenHotKeys = settings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
+        var profiles = settings.SpokenHotKeys.Where(p => p != null).ToList();
+        if (profiles.Count == 0)
+        {
+            MessageBox.Show(
+                this,
+                L("message.Create a spoken hotkey profile first from Options, Preferences, Hotkeys.", "Create a spoken hotkey profile first from Options, Preferences, Hotkeys."),
+                L("ui.Spoken hotkeys", "Spoken hotkeys"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return false;
+        }
+
+        var rowKey = RowSettingsKey(row);
+        using (var dialog = new Form())
+        {
+            dialog.Text = L("ui.Spoken hotkey assignment", "Spoken hotkey assignment");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(560, 360);
+            dialog.MinimumSize = new Size(430, 250);
+            dialog.ShowInTaskbar = false;
+            dialog.KeyPreview = true;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 4,
+                Padding = new Padding(10)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var label = new Label
+            {
+                Text = L("ui.Choose a spoken hotkey for:", "Choose a spoken hotkey for:") + " " + TrayChoiceLabel(row) + " - " + FormatValue(row),
+                AutoSize = true,
+                Dock = DockStyle.Fill
+            };
+            var profileList = new ListBox
+            {
+                Dock = DockStyle.Fill,
+                IntegralHeight = false,
+                AccessibleName = L("a11y.Spoken hotkeys", "Spoken hotkeys"),
+                AccessibleDescription = L("a11y.Choose the spoken hotkey profile to add or remove the selected reading.", "Choose the spoken hotkey profile to add or remove the selected reading.")
+            };
+            foreach (var profile in profiles)
+            {
+                profileList.Items.Add(profile);
+            }
+            if (profileList.Items.Count > 0)
+            {
+                profileList.SelectedIndex = 0;
+            }
+
+            var status = new Label { AutoSize = true, Dock = DockStyle.Fill, AccessibleName = L("a11y.Spoken hotkey assignment status", "Spoken hotkey assignment status") };
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var closeButton = new Button { Text = L("ui.Close", "Close"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var toggleButton = new Button { AutoSize = true };
+            buttons.Controls.Add(closeButton);
+            buttons.Controls.Add(toggleButton);
+
+            Func<SpokenHotKeySetting> selectedProfile = delegate { return profileList.SelectedItem as SpokenHotKeySetting; };
+            Func<bool> selectedContainsRow = delegate
+            {
+                var profile = selectedProfile();
+                return profile != null &&
+                    profile.ReadingKeys != null &&
+                    profile.ReadingKeys.Any(k => string.Equals(k, rowKey, StringComparison.OrdinalIgnoreCase));
+            };
+            Action updateDialogState = delegate
+            {
+                var profile = selectedProfile();
+                var hasProfile = profile != null;
+                toggleButton.Enabled = hasProfile;
+                toggleButton.Text = selectedContainsRow()
+                    ? L("ui.&Remove from hotkey", "&Remove from hotkey")
+                    : L("ui.&Add to hotkey", "&Add to hotkey");
+                status.Text = hasProfile
+                    ? (selectedContainsRow()
+                        ? L("status.Selected reading is already on this spoken hotkey.", "Selected reading is already on this spoken hotkey.")
+                        : L("status.Selected reading is not on this spoken hotkey.", "Selected reading is not on this spoken hotkey."))
+                    : "";
+            };
+            Action toggleAssignment = delegate
+            {
+                var profile = selectedProfile();
+                if (profile == null)
+                {
+                    return;
+                }
+
+                profile.ReadingKeys = profile.ReadingKeys ?? new List<string>();
+                var existing = profile.ReadingKeys.FirstOrDefault(k => string.Equals(k, rowKey, StringComparison.OrdinalIgnoreCase));
+                if (existing == null)
+                {
+                    profile.ReadingKeys.Add(rowKey);
+                    statusLabel.Text = L("status.Added reading to spoken hotkey.", "Added reading to spoken hotkey.");
+                }
+                else
+                {
+                    profile.ReadingKeys.Remove(existing);
+                    statusLabel.Text = L("status.Removed reading from spoken hotkey.", "Removed reading from spoken hotkey.");
+                }
+
+                SaveSettings(settings);
+                updateDialogState();
+                dialog.DialogResult = DialogResult.OK;
+                dialog.Close();
+            };
+
+            profileList.SelectedIndexChanged += delegate { updateDialogState(); };
+            profileList.DoubleClick += delegate { toggleAssignment(); };
+            profileList.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    toggleAssignment();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+            };
+            toggleButton.Click += delegate { toggleAssignment(); };
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    dialog.Close();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+            };
+
+            layout.Controls.Add(label, 0, 0);
+            layout.Controls.Add(profileList, 0, 1);
+            layout.Controls.Add(status, 0, 2);
+            layout.Controls.Add(buttons, 0, 3);
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = toggleButton;
+            dialog.CancelButton = closeButton;
+            dialog.Shown += delegate
+            {
+                updateDialogState();
+                profileList.Focus();
+            };
+            dialog.ShowDialog(this);
+        }
+
+        UpdateSelectedTreeCommandVisibility();
+        if (readingTree != null)
+        {
+            readingTree.Focus();
+        }
+        return true;
     }
 
     private void UpdateViewMenuVisibility()

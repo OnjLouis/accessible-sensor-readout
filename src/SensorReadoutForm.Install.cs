@@ -45,11 +45,6 @@ public sealed partial class SensorReadoutForm : Form
             statusLabel.Text = L("status.Installing Sensor Readout...", "Installing Sensor Readout...");
             Application.DoEvents();
 
-            Directory.CreateDirectory(installFolder);
-            CopyDirectoryContents(sourceFolder, installFolder);
-
-            SetDesktopShortcut(options.CreateDesktopShortcut, targetExe, installFolder);
-
             settings.RunAtStartup = options.RunAtStartup;
             if (settings.RunAtStartup)
             {
@@ -57,6 +52,11 @@ public sealed partial class SensorReadoutForm : Form
                 settings.TrayStatusEnabled = true;
             }
             SaveSettings(settings);
+
+            Directory.CreateDirectory(installFolder);
+            CopyDirectoryContents(sourceFolder, installFolder);
+
+            SetDesktopShortcut(options.CreateDesktopShortcut, targetExe, installFolder);
             SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray, targetExe, installFolder);
 
             Process.Start(new ProcessStartInfo
@@ -162,8 +162,8 @@ public sealed partial class SensorReadoutForm : Form
                 AccessibleDescription = L("a11y.Leave this unchecked to keep settings, logs, and saved reports after uninstalling.", "Leave this unchecked to keep settings, logs, and saved reports after uninstalling.")
             };
 
-            var uninstallButton = new Button { Text = L("ui.&Uninstall", "&Uninstall"), DialogResult = DialogResult.OK, AutoSize = true };
-            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var uninstallButton = new Button { Text = L("ui.&Uninstall", "&Uninstall"), AccessibleName = PlainMnemonic(L("ui.&Uninstall", "&Uninstall")), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), AccessibleName = PlainMnemonic(L("ui.&Cancel", "&Cancel")), DialogResult = DialogResult.Cancel, AutoSize = true };
             buttons.FlowDirection = FlowDirection.RightToLeft;
             buttons.Dock = DockStyle.Fill;
             buttons.AutoSize = true;
@@ -240,8 +240,8 @@ public sealed partial class SensorReadoutForm : Form
                 }
             };
 
-            var okButton = new Button { Text = L("ui.&Install", "&Install"), DialogResult = DialogResult.OK, AutoSize = true };
-            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var okButton = new Button { Text = L("ui.&Install", "&Install"), AccessibleName = PlainMnemonic(L("ui.&Install", "&Install")), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), AccessibleName = PlainMnemonic(L("ui.&Cancel", "&Cancel")), DialogResult = DialogResult.Cancel, AutoSize = true };
             buttons.FlowDirection = FlowDirection.RightToLeft;
             buttons.Dock = DockStyle.Fill;
             buttons.AutoSize = true;
@@ -360,5 +360,10 @@ public sealed partial class SensorReadoutForm : Form
     private static string QuoteArgument(string value)
     {
         return "\"" + (value ?? "").Replace("\"", "\\\"") + "\"";
+    }
+
+    private static string PlainMnemonic(string value)
+    {
+        return (value ?? "").Replace("&&", "\u0001").Replace("&", "").Replace("\u0001", "&");
     }
 }

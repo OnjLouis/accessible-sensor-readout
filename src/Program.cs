@@ -50,6 +50,8 @@ public static class Program
         var quietDiagnostics = HasArg(args, "--diagnostics-quiet");
         var noDiagnosticsSpeech = quietDiagnostics || HasArg(args, "--no-diagnostics-speech");
         var noDiagnosticsSounds = quietDiagnostics || HasArg(args, "--no-diagnostics-sounds");
+        string selfTestPath;
+        var runSelfTest = TryGetOptionValue(args, "--self-test", out selfTestPath);
 
         if (HasArg(args, "--help") || HasArg(args, "-?") || HasArg(args, "/?"))
         {
@@ -69,6 +71,12 @@ public static class Program
         {
             CloseOtherInstances();
             SaveCommandLineDiagnostics(diagnosticsPath, noDiagnosticsSpeech ? (bool?)false : null, noDiagnosticsSounds ? (bool?)false : null);
+            return;
+        }
+
+        if (runSelfTest)
+        {
+            SensorReadoutForm.RunSelfTest(selfTestPath);
             return;
         }
 
@@ -265,6 +273,7 @@ public static class Program
                !HasOption(startupArgs, "--report-html") &&
                !HasOption(startupArgs, "--diagnostics") &&
                !HasOption(startupArgs, "--run-diagnostics") &&
+               !HasOption(startupArgs, "--self-test") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
                !HasArg(startupArgs, "/?");
@@ -478,16 +487,20 @@ public static class Program
     {
         var current = Process.GetCurrentProcess();
         var processName = System.IO.Path.GetFileNameWithoutExtension(Application.ExecutablePath);
+        var otherProcesses = Process.GetProcessesByName(processName)
+            .Where(process => process.Id != current.Id)
+            .ToList();
+        if (otherProcesses.Count == 0)
+        {
+            ResetCloseRequest();
+            return;
+        }
+
         SignalCloseRequest();
-        foreach (var process in Process.GetProcessesByName(processName))
+        foreach (var process in otherProcesses)
         {
             using (process)
             {
-                if (process.Id == current.Id)
-                {
-                    continue;
-                }
-
                 try
                 {
                     if (process.WaitForExit(8000))
@@ -508,6 +521,7 @@ public static class Program
                 }
             }
         }
+        ResetCloseRequest();
     }
 
     private static void SignalCloseRequest()
@@ -517,6 +531,20 @@ public static class Program
             using (var closeRequest = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, CloseRequestEventName))
             {
                 closeRequest.Set();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void ResetCloseRequest()
+    {
+        try
+        {
+            using (var closeRequest = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, CloseRequestEventName))
+            {
+                closeRequest.Reset();
             }
         }
         catch
@@ -542,6 +570,8 @@ public static class Program
             "Do not speak or play sounds when used with --diagnostics." + Environment.NewLine + Environment.NewLine +
             "--no-diagnostics-speech or --no-diagnostics-sounds" + Environment.NewLine +
             "Disable only speech or only sounds when used with --diagnostics." + Environment.NewLine + Environment.NewLine +
+            "--self-test [path]" + Environment.NewLine +
+            "Run internal non-interactive self-tests and write results to the chosen folder." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

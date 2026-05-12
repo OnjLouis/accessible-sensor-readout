@@ -1,6 +1,6 @@
-# Sensor Readout
+﻿# Sensor Readout
 
-Current version: 3.0.1.
+Current version: 3.1.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -149,6 +149,8 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
 | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | `Del` | Hide the selected reading or tree branch. |
+| `Ctrl+Shift+H` | Add the selected reading to a spoken hotkey profile, or remove it from one. |
+| `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
 | `Ctrl+L` | Open fan controls. |
 | `Ctrl+U` | Open fan curves. |
 | `Ctrl+,` | Open Preferences. |
@@ -215,6 +217,7 @@ The General tab controls the main reading experience.
 - Refresh while Sensor Readout has focus: choose whether readings continue updating while you are navigating the main window.
 - Refresh interval: set the normal refresh interval in seconds.
 - Show status in notification area: show or hide the tray icon and its tooltip.
+- Show as many readings as possible in notification area tooltip: use the longer Windows tooltip text where available; turn this off if you prefer long tray tooltips to show only `Sensor Readout`.
 - Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
@@ -499,6 +502,15 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 3.1.0
+
+- Added: `Edit` > `Add/remove from spoken hotkey...` (`Ctrl+Shift+H`) lets you add the selected reading to a spoken hotkey profile, or remove it again, without opening the full Preferences workflow.
+- Added: `Edit` > `Expand all` (`Ctrl+Shift+Right`) and `Edit` > `Collapse all` (`Ctrl+Shift+Left`) make large categories easier to browse or reset.
+- Improved: Notification area tooltips can now use Windows' longer native tooltip text where available, so more selected readings can be shown directly before falling back to `...`. This closes [GitHub issue #3](https://github.com/OnjLouis/accessible-sensor-readout/issues/3).
+- Improved: Preferences includes an option to show as many readings as possible in the notification area tooltip, or keep long notification tooltips to the simple `Sensor Readout` label.
+- Fixed: Showing and hiding the main window no longer collapses the reading tree unexpectedly.
+- Fixed: Installing to this PC now applies the selected Windows startup option during the install flow.
+
 ### 3.0.1
 
 - Fixed: Updating Sensor Readout no longer copies bundled `Config`, `Logs`, or `Reports` folders over an existing installation, preserving hotkeys, notification area readings, spoken hotkey profiles, fan profiles, alarms, reports, and logs during updates.
@@ -759,3 +771,4 @@ Sensor Readout uses or bundles components from these projects:
 The main Sensor Readout application is licensed under the MIT License. See `LICENSE.txt`.
 
 Some optional bundled plug-ins or data files have their own licenses and notices. In particular, `Plug-Ins\AsusRog` contains G-Helper-derived ACPI work and ships with its own GPL notice and GPL text in that folder.
+

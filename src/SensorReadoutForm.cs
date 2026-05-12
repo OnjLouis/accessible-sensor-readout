@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.0.1";
+    public const string AppVersion = "3.1.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -22,8 +22,10 @@ public sealed partial class SensorReadoutForm : Form
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
+    private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
+    private readonly ToolStripMenuItem treeSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem batteryViewMenuItem;
     private readonly ToolStripMenuItem returnToLiveReadingsMenuItem;
     private readonly ToolStripMenuItem autoRefreshMenuItem;
@@ -104,6 +106,7 @@ public sealed partial class SensorReadoutForm : Form
     private string loadedReportTitle = "";
     private string loadedReportMachineName = "";
     private string loadedReportGeneratedLocal = "";
+    private HashSet<string> hiddenReadingExpandedKeys = new HashSet<string>();
     private bool menuInteractionActive;
     private bool visibleRefreshPending;
     private DateTime lastUserNavigationUtc = DateTime.MinValue;
@@ -162,6 +165,8 @@ public sealed partial class SensorReadoutForm : Form
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -179,6 +184,9 @@ public sealed partial class SensorReadoutForm : Form
         batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+8", null, delegate { SelectCategoryByKey("type|Battery"); });
         viewMenu.DropDownItems.Add(batteryViewMenuItem);
         viewMenu.DropDownItems.Add("De&vices\tCtrl+9", null, delegate { SelectCategoryByKey("type|Devices"); });
+        viewMenu.DropDownItems.Add(new ToolStripSeparator());
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
         viewMenu.DropDownOpening += delegate { UpdateViewMenuVisibility(); };
 
         var optionsMenu = new ToolStripMenuItem("&Options");
@@ -372,8 +380,12 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
         treeDetailsMenuItem = CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); });
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
+        treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
         treeRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         readingTree.ContextMenuStrip.Items.Add(treeRenameMenuItem);
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -400,6 +412,12 @@ public sealed partial class SensorReadoutForm : Form
             else if (e.KeyCode == Keys.F4)
             {
                 ShowSelectedTreeTextReview();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.Shift && e.KeyCode == Keys.H)
+            {
+                ShowSpokenHotKeyAssignmentDialog();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -613,6 +631,23 @@ public sealed partial class SensorReadoutForm : Form
         {
             ShowFanCurvesDialog();
             return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.Right)
+        {
+            ExpandAllReadings();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.Left)
+        {
+            CollapseAllReadings();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.H)
+        {
+            return ShowSpokenHotKeyAssignmentDialog();
         }
 
         if (modifiers == Keys.Control && SelectCategoryByShortcut(keyCode))

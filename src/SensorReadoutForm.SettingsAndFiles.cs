@@ -360,6 +360,7 @@ public sealed partial class SensorReadoutForm : Form
             StartupSpeechMessage = value.StartupSpeechMessage,
             SpeechIncludesDeviceNames = value.SpeechIncludesDeviceNames,
             TrayStatusEnabled = value.TrayStatusEnabled,
+            TrayTooltipShowsPartialReadings = value.TrayTooltipShowsPartialReadings,
             StartMinimizedToTray = value.StartMinimizedToTray,
             CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
             UpdateCheckFrequency = value.UpdateCheckFrequency,
@@ -445,6 +446,7 @@ public sealed partial class SensorReadoutForm : Form
         target.StartupSpeechMessage = shared.StartupSpeechMessage;
         target.SpeechIncludesDeviceNames = shared.SpeechIncludesDeviceNames;
         target.TrayStatusEnabled = shared.TrayStatusEnabled;
+        target.TrayTooltipShowsPartialReadings = shared.TrayTooltipShowsPartialReadings;
         target.StartMinimizedToTray = shared.StartMinimizedToTray;
         target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
         target.UpdateCheckFrequency = shared.UpdateCheckFrequency;

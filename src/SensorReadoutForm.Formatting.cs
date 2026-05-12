@@ -16,6 +16,38 @@ public sealed partial class SensorReadoutForm : Form
         return (row.Type ?? "") + "|" + (row.Hardware ?? "") + "|" + (row.Name ?? "") + "|" + (row.Identifier ?? "");
     }
 
+    public static bool IsSelectableReadoutRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        var type = row.Type ?? "";
+        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery")
+        {
+            return true;
+        }
+
+        if (type != "Performance")
+        {
+            return false;
+        }
+
+        var name = CleanSensorName(row.Name);
+        return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Free space", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Read rate", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Write rate", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Read activity", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Write activity", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Total activity", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string IdentifierFromSettingsKey(string key)
     {
         if (string.IsNullOrWhiteSpace(key))

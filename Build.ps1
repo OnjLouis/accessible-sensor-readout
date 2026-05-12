@@ -1,5 +1,6 @@
 param(
-    [string]$OutputPath = "$PSScriptRoot\portable\Sensor Readout.exe"
+    [string]$OutputPath = "$PSScriptRoot\portable\Sensor Readout.exe",
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -112,3 +113,35 @@ foreach ($preservedFolderName in @('Config', 'Logs', 'Reports')) {
 }
 
 Write-Host "Built $OutputPath"
+
+if ($SelfTest) {
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $selfTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "SensorReadout-SelfTest-$stamp"
+    $selfTestApp = Join-Path $selfTestRoot 'App'
+    $selfTestOutput = Join-Path $selfTestRoot 'Results'
+    New-Item -ItemType Directory -Force -Path $selfTestApp | Out-Null
+    New-Item -ItemType Directory -Force -Path $selfTestOutput | Out-Null
+
+    robocopy $portable $selfTestApp /E /XD Config Logs Reports 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    if ($LASTEXITCODE -ge 8) {
+        throw "Could not create self-test app copy. Robocopy exit code $LASTEXITCODE"
+    }
+
+    foreach ($folder in @('Config', 'Logs', 'Reports')) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $selfTestApp $folder) | Out-Null
+    }
+
+    $selfTestExe = Join-Path $selfTestApp 'Sensor Readout.exe'
+    $selfTestProcess = Start-Process -FilePath $selfTestExe -ArgumentList @('--self-test', $selfTestOutput) -WorkingDirectory $selfTestApp -WindowStyle Hidden -Wait -PassThru
+    $selfTestExit = $selfTestProcess.ExitCode
+    $summary = Join-Path $selfTestOutput 'SelfTest-summary.txt'
+    if (Test-Path -LiteralPath $summary) {
+        Get-Content -LiteralPath $summary | Out-Host
+    }
+
+    if ($selfTestExit -ne 0) {
+        throw "Self-test failed with exit code $selfTestExit. Results: $selfTestOutput"
+    }
+
+    Write-Host "Self-test passed. Results: $selfTestOutput"
+}
