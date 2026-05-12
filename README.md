@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 2.3.0.
+Current version: 3.0.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -8,14 +8,24 @@ It shows high-level categories on the left, readings grouped by device in a tree
 
 Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://github.com/OnjLouis/accessible-sensor-readout)
 
-Sensor Readout can be found [on GitHub](https://github.com/OnjLouis/accessible-sensor-readout).
+Contributor source overview: [SOURCE-MAP.md](SOURCE-MAP.md)
 
-For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOURCE-MAP.md).
+## Why Sensor Readout Exists
+
+All that information about your own computer that used to be hard to find, hidden behind Device Manager or locked away in expensive or inaccessible apps, should be easier to reach.
+
+Sensor Readout aims to bring as much of that information as possible into one easy-to-use, portable or installable, free app so you do not have to hunt for it. I was sick of the state of accessibility around the technical side of Windows computing, so I set out to get something made that I wanted to use. Apparently, many others want that too.
+
+I hope you discover just as much about your computer with this app as I have about mine, and I hope you are pleasantly surprised by what you find.
+
+My wish is that Sensor Readout becomes the gold standard in its class: an accessibility-first tool that blind and visually impaired people in tech support jobs can give to clients, so those clients can generate reports and get help troubleshooting issues. I strive for excellence, and I hope you feel that when you use it.
+
+[Andre Louis](https://onj.me), creator of Sensor Readout.
 
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.
-- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread information, memory usage, and storage read/write activity, grouped so related information stays together.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, and storage read/write activity, grouped so related information stays together.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
@@ -33,6 +43,9 @@ For a contributor-oriented overview of the source files, see [SOURCE-MAP.md](SOU
 - Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
 - Opens saved report files directly, including TXT or HTML reports sent inside a ZIP file.
+- Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.
+- Keeps the main tree readable while putting deeper technical fields behind Details, including PnP identifiers, driver data, CPU WMI fields, cache records, and memory module information where Windows exposes them.
+- Exports a portable copy ZIP of the current app, including settings, Plug-Ins, language files, custom sounds, and optional reports or logs.
 - Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
@@ -124,6 +137,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Ctrl+S` | Save report. |
 | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
 | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
+| `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
 | `Ctrl+Shift+I` | Import selected settings and profiles from a transfer package. |
 | `Ctrl+Shift+O` | Open the Reports folder. |
 | `Ctrl+Shift+L` | Open the Logs folder. |
@@ -142,7 +156,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | `Alt+F1` | Run diagnostics and create a support ZIP. |
 | `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. If quiet update installs are enabled, an available update installs without showing release notes first. |
 | `Ctrl+F1` | Open the project page. |
-| `Ctrl+0` to `Ctrl+8` | Show Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery where available. |
+| `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
 | `Esc` | Close the Fan Controls dialog. |
 | `Alt+L` | Save the label for the selected fan control. |
 | `Alt+M` | Apply the manual percentage to the selected fan control. |
@@ -205,7 +219,7 @@ The General tab controls the main reading experience.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
 - Update checks: choose whether Sensor Readout checks GitHub Releases at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
-- Quiet update installs: download, install, close, and reopen automatically when an update is available. Use `Help` > `Version history...` to review the latest release notes later.
+- Quiet update installs: download, install, close, and reopen automatically when an update is available. Normal update installs ask before closing unless you clear that confirmation from the update prompt or turn it off in `Hidden items`. Use `Help` > `Version history...` to review the latest release notes later.
 - Notification area items: choose up to eight readings for the tray tooltip and spoken tray status.
 
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
@@ -217,7 +231,7 @@ Notification area readings are selected from an Available readings list and move
 The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.
 
 - Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and Windows startup shortcut, close the current copy, and start the installed copy.
-- Uninstall from this PC: when running from the installed copy, remove the installed app files and shortcuts while leaving `Config`, `Logs`, and `Reports` in place.
+- Uninstall from this PC: when running from the installed copy, remove the installed app files and shortcuts. The uninstall dialog can also remove `Config`, `Logs`, and `Reports` when you want a complete cleanup.
 - Run at Windows startup: create or remove a `Sensor Readout.lnk` shortcut in the current user's Startup folder.
 - Create desktop shortcut: create or remove a `Sensor Readout.lnk` shortcut on the desktop.
 - Start minimized to notification area: open directly to the tray instead of showing the main window.
@@ -268,7 +282,7 @@ The Plug-Ins tab lists installed hardware plug-ins and describes what each one d
 
 ### Hidden Items (`Ctrl+7`)
 
-The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again.
+The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes the update install confirmation preference, so you can bring the safety prompt back after choosing not to show it again.
 
 ### Language Editor (`Ctrl+8`)
 
@@ -296,7 +310,7 @@ For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
 ## Reading Sensors
 
-The readings pane is a tree view. Sections such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, and Battery group readings by device or purpose first, then list individual readings underneath. This keeps screen readers from announcing a long device name before every value.
+The readings pane is a tree view. Choose a category from the list on the left, then review that category's readings and details on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
 
 Use the left section list to move between broad areas. This changes the view only; it does not enable, disable, or permanently select devices.
 
@@ -401,13 +415,15 @@ The report opens as a static snapshot in the normal category and tree layout, so
 
 Details and copy commands still work where the report contains the relevant fields. This is useful when someone sends a USB, audio, display, network, fan, battery, or SMART report and you want to inspect specific rows without reading the whole file manually.
 
-Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. Reports saved by Sensor Readout 2.0 or later contain a machine-readable snapshot for the best import experience. Older TXT and HTML reports are opened on a best-effort basis.
+Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. HTML reports saved by Sensor Readout 2.0 or later contain a hidden machine-readable snapshot for the best import experience. TXT reports include the same reopen data after a clearly labelled internal-data line, wrapped into short lines so the readable report stays practical in text editors.
 
 ## Settings Transfer
 
 Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, or plug-in choices.
 
 Use `File` > `Import settings and profiles...` or `Ctrl+Shift+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
+
+Use `File` > `Export portable copy...` or `Ctrl+Shift+E` when you want the whole customized app as a ZIP. It includes Sensor Readout, `Config`, Plug-Ins, language files, custom sounds, and the other files needed to run from another folder or another PC. Reports and logs are optional checkboxes because they can be large or private.
 
 ## Files
 
@@ -482,6 +498,18 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.0.0
+
+- Added: `Devices` gives a Device Manager-style Windows hardware inventory with grouped sections, a compact tree, and detailed PnP, PCI, driver, registry, and resource fields available through Details and reports.
+- Improved: Details for CPU and memory rows now include deeper Windows hardware fields such as processor identifiers, WMI CPU properties, cache records, memory array limits, module manufacturer/part/serial information, speeds, widths, voltages, and memory type where Windows exposes them.
+- Improved: `Download and install` can now remember when you do not want to see the close/install/reopen confirmation again, and `Preferences` > `Hidden items` can turn that confirmation back on.
+- Improved: `Uninstall from this PC` now offers an explicit option to also delete `Config`, `Logs`, and `Reports` for a complete cleanup.
+- Added: `File` > `Export portable copy...` (`Ctrl+Shift+E`) creates a ZIP of the customized app for use on another PC, including settings and custom app files with optional Reports and Logs.
+- Improved: TXT reports now keep exact reopen data in a labelled, wrapped block after the readable report content, avoiding one very long screen-reader-hostile line.
+- Added: Performance/Overview now shows CPU cache sizes, including L1, L2, and L3 where Windows reports them.
+- Improved: The title bar for an opened report now shows the report computer directly, such as `Report: Example-PC`, instead of repeating the full report title.
+- Fixed: Notification area tooltips now use the same configured labels as spoken tray status when they fit, and show a clear summary instead of a clipped partial list when Windows' tooltip limit is reached. This closes [GitHub issue #2](https://github.com/OnjLouis/accessible-sensor-readout/issues/2).
 
 ### 2.3.0
 

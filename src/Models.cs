@@ -55,6 +55,7 @@ public sealed class AppSettings
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";
     public bool InstallUpdatesQuietly = false;
+    public bool ShowUpdateInstallConfirmation = true;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;
@@ -99,6 +100,7 @@ public sealed class SharedAppSettings
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";
     public bool InstallUpdatesQuietly = false;
+    public bool ShowUpdateInstallConfirmation = true;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;

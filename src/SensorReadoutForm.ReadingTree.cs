@@ -67,6 +67,7 @@ public sealed partial class SensorReadoutForm : Form
         yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
         yield return new DeviceFilter { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" };
         yield return new DeviceFilter { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" };
+        yield return new DeviceFilter { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" };
         if (rows != null && rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
         {
             yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
@@ -496,6 +497,12 @@ public sealed partial class SensorReadoutForm : Form
                 return typeItem.Children;
             }
 
+            if (filter.Type == "Devices")
+            {
+                AddDeviceInventoryGroups(typeItem, rows);
+                return typeItem.Children;
+            }
+
             AddHardwareGroups(typeItem, rows);
             return typeItem.Children;
         }
@@ -764,6 +771,154 @@ public sealed partial class SensorReadoutForm : Form
         };
         AddReadingRows(directionItem, directionRows);
         deviceItem.Children.Add(directionItem);
+    }
+
+    private static void AddDeviceInventoryGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        foreach (var group in rows
+            .GroupBy(r => ShortHardwareName(r.Hardware))
+            .OrderBy(g => DeviceInventoryGroupSortIndex(g.Key))
+            .ThenBy(g => g.Key))
+        {
+            var groupItem = new ReadingTreeItem
+            {
+                Key = "devices|group|" + group.Key,
+                Text = group.Key
+            };
+
+            foreach (var deviceGroup in group
+                .GroupBy(DeviceInventoryDeviceKey)
+                .OrderBy(g => DeviceInventoryDeviceName(g)))
+            {
+                var deviceRow = DeviceInventorySummaryRow(deviceGroup);
+                var deviceName = DeviceInventoryDeviceName(deviceRow);
+                var deviceItem = new ReadingTreeItem
+                {
+                    Key = "devices|device|" + group.Key + "|" + deviceGroup.Key,
+                    Text = deviceName,
+                    Row = deviceRow
+                };
+                groupItem.Children.Add(deviceItem);
+            }
+
+            parent.Children.Add(groupItem);
+        }
+    }
+
+    private static string DeviceInventoryDeviceName(SensorRow row)
+    {
+        if (row != null && row.Details != null)
+        {
+            string value;
+            if (row.Details.TryGetValue("Device name", out value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return row == null || string.IsNullOrWhiteSpace(row.Hardware) ? T("group.Other", "Other") : ShortHardwareName(row.Hardware);
+    }
+
+    private static string DeviceInventoryDeviceName(IEnumerable<SensorRow> rows)
+    {
+        var list = (rows ?? Enumerable.Empty<SensorRow>()).Where(r => r != null).ToList();
+        foreach (var row in list)
+        {
+            var name = DeviceInventoryDeviceName(row);
+            if (!string.IsNullOrWhiteSpace(name) && name != ShortHardwareName(row.Hardware))
+            {
+                return name;
+            }
+        }
+
+        var first = list.FirstOrDefault();
+        return first == null ? T("group.Other", "Other") : DeviceInventoryDeviceName(first);
+    }
+
+    private static string DeviceInventoryDeviceKey(SensorRow row)
+    {
+        if (row == null || string.IsNullOrWhiteSpace(row.Identifier))
+        {
+            return "";
+        }
+
+        if (row.Identifier.StartsWith("device/", StringComparison.OrdinalIgnoreCase) &&
+            row.Identifier.IndexOf('/', "device/".Length) < 0)
+        {
+            return row.Identifier;
+        }
+
+        var lastSeparator = row.Identifier.LastIndexOf('/');
+        return lastSeparator > 0 ? row.Identifier.Substring(0, lastSeparator) : row.Identifier;
+    }
+
+    private static SensorRow DeviceInventorySummaryRow(IEnumerable<SensorRow> rows)
+    {
+        var list = (rows ?? Enumerable.Empty<SensorRow>()).Where(r => r != null).ToList();
+        if (list.Count == 0)
+        {
+            return null;
+        }
+
+        if (list.Count == 1 && list[0].Details != null && list[0].Details.Count > 0)
+        {
+            return list[0];
+        }
+
+        var first = list[0];
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in list)
+        {
+            if (row.Details != null)
+            {
+                foreach (var detail in row.Details)
+                {
+                    if (!string.IsNullOrWhiteSpace(detail.Key) && !string.IsNullOrWhiteSpace(detail.Value) && !details.ContainsKey(detail.Key))
+                    {
+                        details[detail.Key] = detail.Value;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.Name) && !string.IsNullOrWhiteSpace(row.DisplayValue) && !details.ContainsKey(row.Name))
+            {
+                details[row.Name] = row.DisplayValue;
+            }
+        }
+
+        var deviceName = DeviceInventoryDeviceName(list);
+        return new SensorRow
+        {
+            Type = "Devices",
+            Hardware = first.Hardware,
+            Name = deviceName,
+            Identifier = DeviceInventoryDeviceKey(first),
+            DisplayValue = first.DisplayValue,
+            Source = first.Source,
+            Details = details
+        };
+    }
+
+    private static int DeviceInventoryGroupSortIndex(string group)
+    {
+        if (DeviceInventoryGroupEquals(group, "group.Device PCI and system", "PCI and system devices")) return 0;
+        if (DeviceInventoryGroupEquals(group, "group.Device storage", "Storage devices and controllers")) return 1;
+        if (DeviceInventoryGroupEquals(group, "group.Device USB", "USB devices and controllers")) return 2;
+        if (DeviceInventoryGroupEquals(group, "group.Device network", "Network devices")) return 3;
+        if (DeviceInventoryGroupEquals(group, "group.Device audio", "Audio devices")) return 4;
+        if (DeviceInventoryGroupEquals(group, "group.Device display", "Display devices")) return 5;
+        if (DeviceInventoryGroupEquals(group, "group.Device input", "Input devices")) return 6;
+        if (DeviceInventoryGroupEquals(group, "group.Device bluetooth", "Bluetooth")) return 7;
+        if (DeviceInventoryGroupEquals(group, "group.Device imaging", "Cameras and imaging")) return 8;
+        if (DeviceInventoryGroupEquals(group, "group.Device printers", "Printers")) return 9;
+        if (DeviceInventoryGroupEquals(group, "group.Device security", "Security devices")) return 10;
+        return 99;
+    }
+
+    private static bool DeviceInventoryGroupEquals(string group, string key, string fallback)
+    {
+        return string.Equals(group, fallback, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(group, T(key, fallback), StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddCpuPerformanceGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
@@ -1093,12 +1248,17 @@ public sealed partial class SensorReadoutForm : Form
             return 8;
         }
 
+        if (type == "Devices")
+        {
+            return 9;
+        }
+
         if (type == "Battery")
         {
             return 4;
         }
 
-        return 9;
+        return 10;
     }
 
     public static string DisplayTypeName(string type)
@@ -1146,6 +1306,11 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Display")
         {
             return T("type.Display", "Display");
+        }
+
+        if (type == "Devices")
+        {
+            return T("type.Devices", "Devices");
         }
 
         return string.IsNullOrWhiteSpace(type) ? T("type.Readings", "Readings") : type;

@@ -290,10 +290,85 @@ public sealed partial class SensorReadoutForm : Form
         {
             builder.AppendLine();
             builder.AppendLine(item.Release.TagName);
-            builder.AppendLine(FormatReleaseNotesForDialog(item.Release.Body, T("message.noReleaseNotes", "No release notes were provided for this update.")));
+            builder.AppendLine(FormatReleaseNotesForDialog(RemoveDuplicateReleaseHeading(item.Release.Body, item.Release.TagName), T("message.noReleaseNotes", "No release notes were provided for this update.")));
         }
 
         return builder.ToString().TrimEnd();
+    }
+
+    private static string RemoveDuplicateReleaseHeading(string markdown, string tagName)
+    {
+        if (string.IsNullOrWhiteSpace(markdown) || string.IsNullOrWhiteSpace(tagName))
+        {
+            return markdown;
+        }
+
+        var lines = markdown
+            .Replace("\r\n", "\n")
+            .Replace("\r", "\n")
+            .Split('\n')
+            .ToList();
+        var firstContentIndex = -1;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(lines[i]))
+            {
+                firstContentIndex = i;
+                break;
+            }
+        }
+
+        if (firstContentIndex < 0)
+        {
+            return markdown;
+        }
+
+        var firstLine = lines[firstContentIndex].Trim();
+        if (!firstLine.StartsWith("#"))
+        {
+            return markdown;
+        }
+
+        var heading = firstLine.TrimStart('#').Trim();
+        var normalizedHeading = NormalizeReleaseHeading(heading);
+        var normalizedTag = NormalizeReleaseHeading(tagName);
+        if (normalizedHeading.Length > 0 &&
+            normalizedTag.Length > 0 &&
+            (normalizedHeading == normalizedTag ||
+            normalizedHeading.Contains(normalizedTag) ||
+            normalizedTag.Contains(normalizedHeading)))
+        {
+            lines.RemoveAt(firstContentIndex);
+            return string.Join("\n", lines).TrimStart('\n');
+        }
+
+        return markdown;
+    }
+
+    private static string NormalizeReleaseHeading(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        var text = value.Trim().ToLowerInvariant();
+        text = text.Replace("what's new in", "").Replace("whats new in", "").Replace("what is new in", "").Replace("version", "").Trim();
+        if (text.StartsWith("v"))
+        {
+            text = text.Substring(1);
+        }
+
+        var builder = new System.Text.StringBuilder();
+        foreach (var ch in text)
+        {
+            if (char.IsDigit(ch) || ch == '.')
+            {
+                builder.Append(ch);
+            }
+        }
+
+        return builder.ToString().Trim('.');
     }
 
     private static string FormatReleaseNotesForDialog(string markdown, string fallback)
@@ -565,13 +640,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (!quiet)
         {
-            var confirm = MessageBox.Show(
-                this,
-                T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your settings and logs will be kept."),
-                StripMenuMnemonic(T("ui.Download and install", "Download and install")),
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Information);
-            if (confirm != DialogResult.OK)
+            if (!ConfirmSelfUpdateInstall())
             {
                 return;
             }
@@ -596,6 +665,76 @@ public sealed partial class SensorReadoutForm : Form
         catch (Exception ex)
         {
             MessageBox.Show(this, ex.Message, T("ui.Could not start updater", "Could not start updater"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private bool ConfirmSelfUpdateInstall()
+    {
+        if (settings == null || !settings.ShowUpdateInstallConfirmation)
+        {
+            return true;
+        }
+
+        using (var dialog = new Form())
+        using (var layout = new TableLayoutPanel())
+        using (var buttons = new FlowLayoutPanel())
+        {
+            dialog.Text = StripMenuMnemonic(T("ui.Download and install", "Download and install"));
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.AutoSize = true;
+            dialog.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            dialog.ShowIcon = false;
+            dialog.ShowInTaskbar = false;
+
+            layout.Dock = DockStyle.Fill;
+            layout.AutoSize = true;
+            layout.ColumnCount = 1;
+            layout.RowCount = 3;
+            layout.Padding = new Padding(12);
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var message = new Label
+            {
+                AutoSize = true,
+                MaximumSize = new System.Drawing.Size(520, 0),
+                Text = T("message.updateRestartRequired", "Sensor Readout will close, download the update, replace the files in this folder, and restart. Your settings and logs will be kept.")
+            };
+            var dontShowAgainBox = new CheckBox
+            {
+                Text = T("ui.Do not show this &message again", "Do not show this &message again"),
+                AutoSize = true,
+                AccessibleName = T("a11y.Do not show this message again", "Do not show this message again")
+            };
+            var okButton = new Button { Text = T("ui.&OK", "&OK"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = T("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.Dock = DockStyle.Fill;
+            buttons.AutoSize = true;
+            buttons.Padding = new Padding(0, 8, 0, 0);
+            buttons.Controls.Add(cancelButton);
+            buttons.Controls.Add(okButton);
+
+            layout.Controls.Add(message, 0, 0);
+            layout.Controls.Add(dontShowAgainBox, 0, 1);
+            layout.Controls.Add(buttons, 0, 2);
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = okButton;
+            dialog.CancelButton = cancelButton;
+
+            var confirmed = dialog.ShowDialog(this) == DialogResult.OK;
+            if (confirmed && dontShowAgainBox.Checked)
+            {
+                settings.ShowUpdateInstallConfirmation = false;
+                SaveSettings(settings);
+            }
+
+            return confirmed;
         }
     }
 

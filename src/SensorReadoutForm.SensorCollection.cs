@@ -6,6 +6,7 @@ using System.Management;
 using System.Net.NetworkInformation;
 using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
@@ -653,6 +654,10 @@ public sealed partial class SensorReadoutForm : Form
         return value > 100 ? 100 : value;
     }
 
+    private static readonly object hardwareDetailsCacheLock = new object();
+    private static Dictionary<string, string> cachedCpuHardwareDetails;
+    private static Dictionary<string, string> cachedMemoryHardwareDetails;
+
     private IEnumerable<SensorRow> GetSystemPerformanceRows()
     {
         var rows = new List<SensorRow>();
@@ -703,7 +708,8 @@ public sealed partial class SensorReadoutForm : Form
                     var usedKb = Math.Max(0, totalKb - freeKb);
                     var usedPercent = usedKb / totalKb * 100.0;
                     var availablePercent = freeKb / totalKb * 100.0;
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalKb * 1024.0), Source = "Windows WMI" });
+                    var memoryDetails = GetMemoryHardwareDetails();
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalKb * 1024.0), Source = "Windows WMI", Details = CloneDetails(memoryDetails) });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
@@ -770,26 +776,28 @@ public sealed partial class SensorReadoutForm : Form
     private static IEnumerable<SensorRow> GetCpuDetailRows()
     {
         var rows = new List<SensorRow>();
+        var cpuDetails = GetCpuHardwareDetails();
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT Name, Manufacturer, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, CurrentClockSpeed, Architecture, SocketDesignation, ProcessorId, VirtualizationFirmwareEnabled, SecondLevelAddressTranslationExtensions, VMMonitorModeExtensions FROM Win32_Processor"))
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
             {
                 foreach (ManagementObject cpu in searcher.Get())
                 {
-                    AddCpuDetailRow(rows, "CPU name", Convert.ToString(cpu["Name"]));
-                    AddCpuDetailRow(rows, "CPU vendor", Convert.ToString(cpu["Manufacturer"]));
-                    AddCpuDetailRow(rows, "CPU cores", Convert.ToString(cpu["NumberOfCores"]));
-                    AddCpuDetailRow(rows, "CPU threads", Convert.ToString(cpu["NumberOfLogicalProcessors"]));
-                    AddCpuDetailRow(rows, "CPU max clock", FormatMegahertz(cpu["MaxClockSpeed"]));
-                    AddCpuDetailRow(rows, "CPU current clock", FormatMegahertz(cpu["CurrentClockSpeed"]));
-                    AddCpuDetailRow(rows, "CPU socket", Convert.ToString(cpu["SocketDesignation"]));
-                    AddCpuDetailRow(rows, "CPU architecture", FormatCpuArchitecture(cpu["Architecture"]));
-                    AddCpuDetailRow(rows, "CPU instruction sets", GetProcessorInstructionSetSummary());
-                    AddCpuDetailRow(rows, "CPU virtualization extensions", FormatWindowsReportedCpuFeature(cpu["VMMonitorModeExtensions"]));
-                    AddCpuDetailRow(rows, "CPU virtualization enabled in firmware", FormatYesNo(cpu["VirtualizationFirmwareEnabled"]));
-                    AddCpuDetailRow(rows, "CPU hardware VM memory translation (SLAT/EPT/NPT)", FormatWindowsReportedCpuFeature(cpu["SecondLevelAddressTranslationExtensions"]));
-                    AddCpuDetailRow(rows, "CPU data execution prevention", GetProcessorFeatureYesNo(12));
-                    AddCpuDetailRow(rows, "CPU processor ID", Convert.ToString(cpu["ProcessorId"]));
+                    AddCpuDetailRow(rows, "CPU name", Convert.ToString(cpu["Name"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU vendor", Convert.ToString(cpu["Manufacturer"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU cores", Convert.ToString(cpu["NumberOfCores"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU threads", Convert.ToString(cpu["NumberOfLogicalProcessors"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU max clock", FormatMegahertz(cpu["MaxClockSpeed"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU current clock", FormatMegahertz(cpu["CurrentClockSpeed"]), cpuDetails);
+                    AddCpuCacheRows(rows, cpuDetails);
+                    AddCpuDetailRow(rows, "CPU socket", Convert.ToString(cpu["SocketDesignation"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU architecture", FormatCpuArchitecture(cpu["Architecture"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU instruction sets", GetProcessorInstructionSetSummary(), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU virtualization extensions", FormatWindowsReportedCpuFeature(cpu["VMMonitorModeExtensions"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU virtualization enabled in firmware", FormatYesNo(cpu["VirtualizationFirmwareEnabled"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU hardware VM memory translation (SLAT/EPT/NPT)", FormatWindowsReportedCpuFeature(cpu["SecondLevelAddressTranslationExtensions"]), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU data execution prevention", GetProcessorFeatureYesNo(12), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU processor ID", Convert.ToString(cpu["ProcessorId"]), cpuDetails);
                     break;
                 }
             }
@@ -799,6 +807,132 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static void AddCpuCacheRows(List<SensorRow> rows)
+    {
+        AddCpuCacheRows(rows, GetCpuHardwareDetails());
+    }
+
+    private static void AddCpuCacheRows(List<SensorRow> rows, Dictionary<string, string> cpuDetails)
+    {
+        if (rows == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var cacheSizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            using (var searcher = new ManagementObjectSearcher("SELECT Level, Purpose, InstalledSize, MaxCacheSize FROM Win32_CacheMemory"))
+            {
+                foreach (ManagementObject cache in searcher.Get())
+                {
+                    var level = CpuCacheLevelName(cache["Level"], cache["Purpose"]);
+                    if (string.IsNullOrWhiteSpace(level))
+                    {
+                        continue;
+                    }
+
+                    var sizeKb = ReadPositiveLong(cache["InstalledSize"]);
+                    if (sizeKb <= 0)
+                    {
+                        sizeKb = ReadPositiveLong(cache["MaxCacheSize"]);
+                    }
+
+                    if (sizeKb <= 0)
+                    {
+                        continue;
+                    }
+
+                    long existing;
+                    cacheSizes.TryGetValue(level, out existing);
+                    cacheSizes[level] = existing + sizeKb;
+                }
+            }
+
+            foreach (var level in new[] { "L1", "L2", "L3", "L4" })
+            {
+                long sizeKb;
+                if (cacheSizes.TryGetValue(level, out sizeKb))
+                {
+                    AddCpuDetailRow(rows, "CPU " + level + " cache", FormatCacheKilobytes(sizeKb), cpuDetails);
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string CpuCacheLevelName(object levelValue, object purposeValue)
+    {
+        var purpose = Convert.ToString(purposeValue) ?? "";
+        foreach (var level in new[] { "L1", "L2", "L3", "L4" })
+        {
+            if (purpose.IndexOf(level, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return level;
+            }
+        }
+
+        try
+        {
+            switch (Convert.ToInt32(levelValue))
+            {
+                case 3:
+                    return "L1";
+                case 4:
+                    return "L2";
+                case 5:
+                    return "L3";
+                case 6:
+                    return "L4";
+            }
+        }
+        catch
+        {
+        }
+
+        return "";
+    }
+
+    private static long ReadPositiveLong(object value)
+    {
+        if (value == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var result = Convert.ToInt64(value);
+            return result > 0 ? result : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static string FormatCacheKilobytes(long sizeKb)
+    {
+        if (sizeKb <= 0)
+        {
+            return "";
+        }
+
+        if (sizeKb >= 1024 && sizeKb % 1024 == 0)
+        {
+            return FormatNumber(sizeKb / 1024.0, "0") + " MB";
+        }
+
+        if (sizeKb >= 1024)
+        {
+            return FormatNumber(Math.Round(sizeKb / 1024.0, 1), "0.0") + " MB";
+        }
+
+        return FormatNumber(sizeKb, "0") + " KB";
     }
 
     private static string GetProcessorInstructionSetSummary()
@@ -863,6 +997,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddCpuDetailRow(List<SensorRow> rows, string name, string value)
     {
+        AddCpuDetailRow(rows, name, value, GetCpuHardwareDetails());
+    }
+
+    private static void AddCpuDetailRow(List<SensorRow> rows, string name, string value, Dictionary<string, string> details)
+    {
         if (rows == null || string.IsNullOrWhiteSpace(value))
         {
             return;
@@ -874,7 +1013,8 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = "CPU",
             Name = name,
             DisplayValue = value.Trim(),
-            Source = "Windows WMI"
+            Source = "Windows WMI",
+            Details = name.Equals("CPU name", StringComparison.OrdinalIgnoreCase) ? CloneDetails(details) : null
         });
     }
 
@@ -946,7 +1086,8 @@ public sealed partial class SensorReadoutForm : Form
             var usedBytes = Math.Max(0, totalBytes - freeBytes);
             var usedPercent = usedBytes / totalBytes * 100.0;
             var availablePercent = freeBytes / totalBytes * 100.0;
-            rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalBytes), Source = "Windows" });
+            var memoryDetails = GetMemoryHardwareDetails();
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalBytes), Source = "Windows", Details = CloneDetails(memoryDetails) });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedBytes), Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows" });
@@ -955,6 +1096,512 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
             return false;
+        }
+    }
+
+    private static Dictionary<string, string> GetCpuHardwareDetails()
+    {
+        lock (hardwareDetailsCacheLock)
+        {
+            if (cachedCpuHardwareDetails != null)
+            {
+                return new Dictionary<string, string>(cachedCpuHardwareDetails, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
+            {
+                foreach (ManagementObject cpu in searcher.Get())
+                {
+                    AddDetail(details, "CPU name", GetWmiPropertyText(cpu, "Name"));
+                    AddDetail(details, "CPU manufacturer", GetWmiPropertyText(cpu, "Manufacturer"));
+                    AddDetail(details, "CPU description", GetWmiPropertyText(cpu, "Description"));
+                    AddDetail(details, "CPU caption", GetWmiPropertyText(cpu, "Caption"));
+                    AddDetail(details, "CPU device ID", GetWmiPropertyText(cpu, "DeviceID"));
+                    AddDetail(details, "CPU processor ID", GetWmiPropertyText(cpu, "ProcessorId"));
+                    AddDetail(details, "CPU socket", GetWmiPropertyText(cpu, "SocketDesignation"));
+                    AddDetail(details, "CPU architecture", FormatCpuArchitecture(GetWmiPropertyValue(cpu, "Architecture")));
+                    AddDetail(details, "CPU address width", FormatBits(GetWmiPropertyValue(cpu, "AddressWidth")));
+                    AddDetail(details, "CPU data width", FormatBits(GetWmiPropertyValue(cpu, "DataWidth")));
+                    AddDetail(details, "CPU family", GetWmiPropertyText(cpu, "Family"));
+                    AddDetail(details, "CPU stepping", GetWmiPropertyText(cpu, "Stepping"));
+                    AddDetail(details, "CPU revision", GetWmiPropertyText(cpu, "Revision"));
+                    AddDetail(details, "CPU processor type", GetWmiPropertyText(cpu, "ProcessorType"));
+                    AddDetail(details, "CPU upgrade method", GetWmiPropertyText(cpu, "UpgradeMethod"));
+                    AddDetail(details, "CPU current voltage", FormatTenthsOfVolt(GetWmiPropertyValue(cpu, "CurrentVoltage")));
+                    AddDetail(details, "CPU voltage caps", GetWmiPropertyText(cpu, "VoltageCaps"));
+                    AddDetail(details, "CPU external clock", FormatMegahertz(GetWmiPropertyValue(cpu, "ExtClock")));
+                    AddDetail(details, "CPU max clock", FormatMegahertz(GetWmiPropertyValue(cpu, "MaxClockSpeed")));
+                    AddDetail(details, "CPU current clock", FormatMegahertz(GetWmiPropertyValue(cpu, "CurrentClockSpeed")));
+                    AddDetail(details, "CPU cores", GetWmiPropertyText(cpu, "NumberOfCores"));
+                    AddDetail(details, "CPU enabled cores", GetWmiPropertyText(cpu, "NumberOfEnabledCore"));
+                    AddDetail(details, "CPU logical processors", GetWmiPropertyText(cpu, "NumberOfLogicalProcessors"));
+                    AddDetail(details, "CPU thread count", GetWmiPropertyText(cpu, "ThreadCount"));
+                    AddDetail(details, "CPU L2 cache size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cpu, "L2CacheSize")));
+                    AddDetail(details, "CPU L2 cache speed", FormatMegahertz(GetWmiPropertyValue(cpu, "L2CacheSpeed")));
+                    AddDetail(details, "CPU L3 cache size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cpu, "L3CacheSize")));
+                    AddDetail(details, "CPU L3 cache speed", FormatMegahertz(GetWmiPropertyValue(cpu, "L3CacheSpeed")));
+                    AddDetail(details, "CPU instruction sets", GetProcessorInstructionSetSummary());
+                    AddDetail(details, "CPU virtualization extensions", FormatWindowsReportedCpuFeature(GetWmiPropertyValue(cpu, "VMMonitorModeExtensions")));
+                    AddDetail(details, "CPU virtualization enabled in firmware", FormatYesNo(GetWmiPropertyValue(cpu, "VirtualizationFirmwareEnabled")));
+                    AddDetail(details, "CPU hardware VM memory translation (SLAT/EPT/NPT)", FormatWindowsReportedCpuFeature(GetWmiPropertyValue(cpu, "SecondLevelAddressTranslationExtensions")));
+                    AddDetail(details, "CPU data execution prevention", GetProcessorFeatureYesNo(12));
+                    AddDetail(details, "CPU power management supported", FormatYesNo(GetWmiPropertyValue(cpu, "PowerManagementSupported")));
+                    AddDetail(details, "CPU power management capabilities", FormatWmiDetailValue(GetWmiPropertyValue(cpu, "PowerManagementCapabilities")));
+                    AddDetail(details, "CPU status", GetWmiPropertyText(cpu, "Status"));
+                    AddDetail(details, "CPU status code", GetWmiPropertyText(cpu, "CpuStatus"));
+                    AddDetail(details, "CPU availability", GetWmiPropertyText(cpu, "Availability"));
+                    AddDetail(details, "CPU role", GetWmiPropertyText(cpu, "Role"));
+                    AddDetail(details, "CPU system name", GetWmiPropertyText(cpu, "SystemName"));
+                    AddRawWmiDetails(details, "CPU WMI", cpu);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        AddCpuCacheDetails(details);
+
+        lock (hardwareDetailsCacheLock)
+        {
+            cachedCpuHardwareDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return details;
+    }
+
+    private static void AddCpuCacheDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var index = 1;
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_CacheMemory"))
+            {
+                foreach (ManagementObject cache in searcher.Get())
+                {
+                    var label = "CPU cache " + index;
+                    var level = CpuCacheLevelName(GetWmiPropertyValue(cache, "Level"), GetWmiPropertyValue(cache, "Purpose"));
+                    AddDetail(details, label + " level", level);
+                    AddDetail(details, label + " purpose", GetWmiPropertyText(cache, "Purpose"));
+                    AddDetail(details, label + " installed size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cache, "InstalledSize")));
+                    AddDetail(details, label + " maximum size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cache, "MaxCacheSize")));
+                    AddDetail(details, label + " associativity", GetWmiPropertyText(cache, "Associativity"));
+                    AddDetail(details, label + " availability", GetWmiPropertyText(cache, "Availability"));
+                    AddDetail(details, label + " block size", GetWmiPropertyText(cache, "BlockSize"));
+                    AddDetail(details, label + " cache speed", FormatMegahertz(GetWmiPropertyValue(cache, "CacheSpeed")));
+                    AddDetail(details, label + " cache type", GetWmiPropertyText(cache, "CacheType"));
+                    AddDetail(details, label + " error method", GetWmiPropertyText(cache, "ErrorCorrectType"));
+                    AddDetail(details, label + " SRAM type", GetWmiPropertyText(cache, "SRAMType"));
+                    AddDetail(details, label + " write policy", GetWmiPropertyText(cache, "WritePolicy"));
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Dictionary<string, string> GetMemoryHardwareDetails()
+    {
+        lock (hardwareDetailsCacheLock)
+        {
+            if (cachedMemoryHardwareDetails != null)
+            {
+                return new Dictionary<string, string>(cachedMemoryHardwareDetails, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddMemoryArrayDetails(details);
+        AddPhysicalMemoryDetails(details);
+
+        lock (hardwareDetailsCacheLock)
+        {
+            cachedMemoryHardwareDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return details;
+    }
+
+    private static void AddMemoryArrayDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var index = 1;
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemoryArray"))
+            {
+                foreach (ManagementObject array in searcher.Get())
+                {
+                    var label = "Memory array " + index;
+                    AddDetail(details, label + " location", GetWmiPropertyText(array, "Location"));
+                    AddDetail(details, label + " use", GetWmiPropertyText(array, "Use"));
+                    AddDetail(details, label + " memory error correction", GetWmiPropertyText(array, "MemoryErrorCorrection"));
+                    AddDetail(details, label + " maximum capacity", FormatMemoryArrayCapacity(array));
+                    AddDetail(details, label + " memory devices", GetWmiPropertyText(array, "MemoryDevices"));
+                    AddDetail(details, label + " status", GetWmiPropertyText(array, "Status"));
+                    AddRawWmiDetails(details, label + " WMI", array);
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddPhysicalMemoryDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var index = 1;
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
+            {
+                foreach (ManagementObject module in searcher.Get())
+                {
+                    var locator = FirstNonEmpty(GetWmiPropertyText(module, "DeviceLocator"), GetWmiPropertyText(module, "BankLabel"), "Module " + index);
+                    var label = "Memory " + locator;
+                    AddDetail(details, label + " capacity", FormatBytes(GetWmiPropertyValue(module, "Capacity")));
+                    AddDetail(details, label + " manufacturer", GetWmiPropertyText(module, "Manufacturer"));
+                    AddDetail(details, label + " part number", GetWmiPropertyText(module, "PartNumber"));
+                    AddDetail(details, label + " serial number", GetWmiPropertyText(module, "SerialNumber"));
+                    AddDetail(details, label + " bank", GetWmiPropertyText(module, "BankLabel"));
+                    AddDetail(details, label + " device locator", GetWmiPropertyText(module, "DeviceLocator"));
+                    AddDetail(details, label + " form factor", FormatMemoryFormFactor(GetWmiPropertyValue(module, "FormFactor")));
+                    AddDetail(details, label + " memory type", FormatMemoryType(GetWmiPropertyValue(module, "MemoryType")));
+                    AddDetail(details, label + " SMBIOS memory type", FormatSmbiosMemoryType(GetWmiPropertyValue(module, "SMBIOSMemoryType")));
+                    AddDetail(details, label + " type detail", FormatMemoryTypeDetail(GetWmiPropertyValue(module, "TypeDetail")));
+                    AddDetail(details, label + " speed", FormatMegahertz(GetWmiPropertyValue(module, "Speed")));
+                    AddDetail(details, label + " configured speed", FormatMegahertz(GetWmiPropertyValue(module, "ConfiguredClockSpeed")));
+                    AddDetail(details, label + " data width", FormatBits(GetWmiPropertyValue(module, "DataWidth")));
+                    AddDetail(details, label + " total width", FormatBits(GetWmiPropertyValue(module, "TotalWidth")));
+                    AddDetail(details, label + " configured voltage", FormatMillivolts(GetWmiPropertyValue(module, "ConfiguredVoltage")));
+                    AddDetail(details, label + " minimum voltage", FormatMillivolts(GetWmiPropertyValue(module, "MinVoltage")));
+                    AddDetail(details, label + " maximum voltage", FormatMillivolts(GetWmiPropertyValue(module, "MaxVoltage")));
+                    AddDetail(details, label + " interleave data depth", GetWmiPropertyText(module, "InterleaveDataDepth"));
+                    AddDetail(details, label + " interleave position", GetWmiPropertyText(module, "InterleavePosition"));
+                    AddDetail(details, label + " position in row", GetWmiPropertyText(module, "PositionInRow"));
+                    AddDetail(details, label + " tag", GetWmiPropertyText(module, "Tag"));
+                    AddDetail(details, label + " status", GetWmiPropertyText(module, "Status"));
+                    AddRawWmiDetails(details, label + " WMI", module);
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddRawWmiDetails(Dictionary<string, string> details, string prefix, ManagementBaseObject obj)
+    {
+        if (details == null || obj == null || string.IsNullOrWhiteSpace(prefix))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (PropertyData property in obj.Properties)
+            {
+                if (property == null || string.IsNullOrWhiteSpace(property.Name))
+                {
+                    continue;
+                }
+
+                AddDetail(details, prefix + " " + SplitPascalCase(property.Name), FormatWmiDetailValue(property.Value));
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Dictionary<string, string> CloneDetails(Dictionary<string, string> details)
+    {
+        return details == null || details.Count == 0
+            ? null
+            : new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string FormatWmiDetailValue(object value)
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        var array = value as Array;
+        if (array != null && !(value is byte[]))
+        {
+            var parts = new List<string>();
+            foreach (var item in array)
+            {
+                var text = Convert.ToString(item);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    parts.Add(text.Trim());
+                }
+            }
+
+            return string.Join(", ", parts.ToArray());
+        }
+
+        var bytes = value as byte[];
+        if (bytes != null)
+        {
+            if (bytes.Length == 0)
+            {
+                return "";
+            }
+
+            return BitConverter.ToString(bytes);
+        }
+
+        if (value is DateTime)
+        {
+            return FormatDateTime((DateTime)value);
+        }
+
+        var textValue = Convert.ToString(value);
+        var looksLikeDmtf = !string.IsNullOrWhiteSpace(textValue) && textValue.Trim().Length >= 14 && textValue.Trim().Take(14).All(char.IsDigit);
+        DateTime date;
+        if (looksLikeDmtf && TryParseWmiDate(textValue, out date))
+        {
+            return FormatDateTime(date);
+        }
+
+        return CleanWmiText(textValue);
+    }
+
+    private static string SplitPascalCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        return Regex.Replace(value.Trim(), "([a-z0-9])([A-Z])", "$1 $2");
+    }
+
+    private static string FormatBits(object value)
+    {
+        var text = Convert.ToString(value);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        return text.Trim() + "-bit";
+    }
+
+    private static string FormatMillivolts(object value)
+    {
+        long millivolts;
+        if (!TryConvertToInt64(value, out millivolts) || millivolts <= 0)
+        {
+            return "";
+        }
+
+        return FormatNumber(Math.Round(millivolts / 1000.0, 3), "0.###") + " V";
+    }
+
+    private static string FormatTenthsOfVolt(object value)
+    {
+        long raw;
+        if (!TryConvertToInt64(value, out raw) || raw <= 0)
+        {
+            return "";
+        }
+
+        return FormatNumber(Math.Round(raw / 10.0, 1), "0.0") + " V";
+    }
+
+    private static string FormatCacheWmiKilobytes(object value)
+    {
+        long sizeKb;
+        return TryConvertToInt64(value, out sizeKb) && sizeKb > 0 ? FormatCacheKilobytes(sizeKb) : "";
+    }
+
+    private static string FormatMemoryArrayCapacity(ManagementObject array)
+    {
+        if (array == null)
+        {
+            return "";
+        }
+
+        long kbEx;
+        if (TryConvertToInt64(GetWmiPropertyValue(array, "MaxCapacityEx"), out kbEx) && kbEx > 0)
+        {
+            return FormatBytes(kbEx * 1024.0);
+        }
+
+        long kb;
+        return TryConvertToInt64(GetWmiPropertyValue(array, "MaxCapacity"), out kb) && kb > 0 ? FormatBytes(kb * 1024.0) : "";
+    }
+
+    private static string FormatMemoryFormFactor(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "Other";
+            case 2: return "SIP";
+            case 3: return "DIP";
+            case 4: return "ZIP";
+            case 5: return "SOJ";
+            case 6: return "Proprietary";
+            case 7: return "SIMM";
+            case 8: return "DIMM";
+            case 9: return "TSOP";
+            case 10: return "PGA";
+            case 11: return "RIMM";
+            case 12: return "SODIMM";
+            case 13: return "SRIMM";
+            case 14: return "SMD";
+            case 15: return "SSMP";
+            case 16: return "QFP";
+            case 17: return "TQFP";
+            case 18: return "SOIC";
+            case 19: return "LCC";
+            case 20: return "PLCC";
+            case 21: return "BGA";
+            case 22: return "FPBGA";
+            case 23: return "LGA";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatMemoryType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "Other";
+            case 2: return "DRAM";
+            case 3: return "Synchronous DRAM";
+            case 4: return "Cache DRAM";
+            case 5: return "EDO";
+            case 6: return "EDRAM";
+            case 7: return "VRAM";
+            case 8: return "SRAM";
+            case 9: return "RAM";
+            case 10: return "ROM";
+            case 11: return "Flash";
+            case 12: return "EEPROM";
+            case 13: return "FEPROM";
+            case 14: return "EPROM";
+            case 15: return "CDRAM";
+            case 16: return "3DRAM";
+            case 17: return "SDRAM";
+            case 18: return "SGRAM";
+            case 19: return "RDRAM";
+            case 20: return "DDR";
+            case 21: return "DDR2";
+            case 22: return "DDR2 FB-DIMM";
+            case 24: return "DDR3";
+            case 25: return "FBD2";
+            case 26: return "DDR4";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatSmbiosMemoryType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "Other";
+            case 2: return "DRAM";
+            case 3: return "Synchronous DRAM";
+            case 4: return "Cache DRAM";
+            case 5: return "EDO";
+            case 6: return "EDRAM";
+            case 7: return "VRAM";
+            case 8: return "SRAM";
+            case 9: return "RAM";
+            case 10: return "ROM";
+            case 11: return "Flash";
+            case 12: return "EEPROM";
+            case 13: return "FEPROM";
+            case 14: return "EPROM";
+            case 15: return "CDRAM";
+            case 16: return "3DRAM";
+            case 17: return "SDRAM";
+            case 18: return "SGRAM";
+            case 19: return "RDRAM";
+            case 20: return "DDR";
+            case 21: return "DDR2";
+            case 22: return "DDR2 FB-DIMM";
+            case 24: return "DDR3";
+            case 25: return "FBD2";
+            case 26: return "DDR4";
+            case 27: return "LPDDR";
+            case 28: return "LPDDR2";
+            case 29: return "LPDDR3";
+            case 30: return "LPDDR4";
+            case 31: return "Logical non-volatile device";
+            case 32: return "HBM";
+            case 33: return "HBM2";
+            case 34: return "DDR5";
+            case 35: return "LPDDR5";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatMemoryTypeDetail(object value)
+    {
+        int flags;
+        if (!TryConvertToInt32(value, out flags) || flags == 0)
+        {
+            return Convert.ToString(value);
+        }
+
+        var parts = new List<string>();
+        AddMemoryTypeDetailFlag(parts, flags, 1, "Reserved");
+        AddMemoryTypeDetailFlag(parts, flags, 2, "Other");
+        AddMemoryTypeDetailFlag(parts, flags, 4, "Unknown");
+        AddMemoryTypeDetailFlag(parts, flags, 8, "Fast-paged");
+        AddMemoryTypeDetailFlag(parts, flags, 16, "Static column");
+        AddMemoryTypeDetailFlag(parts, flags, 32, "Pseudo-static");
+        AddMemoryTypeDetailFlag(parts, flags, 64, "RAMBUS");
+        AddMemoryTypeDetailFlag(parts, flags, 128, "Synchronous");
+        AddMemoryTypeDetailFlag(parts, flags, 256, "CMOS");
+        AddMemoryTypeDetailFlag(parts, flags, 512, "EDO");
+        AddMemoryTypeDetailFlag(parts, flags, 1024, "Window DRAM");
+        AddMemoryTypeDetailFlag(parts, flags, 2048, "Cache DRAM");
+        AddMemoryTypeDetailFlag(parts, flags, 4096, "Non-volatile");
+        return parts.Count == 0 ? Convert.ToString(value) : string.Join(", ", parts.ToArray());
+    }
+
+    private static void AddMemoryTypeDetailFlag(List<string> parts, int flags, int flag, string text)
+    {
+        if ((flags & flag) != 0)
+        {
+            parts.Add(text);
         }
     }
 
@@ -1611,7 +2258,13 @@ public sealed partial class SensorReadoutForm : Form
         var bytes = value as byte[];
         if (bytes != null)
         {
-            return System.Text.Encoding.Unicode.GetString(bytes).TrimEnd('\0').Trim();
+            var unicode = System.Text.Encoding.Unicode.GetString(bytes).TrimEnd('\0').Trim();
+            if (IsMostlyPrintableRegistryText(unicode))
+            {
+                return unicode;
+            }
+
+            return BitConverter.ToString(bytes).Replace("-", " ");
         }
 
         var strings = value as string[];
@@ -1621,6 +2274,33 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return Convert.ToString(value);
+    }
+
+    private static bool IsMostlyPrintableRegistryText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var printable = 0;
+        var total = 0;
+        foreach (var ch in text)
+        {
+            if (char.IsControl(ch) && !char.IsWhiteSpace(ch))
+            {
+                total++;
+                continue;
+            }
+
+            total++;
+            if (!char.IsSurrogate(ch) && ch != '\uFFFD')
+            {
+                printable++;
+            }
+        }
+
+        return total > 0 && printable >= total * 8 / 10;
     }
 
     private static ulong RegistryValueToUInt64(object value)

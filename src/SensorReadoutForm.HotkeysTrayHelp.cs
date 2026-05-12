@@ -621,9 +621,9 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var selectedRows = GetTrayStatusRows();
-        var text = BuildTrayStatusText(selectedRows);
-        currentTrayStatusText = text;
-        trayIcon.Text = ShortenTrayText(text, selectedRows.Count > 1);
+        var speechText = BuildSpeechStatusText(selectedRows);
+        currentTrayStatusText = speechText;
+        trayIcon.Text = BuildTrayTooltipText(selectedRows, speechText);
         SetTrayIcon(selectedRows.FirstOrDefault());
     }
 
@@ -1051,6 +1051,27 @@ public sealed partial class SensorReadoutForm : Form
         return trimmed.StartsWith(label + " ", StringComparison.OrdinalIgnoreCase)
             ? trimmed.Substring(label.Length + 1).Trim()
             : trimmed;
+    }
+
+    private static string BuildTrayTooltipText(List<SensorRow> selectedRows, string speechText)
+    {
+        if (!string.IsNullOrWhiteSpace(speechText) && speechText.Length <= 63)
+        {
+            return speechText;
+        }
+
+        var count = selectedRows == null ? 0 : selectedRows.Count;
+        if (count <= 0)
+        {
+            return ShortenTrayText(T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), false);
+        }
+
+        return ShortenTrayText(
+            string.Format(
+                CultureInfo.CurrentCulture,
+                T("ui.Sensor Readout: {0} readings. Speak tray status for full text.", "Sensor Readout: {0} readings. Speak tray status for full text."),
+                count),
+            false);
     }
 
     private static string ShortenTrayText(string text, bool showEllipsis)

@@ -12,6 +12,11 @@ public sealed partial class SensorReadoutForm : Form
         public bool RunAtStartup;
     }
 
+    private sealed class UninstallOptions
+    {
+        public bool DeleteUserData;
+    }
+
     private void InstallToLocalAppDataAndRestart()
     {
         var sourceFolder = NormalizeFolderPath(AppDomain.CurrentDomain.BaseDirectory);
@@ -89,14 +94,8 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var message =
-            L("message.This will remove the installed Sensor Readout app files from this PC.", "This will remove the installed Sensor Readout app files from this PC.") +
-            Environment.NewLine + installFolder +
-            Environment.NewLine + Environment.NewLine +
-            L("message.Your Config, Logs, and Reports folders will be left in place.", "Your Config, Logs, and Reports folders will be left in place.") +
-            Environment.NewLine + Environment.NewLine +
-            L("message.Sensor Readout will close when uninstall starts.", "Sensor Readout will close when uninstall starts.");
-        if (MessageBox.Show(this, message, L("ui.Uninstall from this PC", "Uninstall from this PC"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+        var options = ShowUninstallOptionsDialog(installFolder);
+        if (options == null)
         {
             return;
         }
@@ -107,7 +106,7 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
             SetRunAtStartup(false, false);
             SetDesktopShortcut(false);
-            StartUninstallScript(installFolder, Process.GetCurrentProcess().Id);
+            StartUninstallScript(installFolder, Process.GetCurrentProcess().Id, options.DeleteUserData);
             Application.Exit();
         }
         catch (Exception ex)
@@ -118,6 +117,69 @@ public sealed partial class SensorReadoutForm : Form
                 L("ui.Uninstall from this PC", "Uninstall from this PC"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
+        }
+    }
+
+    private UninstallOptions ShowUninstallOptionsDialog(string installFolder)
+    {
+        using (var dialog = new Form())
+        using (var layout = new TableLayoutPanel())
+        using (var buttons = new FlowLayoutPanel())
+        {
+            dialog.Text = L("ui.Uninstall from this PC", "Uninstall from this PC");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.AutoSize = true;
+            dialog.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
+            layout.Dock = DockStyle.Fill;
+            layout.AutoSize = true;
+            layout.ColumnCount = 1;
+            layout.RowCount = 3;
+            layout.Padding = new Padding(12);
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var intro = new Label
+            {
+                AutoSize = true,
+                MaximumSize = new System.Drawing.Size(560, 0),
+                Text =
+                    L("message.This will remove the installed Sensor Readout app files from this PC.", "This will remove the installed Sensor Readout app files from this PC.") +
+                    Environment.NewLine + installFolder +
+                    Environment.NewLine + Environment.NewLine +
+                    L("message.Sensor Readout will close when uninstall starts.", "Sensor Readout will close when uninstall starts.")
+            };
+            var deleteUserDataBox = new CheckBox
+            {
+                Text = L("ui.Also delete &Config, Logs, and Reports", "Also delete &Config, Logs, and Reports"),
+                Checked = false,
+                AutoSize = true,
+                AccessibleName = L("a11y.Also delete Config, Logs, and Reports", "Also delete Config, Logs, and Reports"),
+                AccessibleDescription = L("a11y.Leave this unchecked to keep settings, logs, and saved reports after uninstalling.", "Leave this unchecked to keep settings, logs, and saved reports after uninstalling.")
+            };
+
+            var uninstallButton = new Button { Text = L("ui.&Uninstall", "&Uninstall"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.Dock = DockStyle.Fill;
+            buttons.AutoSize = true;
+            buttons.Controls.Add(cancelButton);
+            buttons.Controls.Add(uninstallButton);
+
+            layout.Controls.Add(intro, 0, 0);
+            layout.Controls.Add(deleteUserDataBox, 0, 1);
+            layout.Controls.Add(buttons, 0, 2);
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = uninstallButton;
+            dialog.CancelButton = cancelButton;
+
+            return dialog.ShowDialog(this) == DialogResult.OK
+                ? new UninstallOptions { DeleteUserData = deleteUserDataBox.Checked }
+                : null;
         }
     }
 
@@ -260,18 +322,23 @@ public sealed partial class SensorReadoutForm : Form
         return Path.Combine(desktop, "Sensor Readout.lnk");
     }
 
-    private static void StartUninstallScript(string installFolder, int processId)
+    private static void StartUninstallScript(string installFolder, int processId, bool deleteUserData)
     {
         var scriptPath = Path.Combine(Path.GetTempPath(), "SensorReadout-Uninstall-" + Guid.NewGuid().ToString("N") + ".ps1");
         var script =
             "$ErrorActionPreference = 'SilentlyContinue'\r\n" +
             "$pidToWait = " + processId + "\r\n" +
             "$target = " + PowerShellInstallQuote(installFolder) + "\r\n" +
+            "$deleteUserData = $" + (deleteUserData ? "true" : "false") + "\r\n" +
             "$preserve = @('Config','Logs','Reports')\r\n" +
             "while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 300 }\r\n" +
             "if (Test-Path -LiteralPath $target) {\r\n" +
-            "  Get-ChildItem -LiteralPath $target -Force | Where-Object { $preserve -notcontains $_.Name } | ForEach-Object {\r\n" +
-            "    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
+            "  if ($deleteUserData) {\r\n" +
+            "    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
+            "  } else {\r\n" +
+            "    Get-ChildItem -LiteralPath $target -Force | Where-Object { $preserve -notcontains $_.Name } | ForEach-Object {\r\n" +
+            "      Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
+            "    }\r\n" +
             "  }\r\n" +
             "}\r\n" +
             "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\r\n";

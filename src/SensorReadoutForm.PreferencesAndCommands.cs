@@ -53,6 +53,11 @@ public sealed partial class SensorReadoutForm : Form
             return SelectCategoryByKey("type|Battery");
         }
 
+        if (keyCode == Keys.D9 || keyCode == Keys.NumPad9)
+        {
+            return SelectCategoryByKey("type|Devices");
+        }
+
         return false;
     }
 
@@ -286,7 +291,8 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
-        return SearchReadingDisplayText(row) + " " + row.Type + " " + row.Hardware + " " + row.Name + " " + row.Identifier + " " + row.DisplayValue;
+        var detailText = row.Details == null ? "" : string.Join(" ", row.Details.Select(kv => (kv.Key ?? "") + " " + (kv.Value ?? "")).ToArray());
+        return SearchReadingDisplayText(row) + " " + row.Type + " " + row.Hardware + " " + row.Name + " " + row.Identifier + " " + row.DisplayValue + " " + detailText;
     }
 
     private void SelectReadingSearchResult(SensorRow row)

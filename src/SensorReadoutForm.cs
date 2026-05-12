@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "2.3.0";
+    public const string AppVersion = "3.0.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -102,6 +102,8 @@ public sealed partial class SensorReadoutForm : Form
     private bool reportViewMode;
     private string loadedReportPath = "";
     private string loadedReportTitle = "";
+    private string loadedReportMachineName = "";
+    private string loadedReportGeneratedLocal = "";
     private bool menuInteractionActive;
     private bool visibleRefreshPending;
     private DateTime lastUserNavigationUtc = DateTime.MinValue;
@@ -145,6 +147,7 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import settings and &profiles...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportSettingsAndProfiles(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Export portable &copy...", Keys.Control | Keys.Shift | Keys.E, delegate { ExportPortableCopy(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Reports folder", Keys.Control | Keys.Shift | Keys.O, delegate { OpenReportsFolder(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Logs folder", Keys.Control | Keys.Shift | Keys.L, delegate { OpenLogsFolder(); }));
         returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
@@ -175,6 +178,7 @@ public sealed partial class SensorReadoutForm : Form
         viewMenu.DropDownItems.Add("&Display\tCtrl+7", null, delegate { SelectCategoryByKey("type|Display"); });
         batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+8", null, delegate { SelectCategoryByKey("type|Battery"); });
         viewMenu.DropDownItems.Add(batteryViewMenuItem);
+        viewMenu.DropDownItems.Add("De&vices\tCtrl+9", null, delegate { SelectCategoryByKey("type|Devices"); });
         viewMenu.DropDownOpening += delegate { UpdateViewMenuVisibility(); };
 
         var optionsMenu = new ToolStripMenuItem("&Options");
@@ -341,7 +345,7 @@ public sealed partial class SensorReadoutForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Reading section",
-            AccessibleDescription = "Choose a section such as Performance, Temperatures, Fans, SMART, Network, USB, Audio, Display, or Battery"
+            AccessibleDescription = "Choose a category on the left, then review its readings and details on the right."
         };
         deviceList.SelectedIndexChanged += delegate
         {

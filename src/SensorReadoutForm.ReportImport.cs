@@ -78,6 +78,8 @@ public sealed partial class SensorReadoutForm : Form
         reportViewMode = true;
         loadedReportPath = path ?? "";
         loadedReportTitle = string.IsNullOrWhiteSpace(snapshot.Title) ? Path.GetFileName(path) : snapshot.Title;
+        loadedReportMachineName = ReportMachineName(snapshot);
+        loadedReportGeneratedLocal = snapshot.GeneratedLocal ?? "";
         if (timer != null)
         {
             timer.Stop();
@@ -111,6 +113,8 @@ public sealed partial class SensorReadoutForm : Form
         reportViewMode = false;
         loadedReportPath = "";
         loadedReportTitle = "";
+        loadedReportMachineName = "";
+        loadedReportGeneratedLocal = "";
         latestRows.Clear();
         readingTreeExpansionInitialized = false;
         lastReadingTreeSignature = "";
@@ -136,18 +140,41 @@ public sealed partial class SensorReadoutForm : Form
     private void UpdateWindowTitle()
     {
         var title = T("app.title", "Sensor Readout") + " " + AppVersion;
-        var machineName = Environment.MachineName ?? "";
-        if (!string.IsNullOrWhiteSpace(machineName))
+        if (reportViewMode)
         {
-            title += " - " + machineName;
+            var reportTitle = ReportWindowTitleText();
+            if (!string.IsNullOrWhiteSpace(reportTitle))
+            {
+                title += " - " + T("ui.Report", "Report") + ": " + reportTitle;
+            }
         }
-
-        if (reportViewMode && !string.IsNullOrWhiteSpace(loadedReportTitle))
+        else
         {
-            title += " - " + T("ui.Report", "Report") + ": " + loadedReportTitle;
+            var machineName = Environment.MachineName ?? "";
+            if (!string.IsNullOrWhiteSpace(machineName))
+            {
+                title += " - " + machineName;
+            }
         }
 
         Text = title;
+    }
+
+    private string ReportWindowTitleText()
+    {
+        if (!string.IsNullOrWhiteSpace(loadedReportMachineName))
+        {
+            return loadedReportMachineName.Trim();
+        }
+
+        var title = loadedReportTitle ?? "";
+        var prefix = "Sensor Readout report for ";
+        if (title.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return title.Substring(prefix.Length).Trim();
+        }
+
+        return title.Trim();
     }
 
     private ReportSnapshot BuildReportSnapshot()
@@ -156,13 +183,55 @@ public sealed partial class SensorReadoutForm : Form
         {
             AppVersion = AppVersion,
             Title = BuildReportTitle(),
-            MachineName = Environment.MachineName ?? "",
-            GeneratedLocal = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            MachineName = CurrentReportMachineName(),
+            GeneratedLocal = CurrentReportGeneratedLocal(),
             Rows = ReportTypeGroups()
                 .SelectMany(g => g)
                 .Select(ToReportSnapshotRow)
                 .ToList()
         };
+    }
+
+    private string CurrentReportMachineName()
+    {
+        if (reportViewMode && !string.IsNullOrWhiteSpace(loadedReportMachineName))
+        {
+            return loadedReportMachineName.Trim();
+        }
+
+        return Environment.MachineName ?? "";
+    }
+
+    private string CurrentReportGeneratedLocal()
+    {
+        if (reportViewMode && !string.IsNullOrWhiteSpace(loadedReportGeneratedLocal))
+        {
+            return loadedReportGeneratedLocal.Trim();
+        }
+
+        return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private static string ReportMachineName(ReportSnapshot snapshot)
+    {
+        if (snapshot == null)
+        {
+            return "";
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.MachineName))
+        {
+            return snapshot.MachineName.Trim();
+        }
+
+        var title = snapshot.Title ?? "";
+        var prefix = "Sensor Readout report for ";
+        if (title.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return title.Substring(prefix.Length).Trim();
+        }
+
+        return "";
     }
 
     private static ReportSnapshotRow ToReportSnapshotRow(SensorRow row)
@@ -468,7 +537,7 @@ public sealed partial class SensorReadoutForm : Form
     private static string ReportTypeFromHeading(string heading)
     {
         heading = (heading ?? "").Trim();
-        foreach (var type in new[] { "Performance", "Temperature", "Fan", "SMART", "Battery", "Network", "USB", "Audio", "Display" })
+        foreach (var type in new[] { "Performance", "Temperature", "Fan", "SMART", "Battery", "Network", "USB", "Audio", "Display", "Devices" })
         {
             if (heading.Equals(type, StringComparison.OrdinalIgnoreCase) || heading.Equals(DisplayTypeName(type), StringComparison.OrdinalIgnoreCase))
             {

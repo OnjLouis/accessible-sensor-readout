@@ -16,10 +16,11 @@ public sealed partial class SensorReadoutForm : Form
             var reportsFolder = GetReportsFolderPath();
             System.IO.Directory.CreateDirectory(reportsFolder);
             dialog.Title = "Save Sensor Report";
-            dialog.Filter = "Text report (*.txt)|*.txt|Formatted HTML report (*.html)|*.html";
-            dialog.FileName = DefaultReportFileName(false);
+            dialog.Filter = "Formatted HTML report (*.html)|*.html|Text report (*.txt)|*.txt";
+            dialog.FilterIndex = 1;
+            dialog.FileName = DefaultReportFileName(true, CurrentReportMachineName());
             dialog.InitialDirectory = reportsFolder;
-            dialog.DefaultExt = "txt";
+            dialog.DefaultExt = "html";
             dialog.AddExtension = true;
             dialog.OverwritePrompt = true;
 
@@ -28,10 +29,14 @@ public sealed partial class SensorReadoutForm : Form
                 return;
             }
 
-            var html = dialog.FilterIndex == 2 || dialog.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || dialog.FileName.EndsWith(".htm", StringComparison.OrdinalIgnoreCase);
+            var html = dialog.FilterIndex == 1 || dialog.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase) || dialog.FileName.EndsWith(".htm", StringComparison.OrdinalIgnoreCase);
             if (html && !dialog.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase) && !dialog.FileName.EndsWith(".htm", StringComparison.OrdinalIgnoreCase))
             {
                 dialog.FileName = System.IO.Path.ChangeExtension(dialog.FileName, ".html");
+            }
+            else if (!html && !dialog.FileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            {
+                dialog.FileName = System.IO.Path.ChangeExtension(dialog.FileName, ".txt");
             }
 
             var stopwatch = Stopwatch.StartNew();
@@ -115,7 +120,12 @@ public sealed partial class SensorReadoutForm : Form
 
     public static string DefaultReportFileName(bool html)
     {
-        return "SensorReadout-" + SafeReportFileName(Environment.MachineName) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt");
+        return DefaultReportFileName(html, Environment.MachineName);
+    }
+
+    private static string DefaultReportFileName(bool html, string machineName)
+    {
+        return "SensorReadout-" + SafeReportFileName(machineName) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt");
     }
 
     private static string SafeReportFileName(string value)
@@ -149,9 +159,8 @@ public sealed partial class SensorReadoutForm : Form
     private string BuildTextReport(string timingLine)
     {
         var lines = new List<string>();
-        var snapshot = BuildReportSnapshot();
         lines.Add(BuildReportTitle());
-        lines.Add("Generated " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        lines.Add("Generated " + CurrentReportGeneratedLocal());
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             lines.Add(timingLine);
@@ -166,10 +175,26 @@ public sealed partial class SensorReadoutForm : Form
             lines.Add("");
         }
 
-        lines.Add("[SensorReadoutReportData]");
-        lines.Add(EncodeReportSnapshot(snapshot));
-        lines.Add("[/SensorReadoutReportData]");
+        lines.Add("Internal Sensor Readout data below this line. This helps Sensor Readout reopen the report exactly.");
+        lines.Add(ReportDataBeginMarker);
+        lines.AddRange(WrapReportPayload(EncodeReportSnapshot(BuildReportSnapshot()), 76));
+        lines.Add(ReportDataEndMarker);
+
         return string.Join(Environment.NewLine, lines.ToArray());
+    }
+
+    private static IEnumerable<string> WrapReportPayload(string payload, int width)
+    {
+        if (string.IsNullOrEmpty(payload))
+        {
+            yield break;
+        }
+
+        width = Math.Max(16, width);
+        for (var index = 0; index < payload.Length; index += width)
+        {
+            yield return payload.Substring(index, Math.Min(width, payload.Length - index));
+        }
     }
 
     private string BuildHtmlReport(string timingLine)
@@ -182,7 +207,7 @@ public sealed partial class SensorReadoutForm : Form
         html.AppendLine("<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.35} table{border-collapse:collapse;margin:0 0 1.2em 0} th,td{border:1px solid #888;padding:4px 8px;text-align:left} h2{margin-top:1.4em} h3{margin-bottom:.4em} h4{margin:.8em 0 .3em 0}</style>");
         html.AppendLine("</head><body>");
         html.AppendLine("<h1>" + HtmlEncode(title) + "</h1>");
-        html.AppendLine("<p>Generated " + HtmlEncode(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")) + "</p>");
+        html.AppendLine("<p>Generated " + HtmlEncode(CurrentReportGeneratedLocal()) + "</p>");
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             html.AppendLine("<p>" + HtmlEncode(timingLine) + "</p>");
@@ -215,17 +240,67 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var item in items)
         {
             var indent = new string(' ', level * 2);
-            lines.Add(indent + item.Text);
+            AddWrappedTextReportLine(lines, indent, item.Text);
             if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0)
             {
                 foreach (var detail in OrderedReportDetails(item.Row))
                 {
-                    lines.Add(indent + "  " + detail.Key + ": " + detail.Value);
+                    AddWrappedTextReportLine(lines, indent + "  ", detail.Key + ": " + detail.Value);
                 }
             }
 
             AddTextReportTreeLines(lines, item.Children, level + 1);
         }
+    }
+
+    private static void AddWrappedTextReportLine(List<string> lines, string indent, string text)
+    {
+        if (lines == null)
+        {
+            return;
+        }
+
+        indent = indent ?? "";
+        text = text ?? "";
+        const int width = 160;
+        var firstPrefix = indent;
+        var continuationPrefix = indent + "  ";
+        var remaining = text.TrimEnd();
+        var prefix = firstPrefix;
+        if (remaining.Length == 0)
+        {
+            lines.Add(prefix);
+            return;
+        }
+
+        while (prefix.Length + remaining.Length > width)
+        {
+            var available = Math.Max(40, width - prefix.Length);
+            var split = FindReportWrapPoint(remaining, available);
+            lines.Add(prefix + remaining.Substring(0, split).TrimEnd());
+            remaining = remaining.Substring(split).TrimStart();
+            prefix = continuationPrefix;
+        }
+
+        lines.Add(prefix + remaining);
+    }
+
+    private static int FindReportWrapPoint(string text, int available)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= available)
+        {
+            return string.IsNullOrEmpty(text) ? 0 : text.Length;
+        }
+
+        for (var i = Math.Min(available, text.Length - 1); i >= Math.Max(1, available / 2); i--)
+        {
+            if (char.IsWhiteSpace(text[i]) || text[i] == ';' || text[i] == ',' || text[i] == '|')
+            {
+                return i + 1;
+            }
+        }
+
+        return available;
     }
 
     private static void AddHtmlReportTree(System.Text.StringBuilder html, IEnumerable<ReadingTreeItem> items)
@@ -254,9 +329,14 @@ public sealed partial class SensorReadoutForm : Form
         html.AppendLine("</ul>");
     }
 
-    private static string BuildReportTitle()
+    private string BuildReportTitle()
     {
-        var machineName = Environment.MachineName;
+        if (reportViewMode && !string.IsNullOrWhiteSpace(loadedReportTitle))
+        {
+            return loadedReportTitle.Trim();
+        }
+
+        var machineName = CurrentReportMachineName();
         return string.IsNullOrWhiteSpace(machineName)
             ? "Sensor Readout report"
             : "Sensor Readout report for " + machineName;

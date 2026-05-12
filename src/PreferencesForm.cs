@@ -16,6 +16,7 @@ public sealed class PreferencesForm : Form
     private readonly CheckBox startMinimizedCheckBox;
     private readonly ComboBox updateCheckFrequencyBox;
     private readonly CheckBox installUpdatesQuietlyCheckBox;
+    private readonly CheckBox showUpdateInstallConfirmationCheckBox;
     private readonly ComboBox updateAvailableSoundBox;
     private readonly CheckBox diagnosticsSpeakProgressCheckBox;
     private readonly CheckBox diagnosticsPlaySoundsCheckBox;
@@ -106,6 +107,7 @@ public sealed class PreferencesForm : Form
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
     public bool InstallUpdatesQuietly { get { return installUpdatesQuietlyCheckBox != null && installUpdatesQuietlyCheckBox.Checked; } }
+    public bool ShowUpdateInstallConfirmation { get { return showUpdateInstallConfirmationCheckBox == null || showUpdateInstallConfirmationCheckBox.Checked; } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
     public bool DiagnosticsPlaySounds { get { return diagnosticsPlaySoundsCheckBox == null || diagnosticsPlaySoundsCheckBox.Checked; } }
@@ -941,6 +943,14 @@ public sealed class PreferencesForm : Form
             IntegralHeight = false,
             AccessibleName = "Hidden readings"
         };
+        showUpdateInstallConfirmationCheckBox = new CheckBox
+        {
+            Text = "Show update install &confirmation",
+            Checked = settings.ShowUpdateInstallConfirmation,
+            AutoSize = true,
+            AccessibleName = "Show update install confirmation",
+            AccessibleDescription = "When checked, Download and install asks before Sensor Readout closes, installs the update, and reopens."
+        };
         foreach (var key in hiddenReadingKeys.OrderBy(k => k))
         {
             var index = hiddenItemsList.Items.Add(key);
@@ -963,14 +973,16 @@ public sealed class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Padding = new Padding(10)
         };
+        hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.Controls.Add(new Label { Text = "Hidden readings and groups. Checked items are hidden. Uncheck items to show them again.", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
-        hiddenLayout.Controls.Add(hiddenItemsList, 0, 1);
+        hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
+        hiddenLayout.Controls.Add(hiddenItemsList, 0, 2);
         var hiddenButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
         var unhideSelectedButton = new Button { Text = "&Show selected", AutoSize = true };
         unhideSelectedButton.Click += delegate
@@ -990,7 +1002,7 @@ public sealed class PreferencesForm : Form
         };
         hiddenButtons.Controls.Add(unhideSelectedButton);
         hiddenButtons.Controls.Add(unhideAllButton);
-        hiddenLayout.Controls.Add(hiddenButtons, 0, 2);
+        hiddenLayout.Controls.Add(hiddenButtons, 0, 3);
         hiddenTab.Controls.Add(hiddenLayout);
 
         var dialogButtons = new FlowLayoutPanel
@@ -1144,6 +1156,7 @@ public sealed class PreferencesForm : Form
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateCheckFrequencyBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
         installUpdatesQuietlyCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        showUpdateInstallConfirmationCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateAvailableSoundBox.SelectedIndexChanged += delegate
         {
             SaveLivePreferences();
@@ -1705,6 +1718,7 @@ public sealed class PreferencesForm : Form
         liveSettings.CheckForUpdatesAtStartup = CheckForUpdatesAtStartup;
         liveSettings.UpdateCheckFrequency = UpdateCheckFrequency;
         liveSettings.InstallUpdatesQuietly = InstallUpdatesQuietly;
+        liveSettings.ShowUpdateInstallConfirmation = ShowUpdateInstallConfirmation;
         liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
         liveSettings.DiagnosticsSpeakProgress = DiagnosticsSpeakProgress;
         liveSettings.DiagnosticsPlaySounds = DiagnosticsPlaySounds;
