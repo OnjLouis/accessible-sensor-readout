@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.0.0.
+Current version: 3.0.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -499,6 +499,9 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 3.0.1
+
+- Fixed: Updating Sensor Readout no longer copies bundled `Config`, `Logs`, or `Reports` folders over an existing installation, preserving hotkeys, notification area readings, spoken hotkey profiles, fan profiles, alarms, reports, and logs during updates.
 ### 3.0.0
 
 - Added: `Devices` gives a Device Manager-style Windows hardware inventory with grouped sections, a compact tree, and detailed PnP, PCI, driver, registry, and resource fields available through Details and reports.

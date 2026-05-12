@@ -102,4 +102,13 @@ if (Test-Path $langTarget) {
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataTarget 'BundledLanguageHashes.json') -Encoding UTF8
 }
 
+foreach ($preservedFolderName in @('Config', 'Logs', 'Reports')) {
+    $preservedFolder = Join-Path $portable $preservedFolderName
+    if (Test-Path -LiteralPath $preservedFolder) {
+        Get-ChildItem -LiteralPath $preservedFolder -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        New-Item -ItemType Directory -Force -Path $preservedFolder | Out-Null
+    }
+}
+
 Write-Host "Built $OutputPath"

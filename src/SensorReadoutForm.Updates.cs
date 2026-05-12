@@ -862,7 +862,9 @@ public sealed partial class SensorReadoutForm : Form
             "    if ((Test-Path -LiteralPath $lower) -and -not (Test-Path -LiteralPath $proper)) { Rename-Item -LiteralPath $lower -NewName $name -ErrorAction SilentlyContinue }\r\n" +
             "    elseif (Test-Path -LiteralPath $lower) { Rename-Item -LiteralPath $lower -NewName ($name + '_case_tmp') -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $tmpCase) { Rename-Item -LiteralPath $tmpCase -NewName $name -ErrorAction SilentlyContinue } }\r\n" +
             "  }\r\n" +
+            "  $preservedFolders = @('Config','Logs','Reports','Update Backups','Update Temp')\r\n" +
             "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object {\r\n" +
+            "    if ($_.PSIsContainer -and ($preservedFolders -contains $_.Name)) { return }\r\n" +
             "    $destination = Join-Path $target $_.Name\r\n" +
             "    if ($_.PSIsContainer -and (Test-Path -LiteralPath $destination)) {\r\n" +
             "      Get-ChildItem -LiteralPath $_.FullName -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $destination $_.Name) -Recurse -Force }\r\n" +
