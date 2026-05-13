@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 public sealed partial class SensorReadoutForm : Form
 {
@@ -216,10 +217,67 @@ public sealed partial class SensorReadoutForm : Form
                 System.IO.File.Delete(shortcutPath);
             }
 
+            SetStartupApprovedState(shortcutPath, false);
             return;
         }
 
         CreateShortcut(shortcutPath, targetPath, startMinimized ? "--minimized" : "", workingDirectory, "Sensor Readout");
+        SetStartupApprovedState(shortcutPath, true);
+    }
+
+    private void RepairRunAtStartupRegistration()
+    {
+        if (!settings.RunAtStartup)
+        {
+            return;
+        }
+
+        try
+        {
+            SetRunAtStartup(true, settings.StartMinimizedToTray);
+        }
+        catch (Exception ex)
+        {
+            LogMessage("Normal", "Could not refresh Windows startup registration: " + ex.Message);
+        }
+    }
+
+    private static void SetStartupApprovedState(string shortcutPath, bool enabled)
+    {
+        const string startupApprovedKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder";
+        var valueName = System.IO.Path.GetFileName(shortcutPath);
+        if (string.IsNullOrWhiteSpace(valueName))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!enabled)
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(startupApprovedKeyPath, true))
+                {
+                    if (key != null)
+                    {
+                        key.DeleteValue(valueName, false);
+                    }
+                }
+
+                return;
+            }
+
+            using (var key = Registry.CurrentUser.CreateSubKey(startupApprovedKeyPath))
+            {
+                if (key != null)
+                {
+                    key.SetValue(valueName, new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+                }
+            }
+        }
+        catch
+        {
+            // Some managed Windows environments lock Startup Apps approval state. The shortcut is still valid.
+        }
     }
 
     private static void CreateShortcut(string shortcutPath, string targetPath, string arguments, string workingDirectory, string description)

@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.2.0";
+    public const string AppVersion = "3.2.1";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -520,6 +520,7 @@ public sealed partial class SensorReadoutForm : Form
         Shown += delegate
         {
             ApplyTimerSettings();
+            RepairRunAtStartupRegistration();
             CheckPrerequisitesOnFirstRun();
             LogMessage("Normal", "Sensor Readout " + AppVersion + " started. Log file: " + GetLogFilePath());
             RefreshSensors();
