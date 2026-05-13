@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.1.1";
+    public const string AppVersion = "3.2.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -22,7 +22,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
-    private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
+    private ToolStripMenuItem hotkeysSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem treeSpokenHotKeyMenuItem;
@@ -36,6 +36,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
     private readonly ToolStripMenuItem fahrenheitCelsiusMenuItem;
     private readonly ToolStripMenuItem languageMenuItem;
+    private readonly ToolStripMenuItem hotkeysMenu;
     private readonly ToolStripMenuItem helpMenu;
     private readonly ListBox deviceList;
     private readonly TreeView readingTree;
@@ -165,8 +166,6 @@ public sealed partial class SensorReadoutForm : Form
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
-        editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
-        editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -264,11 +263,13 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(trayStatusMenuItem);
         optionsMenu.DropDownItems.Add(temperatureMenu);
         optionsMenu.DropDownItems.Add(languageMenuItem);
-        optionsMenu.DropDownItems.Add(new ToolStripSeparator());
-        optionsMenu.DropDownItems.Add("&Speak tray status now", null, delegate { SpeakTrayStatus(); });
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan c&urves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
+
+        hotkeysMenu = new ToolStripMenuItem("Hot&keys");
+        BuildHotkeysMenu();
+        hotkeysMenu.DropDownOpening += delegate { BuildHotkeysMenu(); };
 
         helpMenu = new ToolStripMenuItem("&Help");
         BuildHelpMenu();
@@ -278,6 +279,7 @@ public sealed partial class SensorReadoutForm : Form
         menuStrip.Items.Add(editMenu);
         menuStrip.Items.Add(viewMenu);
         menuStrip.Items.Add(optionsMenu);
+        menuStrip.Items.Add(hotkeysMenu);
         menuStrip.Items.Add(helpMenu);
         menuStrip.MenuActivate += delegate
         {

@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 3.1.1.
+Current version: 3.2.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -503,6 +503,14 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.2.0
+
+- Improved: Performance/Overview is now split into clearer subgroups for System, Windows, firmware and board, graphics, printer summary, printers, and storage instead of one long flat overview.
+- Improved: Printer rows now appear under a Printers subtree with one branch per printer, so screen readers no longer hear the full printer name before every field.
+- Added: Printers with offline, paused, error, stopped, or queued-job states are also shown in a Printer issues group when Windows reports a problem.
+- Added: Printer supply percentages, offline state, and queued job counts can be used in notification area readings, spoken hotkeys, and alarms when Windows exposes those values.
+- Added: The new Hotkeys menu shows the configured key for speaking tray status, show/hide, spoken hotkey profiles, and fan profile hotkeys, and it provides the quick command for adding the current reading to a spoken hotkey.
 
 ### 3.1.1
 

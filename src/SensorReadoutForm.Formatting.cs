@@ -35,6 +35,13 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var name = CleanSensorName(row.Name);
+        if (IsPrinterPerformanceReading(row))
+        {
+            return name.EndsWith(" level", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("Offline", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("Jobs queued", StringComparison.OrdinalIgnoreCase);
+        }
+
         return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
             || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
@@ -46,6 +53,14 @@ public sealed partial class SensorReadoutForm : Form
             || name.Equals("Read activity", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Write activity", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Total activity", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPrinterPerformanceReading(SensorRow row)
+    {
+        return row != null &&
+            string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+            ((row.Hardware ?? "").StartsWith("Printer: ", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Hardware, "Printers", StringComparison.OrdinalIgnoreCase));
     }
 
     public static string IdentifierFromSettingsKey(string key)

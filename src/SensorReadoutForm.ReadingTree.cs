@@ -653,7 +653,7 @@ public sealed partial class SensorReadoutForm : Form
         if (overviewRows.Count > 0)
         {
             var overviewItem = new ReadingTreeItem { Key = "performance|overview", Text = T("group.Overview", "Overview") };
-            AddReadingRows(overviewItem, overviewRows);
+            AddOverviewGroups(overviewItem, overviewRows);
             parent.Children.Add(overviewItem);
         }
 
@@ -688,8 +688,18 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(systemItem);
         }
 
+        var printerRows = rows
+            .Where(IsPrinterPerformanceRow)
+            .ToList();
+        if (printerRows.Count > 0)
+        {
+            var printerItem = new ReadingTreeItem { Key = "performance|printers", Text = T("group.Printers", "Printers") };
+            AddPrinterGroups(printerItem, printerRows);
+            parent.Children.Add(printerItem);
+        }
+
         var storageRows = rows
-            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware))
+            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsPrinterPerformanceRow(r))
             .ToList();
         if (storageRows.Count > 0)
         {
@@ -697,6 +707,201 @@ public sealed partial class SensorReadoutForm : Form
             AddHardwareGroups(storageItem, storageRows);
             parent.Children.Add(storageItem);
         }
+    }
+
+    private static void AddPrinterGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        var printerGroups = rows
+            .GroupBy(PrinterGroupName)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var issueGroups = printerGroups
+            .Where(g => PrinterHasIssue(g))
+            .ToList();
+        if (issueGroups.Count > 0)
+        {
+            var issuesItem = new ReadingTreeItem
+            {
+                Key = "performance|printer-issues",
+                Text = T("group.Printer issues", "Printer issues")
+            };
+            foreach (var issueGroup in issueGroups)
+            {
+                AddPrinterGroup(issuesItem, issueGroup, true);
+            }
+            parent.Children.Add(issuesItem);
+        }
+
+        foreach (var printerGroup in printerGroups)
+        {
+            AddPrinterGroup(parent, printerGroup, false);
+        }
+    }
+
+    private static void AddPrinterGroup(ReadingTreeItem parent, IGrouping<string, SensorRow> printerGroup, bool issueSummaryOnly)
+    {
+        var printerName = printerGroup.Key;
+        var printerItem = new ReadingTreeItem
+        {
+            Key = (issueSummaryOnly ? "performance|printer-issue|" : "performance|printer|") + StableDeviceInventoryKey(printerName),
+            Text = printerName
+        };
+        AddReadingRows(printerItem, issueSummaryOnly ? PrinterIssueRows(printerGroup) : printerGroup);
+        parent.Children.Add(printerItem);
+    }
+
+    private static IEnumerable<SensorRow> PrinterIssueRows(IEnumerable<SensorRow> rows)
+    {
+        return (rows ?? Enumerable.Empty<SensorRow>())
+            .Where(IsPrinterIssueRow)
+            .ToList();
+    }
+
+    private static bool PrinterHasIssue(IEnumerable<SensorRow> rows)
+    {
+        return (rows ?? Enumerable.Empty<SensorRow>()).Any(IsPrinterIssueRow);
+    }
+
+    private static bool IsPrinterIssueRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        var name = CleanSensorName(row.Name);
+        var value = (row.DisplayValue ?? "").Trim();
+        if (name.Equals("Offline", StringComparison.OrdinalIgnoreCase))
+        {
+            return value.Equals("Yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (name.Equals("Jobs queued", StringComparison.OrdinalIgnoreCase))
+        {
+            double count;
+            return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out count) && count > 0;
+        }
+
+        if (name.Equals("Error state", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                !value.Equals("Other", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (name.Equals("Status", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Extended status", StringComparison.OrdinalIgnoreCase))
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                !value.Equals("Idle", StringComparison.OrdinalIgnoreCase) &&
+                !value.Equals("Unknown", StringComparison.OrdinalIgnoreCase) &&
+                !value.Equals("Other", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static bool IsPrinterPerformanceRow(SensorRow row)
+    {
+        return row != null && string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(row.Hardware, "Printers", StringComparison.OrdinalIgnoreCase) ||
+            (row.Hardware ?? "").StartsWith("Printer: ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string PrinterGroupName(SensorRow row)
+    {
+        var name = DetailValue(row, "Printer name");
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name.Trim();
+        }
+
+        var hardware = row == null ? "" : row.Hardware ?? "";
+        if (hardware.StartsWith("Printer: ", StringComparison.OrdinalIgnoreCase))
+        {
+            return hardware.Substring("Printer: ".Length).Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(hardware)
+            ? T("group.Printers", "Printers")
+            : ShortHardwareName(hardware);
+    }
+
+    private static void AddOverviewGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        var rowList = (rows ?? Enumerable.Empty<SensorRow>()).ToList();
+        AddOverviewGroup(parent, rowList, "overview|system", T("group.System", "System"), IsOverviewSystemRow);
+        AddOverviewGroup(parent, rowList, "overview|windows", T("group.Windows", "Windows"), IsOverviewWindowsRow);
+        AddOverviewGroup(parent, rowList, "overview|firmware-board", T("group.Firmware and board", "Firmware and board"), IsOverviewFirmwareBoardRow);
+        AddOverviewGroup(parent, rowList, "overview|graphics", T("group.Graphics", "Graphics"), IsOverviewGraphicsRow);
+        AddOverviewGroup(parent, rowList, "overview|printer-summary", T("group.Printers", "Printers"), IsOverviewPrinterSummaryRow);
+
+        var grouped = new HashSet<SensorRow>(rowList.Where(r =>
+            IsOverviewSystemRow(r) ||
+            IsOverviewWindowsRow(r) ||
+            IsOverviewFirmwareBoardRow(r) ||
+            IsOverviewGraphicsRow(r) ||
+            IsOverviewPrinterSummaryRow(r)));
+        var otherRows = rowList.Where(r => !grouped.Contains(r)).ToList();
+        if (otherRows.Count > 0)
+        {
+            AddOverviewGroup(parent, otherRows, "overview|other", T("group.Other", "Other"), r => true);
+        }
+    }
+
+    private static void AddOverviewGroup(ReadingTreeItem parent, IEnumerable<SensorRow> rows, string key, string text, Func<SensorRow, bool> predicate)
+    {
+        var groupRows = rows.Where(predicate).ToList();
+        if (groupRows.Count == 0)
+        {
+            return;
+        }
+
+        var item = new ReadingTreeItem { Key = key, Text = text };
+        AddReadingRows(item, groupRows);
+        parent.Children.Add(item);
+    }
+
+    private static bool IsOverviewSystemRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.Equals("System uptime", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("System manufacturer", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("System model", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOverviewWindowsRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.StartsWith("Windows ", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Secure Boot", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOverviewFirmwareBoardRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.StartsWith("BIOS ", StringComparison.OrdinalIgnoreCase) ||
+            name.StartsWith("Baseboard ", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("SMBIOS version", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Embedded controller version", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOverviewGraphicsRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.IndexOf("adapter RAM", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.EndsWith(" BIOS", StringComparison.OrdinalIgnoreCase) ||
+            name.IndexOf("graphics BIOS", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("driver date", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("driver version", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsOverviewPrinterSummaryRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.Equals("Printer count", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Default printer", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddTemperatureGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)

@@ -59,38 +59,77 @@ public sealed partial class SensorReadoutForm : Form
 
         foreach (var printer in printers.OrderByDescending(p => p.IsDefault).ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var prefix = "Printer " + printer.Name + " ";
-            AddOverviewTextRow(rows, prefix + "status", printer.PrinterStatus, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "error state", printer.ErrorState, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "extended status", printer.ExtendedStatus, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "driver", printer.DriverName, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "port", printer.PortName, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "type", printer.IsNetwork ? "Network" : "Local", "Windows printers");
-            AddOverviewTextRow(rows, prefix + "offline", printer.WorkOffline ? "Yes" : "No", "Windows printers");
-            AddOverviewTextRow(rows, prefix + "shared", printer.IsShared ? "Yes" : "No", "Windows printers");
-            AddOverviewTextRow(rows, prefix + "share name", printer.ShareName, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "location", printer.Location, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "comment", printer.Comment, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "jobs queued", printer.Jobs, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "paper size", printer.PaperSize, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "resolution", printer.Resolution, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "color", printer.Color, "Windows printers");
-            AddOverviewTextRow(rows, prefix + "duplex", printer.Duplex, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Status", printer.PrinterStatus, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Error state", printer.ErrorState, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Extended status", printer.ExtendedStatus, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Driver", printer.DriverName, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Port", printer.PortName, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Type", printer.IsNetwork ? "Network" : "Local", "Windows printers");
+            AddPrinterBooleanRow(rows, printer.Name, "Offline", printer.WorkOffline, "Windows printers");
+            AddPrinterBooleanRow(rows, printer.Name, "Shared", printer.IsShared, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Share name", printer.ShareName, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Location", printer.Location, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Comment", printer.Comment, "Windows printers");
+            AddPrinterIntegerRow(rows, printer.Name, "Jobs queued", printer.Jobs, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Paper size", printer.PaperSize, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Resolution", printer.Resolution, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Color", printer.Color, "Windows printers");
+            AddPrinterTextRow(rows, printer.Name, "Duplex", printer.Duplex, "Windows printers");
         }
 
         foreach (var level in GetPrinterSupplyLevels().OrderBy(l => l.PrinterName, StringComparer.OrdinalIgnoreCase).ThenBy(l => l.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var name = "Printer " + level.PrinterName + " " + level.Name + " level";
             rows.Add(new SensorRow
             {
                 Type = "Performance",
-                Hardware = "Overview",
-                Name = name,
+                Hardware = PrinterPerformanceHardware(level.PrinterName),
+                Name = level.Name + " level",
+                Identifier = "printer/" + StableDeviceInventoryKey(level.PrinterName) + "/" + StableDeviceInventoryKey(level.Name) + "-level",
                 Value = level.Percent,
                 DisplayValue = level.Percent + "%",
                 Source = level.Source
             });
         }
+    }
+
+    private static void AddPrinterTextRow(List<SensorRow> rows, string printerName, string name, string value, string source)
+    {
+        AddPrinterRow(rows, printerName, name, null, value, source);
+    }
+
+    private static void AddPrinterBooleanRow(List<SensorRow> rows, string printerName, string name, bool value, string source)
+    {
+        AddPrinterRow(rows, printerName, name, value ? 1f : 0f, value ? "Yes" : "No", source);
+    }
+
+    private static void AddPrinterIntegerRow(List<SensorRow> rows, string printerName, string name, string value, string source)
+    {
+        int number;
+        AddPrinterRow(rows, printerName, name, TryConvertToInt32(value, out number) ? (float?)number : null, value, source);
+    }
+
+    private static void AddPrinterRow(List<SensorRow> rows, string printerName, string name, float? numericValue, string displayValue, string source)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(printerName) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(displayValue))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = PrinterPerformanceHardware(printerName),
+            Name = name.Trim(),
+            Identifier = "printer/" + StableDeviceInventoryKey(printerName) + "/" + StableDeviceInventoryKey(name),
+            Value = numericValue,
+            DisplayValue = displayValue.Trim(),
+            Source = source
+        });
+    }
+
+    private static string PrinterPerformanceHardware(string printerName)
+    {
+        return "Printer: " + (printerName ?? "").Trim();
     }
 
     private static List<PrinterInfo> GetPrinterInfos()

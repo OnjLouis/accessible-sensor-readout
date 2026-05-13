@@ -183,6 +183,113 @@ public sealed partial class SensorReadoutForm : Form
         SpeakTextWithScreenReader(text, description);
     }
 
+    private void BuildHotkeysMenu()
+    {
+        if (hotkeysMenu == null)
+        {
+            return;
+        }
+
+        hotkeysMenu.DropDownItems.Clear();
+        hotkeysMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+            T("ui.Speak tray status now", "&Speak tray status now"),
+            settings.SpeakTrayHotKey,
+            delegate { SpeakTrayStatus(); }));
+        hotkeysMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+            T("ui.Show or hide Sensor Readout", "Show or &hide Sensor Readout"),
+            settings.ShowHideHotKey,
+            delegate { ToggleShowHide(); }));
+
+        hotkeysMenu.DropDownItems.Add(new ToolStripSeparator());
+        hotkeysSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove current reading from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        if (readingTree == null)
+        {
+            hotkeysSpokenHotKeyMenuItem.Visible = false;
+        }
+        else
+        {
+            UpdateSelectedTreeCommandVisibility();
+        }
+        hotkeysMenu.DropDownItems.Add(hotkeysSpokenHotKeyMenuItem);
+
+        var spokenProfiles = (settings.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
+            .Where(p => p != null)
+            .ToList();
+        if (spokenProfiles.Count > 0)
+        {
+            hotkeysMenu.DropDownItems.Add(new ToolStripSeparator());
+            var spokenMenu = new ToolStripMenuItem(T("ui.Spoken hotkeys", "&Spoken hotkeys"));
+            foreach (var profile in spokenProfiles)
+            {
+                var profileForHandler = profile;
+                spokenMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+                    SpokenHotKeyMenuText(profileForHandler),
+                    profileForHandler.HotKey,
+                    delegate { SpeakSpokenHotKey(profileForHandler); }));
+            }
+            hotkeysMenu.DropDownItems.Add(spokenMenu);
+        }
+
+        var fanProfiles = (settings.FanProfiles ?? new List<FanProfileSetting>())
+            .Where(p => p != null)
+            .ToList();
+        if (fanProfiles.Count > 0)
+        {
+            hotkeysMenu.DropDownItems.Add(new ToolStripSeparator());
+            var fanMenu = new ToolStripMenuItem(T("ui.Fan profile hotkeys", "&Fan profile hotkeys"));
+            foreach (var profile in fanProfiles)
+            {
+                var profileForHandler = profile;
+                fanMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+                    FanProfileHotKeyMenuText(profileForHandler),
+                    profileForHandler.HotKey,
+                    delegate { ApplyFanProfile(profileForHandler, true); }));
+            }
+            hotkeysMenu.DropDownItems.Add(fanMenu);
+        }
+    }
+
+    private ToolStripMenuItem CreateConfiguredHotKeyMenuItem(string text, string hotKeyText, EventHandler handler)
+    {
+        var display = NormalizeHotKeyText(hotKeyText);
+        if (string.IsNullOrWhiteSpace(display))
+        {
+            display = T("ui.Not assigned", "Not assigned");
+        }
+
+        return new ToolStripMenuItem(WithShortcutText(text, display), null, handler)
+        {
+            ShortcutKeyDisplayString = display,
+            ShowShortcutKeys = false
+        };
+    }
+
+    private string SpokenHotKeyMenuText(SpokenHotKeySetting profile)
+    {
+        var name = profile == null || string.IsNullOrWhiteSpace(profile.Name)
+            ? T("ui.Spoken hotkey", "Spoken hotkey")
+            : profile.Name.Trim();
+        var rows = GetSpokenHotKeyRows(profile);
+        var summary = rows.Count == 0
+            ? T("ui.No readings", "No readings")
+            : string.Join("; ", rows.Take(3).Select(TrayChoiceLabel).ToArray());
+        if (rows.Count > 3)
+        {
+            summary += "; " + string.Format(T("ui.plus more readings", "plus {0} more"), rows.Count - 3);
+        }
+
+        return name + ": " + summary;
+    }
+
+    private string FanProfileHotKeyMenuText(FanProfileSetting profile)
+    {
+        var name = profile == null || string.IsNullOrWhiteSpace(profile.Name)
+            ? T("ui.Fan profile", "Fan profile")
+            : profile.Name.Trim();
+        var count = profile == null || profile.Actions == null ? 0 : profile.Actions.Count;
+        return name + ": " + count + " " + T(count == 1 ? "ui.fan action" : "ui.fan actions", count == 1 ? "fan action" : "fan actions");
+    }
+
     private void HandleTraySpeechHotKey(int id)
     {
         var stopwatch = Stopwatch.StartNew();

@@ -15,9 +15,37 @@ $sdkOutput = Join-Path $portable 'SensorReadout.PluginSdk.dll'
 $sdkSources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src\PluginSdk') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $sources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $manifest = Join-Path $PSScriptRoot 'src\SensorReadoutApp.exe.manifest'
+$assemblyInfo = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs') -Raw
+if ($assemblyInfo -notmatch 'AssemblyFileVersion\("([^"]+)"\)') {
+    throw "Could not find AssemblyFileVersion in src\AssemblyInfo.cs"
+}
+
+$buildVersion = $Matches[1]
+$generatedRoot = Join-Path $PSScriptRoot 'obj\GeneratedAssemblyInfo'
+New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
+
+function New-GeneratedAssemblyInfo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Title,
+        [Parameter(Mandatory = $true)][string]$OutputName
+    )
+
+    $safeTitle = $Title.Replace('\', '\\').Replace('"', '\"')
+    $path = Join-Path $generatedRoot $OutputName
+    @"
+[assembly: System.Reflection.AssemblyTitle("$safeTitle")]
+[assembly: System.Reflection.AssemblyProduct("Sensor Readout")]
+[assembly: System.Reflection.AssemblyCompany("Sensor Readout")]
+[assembly: System.Reflection.AssemblyVersion("$buildVersion")]
+[assembly: System.Reflection.AssemblyFileVersion("$buildVersion")]
+[assembly: System.Reflection.AssemblyInformationalVersion("$buildVersion")]
+"@ | Set-Content -LiteralPath $path -Encoding UTF8
+    return $path
+}
 
 if ($sdkSources.Count -gt 0) {
-    & $csc /nologo /target:library /platform:x64 /out:$sdkOutput $sdkSources
+    $sdkAssemblyInfo = New-GeneratedAssemblyInfo -Title 'Sensor Readout Plug-In SDK' -OutputName 'PluginSdk.AssemblyInfo.cs'
+    & $csc /nologo /target:library /platform:x64 /out:$sdkOutput @(@($sdkSources) + @($sdkAssemblyInfo))
     if ($LASTEXITCODE -ne 0) {
         throw "Plug-In SDK build failed with exit code $LASTEXITCODE"
     }
@@ -71,7 +99,8 @@ if (Test-Path $plugInRoot) {
                 (Join-Path $portable 'Newtonsoft.Json.dll'),
                 $sdkOutput
             ) -join ','
-            & $csc /nologo /target:library /platform:x64 /out:$plugInOutput /reference:$plugInReferences $plugInSources
+            $plugInAssemblyInfo = New-GeneratedAssemblyInfo -Title ("Sensor Readout " + $plugIn.Name + " Plug-In") -OutputName ($plugIn.Name + '.AssemblyInfo.cs')
+            & $csc /nologo /target:library /platform:x64 /out:$plugInOutput /reference:$plugInReferences @(@($plugInSources) + @($plugInAssemblyInfo))
             if ($LASTEXITCODE -ne 0) {
                 throw "Plug-In build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
             }

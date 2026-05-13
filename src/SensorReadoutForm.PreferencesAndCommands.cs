@@ -669,9 +669,9 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var spokenHotKeyVisible = CanAssignSelectedReadingToSpokenHotKey();
-        if (editSpokenHotKeyMenuItem != null)
+        if (hotkeysSpokenHotKeyMenuItem != null)
         {
-            editSpokenHotKeyMenuItem.Visible = spokenHotKeyVisible;
+            hotkeysSpokenHotKeyMenuItem.Visible = spokenHotKeyVisible;
         }
 
         if (treeDetailsMenuItem != null)

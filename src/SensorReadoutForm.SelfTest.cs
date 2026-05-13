@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 
@@ -41,6 +42,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
+            form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
@@ -170,6 +172,57 @@ public sealed partial class SensorReadoutForm : Form
         Require(trayIcon.Text.Length <= WinFormsTrayTooltipTextLimit, "Fallback tray tooltip exceeds Windows Forms limit.");
     }
 
+    private void SelfTestHotkeysMenu()
+    {
+        EnsureSelfTestRows();
+        var row = latestRows.FirstOrDefault(IsSelectableReadoutRow);
+        Require(row != null, "No selectable row for hotkeys menu setup.");
+        settings.ShowHideHotKey = "Ctrl+Alt+F12";
+        settings.SpeakTrayHotKey = "Ctrl+Alt+F11";
+        settings.SpokenHotKeys = new List<SpokenHotKeySetting>
+        {
+            new SpokenHotKeySetting
+            {
+                Name = "Self-test spoken hotkey",
+                HotKey = "Ctrl+Alt+F10",
+                ReadingKeys = new List<string> { RowSettingsKey(row) }
+            }
+        };
+        settings.FanProfiles = new List<FanProfileSetting>
+        {
+            new FanProfileSetting
+            {
+                Name = "Self-test fan profile",
+                HotKey = "Ctrl+Alt+F9",
+                Actions = new List<FanProfileActionSetting>()
+            }
+        };
+        BuildHotkeysMenu();
+        Require(hotkeysMenu.DropDownItems.Count >= 5, "Hotkeys menu did not populate.");
+        Require(ContainsToolStripText(hotkeysMenu.DropDownItems, "Ctrl+Alt+F11"), "Speak tray hotkey not shown in Hotkeys menu.");
+        Require(ContainsToolStripText(hotkeysMenu.DropDownItems, "Self-test spoken hotkey"), "Spoken hotkey profile not shown in Hotkeys menu.");
+        Require(ContainsToolStripText(hotkeysMenu.DropDownItems, "Self-test fan profile"), "Fan profile hotkey not shown in Hotkeys menu.");
+    }
+
+    private static bool ContainsToolStripText(ToolStripItemCollection items, string text)
+    {
+        foreach (ToolStripItem item in items)
+        {
+            if ((item.Text ?? "").IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            var dropDown = item as ToolStripDropDownItem;
+            if (dropDown != null && ContainsToolStripText(dropDown.DropDownItems, text))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void SelfTestSpokenHotKeyAssignment()
     {
         EnsureSelfTestRows();
@@ -243,6 +296,8 @@ public sealed partial class SensorReadoutForm : Form
         Require(txtText.Contains("Sensor Readout"), "TXT report does not look like a Sensor Readout report.");
         Require(htmlText.Contains("Sensor Readout"), "HTML report does not look like a Sensor Readout report.");
         Require(txtText.Contains("[SensorReadoutReportData]"), "TXT report missing wrapped internal report data.");
+        Require(!Regex.IsMatch(txtText, @"(?im)^\s*Printer\s+.+\s+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
+            "TXT report contains verbose printer prefixes instead of the grouped printer tree.");
     }
 
     private void SelfTestReportReopen(string outputFolder)
