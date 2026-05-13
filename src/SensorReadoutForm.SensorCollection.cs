@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Management;
 using System.Net.NetworkInformation;
@@ -1045,6 +1046,12 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly object hardwareDetailsCacheLock = new object();
     private static Dictionary<string, string> cachedCpuHardwareDetails;
     private static Dictionary<string, string> cachedMemoryHardwareDetails;
+    private static Dictionary<string, string> cachedBoardHardwareDetails;
+    private static Dictionary<string, string> cachedWindowsHardwareDetails;
+    private static Dictionary<string, string> cachedFirmwareHardwareDetails;
+    private static Dictionary<string, Dictionary<string, string>> cachedPhysicalDiskDetailsByHardware;
+    private static Dictionary<string, Dictionary<string, string>> cachedLogicalDiskDetailsByRoot;
+    private static DateTime cachedStorageTopologyDetailsUtc = DateTime.MinValue;
 
     private IEnumerable<SensorRow> GetSystemPerformanceRows()
     {
@@ -1402,7 +1409,7 @@ public sealed partial class SensorReadoutForm : Form
             Name = name,
             DisplayValue = value.Trim(),
             Source = "Windows WMI",
-            Details = name.Equals("CPU name", StringComparison.OrdinalIgnoreCase) ? CloneDetails(details) : null
+            Details = CloneDetails(details)
         });
     }
 
@@ -1578,14 +1585,15 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, label + " purpose", GetWmiPropertyText(cache, "Purpose"));
                     AddDetail(details, label + " installed size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cache, "InstalledSize")));
                     AddDetail(details, label + " maximum size", FormatCacheWmiKilobytes(GetWmiPropertyValue(cache, "MaxCacheSize")));
-                    AddDetail(details, label + " associativity", GetWmiPropertyText(cache, "Associativity"));
-                    AddDetail(details, label + " availability", GetWmiPropertyText(cache, "Availability"));
+                    AddDetail(details, label + " associativity", FormatCacheAssociativity(GetWmiPropertyValue(cache, "Associativity")));
+                    AddDetail(details, label + " availability", FormatAvailability(GetWmiPropertyValue(cache, "Availability")));
                     AddDetail(details, label + " block size", GetWmiPropertyText(cache, "BlockSize"));
                     AddDetail(details, label + " cache speed", FormatMegahertz(GetWmiPropertyValue(cache, "CacheSpeed")));
-                    AddDetail(details, label + " cache type", GetWmiPropertyText(cache, "CacheType"));
-                    AddDetail(details, label + " error method", GetWmiPropertyText(cache, "ErrorCorrectType"));
-                    AddDetail(details, label + " SRAM type", GetWmiPropertyText(cache, "SRAMType"));
-                    AddDetail(details, label + " write policy", GetWmiPropertyText(cache, "WritePolicy"));
+                    AddDetail(details, label + " cache type", FormatCacheType(GetWmiPropertyValue(cache, "CacheType")));
+                    AddDetail(details, label + " error method", FormatCacheErrorCorrectType(GetWmiPropertyValue(cache, "ErrorCorrectType")));
+                    AddDetail(details, label + " SRAM type", FormatWmiDetailValue(GetWmiPropertyValue(cache, "SRAMType")));
+                    AddDetail(details, label + " write policy", FormatCacheWritePolicy(GetWmiPropertyValue(cache, "WritePolicy")));
+                    AddRawWmiDetails(details, label + " WMI", cache);
                     index++;
                 }
             }
@@ -1678,6 +1686,668 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, label + " status", GetWmiPropertyText(module, "Status"));
                     AddRawWmiDetails(details, label + " WMI", module);
                     index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Dictionary<string, string> GetWindowsHardwareDetails()
+    {
+        lock (hardwareDetailsCacheLock)
+        {
+            if (cachedWindowsHardwareDetails != null)
+            {
+                return new Dictionary<string, string>(cachedWindowsHardwareDetails, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddWindowsOperatingSystemDetails(details);
+        AddWindowsRegistryDetails(details);
+        AddWindowsLicensingDetails(details);
+        AddComputerSystemProductDetails(details);
+
+        lock (hardwareDetailsCacheLock)
+        {
+            cachedWindowsHardwareDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return details;
+    }
+
+    private static List<SensorRow> AttachStorageDetailsToRows(List<SensorRow> rows)
+    {
+        if (rows == null || rows.Count == 0)
+        {
+            return rows ?? new List<SensorRow>();
+        }
+
+        var physicalDetails = GetPhysicalDiskDetailsByHardware();
+        var logicalDetails = GetLogicalDiskDetailsByRoot();
+        foreach (var row in rows)
+        {
+            if (row == null)
+            {
+                continue;
+            }
+
+            Dictionary<string, string> details;
+            if (string.Equals(row.Type, "SMART", StringComparison.OrdinalIgnoreCase) &&
+                physicalDetails.TryGetValue(NormalizeStorageHardwareName(row.Hardware ?? ""), out details))
+            {
+                row.Details = MergeDetails(row.Details, details);
+            }
+            else if (string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+                IsStoragePerformanceName(row.Name ?? "") &&
+                logicalDetails.TryGetValue(GetLogicalDiskRootFromHardware(row.Hardware), out details))
+            {
+                row.Details = MergeDetails(row.Details, details);
+            }
+        }
+
+        return rows;
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> GetPhysicalDiskDetailsByHardware()
+    {
+        EnsureStorageTopologyDetails();
+        return CloneDetailsMap(cachedPhysicalDiskDetailsByHardware);
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> GetLogicalDiskDetailsByRoot()
+    {
+        EnsureStorageTopologyDetails();
+        return CloneDetailsMap(cachedLogicalDiskDetailsByRoot);
+    }
+
+    private static void EnsureStorageTopologyDetails()
+    {
+        if (cachedPhysicalDiskDetailsByHardware != null &&
+            cachedLogicalDiskDetailsByRoot != null &&
+            DateTime.UtcNow - cachedStorageTopologyDetailsUtc < TimeSpan.FromMinutes(10))
+        {
+            return;
+        }
+
+        var physical = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        var logical = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
+            {
+                foreach (ManagementObject disk in searcher.Get())
+                {
+                    AddDiskTopologyDetails(disk, physical, logical);
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        cachedPhysicalDiskDetailsByHardware = physical;
+        cachedLogicalDiskDetailsByRoot = logical;
+        cachedStorageTopologyDetailsUtc = DateTime.UtcNow;
+    }
+
+    private static void AddDiskTopologyDetails(ManagementObject disk, Dictionary<string, Dictionary<string, string>> physical, Dictionary<string, Dictionary<string, string>> logical)
+    {
+        if (disk == null || physical == null || logical == null)
+        {
+            return;
+        }
+
+        var diskIndex = GetWmiPropertyText(disk, "Index");
+        var model = GetWmiPropertyText(disk, "Model");
+        var caption = GetWmiPropertyText(disk, "Caption");
+        var hardware = NormalizeStorageHardwareName(string.IsNullOrWhiteSpace(model) ? caption : model);
+        if (string.IsNullOrWhiteSpace(hardware))
+        {
+            hardware = "Physical disk " + diskIndex;
+        }
+
+        var diskDetails = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(diskDetails, "Physical disk number", diskIndex);
+        AddDetail(diskDetails, "Physical disk model", model);
+        AddDetail(diskDetails, "Physical disk caption", caption);
+        AddDetail(diskDetails, "Physical disk interface", GetWmiPropertyText(disk, "InterfaceType"));
+        AddDetail(diskDetails, "Physical disk media type", GetWmiPropertyText(disk, "MediaType"));
+        AddDetail(diskDetails, "Physical disk firmware", GetWmiPropertyText(disk, "FirmwareRevision"));
+        AddDetail(diskDetails, "Physical disk serial number", GetWmiPropertyText(disk, "SerialNumber"));
+        AddDetail(diskDetails, "Physical disk size", FormatBytes(GetWmiPropertyValue(disk, "Size")));
+        AddDetail(diskDetails, "Physical disk partitions", GetWmiPropertyText(disk, "Partitions"));
+        AddDetail(diskDetails, "Physical disk PNP device ID", GetWmiPropertyText(disk, "PNPDeviceID"));
+        AddRawWmiDetails(diskDetails, "Physical disk WMI", disk);
+
+        var partitionNumber = 0;
+        foreach (ManagementObject partition in GetAssociatedWmiObjects("Win32_DiskDrive", "DeviceID", GetWmiPropertyText(disk, "DeviceID"), "Win32_DiskDriveToDiskPartition"))
+        {
+            partitionNumber++;
+            AddPartitionDetails(diskDetails, logical, partitionNumber, diskDetails, partition);
+        }
+
+        AddDetail(diskDetails, "Detected partition count", partitionNumber.ToString(CultureInfo.InvariantCulture));
+        physical[hardware] = diskDetails;
+    }
+
+    private static void AddPartitionDetails(Dictionary<string, string> diskDetails, Dictionary<string, Dictionary<string, string>> logical, int partitionNumber, Dictionary<string, string> inheritedDiskDetails, ManagementObject partition)
+    {
+        if (partition == null)
+        {
+            return;
+        }
+
+        var label = "Partition " + partitionNumber.ToString(CultureInfo.InvariantCulture);
+        AddDetail(diskDetails, label + " name", GetWmiPropertyText(partition, "Name"));
+        AddDetail(diskDetails, label + " device ID", GetWmiPropertyText(partition, "DeviceID"));
+        AddDetail(diskDetails, label + " type", GetWmiPropertyText(partition, "Type"));
+        AddDetail(diskDetails, label + " size", FormatBytes(GetWmiPropertyValue(partition, "Size")));
+        AddDetail(diskDetails, label + " starting offset", FormatBytes(GetWmiPropertyValue(partition, "StartingOffset")));
+        AddDetail(diskDetails, label + " boot partition", FormatYesNo(GetWmiPropertyValue(partition, "BootPartition")));
+        AddDetail(diskDetails, label + " primary partition", FormatYesNo(GetWmiPropertyValue(partition, "PrimaryPartition")));
+        AddDetail(diskDetails, label + " index", GetWmiPropertyText(partition, "Index"));
+        AddRawWmiDetails(diskDetails, label + " WMI", partition);
+
+        var logicalNumber = 0;
+        foreach (ManagementObject volume in GetAssociatedWmiObjects("Win32_DiskPartition", "DeviceID", GetWmiPropertyText(partition, "DeviceID"), "Win32_LogicalDiskToPartition"))
+        {
+            logicalNumber++;
+            var root = GetWmiPropertyText(volume, "DeviceID");
+            var volumeLabel = label + " volume " + logicalNumber.ToString(CultureInfo.InvariantCulture);
+            AddDetail(diskDetails, volumeLabel + " drive letter", root);
+            AddDetail(diskDetails, volumeLabel + " label", GetWmiPropertyText(volume, "VolumeName"));
+            AddDetail(diskDetails, volumeLabel + " file system", GetWmiPropertyText(volume, "FileSystem"));
+            AddDetail(diskDetails, volumeLabel + " size", FormatBytes(GetWmiPropertyValue(volume, "Size")));
+            AddDetail(diskDetails, volumeLabel + " free space", FormatBytes(GetWmiPropertyValue(volume, "FreeSpace")));
+
+            if (!string.IsNullOrWhiteSpace(root))
+            {
+                var volumeDetails = MergeDetails(inheritedDiskDetails, null);
+                AddDetail(volumeDetails, "Containing partition", GetWmiPropertyText(partition, "DeviceID"));
+                AddDetail(volumeDetails, "Partition type", GetWmiPropertyText(partition, "Type"));
+                AddDetail(volumeDetails, "Partition size", FormatBytes(GetWmiPropertyValue(partition, "Size")));
+                AddDetail(volumeDetails, "Partition starting offset", FormatBytes(GetWmiPropertyValue(partition, "StartingOffset")));
+                AddDetail(volumeDetails, "Volume drive letter", root);
+                AddDetail(volumeDetails, "Volume label", GetWmiPropertyText(volume, "VolumeName"));
+                AddDetail(volumeDetails, "Volume file system", GetWmiPropertyText(volume, "FileSystem"));
+                AddDetail(volumeDetails, "Volume size", FormatBytes(GetWmiPropertyValue(volume, "Size")));
+                AddDetail(volumeDetails, "Volume free space", FormatBytes(GetWmiPropertyValue(volume, "FreeSpace")));
+                AddRawWmiDetails(volumeDetails, "Volume WMI", volume);
+                logical[root.TrimEnd('\\')] = volumeDetails;
+            }
+        }
+
+        if (logicalNumber == 0)
+        {
+            AddDetail(diskDetails, label + " volume", "No drive letter exposed by Windows");
+        }
+    }
+
+    private static IEnumerable<ManagementObject> GetAssociatedWmiObjects(string className, string keyName, string keyValue, string assocClass)
+    {
+        if (string.IsNullOrWhiteSpace(className) || string.IsNullOrWhiteSpace(keyName) || string.IsNullOrWhiteSpace(keyValue) || string.IsNullOrWhiteSpace(assocClass))
+        {
+            yield break;
+        }
+
+        ManagementObjectCollection results = null;
+        try
+        {
+            var query = "ASSOCIATORS OF {" + className + "." + keyName + "=\"" + EscapeWmiObjectPathValue(keyValue) + "\"} WHERE AssocClass=" + assocClass;
+            using (var searcher = new ManagementObjectSearcher(query))
+            {
+                results = searcher.Get();
+            }
+        }
+        catch
+        {
+        }
+
+        if (results == null)
+        {
+            yield break;
+        }
+
+        foreach (ManagementObject obj in results)
+        {
+            yield return obj;
+        }
+    }
+
+    private static string EscapeWmiObjectPathValue(string value)
+    {
+        return (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static Dictionary<string, string> MergeDetails(Dictionary<string, string> existing, Dictionary<string, string> extra)
+    {
+        var merged = existing == null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(existing, StringComparer.OrdinalIgnoreCase);
+        if (extra != null)
+        {
+            foreach (var pair in extra)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !merged.ContainsKey(pair.Key))
+                {
+                    merged[pair.Key] = pair.Value;
+                }
+            }
+        }
+
+        return merged.Count == 0 ? null : merged;
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> CloneDetailsMap(Dictionary<string, Dictionary<string, string>> source)
+    {
+        var clone = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        if (source == null)
+        {
+            return clone;
+        }
+
+        foreach (var pair in source)
+        {
+            clone[pair.Key] = CloneDetails(pair.Value) ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return clone;
+    }
+
+    private static string GetLogicalDiskRootFromHardware(string hardware)
+    {
+        if (string.IsNullOrWhiteSpace(hardware))
+        {
+            return "";
+        }
+
+        var trimmed = hardware.Trim();
+        var firstSpace = trimmed.IndexOf(' ');
+        return (firstSpace > 0 ? trimmed.Substring(0, firstSpace) : trimmed).TrimEnd('\\');
+    }
+
+    private static void AddWindowsOperatingSystemDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
+            {
+                foreach (ManagementObject os in searcher.Get())
+                {
+                    AddDetail(details, "Windows edition", GetWmiPropertyText(os, "Caption"));
+                    AddDetail(details, "Windows version", GetWmiPropertyText(os, "Version"));
+                    AddDetail(details, "Windows build", GetWmiPropertyText(os, "BuildNumber"));
+                    AddDetail(details, "Windows build type", GetWmiPropertyText(os, "BuildType"));
+                    AddDetail(details, "Windows architecture", GetWmiPropertyText(os, "OSArchitecture"));
+                    AddDetail(details, "Windows install date", FormatWindowsInstallDate(GetWmiPropertyValue(os, "InstallDate")));
+                    AddDetail(details, "Windows last boot time", FormatWmiDate(GetWmiPropertyValue(os, "LastBootUpTime")));
+                    AddDetail(details, "Windows directory", GetWmiPropertyText(os, "WindowsDirectory"));
+                    AddDetail(details, "Windows system directory", GetWmiPropertyText(os, "SystemDirectory"));
+                    AddDetail(details, "Windows system drive", GetWmiPropertyText(os, "SystemDrive"));
+                    AddDetail(details, "Windows boot device", GetWmiPropertyText(os, "BootDevice"));
+                    AddDetail(details, "Windows system device", GetWmiPropertyText(os, "SystemDevice"));
+                    AddDetail(details, "Windows locale", GetWmiPropertyText(os, "Locale"));
+                    AddDetail(details, "Windows country code", GetWmiPropertyText(os, "CountryCode"));
+                    AddDetail(details, "Windows code set", GetWmiPropertyText(os, "CodeSet"));
+                    AddDetail(details, "Windows language", GetWmiPropertyText(os, "OSLanguage"));
+                    AddDetail(details, "Windows MUI languages", FormatWmiDetailValue(GetWmiPropertyValue(os, "MUILanguages")));
+                    AddDetail(details, "Windows encryption level", GetWmiPropertyText(os, "EncryptionLevel"));
+                    AddDetail(details, "Windows portable OS", FormatYesNo(GetWmiPropertyValue(os, "PortableOperatingSystem")));
+                    AddDetail(details, "Windows product type", FormatWindowsProductType(GetWmiPropertyValue(os, "ProductType")));
+                    AddDetail(details, "Windows operating system SKU", GetWmiPropertyText(os, "OperatingSystemSKU"));
+                    AddDetail(details, "Windows product suite", GetWmiPropertyText(os, "OSProductSuite"));
+                    AddDetail(details, "Windows suite mask", GetWmiPropertyText(os, "SuiteMask"));
+                    AddDetail(details, "Windows DEP available", FormatYesNo(GetWmiPropertyValue(os, "DataExecutionPrevention_Available")));
+                    AddDetail(details, "Windows DEP for drivers", FormatYesNo(GetWmiPropertyValue(os, "DataExecutionPrevention_Drivers")));
+                    AddDetail(details, "Windows DEP for 32-bit apps", FormatYesNo(GetWmiPropertyValue(os, "DataExecutionPrevention_32BitApplications")));
+                    AddDetail(details, "Windows DEP support policy", GetWmiPropertyText(os, "DataExecutionPrevention_SupportPolicy"));
+                    AddDetail(details, "Windows number of users", GetWmiPropertyText(os, "NumberOfUsers"));
+                    AddDetail(details, "Windows number of processes", GetWmiPropertyText(os, "NumberOfProcesses"));
+                    AddDetail(details, "Windows maximum process memory", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "MaxProcessMemorySize")));
+                    AddDetail(details, "Windows total visible memory", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "TotalVisibleMemorySize")));
+                    AddDetail(details, "Windows free physical memory", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "FreePhysicalMemory")));
+                    AddDetail(details, "Windows total virtual memory", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "TotalVirtualMemorySize")));
+                    AddDetail(details, "Windows free virtual memory", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "FreeVirtualMemory")));
+                    AddDetail(details, "Windows page file size", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "SizeStoredInPagingFiles")));
+                    AddDetail(details, "Windows page file free space", FormatBytesFromKilobytes(GetWmiPropertyValue(os, "FreeSpaceInPagingFiles")));
+                    AddDetail(details, "Windows product ID", GetWmiPropertyText(os, "SerialNumber"));
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddWindowsRegistryDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+            {
+                if (key == null)
+                {
+                    return;
+                }
+
+                AddDetail(details, "Windows registry product name", Convert.ToString(key.GetValue("ProductName")));
+                AddDetail(details, "Windows registry display version", Convert.ToString(key.GetValue("DisplayVersion")));
+                AddDetail(details, "Windows registry release ID", Convert.ToString(key.GetValue("ReleaseId")));
+                AddDetail(details, "Windows registry edition ID", Convert.ToString(key.GetValue("EditionID")));
+                AddDetail(details, "Windows registry installation type", Convert.ToString(key.GetValue("InstallationType")));
+                AddDetail(details, "Windows registry current build", Convert.ToString(key.GetValue("CurrentBuild")));
+                AddDetail(details, "Windows registry current build number", Convert.ToString(key.GetValue("CurrentBuildNumber")));
+                AddDetail(details, "Windows registry update build revision", Convert.ToString(key.GetValue("UBR")));
+                AddDetail(details, "Windows registry build branch", Convert.ToString(key.GetValue("BuildBranch")));
+                AddDetail(details, "Windows registry build lab", Convert.ToString(key.GetValue("BuildLab")));
+                AddDetail(details, "Windows registry build lab ex", Convert.ToString(key.GetValue("BuildLabEx")));
+                AddDetail(details, "Windows registry product ID", Convert.ToString(key.GetValue("ProductId")));
+                AddDetail(details, "Windows registry composition edition ID", Convert.ToString(key.GetValue("CompositionEditionID")));
+                AddDetail(details, "Windows registry edition build lab", Convert.ToString(key.GetValue("EditionSubManufacturer")));
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddWindowsLicensingDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Version, OA3xOriginalProductKey, ClientMachineID FROM SoftwareLicensingService"))
+            {
+                foreach (ManagementObject service in searcher.Get())
+                {
+                    AddDetail(details, "Windows licensing service version", GetWmiPropertyText(service, "Version"));
+                    AddDetail(details, "Windows client machine ID", GetWmiPropertyText(service, "ClientMachineID"));
+                    AddDetail(details, "Windows OEM embedded product key ending", MaskProductKey(GetWmiPropertyText(service, "OA3xOriginalProductKey")));
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, Description, LicenseStatus, PartialProductKey, ProductKeyChannel, GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL"))
+            {
+                var index = 1;
+                foreach (ManagementObject product in searcher.Get())
+                {
+                    var label = "Windows license " + index;
+                    AddDetail(details, label + " name", GetWmiPropertyText(product, "Name"));
+                    AddDetail(details, label + " description", GetWmiPropertyText(product, "Description"));
+                    AddDetail(details, label + " status", FormatLicenseStatus(GetWmiPropertyValue(product, "LicenseStatus")));
+                    AddDetail(details, label + " product key ending", MaskPartialProductKey(GetWmiPropertyText(product, "PartialProductKey")));
+                    AddDetail(details, label + " product key channel", GetWmiPropertyText(product, "ProductKeyChannel"));
+                    AddDetail(details, label + " grace period remaining", FormatLicenseGracePeriod(GetWmiPropertyValue(product, "GracePeriodRemaining")));
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddComputerSystemProductDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystemProduct"))
+            {
+                foreach (ManagementObject product in searcher.Get())
+                {
+                    AddDetail(details, "System product vendor", GetWmiPropertyText(product, "Vendor"));
+                    AddDetail(details, "System product name", GetWmiPropertyText(product, "Name"));
+                    AddDetail(details, "System product version", GetWmiPropertyText(product, "Version"));
+                    AddDetail(details, "System product SKU", GetWmiPropertyText(product, "SKUNumber"));
+                    AddDetail(details, "System product UUID", GetWmiPropertyText(product, "UUID"));
+                    AddDetail(details, "System product identifying number", GetWmiPropertyText(product, "IdentifyingNumber"));
+                    AddRawWmiDetails(details, "System product WMI", product);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Dictionary<string, string> GetFirmwareHardwareDetails()
+    {
+        lock (hardwareDetailsCacheLock)
+        {
+            if (cachedFirmwareHardwareDetails != null)
+            {
+                return new Dictionary<string, string>(cachedFirmwareHardwareDetails, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddFirmwareBiosDetails(details);
+        AddTpmDetails(details);
+        AddDetail(details, "BIOS mode", GetFirmwareMode());
+        AddDetail(details, "Secure Boot", GetSecureBootState());
+
+        lock (hardwareDetailsCacheLock)
+        {
+            cachedFirmwareHardwareDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return details;
+    }
+
+    private static void AddFirmwareBiosDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
+            {
+                foreach (ManagementObject bios in searcher.Get())
+                {
+                    AddDetail(details, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"));
+                    AddDetail(details, "BIOS name", GetWmiPropertyText(bios, "Name"));
+                    AddDetail(details, "BIOS caption", GetWmiPropertyText(bios, "Caption"));
+                    AddDetail(details, "BIOS description", GetWmiPropertyText(bios, "Description"));
+                    AddDetail(details, "BIOS version", GetWmiPropertyText(bios, "SMBIOSBIOSVersion"));
+                    AddDetail(details, "BIOS release date", FormatWmiDate(GetWmiPropertyValue(bios, "ReleaseDate")));
+                    AddDetail(details, "BIOS serial number", GetWmiPropertyText(bios, "SerialNumber"));
+                    AddDetail(details, "BIOS status", GetWmiPropertyText(bios, "Status"));
+                    AddDetail(details, "BIOS characteristics", FormatWmiDetailValue(GetWmiPropertyValue(bios, "BiosCharacteristics")));
+                    AddDetail(details, "BIOS language edition", GetWmiPropertyText(bios, "LanguageEdition"));
+                    AddDetail(details, "BIOS list of languages", FormatWmiDetailValue(GetWmiPropertyValue(bios, "ListOfLanguages")));
+                    AddDetail(details, "BIOS current language", GetWmiPropertyText(bios, "CurrentLanguage"));
+                    AddDetail(details, "SMBIOS present", FormatYesNo(GetWmiPropertyValue(bios, "SMBIOSPresent")));
+                    AddDetail(details, "SMBIOS major version", GetWmiPropertyText(bios, "SMBIOSMajorVersion"));
+                    AddDetail(details, "SMBIOS minor version", GetWmiPropertyText(bios, "SMBIOSMinorVersion"));
+                    AddDetail(details, "SMBIOS version", FormatMajorMinor(GetWmiPropertyValue(bios, "SMBIOSMajorVersion"), GetWmiPropertyValue(bios, "SMBIOSMinorVersion"), true));
+                    AddDetail(details, "System BIOS major version", GetWmiPropertyText(bios, "SystemBiosMajorVersion"));
+                    AddDetail(details, "System BIOS minor version", GetWmiPropertyText(bios, "SystemBiosMinorVersion"));
+                    AddDetail(details, "Embedded controller major version", GetWmiPropertyText(bios, "EmbeddedControllerMajorVersion"));
+                    AddDetail(details, "Embedded controller minor version", GetWmiPropertyText(bios, "EmbeddedControllerMinorVersion"));
+                    AddRawWmiDetails(details, "BIOS WMI", bios);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddTpmDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftTpm");
+            scope.Connect();
+            using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT * FROM Win32_Tpm")))
+            {
+                foreach (ManagementObject tpm in searcher.Get())
+                {
+                    AddDetail(details, "TPM enabled", FormatYesNo(GetWmiPropertyValue(tpm, "IsEnabled_InitialValue")));
+                    AddDetail(details, "TPM activated", FormatYesNo(GetWmiPropertyValue(tpm, "IsActivated_InitialValue")));
+                    AddDetail(details, "TPM owned", FormatYesNo(GetWmiPropertyValue(tpm, "IsOwned_InitialValue")));
+                    AddDetail(details, "TPM manufacturer ID", GetWmiPropertyText(tpm, "ManufacturerId"));
+                    AddDetail(details, "TPM manufacturer version", GetWmiPropertyText(tpm, "ManufacturerVersion"));
+                    AddDetail(details, "TPM spec version", GetWmiPropertyText(tpm, "SpecVersion"));
+                    AddRawWmiDetails(details, "TPM WMI", tpm);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Dictionary<string, string> GetBoardHardwareDetails()
+    {
+        lock (hardwareDetailsCacheLock)
+        {
+            if (cachedBoardHardwareDetails != null)
+            {
+                return new Dictionary<string, string>(cachedBoardHardwareDetails, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddBaseBoardDetails(details);
+        AddSystemEnclosureDetails(details);
+        AddBoardMemorySlotDetails(details);
+        AddSystemSlotDetails(details);
+
+        lock (hardwareDetailsCacheLock)
+        {
+            cachedBoardHardwareDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return details;
+    }
+
+    private static void AddBaseBoardDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
+            {
+                foreach (ManagementObject board in searcher.Get())
+                {
+                    AddDetail(details, "Baseboard manufacturer", GetWmiPropertyText(board, "Manufacturer"));
+                    AddDetail(details, "Baseboard product", GetWmiPropertyText(board, "Product"));
+                    AddDetail(details, "Baseboard version", GetWmiPropertyText(board, "Version"));
+                    AddDetail(details, "Baseboard serial number", GetWmiPropertyText(board, "SerialNumber"));
+                    AddDetail(details, "Baseboard part number", GetWmiPropertyText(board, "PartNumber"));
+                    AddDetail(details, "Baseboard SKU", GetWmiPropertyText(board, "SKU"));
+                    AddDetail(details, "Baseboard model", GetWmiPropertyText(board, "Model"));
+                    AddDetail(details, "Baseboard tag", GetWmiPropertyText(board, "Tag"));
+                    AddDetail(details, "Baseboard hosting board", FormatYesNo(GetWmiPropertyValue(board, "HostingBoard")));
+                    AddDetail(details, "Baseboard hot swappable", FormatYesNo(GetWmiPropertyValue(board, "HotSwappable")));
+                    AddDetail(details, "Baseboard removable", FormatYesNo(GetWmiPropertyValue(board, "Removable")));
+                    AddDetail(details, "Baseboard replaceable", FormatYesNo(GetWmiPropertyValue(board, "Replaceable")));
+                    AddDetail(details, "Baseboard requires daughter board", FormatYesNo(GetWmiPropertyValue(board, "RequiresDaughterBoard")));
+                    AddDetail(details, "Baseboard slot layout", GetWmiPropertyText(board, "SlotLayout"));
+                    AddDetail(details, "Baseboard configuration options", FormatWmiDetailValue(GetWmiPropertyValue(board, "ConfigOptions")));
+                    AddDetail(details, "Baseboard special requirements", FormatYesNo(GetWmiPropertyValue(board, "SpecialRequirements")));
+                    AddDetail(details, "Baseboard requirements description", GetWmiPropertyText(board, "RequirementsDescription"));
+                    AddDetail(details, "Baseboard status", GetWmiPropertyText(board, "Status"));
+                    AddRawWmiDetails(details, "Baseboard WMI", board);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddSystemEnclosureDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_SystemEnclosure"))
+            {
+                foreach (ManagementObject enclosure in searcher.Get())
+                {
+                    AddDetail(details, "Chassis manufacturer", GetWmiPropertyText(enclosure, "Manufacturer"));
+                    AddDetail(details, "Chassis version", GetWmiPropertyText(enclosure, "Version"));
+                    AddDetail(details, "Chassis serial number", GetWmiPropertyText(enclosure, "SerialNumber"));
+                    AddDetail(details, "Chassis asset tag", GetWmiPropertyText(enclosure, "SMBIOSAssetTag"));
+                    AddDetail(details, "Chassis type", FormatChassisTypes(GetWmiPropertyValue(enclosure, "ChassisTypes")));
+                    AddDetail(details, "Chassis type descriptions", FormatWmiDetailValue(GetWmiPropertyValue(enclosure, "TypeDescriptions")));
+                    AddDetail(details, "Chassis lock present", FormatYesNo(GetWmiPropertyValue(enclosure, "LockPresent")));
+                    AddDetail(details, "Chassis security status", FormatChassisSecurityStatus(GetWmiPropertyValue(enclosure, "SecurityStatus")));
+                    AddDetail(details, "Chassis security breach", FormatWmiDetailValue(GetWmiPropertyValue(enclosure, "SecurityBreach")));
+                    AddDetail(details, "Chassis number of power cords", GetWmiPropertyText(enclosure, "NumberOfPowerCords"));
+                    AddDetail(details, "Chassis status", GetWmiPropertyText(enclosure, "Status"));
+                    AddRawWmiDetails(details, "Chassis WMI", enclosure);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddBoardMemorySlotDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var index = 1;
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemoryArray"))
+            {
+                foreach (ManagementObject array in searcher.Get())
+                {
+                    var label = "Board memory array " + index;
+                    AddDetail(details, label + " slots", GetWmiPropertyText(array, "MemoryDevices"));
+                    AddDetail(details, label + " maximum capacity", FormatMemoryArrayCapacity(array));
+                    AddDetail(details, label + " use", FormatMemoryArrayUse(GetWmiPropertyValue(array, "Use")));
+                    AddDetail(details, label + " location", FormatMemoryArrayLocation(GetWmiPropertyValue(array, "Location")));
+                    AddDetail(details, label + " error correction", FormatMemoryErrorCorrection(GetWmiPropertyValue(array, "MemoryErrorCorrection")));
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void AddSystemSlotDetails(Dictionary<string, string> details)
+    {
+        try
+        {
+            var slots = new List<ManagementObject>();
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_SystemSlot"))
+            {
+                foreach (ManagementObject slot in searcher.Get())
+                {
+                    slots.Add(slot);
+                }
+            }
+
+            AddDetail(details, "Expansion slot count", slots.Count.ToString());
+            for (var index = 0; index < slots.Count; index++)
+            {
+                using (var slot = slots[index])
+                {
+                    var label = "Expansion slot " + (index + 1);
+                    AddDetail(details, label + " designation", GetWmiPropertyText(slot, "SlotDesignation"));
+                    AddDetail(details, label + " current usage", FormatSystemSlotCurrentUsage(GetWmiPropertyValue(slot, "CurrentUsage")));
+                    AddDetail(details, label + " connector type", FormatSystemSlotConnectorTypes(GetWmiPropertyValue(slot, "ConnectorType")));
+                    AddDetail(details, label + " maximum data width", FormatSystemSlotDataWidth(GetWmiPropertyValue(slot, "MaxDataWidth")));
+                    AddDetail(details, label + " hot plug supported", FormatYesNo(GetWmiPropertyValue(slot, "SupportsHotPlug")));
+                    AddDetail(details, label + " status", GetWmiPropertyText(slot, "Status"));
+                    AddRawWmiDetails(details, label + " WMI", slot);
                 }
             }
         }
@@ -1788,6 +2458,79 @@ public sealed partial class SensorReadoutForm : Form
         return text.Trim() + "-bit";
     }
 
+    private static string FormatBytesFromKilobytes(object value)
+    {
+        long kb;
+        return TryConvertToInt64(value, out kb) && kb > 0 ? FormatBytes(kb * 1024.0) : "";
+    }
+
+    private static string FormatWindowsProductType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Workstation";
+            case 2: return "Domain controller";
+            case 3: return "Server";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatLicenseStatus(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unlicensed";
+            case 1: return "Licensed";
+            case 2: return "Out-of-box grace period";
+            case 3: return "Out-of-tolerance grace period";
+            case 4: return "Non-genuine grace period";
+            case 5: return "Notification";
+            case 6: return "Extended grace period";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatLicenseGracePeriod(object value)
+    {
+        long minutes;
+        if (!TryConvertToInt64(value, out minutes) || minutes <= 0)
+        {
+            return "";
+        }
+
+        return FormatUptime(TimeSpan.FromMinutes(minutes));
+    }
+
+    private static string MaskPartialProductKey(string partial)
+    {
+        partial = (partial ?? "").Trim();
+        return string.IsNullOrWhiteSpace(partial) ? "" : "ends with " + partial;
+    }
+
+    private static string MaskProductKey(string key)
+    {
+        key = (key ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        var tail = key.Length <= 5 ? key : key.Substring(key.Length - 5);
+        return "ends with " + tail;
+    }
+
     private static string FormatMillivolts(object value)
     {
         long millivolts;
@@ -1814,6 +2557,401 @@ public sealed partial class SensorReadoutForm : Form
     {
         long sizeKb;
         return TryConvertToInt64(value, out sizeKb) && sizeKb > 0 ? FormatCacheKilobytes(sizeKb) : "";
+    }
+
+    private static string FormatCacheAssociativity(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Direct mapped";
+            case 4: return "2-way set associative";
+            case 5: return "4-way set associative";
+            case 6: return "Fully associative";
+            case 7: return "8-way set associative";
+            case 8: return "16-way set associative";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatCacheType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Instruction";
+            case 4: return "Data";
+            case 5: return "Unified";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatCacheErrorCorrectType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "None";
+            case 4: return "Parity";
+            case 5: return "Single-bit ECC";
+            case 6: return "Multi-bit ECC";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatCacheWritePolicy(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Write back";
+            case 4: return "Write through";
+            case 5: return "Varies by memory address";
+            case 6: return "Determined per I/O";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatAvailability(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Running or full power";
+            case 4: return "Warning";
+            case 5: return "In test";
+            case 6: return "Not applicable";
+            case 7: return "Power off";
+            case 8: return "Off line";
+            case 9: return "Off duty";
+            case 10: return "Degraded";
+            case 11: return "Not installed";
+            case 12: return "Install error";
+            case 13: return "Power save unknown";
+            case 14: return "Power save low power";
+            case 15: return "Power save standby";
+            case 16: return "Power cycle";
+            case 17: return "Power save warning";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatChassisTypes(object value)
+    {
+        var array = value as Array;
+        if (array == null)
+        {
+            return FormatChassisType(value);
+        }
+
+        var parts = new List<string>();
+        foreach (var item in array)
+        {
+            var text = FormatChassisType(item);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                parts.Add(text);
+            }
+        }
+
+        return string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatChassisType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Desktop";
+            case 4: return "Low-profile desktop";
+            case 5: return "Pizza box";
+            case 6: return "Mini tower";
+            case 7: return "Tower";
+            case 8: return "Portable";
+            case 9: return "Laptop";
+            case 10: return "Notebook";
+            case 11: return "Handheld";
+            case 12: return "Docking station";
+            case 13: return "All-in-one";
+            case 14: return "Sub-notebook";
+            case 15: return "Space-saving";
+            case 16: return "Lunch box";
+            case 17: return "Main system chassis";
+            case 18: return "Expansion chassis";
+            case 19: return "Sub-chassis";
+            case 20: return "Bus expansion chassis";
+            case 21: return "Peripheral chassis";
+            case 22: return "Storage chassis";
+            case 23: return "Rack mount chassis";
+            case 24: return "Sealed-case PC";
+            case 30: return "Tablet";
+            case 31: return "Convertible";
+            case 32: return "Detachable";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatChassisSecurityStatus(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "None";
+            case 4: return "External interface locked out";
+            case 5: return "External interface enabled";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatMemoryArrayLocation(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "System board or motherboard";
+            case 4: return "ISA add-on card";
+            case 5: return "EISA add-on card";
+            case 6: return "PCI add-on card";
+            case 7: return "MCA add-on card";
+            case 8: return "PCMCIA add-on card";
+            case 9: return "Proprietary add-on card";
+            case 10: return "NuBus";
+            case 11: return "PC-98/C20 add-on card";
+            case 12: return "PC-98/C24 add-on card";
+            case 13: return "PC-98/E add-on card";
+            case 14: return "PC-98/local bus add-on card";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatMemoryArrayUse(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "System memory";
+            case 4: return "Video memory";
+            case 5: return "Flash memory";
+            case 6: return "Non-volatile RAM";
+            case 7: return "Cache memory";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatMemoryErrorCorrection(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "None";
+            case 4: return "Parity";
+            case 5: return "Single-bit ECC";
+            case 6: return "Multi-bit ECC";
+            case 7: return "CRC";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatSystemSlotCurrentUsage(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "Available";
+            case 4: return "In use";
+            case 5: return "Unavailable";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatSystemSlotConnectorTypes(object value)
+    {
+        var array = value as Array;
+        if (array == null)
+        {
+            return FormatSystemSlotConnectorType(value);
+        }
+
+        var parts = new List<string>();
+        foreach (var item in array)
+        {
+            var text = FormatSystemSlotConnectorType(item);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                parts.Add(text);
+            }
+        }
+
+        return string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatSystemSlotConnectorType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "Other";
+            case 2: return "ISA";
+            case 3: return "MCA";
+            case 4: return "EISA";
+            case 5: return "PCI";
+            case 6: return "PCMCIA";
+            case 7: return "VL-VESA";
+            case 8: return "Proprietary";
+            case 9: return "Processor card slot";
+            case 10: return "Proprietary memory card slot";
+            case 11: return "I/O riser card slot";
+            case 12: return "NuBus";
+            case 13: return "PCI-66MHZ";
+            case 14: return "AGP";
+            case 15: return "AGP 2X";
+            case 16: return "AGP 4X";
+            case 17: return "PCI-X";
+            case 18: return "AGP 8X";
+            case 19: return "M.2 socket 1-DP";
+            case 20: return "M.2 socket 1-SD";
+            case 21: return "M.2 socket 2";
+            case 22: return "M.2 socket 3";
+            case 23: return "MXM type I";
+            case 24: return "MXM type II";
+            case 25: return "MXM type III";
+            case 26: return "MXM type III-HE";
+            case 27: return "MXM type IV";
+            case 28: return "MXM 3.0 type A";
+            case 29: return "MXM 3.0 type B";
+            case 30: return "PCI Express Gen 2 SFF-8639";
+            case 31: return "PCI Express Gen 3 SFF-8639";
+            case 32: return "PCI Express Mini 52-pin";
+            case 33: return "PCI Express Mini 52-pin with bottom-side keep-outs";
+            case 34: return "PCI Express Mini 76-pin";
+            case 35: return "PCI Express Gen 4 SFF-8639";
+            case 36: return "PCI Express Gen 5 SFF-8639";
+            case 37: return "OCP NIC 3.0 small form factor";
+            case 38: return "OCP NIC 3.0 large form factor";
+            case 39: return "OCP NIC prior to 3.0";
+            case 40: return "CXL Flexbus 1.0";
+            case 41: return "PC-98/C20";
+            case 42: return "PC-98/C24";
+            case 43: return "PC-98/E";
+            case 44: return "PC-98/local bus";
+            case 45: return "PCI Express";
+            case 46: return "PCI Express x1";
+            case 47: return "PCI Express x2";
+            case 48: return "PCI Express x4";
+            case 49: return "PCI Express x8";
+            case 50: return "PCI Express x16";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatSystemSlotDataWidth(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 1: return "Other";
+            case 2: return "Unknown";
+            case 3: return "8-bit";
+            case 4: return "16-bit";
+            case 5: return "32-bit";
+            case 6: return "64-bit";
+            case 7: return "1x or x1";
+            case 8: return "2x or x2";
+            case 9: return "4x or x4";
+            case 10: return "8x or x8";
+            case 11: return "12x or x12";
+            case 12: return "16x or x16";
+            case 13: return "32x or x32";
+            default: return Convert.ToString(value);
+        }
     }
 
     private static string FormatMemoryArrayCapacity(ManagementObject array)
@@ -1996,6 +3134,8 @@ public sealed partial class SensorReadoutForm : Form
     private static IEnumerable<SensorRow> GetOverviewRows()
     {
         var rows = new List<SensorRow>();
+        var windowsDetails = GetWindowsHardwareDetails();
+        var firmwareDetails = GetFirmwareHardwareDetails();
 
         try
         {
@@ -2003,17 +3143,17 @@ public sealed partial class SensorReadoutForm : Form
             {
                 foreach (ManagementObject os in searcher.Get())
                 {
-                    AddOverviewTextRow(rows, "Windows edition", CleanWmiText(Convert.ToString(os["Caption"])), "Windows WMI");
-                    AddOverviewTextRow(rows, "Windows version", CleanWmiText(Convert.ToString(os["Version"])), "Windows WMI");
-                    AddOverviewTextRow(rows, "Windows build", CleanWmiText(Convert.ToString(os["BuildNumber"])), "Windows WMI");
-                    AddOverviewTextRow(rows, "Windows architecture", CleanWmiText(Convert.ToString(os["OSArchitecture"])), "Windows WMI");
-                    AddOverviewTextRow(rows, "Windows install date", FormatWindowsInstallDate(os["InstallDate"]), "Windows");
+                    AddOverviewTextRow(rows, "Windows edition", CleanWmiText(Convert.ToString(os["Caption"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows version", CleanWmiText(Convert.ToString(os["Version"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows build", CleanWmiText(Convert.ToString(os["BuildNumber"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows architecture", CleanWmiText(Convert.ToString(os["OSArchitecture"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows install date", FormatWindowsInstallDate(os["InstallDate"]), "Windows", windowsDetails);
                     var bootTimeText = Convert.ToString(os["LastBootUpTime"]);
                     var bootTime = string.IsNullOrWhiteSpace(bootTimeText) ? DateTime.MinValue : ManagementDateTimeConverter.ToDateTime(bootTimeText);
                     if (bootTime > DateTime.MinValue)
                     {
-                        AddOverviewTextRow(rows, "Windows boot time", FormatDateTime(bootTime), "Windows WMI");
-                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI" });
+                        AddOverviewTextRow(rows, "Windows boot time", FormatDateTime(bootTime), "Windows WMI", windowsDetails);
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI", Details = CloneDetails(windowsDetails) });
                     }
                     break;
                 }
@@ -2021,7 +3161,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
-            rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows" });
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows", Details = CloneDetails(windowsDetails) });
         }
 
         string baseboardManufacturer = "";
@@ -2066,11 +3206,12 @@ public sealed partial class SensorReadoutForm : Form
         {
         }
 
-        AddOverviewTextRow(rows, "Baseboard manufacturer", baseboardManufacturer, "Windows WMI");
-        AddOverviewTextRow(rows, "Baseboard product", baseboardProduct, "Windows WMI");
-        AddOverviewTextRow(rows, "Baseboard version", baseboardVersion, "Windows WMI");
-        AddOverviewTextRow(rows, "BIOS mode", GetFirmwareMode(), "Windows registry");
-        AddOverviewTextRow(rows, "Secure Boot", GetSecureBootState(), "Windows registry");
+        var boardDetails = GetBoardHardwareDetails();
+        AddOverviewTextRow(rows, "Baseboard manufacturer", baseboardManufacturer, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "Baseboard product", baseboardProduct, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "Baseboard version", baseboardVersion, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "BIOS mode", GetFirmwareMode(), "Windows registry", firmwareDetails);
+        AddOverviewTextRow(rows, "Secure Boot", GetSecureBootState(), "Windows registry", firmwareDetails);
 
         try
         {
@@ -2078,16 +3219,16 @@ public sealed partial class SensorReadoutForm : Form
             {
                 foreach (ManagementObject bios in searcher.Get())
                 {
-                    AddOverviewTextRow(rows, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"), "Windows WMI");
+                    AddOverviewTextRow(rows, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"), "Windows WMI", firmwareDetails);
                     var version = GetWmiPropertyText(bios, "SMBIOSBIOSVersion");
                     if (string.IsNullOrWhiteSpace(version))
                     {
                         version = GetWmiPropertyText(bios, "Version");
                     }
-                    AddOverviewTextRow(rows, "BIOS version", version, "Windows WMI");
-                    AddOverviewTextRow(rows, "BIOS date", FormatWmiDate(GetWmiPropertyValue(bios, "ReleaseDate")), "Windows WMI");
-                    AddOverviewTextRow(rows, "SMBIOS version", FormatMajorMinor(GetWmiPropertyValue(bios, "SMBIOSMajorVersion"), GetWmiPropertyValue(bios, "SMBIOSMinorVersion"), true), "Windows WMI");
-                    AddOverviewTextRow(rows, "Embedded controller version", FormatMajorMinor(GetWmiPropertyValue(bios, "EmbeddedControllerMajorVersion"), GetWmiPropertyValue(bios, "EmbeddedControllerMinorVersion"), false), "Windows WMI");
+                    AddOverviewTextRow(rows, "BIOS version", version, "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "BIOS date", FormatWmiDate(GetWmiPropertyValue(bios, "ReleaseDate")), "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "SMBIOS version", FormatMajorMinor(GetWmiPropertyValue(bios, "SMBIOSMajorVersion"), GetWmiPropertyValue(bios, "SMBIOSMinorVersion"), true), "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "Embedded controller version", FormatMajorMinor(GetWmiPropertyValue(bios, "EmbeddedControllerMajorVersion"), GetWmiPropertyValue(bios, "EmbeddedControllerMinorVersion"), false), "Windows WMI", firmwareDetails);
                     break;
                 }
             }
@@ -2304,6 +3445,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddOverviewTextRow(List<SensorRow> rows, string name, string value, string source)
     {
+        AddOverviewTextRow(rows, name, value, source, null);
+    }
+
+    private static void AddOverviewTextRow(List<SensorRow> rows, string name, string value, string source, Dictionary<string, string> details)
+    {
         if (rows == null || string.IsNullOrWhiteSpace(value))
         {
             return;
@@ -2315,7 +3461,8 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = "Overview",
             Name = name,
             DisplayValue = value.Trim(),
-            Source = source
+            Source = source,
+            Details = CloneDetails(details)
         });
     }
 
@@ -2753,26 +3900,28 @@ public sealed partial class SensorReadoutForm : Form
                     TimestampUtc = now
                 };
 
+                var ipProperties = adapter.GetIPProperties();
+                var networkDetails = BuildNetworkAdapterDetails(adapter, macAddress, macVendor, stats, ipProperties);
                 if (!string.IsNullOrWhiteSpace(adapter.Description) && !string.Equals(adapter.Description, name, StringComparison.OrdinalIgnoreCase))
                 {
-                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Adapter description", DisplayValue = adapter.Description, Source = "Windows Network" });
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Adapter description", DisplayValue = adapter.Description, Source = "Windows Network", Details = CloneDetails(networkDetails) });
                 }
                 if (!string.IsNullOrWhiteSpace(macAddress))
                 {
-                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC address", DisplayValue = macAddress, Source = "Windows Network" });
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC address", DisplayValue = macAddress, Source = "Windows Network", Details = CloneDetails(networkDetails) });
                 }
                 if (!string.IsNullOrWhiteSpace(macVendor))
                 {
-                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC vendor", DisplayValue = macVendor, Source = "OUI database" });
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "MAC vendor", DisplayValue = macVendor, Source = "OUI database", Details = CloneDetails(networkDetails) });
                 }
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Status", DisplayValue = adapter.OperationalStatus.ToString(), Source = "Windows Network" });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Link speed", DisplayValue = FormatBitsPerSecond(adapter.Speed), Source = "Windows Network" });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Receive rate", Value = (float)receiveRate, DisplayValue = FormatBytesPerSecond(receiveRate), Source = "Windows Network" });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Send rate", Value = (float)sendRate, DisplayValue = FormatBytesPerSecond(sendRate), Source = "Windows Network" });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data received", DisplayValue = FormatBytes(stats.BytesReceived), Source = "Windows Network" });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data sent", DisplayValue = FormatBytes(stats.BytesSent), Source = "Windows Network" });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Status", DisplayValue = adapter.OperationalStatus.ToString(), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Link speed", DisplayValue = FormatBitsPerSecond(adapter.Speed), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Receive rate", Value = (float)receiveRate, DisplayValue = FormatBytesPerSecond(receiveRate), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Send rate", Value = (float)sendRate, DisplayValue = FormatBytesPerSecond(sendRate), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data received", DisplayValue = FormatBytes(stats.BytesReceived), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data sent", DisplayValue = FormatBytes(stats.BytesSent), Source = "Windows Network", Details = CloneDetails(networkDetails) });
 
-                var addresses = adapter.GetIPProperties().UnicastAddresses
+                var addresses = ipProperties.UnicastAddresses
                     .Where(a => a.Address != null && a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
                     .Select(a => a.Address.ToString())
                     .Where(a => !string.IsNullOrWhiteSpace(a))
@@ -2780,7 +3929,7 @@ public sealed partial class SensorReadoutForm : Form
                     .ToList();
                 if (addresses.Count > 0)
                 {
-                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "IP address", DisplayValue = string.Join(", ", addresses.ToArray()), Source = "Windows Network" });
+                    rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "IP address", DisplayValue = string.Join(", ", addresses.ToArray()), Source = "Windows Network", Details = CloneDetails(networkDetails) });
                 }
 
                 Guid adapterGuid;
@@ -2796,6 +3945,213 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static Dictionary<string, string> BuildNetworkAdapterDetails(NetworkInterface adapter, string macAddress, string macVendor, IPv4InterfaceStatistics stats, IPInterfaceProperties properties)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (adapter == null)
+        {
+            return details;
+        }
+
+        AddDetail(details, "Adapter ID", adapter.Id);
+        AddDetail(details, "Adapter name", adapter.Name);
+        AddDetail(details, "Adapter description", adapter.Description);
+        AddDetail(details, "Adapter type", adapter.NetworkInterfaceType.ToString());
+        AddDetail(details, "Adapter status", adapter.OperationalStatus.ToString());
+        AddDetail(details, "Adapter speed", FormatBitsPerSecond(adapter.Speed));
+        AddDetail(details, "MAC address", macAddress);
+        AddDetail(details, "MAC vendor", macVendor);
+        AddDetail(details, "Supports IPv4", FormatYesNo(adapter.Supports(NetworkInterfaceComponent.IPv4)));
+        AddDetail(details, "Supports IPv6", FormatYesNo(adapter.Supports(NetworkInterfaceComponent.IPv6)));
+        if (stats != null)
+        {
+            AddDetail(details, "Bytes received", FormatBytes(stats.BytesReceived));
+            AddDetail(details, "Bytes sent", FormatBytes(stats.BytesSent));
+            AddDetail(details, "Incoming packets", stats.UnicastPacketsReceived.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Outgoing packets", stats.UnicastPacketsSent.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Incoming packets discarded", stats.IncomingPacketsDiscarded.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Outgoing packets discarded", stats.OutgoingPacketsDiscarded.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Incoming packet errors", stats.IncomingPacketsWithErrors.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Outgoing packet errors", stats.OutgoingPacketsWithErrors.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Incoming unknown protocol packets", stats.IncomingUnknownProtocolPackets.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Non-unicast packets received", stats.NonUnicastPacketsReceived.ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "Non-unicast packets sent", stats.NonUnicastPacketsSent.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (properties != null)
+        {
+            AddDetail(details, "DNS suffix", properties.DnsSuffix);
+            AddDetail(details, "DNS enabled", FormatYesNo(properties.IsDnsEnabled));
+            AddDetail(details, "Dynamic DNS enabled", FormatYesNo(properties.IsDynamicDnsEnabled));
+            AddDetail(details, "DNS servers", FormatIpAddressCollection(properties.DnsAddresses));
+            AddDetail(details, "Default gateways", FormatGatewayAddressCollection(properties.GatewayAddresses));
+            AddDetail(details, "DHCP servers", FormatIpAddressCollection(properties.DhcpServerAddresses));
+            AddDetail(details, "WINS servers", FormatIpAddressCollection(properties.WinsServersAddresses));
+            AddDetail(details, "Unicast addresses", FormatUnicastAddressCollection(properties.UnicastAddresses));
+            AddDetail(details, "Multicast addresses", FormatIpAddressInformationCollection(properties.MulticastAddresses.Cast<IPAddressInformation>()));
+            AddDetail(details, "Anycast addresses", FormatIpAddressInformationCollection(properties.AnycastAddresses.Cast<IPAddressInformation>()));
+
+            try
+            {
+                var ipv4 = properties.GetIPv4Properties();
+                if (ipv4 != null)
+                {
+                    AddDetail(details, "IPv4 interface index", ipv4.Index.ToString(CultureInfo.InvariantCulture));
+                    AddDetail(details, "IPv4 MTU", ipv4.Mtu.ToString(CultureInfo.InvariantCulture));
+                    AddDetail(details, "IPv4 DHCP enabled", FormatYesNo(ipv4.IsDhcpEnabled));
+                    AddDetail(details, "IPv4 APIPA enabled", FormatYesNo(ipv4.IsAutomaticPrivateAddressingEnabled));
+                    AddDetail(details, "IPv4 APIPA active", FormatYesNo(ipv4.IsAutomaticPrivateAddressingActive));
+                    AddDetail(details, "IPv4 forwarding enabled", FormatYesNo(ipv4.IsForwardingEnabled));
+                    AddDetail(details, "IPv4 uses WINS", FormatYesNo(ipv4.UsesWins));
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var ipv6 = properties.GetIPv6Properties();
+                if (ipv6 != null)
+                {
+                    AddDetail(details, "IPv6 interface index", ipv6.Index.ToString(CultureInfo.InvariantCulture));
+                    AddDetail(details, "IPv6 MTU", ipv6.Mtu.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        AddNetworkAdapterWmiDetails(details, adapter.Id);
+        return details;
+    }
+
+    private static void AddNetworkAdapterWmiDetails(Dictionary<string, string> details, string adapterId)
+    {
+        if (details == null || string.IsNullOrWhiteSpace(adapterId))
+        {
+            return;
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE SettingID='" + EscapeWmiQueryString(adapterId) + "'"))
+            {
+                foreach (ManagementObject config in searcher.Get())
+                {
+                    AddDetail(details, "WMI DHCP enabled", FormatYesNo(GetWmiPropertyValue(config, "DHCPEnabled")));
+                    AddDetail(details, "WMI DHCP server", GetWmiPropertyText(config, "DHCPServer"));
+                    AddDetail(details, "WMI DNS domain", GetWmiPropertyText(config, "DNSDomain"));
+                    AddDetail(details, "WMI DNS host name", GetWmiPropertyText(config, "DNSHostName"));
+                    AddDetail(details, "WMI DNS server search order", FormatWmiDetailValue(GetWmiPropertyValue(config, "DNSServerSearchOrder")));
+                    AddDetail(details, "WMI default gateway", FormatWmiDetailValue(GetWmiPropertyValue(config, "DefaultIPGateway")));
+                    AddDetail(details, "WMI IP addresses", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPAddress")));
+                    AddDetail(details, "WMI IP subnets", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPSubnet")));
+                    AddDetail(details, "WMI MAC address", GetWmiPropertyText(config, "MACAddress"));
+                    AddRawWmiDetails(details, "Network configuration WMI", config);
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapter WHERE GUID='" + EscapeWmiQueryString(adapterId) + "'"))
+            {
+                foreach (ManagementObject adapter in searcher.Get())
+                {
+                    AddRawWmiDetails(details, "Network adapter WMI", adapter);
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string EscapeWmiQueryString(string value)
+    {
+        return (value ?? "").Replace("\\", "\\\\").Replace("'", "\\'");
+    }
+
+    private static string FormatUnicastAddressCollection(UnicastIPAddressInformationCollection addresses)
+    {
+        if (addresses == null || addresses.Count == 0)
+        {
+            return "";
+        }
+
+        return string.Join(", ", addresses
+            .Cast<UnicastIPAddressInformation>()
+            .Where(a => a != null && a.Address != null)
+            .Select(a =>
+            {
+                var suffix = "";
+                try
+                {
+                    suffix = a.PrefixLength > 0 ? "/" + a.PrefixLength.ToString(CultureInfo.InvariantCulture) : "";
+                }
+                catch
+                {
+                }
+
+                return a.Address + suffix;
+            })
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct()
+            .ToArray());
+    }
+
+    private static string FormatIpAddressCollection(IPAddressCollection addresses)
+    {
+        if (addresses == null || addresses.Count == 0)
+        {
+            return "";
+        }
+
+        return string.Join(", ", addresses
+            .Cast<System.Net.IPAddress>()
+            .Where(address => address != null)
+            .Select(address => address.ToString())
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct()
+            .ToArray());
+    }
+
+    private static string FormatIpAddressInformationCollection(IEnumerable<IPAddressInformation> addresses)
+    {
+        if (addresses == null)
+        {
+            return "";
+        }
+
+        return string.Join(", ", addresses
+            .Where(address => address != null && address.Address != null)
+            .Select(address => address.Address.ToString())
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct()
+            .ToArray());
+    }
+
+    private static string FormatGatewayAddressCollection(GatewayIPAddressInformationCollection gateways)
+    {
+        if (gateways == null || gateways.Count == 0)
+        {
+            return "";
+        }
+
+        return string.Join(", ", gateways
+            .Cast<GatewayIPAddressInformation>()
+            .Where(gateway => gateway != null && gateway.Address != null)
+            .Select(gateway => gateway.Address.ToString())
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct()
+            .ToArray());
     }
 
     private static string FormatMacAddress(PhysicalAddress address)
@@ -2984,6 +4340,7 @@ public sealed partial class SensorReadoutForm : Form
             || name.Equals("Read activity", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Write activity", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Total activity", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Total space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Free space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Used space", StringComparison.OrdinalIgnoreCase);
     }

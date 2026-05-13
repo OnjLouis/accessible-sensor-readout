@@ -240,6 +240,22 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private void CopySelectedTreeNodeValueOnly()
+    {
+        if (readingTree.SelectedNode == null)
+        {
+            return;
+        }
+
+        var lines = new List<string>();
+        AddTreeNodeValueText(readingTree.SelectedNode, lines);
+        if (lines.Count > 0)
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, lines.ToArray()));
+            statusLabel.Text = "Copied " + lines.Count + " value" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+        }
+    }
+
     private void ShowReadingSearchDialog()
     {
         var rows = latestRows
@@ -356,7 +372,8 @@ public sealed partial class SensorReadoutForm : Form
             };
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
-            var closeButton = new Button { Text = L("ui.Close", "Close"), DialogResult = DialogResult.OK, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.OK;
             var copyButton = new Button { Text = L("ui.&Copy", "&Copy"), AutoSize = true };
             copyButton.Click += delegate
             {
@@ -434,7 +451,8 @@ public sealed partial class SensorReadoutForm : Form
             var status = new Label { AutoSize = true, Dock = DockStyle.Fill, Text = "" };
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
-            var closeButton = new Button { Text = L("ui.Close", "Close"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.Cancel;
             var selectButton = new Button { Text = L("ui.&Select", "&Select"), AutoSize = true };
             var clearButton = new Button { Text = L("ui.C&lear", "C&lear"), AutoSize = true };
             buttons.Controls.Add(closeButton);
@@ -587,6 +605,47 @@ public sealed partial class SensorReadoutForm : Form
         {
             AddTreeNodeText(child, lines, depth + 1);
         }
+    }
+
+    private static void AddTreeNodeValueText(TreeNode node, List<string> lines)
+    {
+        if (node == null || lines == null)
+        {
+            return;
+        }
+
+        var row = node.Tag as SensorRow;
+        if (row != null)
+        {
+            var value = FormatValue(row);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                lines.Add(value);
+            }
+            return;
+        }
+
+        if (node.Nodes.Count == 0)
+        {
+            var value = TextAfterFirstColon(node.Text);
+            if (!string.IsNullOrWhiteSpace(value) && !string.Equals(value, node.Text, StringComparison.Ordinal))
+            {
+                lines.Add(value);
+            }
+            return;
+        }
+
+        foreach (TreeNode child in node.Nodes)
+        {
+            AddTreeNodeValueText(child, lines);
+        }
+    }
+
+    private static string TextAfterFirstColon(string text)
+    {
+        text = text ?? "";
+        var index = text.IndexOf(':');
+        return index < 0 || index + 1 >= text.Length ? text.Trim() : text.Substring(index + 1).Trim();
     }
 
     private void HideSelectedTreeNode()
@@ -788,7 +847,8 @@ public sealed partial class SensorReadoutForm : Form
 
             var status = new Label { AutoSize = true, Dock = DockStyle.Fill, AccessibleName = L("a11y.Spoken hotkey assignment status", "Spoken hotkey assignment status") };
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
-            var closeButton = new Button { Text = L("ui.Close", "Close"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.Cancel;
             var toggleButton = new Button { AutoSize = true };
             buttons.Controls.Add(closeButton);
             buttons.Controls.Add(toggleButton);

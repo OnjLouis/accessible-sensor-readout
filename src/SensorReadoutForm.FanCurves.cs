@@ -253,7 +253,8 @@ public sealed partial class SensorReadoutForm : Form
             outer.Controls.Add(editor, 1, 0);
 
             var bottom = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
-            var closeButton = new Button { Text = T("ui.Close", "Close"), DialogResult = DialogResult.OK, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.OK;
             var applyButton = new Button { Text = T("ui.&Apply now", "&Apply now"), AutoSize = true };
             applyButton.Click += delegate
             {

@@ -593,7 +593,9 @@ public sealed partial class SensorReadoutForm : Form
                 releaseButton.Click += delegate { Process.Start(new ProcessStartInfo { FileName = releaseUrl, UseShellExecute = true }); };
                 var allReleasesButton = new Button { Text = T("ui.Open all releases", "Open &all releases"), AutoSize = true };
                 allReleasesButton.Click += delegate { Process.Start(new ProcessStartInfo { FileName = ProjectUrl + "/releases", UseShellExecute = true }); };
-                var closeButton = new Button { Text = T("ui.Close", "&Close"), DialogResult = DialogResult.OK, AutoSize = true };
+                var closeButton = CreateCloseButton();
+                closeButton.Text = T("ui.Close", "&Close");
+                closeButton.DialogResult = DialogResult.OK;
                 buttons.Controls.Add(releaseButton);
                 buttons.Controls.Add(allReleasesButton);
                 buttons.Controls.Add(closeButton);

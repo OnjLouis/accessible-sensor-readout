@@ -27,6 +27,7 @@ public sealed partial class SensorReadoutForm : Form
                 wmi = null;
             }
 
+            var details = BuildBatteryDetails(battery, wmi, i);
             var percent = GetBatteryPercent(battery, wmi);
             if (percent.HasValue)
             {
@@ -38,7 +39,8 @@ public sealed partial class SensorReadoutForm : Form
                     Identifier = "battery/" + i + "/charge",
                     Value = (float)percent.Value,
                     DisplayValue = FormatNumber(Math.Round(percent.Value, 1), "0.0") + "%",
-                    Source = "Windows Battery"
+                    Source = "Windows Battery",
+                    Details = CloneDetails(details)
                 });
             }
 
@@ -52,11 +54,12 @@ public sealed partial class SensorReadoutForm : Form
                     Name = "Status",
                     Identifier = "battery/" + i + "/status",
                     DisplayValue = status,
-                    Source = "Windows Battery"
+                    Source = "Windows Battery",
+                    Details = CloneDetails(details)
                 });
             }
 
-            AddBatteryCapacityRows(rows, battery, hardware, i);
+            AddBatteryCapacityRows(rows, battery, hardware, i, details);
             if (battery.CycleCount > 0)
             {
                 rows.Add(new SensorRow
@@ -67,7 +70,8 @@ public sealed partial class SensorReadoutForm : Form
                     Identifier = "battery/" + i + "/cycle-count",
                     Value = battery.CycleCount,
                     DisplayValue = battery.CycleCount.ToString(),
-                    Source = "Windows Battery"
+                    Source = "Windows Battery",
+                    Details = CloneDetails(details)
                 });
             }
 
@@ -81,7 +85,8 @@ public sealed partial class SensorReadoutForm : Form
                     Identifier = "battery/" + i + "/voltage",
                     Value = battery.VoltageMillivolts / 1000f,
                     DisplayValue = FormatNumber(Math.Round(battery.VoltageMillivolts / 1000.0, 2), "0.00") + " V",
-                    Source = "Windows Battery"
+                    Source = "Windows Battery",
+                    Details = CloneDetails(details)
                 });
             }
 
@@ -95,7 +100,8 @@ public sealed partial class SensorReadoutForm : Form
                     Identifier = "battery/" + i + "/power-rate",
                     Value = battery.RateMilliwatts / 1000f,
                     DisplayValue = FormatNumber(Math.Round(battery.RateMilliwatts / 1000.0, 2), "0.00") + " W",
-                    Source = "Windows Battery"
+                    Source = "Windows Battery",
+                    Details = CloneDetails(details)
                 });
             }
         }
@@ -321,21 +327,59 @@ public sealed partial class SensorReadoutForm : Form
         return null;
     }
 
-    private static void AddBatteryCapacityRows(List<SensorRow> rows, NativeBatteryInfo battery, string hardware, int index)
+    private static Dictionary<string, string> BuildBatteryDetails(NativeBatteryInfo battery, WmiBatteryInfo wmi, int index)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (battery != null)
+        {
+            AddDetail(details, "Battery index", index.ToString());
+            AddDetail(details, "Battery name", battery.Name);
+            AddDetail(details, "Battery manufacturer", battery.Manufacturer);
+            AddDetail(details, "Battery serial number", battery.SerialNumber);
+            AddDetail(details, "Battery unique ID", battery.UniqueId);
+            AddDetail(details, "Battery chemistry", battery.Chemistry);
+            AddDetail(details, "Designed capacity", battery.DesignedCapacity > 0 ? FormatNumber(battery.DesignedCapacity, "0") + " mWh" : "");
+            AddDetail(details, "Full charge capacity", battery.FullChargeCapacity > 0 ? FormatNumber(battery.FullChargeCapacity, "0") + " mWh" : "");
+            AddDetail(details, "Current capacity", battery.CurrentCapacity >= 0 ? FormatNumber(battery.CurrentCapacity, "0") + " mWh" : "");
+            AddDetail(details, "Cycle count", battery.CycleCount > 0 ? battery.CycleCount.ToString() : "");
+            AddDetail(details, "Voltage", battery.VoltageMillivolts > 0 ? FormatNumber(Math.Round(battery.VoltageMillivolts / 1000.0, 2), "0.00") + " V" : "");
+            AddDetail(details, "Power rate", battery.RateMilliwatts != int.MinValue && battery.RateMilliwatts != 0 ? FormatNumber(Math.Round(battery.RateMilliwatts / 1000.0, 2), "0.00") + " W" : "");
+            AddDetail(details, "Power state flags", battery.PowerState.ToString());
+            AddDetail(details, "Native device path", battery.DevicePath);
+        }
+
+        if (wmi != null)
+        {
+            AddDetail(details, "WMI estimated charge remaining", wmi.EstimatedChargeRemaining >= 0 ? wmi.EstimatedChargeRemaining + "%" : "");
+            AddDetail(details, "WMI battery status", DecodeWmiBatteryStatus(wmi.BatteryStatus));
+            AddDetail(details, "WMI status", wmi.Status);
+            if (wmi.RawDetails != null)
+            {
+                foreach (var pair in wmi.RawDetails)
+                {
+                    AddDetail(details, pair.Key, pair.Value);
+                }
+            }
+        }
+
+        return details;
+    }
+
+    private static void AddBatteryCapacityRows(List<SensorRow> rows, NativeBatteryInfo battery, string hardware, int index, Dictionary<string, string> details)
     {
         if (battery.CurrentCapacity >= 0)
         {
-            rows.Add(CreateBatteryCapacityRow(hardware, index, "Current capacity", "current-capacity", battery.CurrentCapacity));
+            rows.Add(CreateBatteryCapacityRow(hardware, index, "Current capacity", "current-capacity", battery.CurrentCapacity, details));
         }
 
         if (battery.FullChargeCapacity > 0)
         {
-            rows.Add(CreateBatteryCapacityRow(hardware, index, "Full charge capacity", "full-charge-capacity", battery.FullChargeCapacity));
+            rows.Add(CreateBatteryCapacityRow(hardware, index, "Full charge capacity", "full-charge-capacity", battery.FullChargeCapacity, details));
         }
 
         if (battery.DesignedCapacity > 0)
         {
-            rows.Add(CreateBatteryCapacityRow(hardware, index, "Design capacity", "design-capacity", battery.DesignedCapacity));
+            rows.Add(CreateBatteryCapacityRow(hardware, index, "Design capacity", "design-capacity", battery.DesignedCapacity, details));
         }
 
         if (battery.FullChargeCapacity > 0 && battery.DesignedCapacity > 0)
@@ -349,12 +393,13 @@ public sealed partial class SensorReadoutForm : Form
                 Identifier = "battery/" + index + "/health",
                 Value = (float)health,
                 DisplayValue = FormatNumber(Math.Round(health, 1), "0.0") + "%",
-                Source = "Windows Battery"
+                Source = "Windows Battery",
+                Details = CloneDetails(details)
             });
         }
     }
 
-    private static SensorRow CreateBatteryCapacityRow(string hardware, int index, string name, string id, int milliwattHours)
+    private static SensorRow CreateBatteryCapacityRow(string hardware, int index, string name, string id, int milliwattHours, Dictionary<string, string> details)
     {
         return new SensorRow
         {
@@ -364,7 +409,8 @@ public sealed partial class SensorReadoutForm : Form
             Identifier = "battery/" + index + "/" + id,
             Value = milliwattHours,
             DisplayValue = FormatNumber(milliwattHours, "0") + " mWh",
-            Source = "Windows Battery"
+            Source = "Windows Battery",
+            Details = CloneDetails(details)
         };
     }
 
@@ -394,6 +440,46 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatBatteryChemistry(byte[] chemistry)
+    {
+        if (chemistry == null || chemistry.Length == 0)
+        {
+            return "";
+        }
+
+        var chars = new List<char>();
+        foreach (var value in chemistry)
+        {
+            if (value == 0)
+            {
+                continue;
+            }
+
+            chars.Add((char)value);
+        }
+
+        return new string(chars.ToArray()).Trim();
+    }
+
+    private static string DecodeWmiBatteryStatus(int status)
+    {
+        switch (status)
+        {
+            case 1: return "Discharging";
+            case 2: return "AC connected";
+            case 3: return "Fully charged";
+            case 4: return "Low";
+            case 5: return "Critical";
+            case 6: return "Charging";
+            case 7: return "Charging and high";
+            case 8: return "Charging and low";
+            case 9: return "Charging and critical";
+            case 10: return "Undefined";
+            case 11: return "Partially charged";
+            default: return status > 0 ? status.ToString() : "";
+        }
     }
 
     private static List<NativeBatteryInfo> GetNativeBatteryInfo()
@@ -488,14 +574,20 @@ public sealed partial class SensorReadoutForm : Form
             TryQueryBatteryStatus(handle, tag, ref status);
 
             var name = QueryBatteryString(handle, tag, BatteryQueryInformationLevel.BatteryDeviceName);
+            var manufacturer = QueryBatteryString(handle, tag, BatteryQueryInformationLevel.BatteryManufactureName);
             if (string.IsNullOrWhiteSpace(name))
             {
-                name = QueryBatteryString(handle, tag, BatteryQueryInformationLevel.BatteryManufactureName);
+                name = manufacturer;
             }
 
             info = new NativeBatteryInfo
             {
                 Name = string.IsNullOrWhiteSpace(name) ? "Battery " + (index + 1) : name.Trim(),
+                Manufacturer = manufacturer,
+                SerialNumber = QueryBatteryString(handle, tag, BatteryQueryInformationLevel.BatterySerialNumber),
+                UniqueId = QueryBatteryString(handle, tag, BatteryQueryInformationLevel.BatteryUniqueId),
+                Chemistry = FormatBatteryChemistry(batteryInfo.Chemistry),
+                DevicePath = devicePath,
                 DesignedCapacity = batteryInfo.DesignedCapacity,
                 FullChargeCapacity = batteryInfo.FullChargedCapacity,
                 CycleCount = batteryInfo.CycleCount,
@@ -593,16 +685,19 @@ public sealed partial class SensorReadoutForm : Form
         var result = new Dictionary<int, WmiBatteryInfo>();
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT DeviceID, EstimatedChargeRemaining, BatteryStatus, Status FROM Win32_Battery"))
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Battery"))
             {
                 var index = 0;
                 foreach (ManagementObject battery in searcher.Get())
                 {
+                    var rawDetails = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    AddRawWmiDetails(rawDetails, "Battery WMI", battery);
                     result[index] = new WmiBatteryInfo
                     {
                         EstimatedChargeRemaining = ToInt(battery["EstimatedChargeRemaining"], -1),
                         BatteryStatus = ToInt(battery["BatteryStatus"], 0),
-                        Status = Convert.ToString(battery["Status"]) ?? ""
+                        Status = Convert.ToString(battery["Status"]) ?? "",
+                        RawDetails = rawDetails
                     };
                     index++;
                 }
@@ -663,7 +758,9 @@ public sealed partial class SensorReadoutForm : Form
     {
         BatteryInformation = 0,
         BatteryDeviceName = 4,
-        BatteryManufactureName = 6
+        BatteryManufactureName = 6,
+        BatteryUniqueId = 7,
+        BatterySerialNumber = 8
     }
 
     [Flags]
@@ -739,6 +836,11 @@ public sealed partial class SensorReadoutForm : Form
     private sealed class NativeBatteryInfo
     {
         public string Name;
+        public string Manufacturer;
+        public string SerialNumber;
+        public string UniqueId;
+        public string Chemistry;
+        public string DevicePath;
         public int DesignedCapacity;
         public int FullChargeCapacity;
         public int CycleCount;
@@ -753,5 +855,6 @@ public sealed partial class SensorReadoutForm : Form
         public int EstimatedChargeRemaining = -1;
         public int BatteryStatus;
         public string Status;
+        public Dictionary<string, string> RawDetails;
     }
 }

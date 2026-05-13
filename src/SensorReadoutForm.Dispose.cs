@@ -60,6 +60,11 @@ public sealed partial class SensorReadoutForm : Form
             closeRequestTimer.Dispose();
         }
 
+        if (disposing && detailsAvailabilityAnnouncementTimer != null)
+        {
+            detailsAvailabilityAnnouncementTimer.Dispose();
+        }
+
         if (disposing && visibleRefreshTimer != null)
         {
             visibleRefreshTimer.Dispose();

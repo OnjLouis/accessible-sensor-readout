@@ -415,9 +415,82 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 node.Tag = item.Row;
+                node.ToolTipText = GetTreeNodeDetailsHint(item);
             }
 
             UpdateTreeNodes(node.Nodes, itemByKey);
+        }
+    }
+
+    private void AnnounceSelectedReadingDetailsAvailability()
+    {
+        if (detailsAvailabilityAnnouncementTimer != null)
+        {
+            detailsAvailabilityAnnouncementTimer.Stop();
+        }
+
+        pendingDetailsAvailabilityAnnouncementKey = "";
+        if (readingTree == null || readingTree.SelectedNode == null || !readingTree.ContainsFocus)
+        {
+            return;
+        }
+
+        var row = readingTree.SelectedNode.Tag as SensorRow;
+        if (row == null || row.Details == null || row.Details.Count == 0)
+        {
+            return;
+        }
+
+        var nodeKey = string.IsNullOrWhiteSpace(readingTree.SelectedNode.Name)
+            ? readingTree.SelectedNode.FullPath
+            : readingTree.SelectedNode.Name;
+        var now = DateTime.UtcNow;
+        if (string.Equals(lastDetailsAvailabilityAnnouncementKey, nodeKey, StringComparison.Ordinal) &&
+            now - lastDetailsAvailabilityAnnouncementUtc < TimeSpan.FromSeconds(2))
+        {
+            return;
+        }
+
+        pendingDetailsAvailabilityAnnouncementKey = nodeKey;
+        if (detailsAvailabilityAnnouncementTimer != null)
+        {
+            detailsAvailabilityAnnouncementTimer.Start();
+        }
+    }
+
+    private void SpeakPendingDetailsAvailabilityAnnouncement()
+    {
+        if (readingTree == null || readingTree.SelectedNode == null || !readingTree.ContainsFocus || string.IsNullOrWhiteSpace(pendingDetailsAvailabilityAnnouncementKey))
+        {
+            pendingDetailsAvailabilityAnnouncementKey = "";
+            return;
+        }
+
+        var currentKey = string.IsNullOrWhiteSpace(readingTree.SelectedNode.Name)
+            ? readingTree.SelectedNode.FullPath
+            : readingTree.SelectedNode.Name;
+        if (!string.Equals(currentKey, pendingDetailsAvailabilityAnnouncementKey, StringComparison.Ordinal))
+        {
+            pendingDetailsAvailabilityAnnouncementKey = "";
+            return;
+        }
+
+        var row = readingTree.SelectedNode.Tag as SensorRow;
+        if (row == null || row.Details == null || row.Details.Count == 0)
+        {
+            pendingDetailsAvailabilityAnnouncementKey = "";
+            return;
+        }
+
+        lastDetailsAvailabilityAnnouncementKey = currentKey;
+        lastDetailsAvailabilityAnnouncementUtc = DateTime.UtcNow;
+        pendingDetailsAvailabilityAnnouncementKey = "";
+
+        string error;
+        var message = T("a11y.Has details", "Has Details.");
+        if (!ScreenReaderOutput.TrySpeakPolite(message, out error))
+        {
+            LogMessage("Debug", "Details availability hint was not spoken. " + error);
         }
     }
 
@@ -662,7 +735,7 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
         if (systemRows.Count > 0)
         {
-            var systemItem = new ReadingTreeItem { Key = "performance|system", Text = T("group.System", "System") };
+            var systemItem = new ReadingTreeItem { Key = "performance|system", Text = T("group.CPU and memory", "CPU and memory") };
             foreach (var hardwareGroup in systemRows
                 .GroupBy(r => ShortHardwareName(r.Hardware))
                 .OrderBy(g => PerformanceHardwareSortIndex(g.Key))
@@ -835,7 +908,7 @@ public sealed partial class SensorReadoutForm : Form
         AddOverviewGroup(parent, rowList, "overview|windows", T("group.Windows", "Windows"), IsOverviewWindowsRow);
         AddOverviewGroup(parent, rowList, "overview|firmware-board", T("group.Firmware and board", "Firmware and board"), IsOverviewFirmwareBoardRow);
         AddOverviewGroup(parent, rowList, "overview|graphics", T("group.Graphics", "Graphics"), IsOverviewGraphicsRow);
-        AddOverviewGroup(parent, rowList, "overview|printer-summary", T("group.Printers", "Printers"), IsOverviewPrinterSummaryRow);
+        AddOverviewGroup(parent, rowList, "overview|printer-summary", T("group.Printer summary", "Printer summary"), IsOverviewPrinterSummaryRow);
 
         var grouped = new HashSet<SensorRow>(rowList.Where(r =>
             IsOverviewSystemRow(r) ||
@@ -1229,6 +1302,12 @@ public sealed partial class SensorReadoutForm : Form
             "CPU hardware VM memory translation (SLAT/EPT/NPT)",
             "CPU data execution prevention"
         });
+        AddNamedReadingGroup(parent, rows, "cpu|cache", T("group.CPU cache", "Cache"), new[]
+        {
+            "CPU L1 cache",
+            "CPU L2 cache",
+            "CPU L3 cache"
+        });
 
         var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -1246,7 +1325,10 @@ public sealed partial class SensorReadoutForm : Form
             "CPU virtualization extensions",
             "CPU virtualization enabled in firmware",
             "CPU hardware VM memory translation (SLAT/EPT/NPT)",
-            "CPU data execution prevention"
+            "CPU data execution prevention",
+            "CPU L1 cache",
+            "CPU L2 cache",
+            "CPU L3 cache"
         };
 
         var remaining = rows.Where(r => !handled.Contains(CleanSensorName(r.Name))).ToList();
@@ -1415,13 +1497,20 @@ public sealed partial class SensorReadoutForm : Form
 
     private static TreeNode CreateTreeNode(ReadingTreeItem item)
     {
-        var node = new TreeNode(item.Text) { Name = item.Key, Tag = item.Row };
+        var node = new TreeNode(item.Text) { Name = item.Key, Tag = item.Row, ToolTipText = GetTreeNodeDetailsHint(item) };
         foreach (var child in item.Children)
         {
             node.Nodes.Add(CreateTreeNode(child));
         }
 
         return node;
+    }
+
+    private static string GetTreeNodeDetailsHint(ReadingTreeItem item)
+    {
+        return item != null && item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0
+            ? T("a11y.Has details", "Has Details.")
+            : "";
     }
 
     private static TreeNode FindTreeNode(TreeNodeCollection nodes, string key)

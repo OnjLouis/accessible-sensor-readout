@@ -103,7 +103,8 @@ public sealed partial class SensorReadoutForm : Form
             layout.Controls.Add(fanControlStatusLabel, 1, 4);
 
             var closePanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-            var closeButton = new Button { Text = T("ui.Close", "Close"), DialogResult = DialogResult.OK, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.OK;
             closePanel.Controls.Add(closeButton);
             layout.Controls.Add(closePanel, 1, 5);
             dialog.AcceptButton = closeButton;
@@ -292,6 +293,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
+        rows = TimedTransformRows(rows, "StorageDetailsAttach", AttachStorageDetailsToRows, timings);
         rows = TimedTransformRows(rows, "FanPercentAttach", AttachFanControlPercentsToFanRows, timings);
         rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
 

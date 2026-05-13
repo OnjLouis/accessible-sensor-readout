@@ -10,11 +10,13 @@ public sealed partial class SensorReadoutForm : Form
         var rows = new List<SensorRow>();
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate, CurrentBitsPerPixel, VideoModeDescription, DriverVersion, DriverDate, Status, PNPDeviceID, AdapterCompatibility, VideoProcessor FROM Win32_VideoController"))
+            var drivers = GetSignedDriverInfoByDeviceId();
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
             {
                 foreach (ManagementObject gpu in searcher.Get())
                 {
                     var name = FirstNonEmpty(Convert.ToString(gpu["Name"]), "Display adapter");
+                    var pnpDeviceId = Convert.ToString(gpu["PNPDeviceID"]);
                     var resolution = FormatResolution(gpu["CurrentHorizontalResolution"], gpu["CurrentVerticalResolution"], gpu["CurrentRefreshRate"]);
                     var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     AddDetail(details, "Name", name);
@@ -27,11 +29,30 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Driver version", Convert.ToString(gpu["DriverVersion"]));
                     AddDetail(details, "Driver date", FormatWmiDate(gpu["DriverDate"]));
                     AddDetail(details, "Status", Convert.ToString(gpu["Status"]));
-                    AddDetail(details, "Device ID", Convert.ToString(gpu["PNPDeviceID"]));
+                    AddDetail(details, "Device ID", pnpDeviceId);
+                    AddDetail(details, "Video architecture", Convert.ToString(gpu["VideoArchitecture"]));
+                    AddDetail(details, "Video memory type", Convert.ToString(gpu["VideoMemoryType"]));
+                    AddDetail(details, "Adapter DAC type", Convert.ToString(gpu["AdapterDACType"]));
+                    AddDetail(details, "Current scan mode", Convert.ToString(gpu["CurrentScanMode"]));
+                    AddDetail(details, "Availability", Convert.ToString(gpu["Availability"]));
+                    AddDetail(details, "Config manager error code", Convert.ToString(gpu["ConfigManagerErrorCode"]));
+                    AddPciDetails(details, pnpDeviceId);
+                    AddDeviceRegistryDetails(details, pnpDeviceId);
+                    DeviceDriverInfo driver;
+                    if (!string.IsNullOrWhiteSpace(pnpDeviceId) && drivers.TryGetValue(pnpDeviceId, out driver))
+                    {
+                        AddDetail(details, "Signed driver provider", driver.DriverProviderName);
+                        AddDetail(details, "Signed driver version", driver.DriverVersion);
+                        AddDetail(details, "Signed driver date", driver.DriverDate);
+                        AddDetail(details, "Signed driver INF", driver.InfName);
+                        AddDetail(details, "Signed driver signer", driver.Signer);
+                        AddDetail(details, "Signed driver location", driver.Location);
+                    }
+                    AddRawWmiDetails(details, "Display adapter WMI", gpu);
 
                     string bios;
                     string biosDate;
-                    if (TryGetGpuBiosInfo(name, Convert.ToString(gpu["PNPDeviceID"]), out bios, out biosDate))
+                    if (TryGetGpuBiosInfo(name, pnpDeviceId, out bios, out biosDate))
                     {
                         AddDetail(details, "BIOS", bios);
                         AddDetail(details, "BIOS date", biosDate);
@@ -42,7 +63,7 @@ public sealed partial class SensorReadoutForm : Form
                         Type = "Display",
                         Hardware = name,
                         Name = "Adapter",
-                        Identifier = "display|" + Convert.ToString(gpu["PNPDeviceID"]),
+                        Identifier = "display|" + pnpDeviceId,
                         DisplayValue = BuildDisplaySummary(gpu, resolution),
                         Source = "Windows display",
                         Details = details
@@ -56,6 +77,7 @@ public sealed partial class SensorReadoutForm : Form
 
         try
         {
+            var monitorBasicParams = GetMonitorBasicDisplayParameters();
             using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT InstanceName, ManufacturerName, ProductCodeID, SerialNumberID, UserFriendlyName, WeekOfManufacture, YearOfManufacture FROM WmiMonitorID"))
             {
                 foreach (ManagementObject monitor in searcher.Get())
@@ -73,6 +95,15 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Manufacture week", Convert.ToString(monitor["WeekOfManufacture"]));
                     AddDetail(details, "Manufacture year", Convert.ToString(monitor["YearOfManufacture"]));
                     AddDetail(details, "Instance", Convert.ToString(monitor["InstanceName"]));
+                    Dictionary<string, string> basicParams;
+                    if (monitorBasicParams.TryGetValue(Convert.ToString(monitor["InstanceName"]) ?? "", out basicParams))
+                    {
+                        foreach (var detail in basicParams)
+                        {
+                            AddDetail(details, detail.Key, detail.Value);
+                        }
+                    }
+                    AddRawWmiDetails(details, "Monitor ID WMI", monitor);
 
                     rows.Add(new SensorRow
                     {
@@ -92,6 +123,39 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> GetMonitorBasicDisplayParameters()
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBasicDisplayParams"))
+            {
+                foreach (ManagementObject monitor in searcher.Get())
+                {
+                    var instance = Convert.ToString(monitor["InstanceName"]) ?? "";
+                    if (string.IsNullOrWhiteSpace(instance))
+                    {
+                        continue;
+                    }
+
+                    var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    AddDetail(details, "Display active", FormatYesNo(GetWmiPropertyValue(monitor, "Active")));
+                    AddDetail(details, "Display input type", FormatVideoInputType(GetWmiPropertyValue(monitor, "VideoInputType")));
+                    AddDetail(details, "Display max horizontal size", FormatCentimeters(GetWmiPropertyValue(monitor, "MaxHorizontalImageSize")));
+                    AddDetail(details, "Display max vertical size", FormatCentimeters(GetWmiPropertyValue(monitor, "MaxVerticalImageSize")));
+                    AddDetail(details, "Display transfer characteristic", Convert.ToString(GetWmiPropertyValue(monitor, "DisplayTransferCharacteristic")));
+                    AddRawWmiDetails(details, "Monitor basic parameters WMI", monitor);
+                    result[instance] = details;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
     }
 
     private static string BuildDisplaySummary(ManagementObject gpu, string resolution)
@@ -136,6 +200,35 @@ public sealed partial class SensorReadoutForm : Form
     {
         int bits;
         return int.TryParse(Convert.ToString(value), out bits) && bits > 0 ? bits + "-bit" : "";
+    }
+
+    private static string FormatCentimeters(object value)
+    {
+        int centimeters;
+        return int.TryParse(Convert.ToString(value), out centimeters) && centimeters > 0
+            ? centimeters + " cm"
+            : "";
+    }
+
+    private static string FormatVideoInputType(object value)
+    {
+        var text = Convert.ToString(value);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        if (text == "0")
+        {
+            return "Analog";
+        }
+
+        if (text == "1")
+        {
+            return "Digital";
+        }
+
+        return text.Trim();
     }
 
     private static string DecodeWmiMonitorString(object value)

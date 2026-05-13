@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 3.2.1.
+Current version: 3.3.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -133,62 +133,63 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-| --- | --- |
-| `F5` | Refresh now. |
-| `Ctrl+S` | Save report. |
-| `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
-| `Ctrl+E` | Export selected settings and profiles to a transfer package. |
-| `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
-| `Ctrl+Shift+I` | Import selected settings and profiles from a transfer package. |
-| `Ctrl+Shift+O` | Open the Reports folder. |
-| `Ctrl+Shift+L` | Open the Logs folder. |
-| `Ctrl+R` | Return from a static report to live readings. |
-| `Ctrl+I` | Import a Plug-In ZIP. |
-| `F3` | Find a reading across all categories. Type to narrow the results, Tab to the results list, Enter to choose, Esc to return, or Alt+L to clear the search. |
-| `Ctrl+C` | Copy the selected reading or tree branch. |
-| `F4` | Review the selected reading or tree branch in a read-only text box. |
-| `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available, such as USB device fields. |
-| `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
-| `Del` | Hide the selected reading or tree branch. |
-| `Ctrl+Shift+H` | Add the selected reading to a spoken hotkey profile, or remove it from one. |
-| `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
-| `Ctrl+L` | Open fan controls. |
-| `Ctrl+U` | Open fan curves. |
-| `Ctrl+,` | Open Preferences. |
-| `F1` | Open the manual. |
-| `Alt+F1` | Run diagnostics and create a support ZIP. |
-| `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. If quiet update installs are enabled, an available update installs without showing release notes first. |
-| `Ctrl+F1` | Open the project page. |
-| `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
-| `Esc` | Close the Fan Controls dialog. |
-| `Alt+L` | Save the label for the selected fan control. |
-| `Alt+M` | Apply the manual percentage to the selected fan control. |
-| `Alt+A` | Return the selected fan control to automatic/default. |
-| `Alt+R` | Return all fan controls to automatic/default. |
-| `Alt+7` | Set all visible fan controls to 75%. |
-| `Alt+X` | Set all visible fan controls to maximum. |
-| `Alt+S` | Show or hide stopped fan headers. |
-| `Alt+P` | Pause automatic updates. |
-| `Ctrl+1` to `Ctrl+8` | In Preferences, jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
-| `F3` | In Preferences reading lists, find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
-| `F2` | In Preferences lists, jump to the name or rename field where applicable. |
-| `Enter` | In Preferences lists, jump to the main value field where applicable. |
-| `Ctrl+Right` | In Preferences, add the selected available reading to the tray order or selected spoken hotkey. |
-| `Ctrl+Left` | In Preferences, remove the selected tray or spoken-hotkey reading. |
-| `Ctrl+Up` / `Ctrl+Down` | In Preferences, move the selected tray or spoken-hotkey reading earlier or later. |
-| `Alt+I` | In Preferences > Startup and Install, install to this PC. |
-| `Alt+U` | In Preferences > Startup and Install, uninstall from this PC when running from the installed copy. |
-| `Alt+I` | In Preferences > Plug-Ins, import a plug-in ZIP. |
-| `Alt+N` | In Preferences > Hotkeys, create a new spoken hotkey profile. |
-| `Alt+I` | In Preferences > Hotkeys, import spoken hotkey profiles from another machine config. |
-| `Alt+P` | In Preferences > Hotkeys, remove the selected spoken hotkey profile. |
-| `Alt+A` | In Preferences > Hotkeys, add the selected reading to the selected spoken hotkey. |
-| `Alt+M` | In Preferences > Hotkeys, remove the selected reading from the selected spoken hotkey. |
-| `Alt+U` / `Alt+W` | In Preferences > Hotkeys, move the selected spoken-hotkey reading up or down. |
-| `Alt+R` | In Preferences > Hotkeys, rename the selected spoken label. |
-| `Alt+D` | In Preferences > Hotkeys, reset the selected spoken label to default. |
-| `Delete` | In Preferences, remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
+| Shortcut Group | Shortcut | Action |
+| --- | --- | --- |
+| Main window | `F5` | Refresh current readings. |
+| Main window | `F3` | Find a reading across all categories. Type to narrow results, Tab to the list, Enter to choose, Esc to close, or Alt+L to clear. |
+| Main window | `F4` | Review the selected reading or tree branch in a read-only text box. |
+| Main window | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available. |
+| Main window | `Ctrl+C` | Copy the selected reading or tree branch. |
+| Main window | `Ctrl+Shift+C` | Copy value only: copy the selected reading value without the reading name. On a branch, copies one value per reading. |
+| Main window | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
+| Main window | `Del` | Hide the selected reading or tree branch. |
+| Main window | `Ctrl+Shift+H` | Add the selected reading to a spoken hotkey profile, or remove it from one. |
+| Main window | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
+| Main window | `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
+| File commands | `Ctrl+S` | Save a report. |
+| File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
+| File commands | `Ctrl+R` | Return from a static report to live readings. |
+| File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
+| File commands | `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
+| File commands | `Ctrl+Shift+I` | Import selected settings and profiles from a transfer package. |
+| File commands | `Ctrl+I` | Import a Plug-In ZIP. |
+| File commands | `Ctrl+Shift+O` | Open the Reports folder. |
+| File commands | `Ctrl+Shift+L` | Open the Logs folder. |
+| Tools and help | `Ctrl+L` | Open fan controls. |
+| Tools and help | `Ctrl+U` | Open fan curves. |
+| Tools and help | `Ctrl+,` | Open Preferences. |
+| Tools and help | `F1` | Open the manual. |
+| Tools and help | `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. If quiet update installs are enabled, an available update installs without showing release notes first. |
+| Tools and help | `Ctrl+F1` | Open the project page. |
+| Tools and help | `Alt+F1` | Run diagnostics and create a support ZIP. |
+| Fan controls dialog | `Esc` | Close the Fan Controls dialog. |
+| Fan controls dialog | `Alt+L` | Save the label for the selected fan control. |
+| Fan controls dialog | `Alt+M` | Apply the manual percentage to the selected fan control. |
+| Fan controls dialog | `Alt+A` | Return the selected fan control to automatic/default. |
+| Fan controls dialog | `Alt+R` | Return all fan controls to automatic/default. |
+| Fan controls dialog | `Alt+7` | Set all visible fan controls to 75%. |
+| Fan controls dialog | `Alt+X` | Set all visible fan controls to maximum. |
+| Fan controls dialog | `Alt+S` | Show or hide stopped fan headers. |
+| Fan controls dialog | `Alt+P` | Pause automatic updates. |
+| Preferences | `Ctrl+1` to `Ctrl+8` | Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
+| Preferences | `F3` | Find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
+| Preferences | `F2` | Jump to the name or rename field where applicable. |
+| Preferences | `Enter` | Jump to the main value field where applicable. |
+| Preferences | `Ctrl+Right` | Add the selected available reading to the tray order or selected spoken hotkey. |
+| Preferences | `Ctrl+Left` | Remove the selected tray or spoken-hotkey reading. |
+| Preferences | `Ctrl+Up` / `Ctrl+Down` | Move the selected tray or spoken-hotkey reading earlier or later. |
+| Preferences | `Alt+I` | In Startup and Install, install to this PC. |
+| Preferences | `Alt+U` | In Startup and Install, uninstall from this PC when running from the installed copy. |
+| Preferences | `Alt+I` | In Plug-Ins, import a plug-in ZIP. |
+| Preferences | `Alt+N` | In Hotkeys, create a new spoken hotkey profile. |
+| Preferences | `Alt+I` | In Hotkeys, import spoken hotkey profiles from another machine config. |
+| Preferences | `Alt+P` | In Hotkeys, remove the selected spoken hotkey profile. |
+| Preferences | `Alt+A` | In Hotkeys, add the selected reading to the selected spoken hotkey. |
+| Preferences | `Alt+M` | In Hotkeys, remove the selected reading from the selected spoken hotkey. |
+| Preferences | `Alt+U` / `Alt+W` | Move the selected spoken-hotkey reading up or down. |
+| Preferences | `Alt+R` | Rename the selected spoken label. |
+| Preferences | `Alt+D` | Reset the selected spoken label to default. |
+| Preferences | `Delete` | Remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
 
 ## Command-Line Options
 
@@ -503,6 +504,17 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.3.0
+
+- Improved: Performance/Overview now uses clearer group names for CPU and memory readings and printer summary rows, avoiding duplicate-looking System and Printers branches in the tree.
+- Improved: CPU and baseboard Details now include deeper Windows/SMBIOS fields such as cache associativity and write policy, chassis type, memory slot counts, expansion slots, and raw Windows fields where available.
+- Improved: Windows and firmware Details now include additional OS, registry, licensing, system product, BIOS, Secure Boot, and TPM fields where Windows exposes them. Product keys are shown only as masked endings so shared reports do not leak full keys.
+- Improved: Disk Details now include physical disk, partition, hidden/no-letter partition, and logical volume information where Windows exposes it.
+- Improved: Network Details now include gateway, DNS, DHCP, IP, MTU, adapter statistics, and raw Windows adapter/configuration fields where available.
+- Improved: Details now open as a grouped tree instead of a two-column list, so screen readers read each field and value as one item, raw WMI or registry fields can be skipped by group, and F3/F4 work inside Details for search and text review.
+- Added: `Ctrl+Shift+C` copies the selected reading value only, without the reading name, making model numbers, device strings, UUIDs, and similar fields easier to reuse.
+- Improved: Screen-reader users now hear "Has Details" after tree items that support the Details command, without adding that hint to copied text or reports.
 
 ### 3.2.1
 

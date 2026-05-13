@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.2.1";
+    public const string AppVersion = "3.3.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -53,6 +53,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly Timer languageTimer;
     private readonly Timer updateCheckTimer;
     private readonly Timer closeRequestTimer;
+    private readonly Timer detailsAvailabilityAnnouncementTimer;
     private readonly NotifyIcon trayIcon;
     private Timer trayFlashTimer;
     private Icon trayStatusIcon;
@@ -68,6 +69,9 @@ public sealed partial class SensorReadoutForm : Form
     private string lastReadingTreeSignature = "";
     private string lastReadingTreeShapeSignature = "";
     private string lastReadingTreeFilterKey = "";
+    private string lastDetailsAvailabilityAnnouncementKey = "";
+    private DateTime lastDetailsAvailabilityAnnouncementUtc = DateTime.MinValue;
+    private string pendingDetailsAvailabilityAnnouncementKey = "";
     private bool readingTreeExpansionInitialized;
     private bool automaticUpdateCheckStartedThisRun;
     private string currentTrayStatusText = "Sensor Readout";
@@ -164,6 +168,7 @@ public sealed partial class SensorReadoutForm : Form
         var editMenu = new ToolStripMenuItem("&Edit");
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
+        editMenu.DropDownItems.Add(CreateShortcutMenuItem(T("ui.Copy &value only", "Copy &value only"), Keys.Control | Keys.Shift | Keys.C, delegate { CopySelectedTreeNodeValueOnly(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
@@ -375,12 +380,14 @@ public sealed partial class SensorReadoutForm : Form
             ShowLines = true,
             ShowPlusMinus = true,
             ShowRootLines = true,
+            ShowNodeToolTips = true,
             AccessibleName = "Readings",
             AccessibleDescription = "Current readings grouped by category or device"
         };
         readingTree.ContextMenuStrip = new ContextMenuStrip();
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
+        readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem(T("ui.Copy &value only", "Copy &value only"), Keys.Control | Keys.Shift | Keys.C, delegate { CopySelectedTreeNodeValueOnly(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
@@ -395,10 +402,17 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.KeyDown += delegate(object sender, KeyEventArgs e)
         {
             MarkUserNavigation();
-            if (e.Control && e.KeyCode == Keys.C)
+            if (e.Control && e.Shift && e.KeyCode == Keys.C)
+            {
+                CopySelectedTreeNodeValueOnly();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.KeyCode == Keys.C)
             {
                 CopySelectedTreeNode();
                 e.Handled = true;
+                e.SuppressKeyPress = true;
             }
             else if (e.KeyCode == Keys.F3)
             {
@@ -441,6 +455,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             UpdateSelectedMeterProgress();
             UpdateSelectedTreeCommandVisibility();
+            AnnounceSelectedReadingDetailsAvailability();
         };
 
         selectedMeterValueLabel = new Label
@@ -498,6 +513,12 @@ public sealed partial class SensorReadoutForm : Form
         closeRequestTimer = new Timer { Interval = 250 };
         closeRequestTimer.Tick += delegate { CheckCloseRequest(); };
         closeRequestTimer.Start();
+        detailsAvailabilityAnnouncementTimer = new Timer { Interval = 700 };
+        detailsAvailabilityAnnouncementTimer.Tick += delegate
+        {
+            detailsAvailabilityAnnouncementTimer.Stop();
+            SpeakPendingDetailsAvailabilityAnnouncement();
+        };
         visibleRefreshTimer = new Timer { Interval = 300 };
         visibleRefreshTimer.Tick += delegate
         {
@@ -618,6 +639,12 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.C)
+        {
+            CopySelectedTreeNodeValueOnly();
+            return true;
+        }
+
         if (modifiers == Keys.Control && keyCode == Keys.I)
         {
             ImportPlugInFromZip();
@@ -708,6 +735,19 @@ public sealed partial class SensorReadoutForm : Form
         {
             ShortcutKeyDisplayString = shortcutText,
             ShowShortcutKeys = false
+        };
+    }
+
+    private static ShortcutButton CreateCloseButton()
+    {
+        return new ShortcutButton
+        {
+            Text = L("ui.Close", "Close"),
+            AutoSize = true,
+            ShortcutText = "Esc",
+            ShortcutKeys = Keys.Escape,
+            AccessibleName = L("a11y.Close", "Close"),
+            AccessibleDescription = L("a11y.Closes this window.", "Closes this window.")
         };
     }
 

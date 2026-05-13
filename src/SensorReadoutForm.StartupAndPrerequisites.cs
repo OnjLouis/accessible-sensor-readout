@@ -102,7 +102,8 @@ public sealed partial class SensorReadoutForm : Form
                 Padding = new Padding(0, 8, 0, 0)
             };
 
-            var closeButton = new Button { Text = T("ui.Close", "Close"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            var closeButton = CreateCloseButton();
+            closeButton.DialogResult = DialogResult.Cancel;
             var webButton = new Button { Text = T("ui.Open Core Temp website", "Open Core Temp &website"), AutoSize = true };
             var chocoButton = new Button { Text = T("ui.Install with Chocolatey", "Install with &Chocolatey"), AutoSize = true, Enabled = CommandExists("choco.exe") };
             var wingetButton = new Button { Text = T("ui.Install with winget", "Install with &winget"), AutoSize = true, Enabled = CommandExists("winget.exe") };
