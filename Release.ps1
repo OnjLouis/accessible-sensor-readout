@@ -460,8 +460,8 @@ Invoke-GitDiffCheck
 Invoke-CommandLineReportSmoke $Version
 $zipPath = New-ReleaseZip $Version
 Invoke-LocalUpgradeSmoke $Version $zipPath
-Mirror-AppCopy 'C:\Users\OnjLo\AppData\Local\Programs\Sensor Readout' 'installed copy' $false
-Mirror-AppCopy 'D:\Dropbox\SOFTWARE\SensorReadout' 'personal Dropbox copy' $true
+Mirror-AppCopy 'C:\Users\OnjLo\AppData\Local\Programs\Sensor Readout' 'installed copy' $true
+Mirror-AppCopy 'D:\Dropbox\SOFTWARE\SensorReadout' 'personal Dropbox copy' $false
 
 if ($RunPostPublishUpdateSmoke -and !$SkipPostPublishUpdateSmoke) {
     Invoke-PostPublishUpdateSmoke $Version
