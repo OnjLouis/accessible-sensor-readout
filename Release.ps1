@@ -287,6 +287,7 @@ function Set-SmokeConfig([string]$appDir) {
         SpeakTrayHotKey = 'Ctrl+Alt+F11'
         HotKeyCopyDoublePressMs = -1
         StartupSpeechEnabled = $false
+        StartupSpeechMessage = $sentinel
         TrayStatusEnabled = $true
         TrayTooltipShowsPartialReadings = $true
         CheckForUpdatesAtStartup = $true
@@ -297,7 +298,6 @@ function Set-SmokeConfig([string]$appDir) {
         DiagnosticsPlaySounds = $false
         StartupSoundFile = ''
         ShutdownSoundFile = ''
-        ReleaseSmokeSentinel = $sentinel
     }
     $machineSettings = [ordered]@{
         RunAtStartup = $false
@@ -310,7 +310,6 @@ function Set-SmokeConfig([string]$appDir) {
         Alarms = @(@{ Name = 'Release smoke alarm'; ReadingKey = 'Performance|Overview|System uptime|overview/system-uptime'; Condition = 'Above'; Threshold = 999999; ThresholdUnit = ''; Enabled = $true; Speak = $false; SoundFile = ''; CooldownSeconds = 1 })
         ReadingSpeechLabels = @{ 'Performance|Overview|System uptime|overview/system-uptime' = 'Release smoke uptime' }
         PlugInsEnabled = @{}
-        ReleaseSmokeSentinel = $sentinel
     }
     $shared | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $config 'Shared.json') -Encoding UTF8
     $machineSettings | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $config "$machine.json") -Encoding UTF8
@@ -333,7 +332,22 @@ function Assert-SmokeConfigPreserved([string]$appDir, [string]$sentinel, [string
         if (!(Test-Path -LiteralPath $path)) {
             Fail "Upgrade smoke lost $relative."
         }
-        $text = Get-Content -LiteralPath $path -Raw
+    }
+
+    $sharedText = Get-Content -LiteralPath (Join-Path $appDir 'Config\Shared.json') -Raw
+    if ($sharedText.IndexOf($sentinel, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        Fail "Upgrade smoke did not preserve startup speech message in Config\Shared.json."
+    }
+
+    $machineText = Get-Content -LiteralPath (Join-Path $appDir "Config\$env:COMPUTERNAME.json") -Raw
+    foreach ($term in @('Release smoke spoken hotkey', 'Release smoke fan profile', 'Release smoke fan curve', 'Release smoke alarm', 'release-smoke-hidden-key')) {
+        if ($machineText.IndexOf($term, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            Fail "Upgrade smoke did not preserve $term in machine config."
+        }
+    }
+
+    foreach ($relative in @('Logs\release-smoke.log', 'Reports\release-smoke-report.txt')) {
+        $text = Get-Content -LiteralPath (Join-Path $appDir $relative) -Raw
         if ($text.IndexOf($sentinel, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
             Fail "Upgrade smoke did not preserve sentinel in $relative."
         }
