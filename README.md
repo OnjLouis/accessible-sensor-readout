@@ -1,6 +1,6 @@
-﻿# Sensor Readout
+# Sensor Readout
 
-Current version: 3.3.0.
+Current version: 3.3.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -236,16 +236,16 @@ Notification area readings are selected from an Available readings list and move
 
 The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.
 
-- Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and Windows startup shortcut, close the current copy, and start the installed copy.
+- Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and enable Windows startup, close the current copy, and start the installed copy.
 - Uninstall from this PC: when running from the installed copy, remove the installed app files and shortcuts. The uninstall dialog can also remove `Config`, `Logs`, and `Reports` when you want a complete cleanup.
-- Run at Windows startup: create or remove a `Sensor Readout.lnk` shortcut in the current user's Startup folder.
+- Run at Windows startup: create or remove a Windows logon task for the current user. Sensor Readout uses a scheduled task so it can start reliably with the administrator rights it needs for hardware access.
 - Create desktop shortcut: create or remove a `Sensor Readout.lnk` shortcut on the desktop.
 - Start minimized to notification area: open directly to the tray instead of showing the main window.
 - Startup speech: choose whether Sensor Readout speaks when it starts and edit the spoken message.
 - Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
-The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, the startup shortcut is updated to point at the installed copy.
+The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy.
 
 If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
@@ -504,6 +504,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.3.1
+
+- Fixed: Run at Windows startup now uses a Windows logon task with highest privileges instead of a Startup folder shortcut, so installed copies can start reliably even though Sensor Readout needs administrator rights for hardware access.
 
 ### 3.3.0
 

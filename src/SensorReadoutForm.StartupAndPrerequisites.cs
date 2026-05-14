@@ -9,6 +9,7 @@ public sealed partial class SensorReadoutForm : Form
     private const string CoreTempUrl = "https://www.alcpu.com/CoreTemp/";
     private const string CoreTempWingetId = "ALCPU.CoreTemp";
     private const string CoreTempChocolateyId = "coretemp";
+    private const string StartupTaskName = "Sensor Readout";
 
     private void CheckPrerequisitesOnFirstRun()
     {
@@ -211,19 +212,20 @@ public sealed partial class SensorReadoutForm : Form
     private static void SetRunAtStartup(bool enabled, bool startMinimized, string targetPath, string workingDirectory)
     {
         var shortcutPath = GetStartupShortcutPath();
+        DeleteStartupScheduledTask();
+        DeleteStartupRunKey();
+        if (System.IO.File.Exists(shortcutPath))
+        {
+            System.IO.File.Delete(shortcutPath);
+        }
+        SetStartupApprovedState(shortcutPath, false);
+
         if (!enabled)
         {
-            if (System.IO.File.Exists(shortcutPath))
-            {
-                System.IO.File.Delete(shortcutPath);
-            }
-
-            SetStartupApprovedState(shortcutPath, false);
             return;
         }
 
-        CreateShortcut(shortcutPath, targetPath, startMinimized ? "--minimized" : "", workingDirectory, "Sensor Readout");
-        SetStartupApprovedState(shortcutPath, true);
+        CreateStartupScheduledTask(targetPath, startMinimized ? "--minimized" : "", workingDirectory);
     }
 
     private void RepairRunAtStartupRegistration()
@@ -302,6 +304,152 @@ public sealed partial class SensorReadoutForm : Form
         shortcutType.InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { workingDirectory });
         shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { description });
         shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+    }
+
+    private static void CreateStartupScheduledTask(string targetPath, string arguments, string workingDirectory)
+    {
+        var taskXmlPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SensorReadout-StartupTask-" + Guid.NewGuid().ToString("N") + ".xml");
+        try
+        {
+            System.IO.File.WriteAllText(
+                taskXmlPath,
+                BuildStartupTaskXml(targetPath, arguments, workingDirectory),
+                System.Text.Encoding.Unicode);
+
+            string output;
+            var exitCode = RunHiddenProcess(
+                "schtasks.exe",
+                "/Create /TN \"" + StartupTaskName + "\" /XML \"" + taskXmlPath + "\" /F",
+                out output);
+            if (exitCode != 0)
+            {
+                throw new InvalidOperationException("Could not create Windows startup task. " + output.Trim());
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (System.IO.File.Exists(taskXmlPath))
+                {
+                    System.IO.File.Delete(taskXmlPath);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static string BuildStartupTaskXml(string targetPath, string arguments, string workingDirectory)
+    {
+        var user = Environment.UserDomainName + "\\" + Environment.UserName;
+        return
+            "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n" +
+            "<Task version=\"1.4\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n" +
+            "  <RegistrationInfo>\r\n" +
+            "    <Date>" + DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss") + "</Date>\r\n" +
+            "    <Author>" + XmlEscape(user) + "</Author>\r\n" +
+            "    <URI>\\Sensor Readout</URI>\r\n" +
+            "  </RegistrationInfo>\r\n" +
+            "  <Triggers>\r\n" +
+            "    <LogonTrigger>\r\n" +
+            "      <Enabled>true</Enabled>\r\n" +
+            "    </LogonTrigger>\r\n" +
+            "  </Triggers>\r\n" +
+            "  <Principals>\r\n" +
+            "    <Principal id=\"Author\">\r\n" +
+            "      <UserId>" + XmlEscape(user) + "</UserId>\r\n" +
+            "      <LogonType>InteractiveToken</LogonType>\r\n" +
+            "      <RunLevel>HighestAvailable</RunLevel>\r\n" +
+            "    </Principal>\r\n" +
+            "  </Principals>\r\n" +
+            "  <Settings>\r\n" +
+            "    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\r\n" +
+            "    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\r\n" +
+            "    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\r\n" +
+            "    <AllowHardTerminate>true</AllowHardTerminate>\r\n" +
+            "    <StartWhenAvailable>true</StartWhenAvailable>\r\n" +
+            "    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>\r\n" +
+            "    <Enabled>true</Enabled>\r\n" +
+            "    <Hidden>false</Hidden>\r\n" +
+            "    <RunOnlyIfIdle>false</RunOnlyIfIdle>\r\n" +
+            "    <WakeToRun>false</WakeToRun>\r\n" +
+            "    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\r\n" +
+            "    <Priority>7</Priority>\r\n" +
+            "  </Settings>\r\n" +
+            "  <Actions Context=\"Author\">\r\n" +
+            "    <Exec>\r\n" +
+            "      <Command>" + XmlEscape(targetPath) + "</Command>\r\n" +
+            (string.IsNullOrWhiteSpace(arguments) ? "" : "      <Arguments>" + XmlEscape(arguments.Trim()) + "</Arguments>\r\n") +
+            "      <WorkingDirectory>" + XmlEscape((workingDirectory ?? "").TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar)) + "</WorkingDirectory>\r\n" +
+            "    </Exec>\r\n" +
+            "  </Actions>\r\n" +
+            "</Task>\r\n";
+    }
+
+    private static string XmlEscape(string text)
+    {
+        return System.Security.SecurityElement.Escape(text ?? "") ?? "";
+    }
+
+    private static void DeleteStartupScheduledTask()
+    {
+        string output;
+        RunHiddenProcess("schtasks.exe", "/Delete /TN \"" + StartupTaskName + "\" /F", out output);
+    }
+
+    private static void DeleteStartupRunKey()
+    {
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+            {
+                if (key != null)
+                {
+                    key.DeleteValue("Sensor Readout", false);
+                }
+            }
+
+            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", true))
+            {
+                if (key != null)
+                {
+                    key.DeleteValue("Sensor Readout", false);
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static int RunHiddenProcess(string fileName, string arguments, out string output)
+    {
+        try
+        {
+            using (var process = new Process())
+            {
+                process.StartInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                process.Start();
+                output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+                process.WaitForExit();
+                return process.ExitCode;
+            }
+        }
+        catch (Exception ex)
+        {
+            output = ex.Message;
+            return -1;
+        }
     }
 
     private static string GetStartupShortcutPath()
