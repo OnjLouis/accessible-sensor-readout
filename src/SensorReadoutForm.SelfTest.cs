@@ -229,6 +229,14 @@ public sealed partial class SensorReadoutForm : Form
         var row = latestRows.FirstOrDefault(IsSelectableReadoutRow);
         Require(row != null, "No selectable row for spoken hotkey assignment.");
         var key = RowSettingsKey(row);
+        settings.TrayItemKeys = new List<string>();
+        settings.TrayItemKeys.Add(key);
+        settings.TrayStatusEnabled = true;
+        SaveSettings(settings);
+        Require(LoadSettings().TrayItemKeys.Contains(key), "Tray quick assignment did not persist.");
+        settings.TrayItemKeys.Remove(key);
+        SaveSettings(settings);
+        Require(!LoadSettings().TrayItemKeys.Contains(key), "Tray quick removal did not persist.");
         var profile = new SpokenHotKeySetting { Name = "Self-test spoken hotkey", HotKey = "Ctrl+Alt+F10", ReadingKeys = new List<string>() };
         settings.SpokenHotKeys = new List<SpokenHotKeySetting> { profile };
         profile.ReadingKeys.Add(key);

@@ -85,12 +85,13 @@ Next safe step:
 - Ask HP/OMEN/Victus testers to enable the Plug-In, send a debug log and report, and confirm which WMI classes are present.
 - If read-only fan/thermal commands are confirmed on tester hardware, expose them as real `Fan` or `Temperature` rows.
 
-## ASUS ROG / TUF / Zephyrus
+## ASUS laptops
 
 Status: experimental Plug-In prepared for tester feedback. It is disabled by
 default. It can read ATKACPI temperature and fan duty-cycle values where
-available, and attempts fan control on models that accept the known fan curve
-or fan range calls.
+available, falls back to ASUS WMI read probes on systems that expose
+`AsusAtkWmi_WMNB`, and attempts fan control only on models that accept the
+known ATKACPI fan curve or fan range calls.
 
 Sources:
 
@@ -99,15 +100,16 @@ Sources:
 
 Observed G-Helper implementation surface:
 
-- ASUS ACPI device methods expose CPU, GPU, and middle fan RPMs.
+- ASUS ACPI device methods can expose CPU, GPU, and middle fan duty-cycle percentages.
 - Fan curve and fan range setters exist inside the app.
 - No stable machine-readable CLI/API, named pipe, socket, or local HTTP endpoint was found in the source or docs.
 - Direct ATKACPI calls can expose useful read-only data on some machines, but
   fan writes are model-sensitive and may be rejected even when reads work.
+- Some non-ROG systems expose an ASUS WMI `DSTS` method through `root\WMI\AsusAtkWmi_WMNB`; Sensor Readout treats that as read-only until write behavior is proven safe.
 
 Risk:
 
-- G-Helper is GPL. The optional Asus ROG/TUF Plug-In is marked separately and
+- G-Helper is GPL. The optional Asus Laptop Support Plug-In is marked separately and
   ships with its own GPL notice and GPL text because it uses G-Helper-derived
   ACPI research.
 - If G-Helper adds a stable CLI/API, Sensor Readout can call it as an installed optional tool.

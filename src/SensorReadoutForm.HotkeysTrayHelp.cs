@@ -201,7 +201,7 @@ public sealed partial class SensorReadoutForm : Form
             delegate { ToggleShowHide(); }));
 
         hotkeysMenu.DropDownItems.Add(new ToolStripSeparator());
-        hotkeysSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove current reading from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        hotkeysSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove current reading from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         if (readingTree == null)
         {
             hotkeysSpokenHotKeyMenuItem.Visible = false;

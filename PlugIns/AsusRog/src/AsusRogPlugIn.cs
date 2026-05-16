@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Management;
 using System.Runtime.InteropServices;
 using System.Threading;
 using SensorReadout.PluginSdk;
@@ -13,16 +14,17 @@ namespace SensorReadout.AsusRogPlugIn
         private readonly PluginInfo info = new PluginInfo
         {
             Id = "sensorreadout.asus.rog.experimental",
-            Name = "Asus ROG / TUF Support (experimental)",
-            Version = "0.1.0",
+            Name = "Asus Laptop Support (experimental)",
+            Version = "0.2.0",
             Author = "Jason Fayre, Claude Code, and Sensor Readout contributors",
-            Description = "Experimental, opt-in Asus ROG/TUF probe. Reads temperatures and fan duty-cycle percentages through ATKACPI, and attempts fan control on supported models. Based in part on G-Helper ACPI research."
+            Description = "Experimental, opt-in Asus laptop probe. Reads temperatures and fan duty-cycle percentages through ATKACPI or ASUS WMI where available, and attempts ATKACPI fan control on supported models. Based in part on G-Helper ACPI research."
         };
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
         private List<SensorReading> cachedRows = new List<SensorReading>();
         private DateTime acpiRetryUtc = DateTime.MinValue;
         private IPluginContext lastContext;
+        private bool? cachedAsusDetection;
 
         // Current manual percentages, kept so GetReadings can show the right DisplayValue for "Fan Control" rows.
         private readonly Dictionary<string, int> manualPercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -96,13 +98,10 @@ namespace SensorReadout.AsusRogPlugIn
             if (!IsAsusComputer(context))
                 return Enumerable.Empty<SensorReading>();
 
-            if (DateTime.UtcNow < acpiRetryUtc)
-                return MakeUnavailableRow();
-
             if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < TimeSpan.FromSeconds(5))
                 return cachedRows.Select(CloneReading).ToList();
 
-            var rows = ReadAcpiSensors(context).ToList();
+            var rows = ReadAsusSensors(context).ToList();
             cachedRows = rows.Select(CloneReading).ToList();
             cachedRowsUtc = DateTime.UtcNow;
             return rows;
@@ -167,6 +166,33 @@ namespace SensorReadout.AsusRogPlugIn
                 }
 
                 var ok = curveResult == 1 || rangeResult == 1;
+                if (!ok)
+                {
+                    // Some ASUS laptops, including ExpertBook/VivoBook-class machines, reject
+                    // direct fan curves but do accept broader thermal mode writes. Use that as
+                    // a truthful fallback instead of presenting a control that never changes
+                    // anything on those systems.
+                    var targetMode = PercentToPerformanceMode(p);
+                    int percentModeError;
+                    bool percentModeIoOk;
+                    var percentModeResult = DeviceSetValue(handle, PerformanceModeId, targetMode, out percentModeIoOk, out percentModeError);
+                    Log("Debug", "Asus ROG plug-in: percent thermal mode fallback result=" + percentModeResult + ", mode=" + targetMode + ", ioOk=" + percentModeIoOk + ", error=" + percentModeError + ".");
+
+                    if (percentModeResult != 1)
+                    {
+                        var targetVivoMode = PercentToVivoBookMode(p);
+                        int percentVivoModeError;
+                        bool percentVivoModeIoOk;
+                        var percentVivoModeResult = DeviceSetValue(handle, VivoBookModeId, targetVivoMode, out percentVivoModeIoOk, out percentVivoModeError);
+                        Log("Debug", "Asus ROG plug-in: percent VivoBook/TUF thermal mode fallback result=" + percentVivoModeResult + ", mode=" + targetVivoMode + ", ioOk=" + percentVivoModeIoOk + ", error=" + percentVivoModeError + ".");
+                        ok = percentVivoModeResult == 1;
+                    }
+                    else
+                    {
+                        ok = true;
+                    }
+                }
+
                 if (ok)
                 {
                     manualPercents[identifier] = p;
@@ -301,6 +327,26 @@ namespace SensorReadout.AsusRogPlugIn
             return false;
         }
 
+        private IEnumerable<SensorReading> ReadAsusSensors(IPluginContext context)
+        {
+            if (DateTime.UtcNow >= acpiRetryUtc)
+            {
+                var acpiRows = ReadAcpiSensors(context).ToList();
+                if (!IsOnlyUnavailableRow(acpiRows))
+                {
+                    return acpiRows;
+                }
+            }
+
+            var wmiRows = ReadAsusWmiSensors(context).ToList();
+            if (wmiRows.Count > 0)
+            {
+                return wmiRows;
+            }
+
+            return MakeUnavailableRow();
+        }
+
         private IEnumerable<SensorReading> ReadAcpiSensors(IPluginContext context)
         {
             var handle = OpenAtkAcpi();
@@ -333,14 +379,15 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
-                    Hardware = "Asus ROG",
+                    Hardware = "Asus",
                     Name = "CPU Fan duty cycle",
                     Identifier = CpuFanIdentifier,
                     Value = cpuFan,
                     DisplayValue = cpuFan + "% duty cycle",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = MakeAcpiDetails("CPU fan", CpuFanId)
                 });
-                rows.Add(MakeFanControlRow(CpuControlIdentifier, "CPU Fan"));
+                rows.Add(MakeFanControlRow(CpuControlIdentifier, "CPU Fan / ASUS thermal mode"));
             }
 
             var gpuFan = GetFanPercent(handle, GpuFanId);
@@ -349,14 +396,15 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
-                    Hardware = "Asus ROG",
+                    Hardware = "Asus",
                     Name = "GPU Fan duty cycle",
                     Identifier = GpuFanIdentifier,
                     Value = gpuFan,
                     DisplayValue = gpuFan + "% duty cycle",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = MakeAcpiDetails("GPU fan", GpuFanId)
                 });
-                rows.Add(MakeFanControlRow(GpuControlIdentifier, "GPU Fan"));
+                rows.Add(MakeFanControlRow(GpuControlIdentifier, "GPU Fan / ASUS thermal mode"));
             }
 
             // Mid fan is only present on some models; skip if the device ID is unsupported.
@@ -366,14 +414,15 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
-                    Hardware = "Asus ROG",
+                    Hardware = "Asus",
                     Name = "Mid Fan duty cycle",
                     Identifier = MidFanIdentifier,
                     Value = midFan,
                     DisplayValue = midFan + "% duty cycle",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = MakeAcpiDetails("Mid fan", MidFanId)
                 });
-                rows.Add(MakeFanControlRow(MidControlIdentifier, "Mid Fan"));
+                rows.Add(MakeFanControlRow(MidControlIdentifier, "Mid Fan / ASUS thermal mode"));
             }
 
             var cpuTemp = GetTemperature(handle, TempCpuId);
@@ -382,12 +431,13 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Temperature",
-                    Hardware = "Asus ROG",
+                    Hardware = "Asus",
                     Name = "CPU",
                     Identifier = "asus/rog/temperature/cpu",
                     Value = cpuTemp.Value,
                     DisplayValue = cpuTemp.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = MakeAcpiDetails("CPU temperature", TempCpuId)
                 });
             }
 
@@ -397,12 +447,13 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Temperature",
-                    Hardware = "Asus ROG",
+                    Hardware = "Asus",
                     Name = "GPU",
                     Identifier = "asus/rog/temperature/gpu",
                     Value = gpuTemp.Value,
                     DisplayValue = gpuTemp.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = MakeAcpiDetails("GPU temperature", TempGpuId)
                 });
             }
 
@@ -410,6 +461,234 @@ namespace SensorReadout.AsusRogPlugIn
                 rows.AddRange(MakeUnavailableRow());
 
             return rows;
+        }
+
+        private IEnumerable<SensorReading> ReadAsusWmiSensors(IPluginContext context)
+        {
+            const string scopePath = @"root\WMI";
+            const string className = "AsusAtkWmi_WMNB";
+            var rows = new List<SensorReading>();
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Namespace", scopePath },
+                { "WMI class", className },
+                { "Mode", "Read-only ASUS WMI DSTS probe" }
+            };
+
+            try
+            {
+                var scope = new ManagementScope(scopePath);
+                scope.Connect();
+                using (var managementClass = new ManagementClass(scope, new ManagementPath(className), null))
+                using (var instances = managementClass.GetInstances())
+                {
+                    var foundInstance = false;
+                    foreach (ManagementObject instance in instances)
+                    {
+                        foundInstance = true;
+                        details["Instance"] = SafeManagementValue(instance, "InstanceName");
+
+                        AddWmiFanRow(rows, details, instance, CpuFanId, "CPU Fan duty cycle", CpuFanIdentifier);
+                        AddWmiFanRow(rows, details, instance, GpuFanId, "GPU Fan duty cycle", GpuFanIdentifier);
+                        AddWmiFanRow(rows, details, instance, MidFanId, "Mid Fan duty cycle", MidFanIdentifier);
+                        AddWmiTemperatureRow(rows, details, instance, TempCpuId, "CPU", "asus/wmi/temperature/cpu");
+                        AddWmiTemperatureRow(rows, details, instance, TempGpuId, "GPU", "asus/wmi/temperature/gpu");
+
+                        var fanLevel = InvokeWmiDsts(instance, 0x00110018, details, "Fan level");
+                        if (fanLevel.HasValue && fanLevel.Value.Normalized >= 0 && fanLevel.Value.Normalized <= 100)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Overview",
+                                Name = "Asus fan level",
+                                Identifier = "asus/wmi/fan-level",
+                                Value = fanLevel.Value.Normalized,
+                                DisplayValue = fanLevel.Value.Normalized.ToString(CultureInfo.InvariantCulture),
+                                Source = "Asus Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        break;
+                    }
+
+                    if (!foundInstance)
+                    {
+                        details["Status"] = "ASUS WMI class found, but no instances were returned";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus laptop plug-in: WMI probe failed for " + scopePath + "\\" + className + ": " + ex.Message);
+                }
+
+                details["Error"] = ex.Message;
+            }
+
+            if (rows.Count == 0 && details.Count > 3)
+            {
+                rows.Add(new SensorReading
+                {
+                    Type = "Performance",
+                    Hardware = "Overview",
+                    Name = "Asus Plug-In",
+                    DisplayValue = details.ContainsKey("Error")
+                        ? "ASUS WMI interface could not be read"
+                        : "ASUS WMI interface found, but no readable fan or temperature values",
+                    Source = "Asus Laptop Support Plug-In",
+                    Details = details
+                });
+            }
+
+            return rows;
+        }
+
+        private static void AddWmiFanRow(List<SensorReading> rows, Dictionary<string, string> details, ManagementObject instance, uint deviceId, string name, string identifier)
+        {
+            var value = InvokeWmiDsts(instance, deviceId, details, name);
+            if (!value.HasValue)
+            {
+                return;
+            }
+
+            var fan = NormalizeFanPercent(value.Value.Raw, value.Value.Normalized);
+            if (!fan.HasValue)
+            {
+                return;
+            }
+
+            rows.Add(new SensorReading
+            {
+                Type = "Fan",
+                Hardware = "Asus",
+                Name = name,
+                Identifier = identifier,
+                Value = fan.Value,
+                DisplayValue = fan.Value.ToString(CultureInfo.InvariantCulture) + "% duty cycle",
+                Source = "Asus Laptop Support Plug-In",
+                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+            });
+        }
+
+        private static void AddWmiTemperatureRow(List<SensorReading> rows, Dictionary<string, string> details, ManagementObject instance, uint deviceId, string name, string identifier)
+        {
+            var value = InvokeWmiDsts(instance, deviceId, details, name + " temperature");
+            if (!value.HasValue)
+            {
+                return;
+            }
+
+            var temperature = NormalizeTemperature(value.Value.Raw, value.Value.Normalized);
+            if (!temperature.HasValue)
+            {
+                return;
+            }
+
+            rows.Add(new SensorReading
+            {
+                Type = "Temperature",
+                Hardware = "Asus",
+                Name = name,
+                Identifier = identifier,
+                Value = temperature.Value,
+                DisplayValue = temperature.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
+                Source = "Asus Laptop Support Plug-In",
+                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+            });
+        }
+
+        private static WmiDstsValue? InvokeWmiDsts(ManagementObject instance, uint deviceId, Dictionary<string, string> details, string label)
+        {
+            try
+            {
+                using (var inParams = instance.GetMethodParameters("DSTS"))
+                {
+                    inParams["Device_ID"] = deviceId;
+                    using (var outParams = instance.InvokeMethod("DSTS", inParams, null))
+                    {
+                        var rawObject = outParams == null ? null : outParams["device_status"];
+                        if (rawObject == null)
+                        {
+                            details[label + " WMI DSTS " + FormatDeviceId(deviceId)] = "No status returned";
+                            return null;
+                        }
+
+                        var raw = Convert.ToUInt32(rawObject, CultureInfo.InvariantCulture);
+                        var normalized = unchecked((int)raw) - 65536;
+                        details[label + " WMI DSTS " + FormatDeviceId(deviceId)] = raw.ToString(CultureInfo.InvariantCulture) + " (normalized " + normalized.ToString(CultureInfo.InvariantCulture) + ")";
+                        return new WmiDstsValue(raw, normalized);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                details[label + " WMI DSTS " + FormatDeviceId(deviceId)] = "Error: " + ex.Message;
+                return null;
+            }
+        }
+
+        private static int? NormalizeFanPercent(uint raw, int normalized)
+        {
+            if (normalized > 0 && normalized <= 100)
+            {
+                return normalized;
+            }
+
+            if (raw > 0 && raw <= 100)
+            {
+                return (int)raw;
+            }
+
+            return null;
+        }
+
+        private static float? NormalizeTemperature(uint raw, int normalized)
+        {
+            if (normalized > 0 && normalized <= 150)
+            {
+                return normalized;
+            }
+
+            if (raw > 0 && raw <= 150)
+            {
+                return raw;
+            }
+
+            return null;
+        }
+
+        private static string SafeManagementValue(ManagementObject instance, string propertyName)
+        {
+            try
+            {
+                var value = instance == null ? null : instance[propertyName];
+                return value == null ? "" : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string FormatDeviceId(uint deviceId)
+        {
+            return "0x" + deviceId.ToString("X8", CultureInfo.InvariantCulture);
+        }
+
+        private static bool IsOnlyUnavailableRow(ICollection<SensorReading> rows)
+        {
+            if (rows == null || rows.Count != 1)
+            {
+                return false;
+            }
+
+            var row = rows.First();
+            return string.Equals(row.Name, "Asus ROG Plug-In", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(row.DisplayValue, "ATKACPI driver not available", StringComparison.OrdinalIgnoreCase);
         }
 
         private SensorReading MakeFanControlRow(string controlIdentifier, string name)
@@ -423,8 +702,40 @@ namespace SensorReadout.AsusRogPlugIn
                 Name = name,
                 Identifier = controlIdentifier,
                 Value = isManual ? (float?)manualPercent : null,
-                DisplayValue = isManual ? manualPercent + "% (manual)" : "automatic",
-                Source = "Asus ROG Plug-In"
+                DisplayValue = isManual ? FormatManualFanControlValue(manualPercent) : "automatic or firmware managed",
+                Source = "Asus Laptop Support Plug-In",
+                Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "Interface", "ATKACPI" },
+                    { "Mode", "True fan-curve control is attempted first. If the laptop rejects direct fan writes, Sensor Readout falls back to ASUS thermal modes." },
+                    { "Quiet range", "0-33% requests ASUS quiet/silent mode when thermal-mode fallback is used." },
+                    { "Balanced range", "34-66% requests ASUS balanced mode when thermal-mode fallback is used." },
+                    { "Performance range", "67-100% requests ASUS performance/turbo mode when thermal-mode fallback is used." },
+                    { "Note", "On some ASUS laptops, including ExpertBook/VivoBook-class firmware, the mode request is accepted but the firmware still decides the actual fan duty cycle." }
+                }
+            };
+        }
+
+        private static string FormatManualFanControlValue(int percent)
+        {
+            return percent + "% manual, or " + PercentToModeName(percent) + " thermal mode";
+        }
+
+        private static string PercentToModeName(int percent)
+        {
+            if (percent >= 67) return "performance";
+            if (percent <= 33) return "quiet";
+            return "balanced";
+        }
+
+        private static Dictionary<string, string> MakeAcpiDetails(string label, uint deviceId)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Interface", "ATKACPI" },
+                { "Reading", label },
+                { "Device ID", FormatDeviceId(deviceId) },
+                { "Mode", "Read through ASUS ATKACPI" }
             };
         }
 
@@ -557,6 +868,20 @@ namespace SensorReadout.AsusRogPlugIn
             return mode;
         }
 
+        private static uint PercentToPerformanceMode(int percent)
+        {
+            if (percent >= 67) return 1; // Turbo/performance
+            if (percent <= 33) return 2; // Silent/quiet
+            return 0;                    // Balanced/standard
+        }
+
+        private static uint PercentToVivoBookMode(int percent)
+        {
+            if (percent >= 67) return 2; // Performance
+            if (percent <= 33) return 1; // Quiet
+            return 0;                    // Balanced
+        }
+
         private void Log(string level, string message)
         {
             if (lastContext != null)
@@ -573,21 +898,126 @@ namespace SensorReadout.AsusRogPlugIn
                     Hardware = "Overview",
                     Name = "Asus ROG Plug-In",
                     DisplayValue = "ATKACPI driver not available",
-                    Source = "Asus ROG Plug-In"
+                    Source = "Asus Laptop Support Plug-In"
                 }
             };
         }
 
-        private static bool IsAsusComputer(IPluginContext context)
+        private struct WmiDstsValue
         {
-            if (context == null || context.Machine == null) return false;
-            return Contains(context.Machine.Manufacturer, "ASUS")
+            public readonly uint Raw;
+            public readonly int Normalized;
+
+            public WmiDstsValue(uint raw, int normalized)
+            {
+                Raw = raw;
+                Normalized = normalized;
+            }
+        }
+
+        private bool IsAsusComputer(IPluginContext context)
+        {
+            if (context != null && context.Machine != null &&
+                (Contains(context.Machine.Manufacturer, "ASUS")
                 || Contains(context.Machine.Model, "ASUS")
                 || Contains(context.Machine.Model, "ROG")
                 || Contains(context.Machine.Model, "TUF")
                 || Contains(context.Machine.Model, "Zephyrus")
                 || Contains(context.Machine.Model, "Strix")
-                || Contains(context.Machine.Model, "Flow");
+                || Contains(context.Machine.Model, "Flow")))
+            {
+                return true;
+            }
+
+            if (cachedAsusDetection.HasValue)
+            {
+                return cachedAsusDetection.Value;
+            }
+
+            cachedAsusDetection = DetectAsusComputerFromWindows(context);
+            return cachedAsusDetection.Value;
+        }
+
+        private static bool DetectAsusComputerFromWindows(IPluginContext context)
+        {
+            if (HasMatchingWmiValue(@"root\CIMV2", "SELECT Manufacturer, Product FROM Win32_BaseBoard", context, "ASUS", "ASUSTeK"))
+            {
+                return true;
+            }
+
+            if (HasMatchingWmiValue(@"root\CIMV2", "SELECT Name, Manufacturer, DeviceID FROM Win32_PnPEntity WHERE DeviceID LIKE 'ACPI\\\\ASUS%'", context, "ASUS", "ASUSTeK"))
+            {
+                return true;
+            }
+
+            if (WmiClassHasInstances(@"root\WMI", "AsusAtkWmi_WMNB", context))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasMatchingWmiValue(string scopePath, string query, IPluginContext context, params string[] needles)
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject instance in instances)
+                    {
+                        foreach (PropertyData property in instance.Properties)
+                        {
+                            var value = Convert.ToString(property.Value, CultureInfo.InvariantCulture) ?? "";
+                            foreach (var needle in needles)
+                            {
+                                if (Contains(value, needle))
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus laptop plug-in: fallback identity probe failed for " + scopePath + ": " + ex.Message);
+                }
+            }
+
+            return false;
+        }
+
+        private static bool WmiClassHasInstances(string scopePath, string className, IPluginContext context)
+        {
+            try
+            {
+                var scope = new ManagementScope(scopePath);
+                scope.Connect();
+                using (var managementClass = new ManagementClass(scope, new ManagementPath(className), null))
+                using (var instances = managementClass.GetInstances())
+                {
+                    foreach (ManagementObject ignored in instances)
+                    {
+                        return true;
+                    }
+
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus laptop plug-in: fallback identity probe failed for " + scopePath + "\\" + className + ": " + ex.Message);
+                }
+
+                return false;
+            }
         }
 
         private static bool Contains(string text, string value)

@@ -64,10 +64,10 @@ public sealed partial class SensorReadoutForm : Form
             labelPanel.Controls.Add(saveFanLabelButton);
             layout.Controls.Add(labelPanel, 1, 1);
 
-            layout.Controls.Add(new Label { Text = T("ui.Manual percent:", "Manual percent:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
+            layout.Controls.Add(new Label { Text = T("ui.Manual percent or mode:", "Manual percent or mode:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
             var percentPanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
             percentPanel.Controls.Add(fanPercentBox);
-            var applyFanButton = new Button { Text = T("ui.&Manual adjust", "&Manual adjust"), AutoSize = true, AccessibleName = T("a11y.Apply manual percentage to selected fan control", "Apply manual percentage to selected fan control") };
+            var applyFanButton = new Button { Text = T("ui.&Manual adjust", "&Manual adjust"), AutoSize = true, AccessibleName = T("a11y.Apply manual percentage or mode to selected fan control", "Apply manual percentage or mode to selected fan control") };
             applyFanButton.Click += delegate { ApplySelectedFanControl(true); };
             percentPanel.Controls.Add(applyFanButton);
             var autoSelectedFanButton = new Button { Text = T("ui.Selected &auto", "Selected &auto"), AutoSize = true, AccessibleName = T("a11y.Return selected fan control to automatic", "Return selected fan control to automatic") };
@@ -79,9 +79,9 @@ public sealed partial class SensorReadoutForm : Form
             var profilePanel = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
             var autoFanButton = new Button { Text = T("ui.All fans &reset", "All fans &reset"), AutoSize = true, AccessibleName = T("a11y.Return all fan controls to automatic", "Return all fan controls to automatic") };
             autoFanButton.Click += delegate { ResetAllFanControls(); };
-            var elevatedFanButton = new Button { Text = T("ui.All fans &75", "All fans &75"), AutoSize = true, AccessibleName = T("a11y.Set all visible fan controls to 75 percent", "Set all visible fan controls to 75 percent") };
+            var elevatedFanButton = new Button { Text = T("ui.All fans &75", "All fans &75"), AutoSize = true, AccessibleName = T("a11y.Set all visible fan controls to 75 percent or performance mode", "Set all visible fan controls to 75 percent or performance mode") };
             elevatedFanButton.Click += delegate { ApplyAllVisibleFanControls(75, "elevated"); };
-            var maxFanButton = new Button { Text = T("ui.All fans ma&x", "All fans ma&x"), AutoSize = true, AccessibleName = T("a11y.Set all visible fan controls to 100 percent", "Set all visible fan controls to 100 percent") };
+            var maxFanButton = new Button { Text = T("ui.All fans ma&x", "All fans ma&x"), AutoSize = true, AccessibleName = T("a11y.Set all visible fan controls to maximum or performance mode", "Set all visible fan controls to maximum or performance mode") };
             maxFanButton.Click += delegate { ApplyAllVisibleFanControls(100, "max"); };
             var curvesButton = new Button { Text = T("ui.Fan c&urves...", "Fan c&urves..."), AutoSize = true, AccessibleName = T("a11y.Open fan curves", "Open fan curves") };
             curvesButton.Click += delegate { ShowFanCurvesDialog(); };
@@ -584,15 +584,33 @@ public sealed partial class SensorReadoutForm : Form
         var name = row.Name;
         var percent = (int)fanPercentBox.Value;
         RunFanAction(
-            manual ? "Setting " + name + " to " + percent + "%..." : "Returning " + name + " to automatic...",
+            manual ? "Setting " + name + " to " + FormatFanControlPercentOrMode(row, percent) + "..." : "Returning " + name + " to automatic/default...",
             delegate { SetLibreHardwareMonitorControl(identifier, percent, manual); },
             delegate
             {
                 SaveFanControlSetting(identifier, manual, percent);
                 var curveCount = manual ? SuspendFanCurvesForManualControls(new[] { identifier }) : ResumeFanCurvesForAutomaticControls(new[] { identifier });
-                SetFanActionStatus("LibreHardwareMonitor: " + name + " " + (manual ? percent + "%" : "automatic/default") + "." + (manual ? FanCurveSuspendedSuffix(curveCount) : FanCurveResumedSuffix(curveCount)), curveCount, true);
+                SetFanActionStatus("Fan control: " + name + " " + (manual ? FormatFanControlPercentOrMode(row, percent) : "automatic/default") + "." + (manual ? FanCurveSuspendedSuffix(curveCount) : FanCurveResumedSuffix(curveCount)), curveCount, true);
                 RefreshSensorsAfterFanAction();
             });
+    }
+
+    private static string FormatFanControlPercentOrMode(SensorRow row, int percent)
+    {
+        if (row != null && row.Details != null &&
+            row.Details.Values.Any(v => !string.IsNullOrWhiteSpace(v) && v.IndexOf("thermal mode", StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return percent + "% / " + FanControlModeName(percent) + " mode";
+        }
+
+        return percent + "%";
+    }
+
+    private static string FanControlModeName(int percent)
+    {
+        if (percent >= 67) return "performance";
+        if (percent <= 33) return "quiet";
+        return "balanced";
     }
 
     private void ClampFanPercentBox()
@@ -629,7 +647,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);
                 var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
-                SetFanActionStatus("LibreHardwareMonitor: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
+                SetFanActionStatus("Fan control: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -685,7 +703,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 SaveFanControlSettings(controls.Select(c => c.Identifier), true, percent);
                 var suspendedCurveCount = SuspendFanCurvesForManualControls(controls.Select(c => c.Identifier));
-                SetFanActionStatus("Fan control: " + profileName + " profile, " + percent + "% on " + controls.Count + " controls." + FanCurveSuspendedSuffix(suspendedCurveCount), suspendedCurveCount, true);
+                SetFanActionStatus("Fan control: " + profileName + " profile, " + percent + "% or matching mode on " + controls.Count + " controls." + FanCurveSuspendedSuffix(suspendedCurveCount), suspendedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }

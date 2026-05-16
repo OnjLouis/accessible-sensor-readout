@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.3.1";
+    public const string AppVersion = "3.4.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -22,6 +22,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
+    private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
     private ToolStripMenuItem hotkeysSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
@@ -171,6 +172,8 @@ public sealed partial class SensorReadoutForm : Form
         editMenu.DropDownItems.Add(CreateShortcutMenuItem(T("ui.Copy &value only", "Copy &value only"), Keys.Control | Keys.Shift | Keys.C, delegate { CopySelectedTreeNodeValueOnly(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -393,7 +396,7 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
         treeDetailsMenuItem = CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); });
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
-        treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from spoken hot&key...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
         treeRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         readingTree.ContextMenuStrip.Items.Add(treeRenameMenuItem);

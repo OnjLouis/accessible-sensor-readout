@@ -341,6 +341,110 @@ public sealed partial class SensorReadoutForm : Form
         return string.Join(", ", values.Select(v => v == 2 ? "OK" : "Status " + v).ToArray());
     }
 
+    private static string FormatStorageBusType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "SCSI";
+            case 2: return "ATAPI";
+            case 3: return "ATA";
+            case 4: return "IEEE 1394";
+            case 5: return "SSA";
+            case 6: return "Fibre Channel";
+            case 7: return "USB";
+            case 8: return "RAID";
+            case 9: return "iSCSI";
+            case 10: return "SAS";
+            case 11: return "SATA";
+            case 12: return "SD";
+            case 13: return "MMC";
+            case 15: return "File-backed virtual disk";
+            case 16: return "Storage Spaces";
+            case 17: return "NVMe";
+            case 18: return "SCM";
+            case 19: return "UFS";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatStorageSpindleSpeed(object value)
+    {
+        int rpm;
+        if (!TryConvertToInt32(value, out rpm) || rpm <= 0)
+        {
+            return "";
+        }
+
+        return rpm.ToString(CultureInfo.InvariantCulture) + " RPM";
+    }
+
+    private static string FormatStorageUsage(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unknown";
+            case 1: return "Auto-select";
+            case 2: return "Manual-select";
+            case 3: return "Hot spare";
+            case 4: return "Retired";
+            case 5: return "Journal";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatStorageUniqueIdFormat(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Vendor-specific";
+            case 1: return "Vendor ID";
+            case 2: return "EUI-64";
+            case 3: return "FCPH name";
+            case 8: return "SCSI name string";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string FormatStorageCannotPoolReason(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "";
+            case 1: return "In a storage pool";
+            case 2: return "Not healthy";
+            case 3: return "Removable media";
+            case 4: return "In use by cluster";
+            case 5: return "Offline";
+            case 6: return "Insufficient capacity";
+            default: return Convert.ToString(value);
+        }
+    }
+
     private static string FormatBytes(object value)
     {
         double bytes;

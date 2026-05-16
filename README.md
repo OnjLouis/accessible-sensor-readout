@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.3.1.
+Current version: 3.4.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -143,7 +143,7 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | Main window | `Ctrl+Shift+C` | Copy value only: copy the selected reading value without the reading name. On a branch, copies one value per reading. |
 | Main window | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | Main window | `Del` | Hide the selected reading or tree branch. |
-| Main window | `Ctrl+Shift+H` | Add the selected reading to a spoken hotkey profile, or remove it from one. |
+| Main window | `Ctrl+Shift+H` | Add the selected reading to notification area status or a spoken hotkey profile, remove it again, or create a spoken hotkey profile from the same dialog. |
 | Main window | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
 | Main window | `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
 | File commands | `Ctrl+S` | Save a report. |
@@ -310,7 +310,7 @@ When an enabled plug-in includes related support pages, those links appear in th
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-Experimental HP, Dell Latitude, and Asus ROG/TUF plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
+Experimental HP, Dell Latitude, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -450,7 +450,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\Framework`: optional Framework Laptop plug-in.
 - `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
-- `Plug-Ins\AsusRog`: experimental optional Asus ROG/TUF plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
+- `Plug-Ins\AsusRog`: experimental optional Asus laptop plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - Users can add third-party plug-ins in their own subfolders.
 
 Language files:
@@ -504,6 +504,12 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.4.0
+
+- Improved: SMART and disk Details now include more Windows physical-drive information where available, including bus type, sector sizes, firmware/software version, serial and unique IDs, physical location, slot/enclosure fields, storage usage, pool eligibility, and spindle speed for drives that report it.
+- Improved: Asus laptop support can now fall back to ASUS WMI sensor readings and ASUS thermal-mode fan control on models that reject direct fan-curve writes.
+- Improved: `Ctrl+Shift+H` can now add or remove the selected reading from notification area status as well as spoken hotkey profiles, and it can create a new spoken hotkey profile without opening Preferences first.
 
 ### 3.3.1
 
@@ -607,7 +613,7 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 - Improved: The Preferences manual section is now organized by tab, with shortcut keys and clearer explanations of what each pane controls.
 - Added: `Help` > `Run diagnostics...`, `Alt+F1`, and `--diagnostics [path]` create a support ZIP containing TXT and HTML reports, a debug log, timing data, a diagnostic summary, and a short fan-control test that restores the previous fan state afterward. Diagnostic ZIP names include the computer name, and temporary staging files are removed after the ZIP is created.
 - Added: Diagnostics can speak progress, say "Complete." when finished, and play configurable start/completion sounds from Preferences. Command-line diagnostics can be silenced with `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
-- Added: Experimental Asus ROG / TUF Support plug-in for opt-in tester feedback. It can read Asus ATKACPI temperature and fan duty-cycle data where available, and attempts fan control on supported models. Initial plug-in work by Jason Fayre and Claude Code; ACPI behavior is based in part on G-Helper research.
+- Added: Experimental Asus Laptop Support plug-in for opt-in tester feedback. It can read Asus ATKACPI temperature and fan duty-cycle data where available, and attempts fan control on supported models. Initial plug-in work by Jason Fayre and Claude Code; ACPI behavior is based in part on G-Helper research.
 - Fixed: Tray icon rendering now falls back safely if Windows/GDI+ refuses to create a dynamic icon, preventing a repeated crash/restart loop.
 
 ### 1.6.2
@@ -799,7 +805,7 @@ Sensor Readout uses or bundles components from these projects:
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
 - [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
-- [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus ROG/TUF plug-in.
+- [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus laptop plug-in.
 - [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.
 - [MAC Address Vendor Database](https://github.com/uxmansarwar/mac-address-vendor-database), used under the MIT License for MAC/OUI vendor lookup.
 - Microsoft .NET Framework and support libraries.

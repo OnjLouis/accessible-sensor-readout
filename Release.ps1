@@ -100,18 +100,66 @@ function Assert-ChangelogClean([string]$releaseVersion) {
     }
 }
 
-function Assert-GitHubIssuesChecked {
-    Info "Checking open GitHub issues."
+function Get-GitHubReleaseHeaders {
+    $headers = @{
+        'User-Agent' = 'Sensor Readout release check'
+        'Accept' = 'application/vnd.github+json'
+    }
+
     try {
-        $issues = Invoke-RestMethod -Uri 'https://api.github.com/repos/OnjLouis/accessible-sensor-readout/issues?state=open&per_page=100' -Headers @{ 'User-Agent' = 'Sensor Readout release check' }
+        $credText = "protocol=https`nhost=github.com`n`n" | git credential fill
+        $userLine = ($credText -split "`n") | Where-Object { $_ -like 'username=*' } | Select-Object -First 1
+        $passLine = ($credText -split "`n") | Where-Object { $_ -like 'password=*' } | Select-Object -First 1
+        if ($userLine -and $passLine) {
+            $user = $userLine.Substring(9)
+            $token = $passLine.Substring(9)
+            $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$user`:$token"))
+            $headers['Authorization'] = "Basic $basic"
+        }
+    } catch {
+        # Public issue/PR/fork checks still work without credentials. Traffic checks will be skipped.
+    }
+
+    return $headers
+}
+
+function Assert-GitHubActivityChecked {
+    Info "Checking GitHub issues, pull requests, forks, and traffic."
+    $headers = Get-GitHubReleaseHeaders
+    try {
+        $repo = 'OnjLouis/accessible-sensor-readout'
+        $issues = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/issues?state=open&per_page=100" -Headers $headers
         $realIssues = @($issues | Where-Object { -not $_.pull_request })
         if ($realIssues.Count -gt 0) {
             $summary = ($realIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
             Fail "Open GitHub issues need review before release: $summary"
         }
         Info "No open GitHub issues."
+
+        $pulls = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/pulls?state=open&per_page=100" -Headers $headers | Where-Object { $_ -and $_.number })
+        if ($pulls.Count -gt 0) {
+            $summary = ($pulls | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
+            Fail "Open GitHub pull requests need review before release: $summary"
+        }
+        Info "No open GitHub pull requests."
+
+        $forks = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/forks?per_page=100&sort=newest" -Headers $headers)
+        if ($forks.Count -gt 0) {
+            $summary = ($forks | Select-Object -First 5 | ForEach-Object { "$($_.full_name), pushed $($_.pushed_at)" }) -join '; '
+            Info "Visible forks: $summary"
+        } else {
+            Info "No visible forks."
+        }
+
+        if ($headers.ContainsKey('Authorization')) {
+            $clones = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/traffic/clones" -Headers $headers
+            $views = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/traffic/views" -Headers $headers
+            Info "Recent GitHub traffic: $($clones.count) clones from $($clones.uniques) unique cloners; $($views.count) views from $($views.uniques) unique visitors."
+        } else {
+            Info "GitHub traffic check skipped because no authenticated git credential was available."
+        }
     } catch {
-        Fail "Could not check GitHub issues: $($_.Exception.Message)"
+        Fail "Could not check GitHub activity: $($_.Exception.Message)"
     }
 }
 
@@ -439,7 +487,7 @@ New-Item -ItemType Directory -Force -Path $SmokeRoot,$programBuilds,$sourceSnaps
 
 Assert-VersionConsistency $Version
 Assert-ChangelogClean $Version
-Assert-GitHubIssuesChecked
+Assert-GitHubActivityChecked
 
 if (!$SkipBuild) {
     if ($SkipSelfTest) {

@@ -467,7 +467,7 @@ public sealed partial class SensorReadoutForm : Form
         var rows = new List<SensorRow>();
         try
         {
-            using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT FriendlyName, HealthStatus, MediaType, OperationalStatus, Size FROM MSFT_PhysicalDisk"))
+            using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
             {
                 foreach (ManagementObject disk in searcher.Get())
                 {
@@ -480,8 +480,12 @@ public sealed partial class SensorReadoutForm : Form
                     name = NormalizeStorageHardwareName(name);
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Health", DisplayValue = DecodeHealthStatus(disk["HealthStatus"]), Source = "Windows Storage" });
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Media type", DisplayValue = DecodeMediaType(disk["MediaType"]), Source = "Windows Storage" });
+                    AddPhysicalDiskTextRow(rows, name, "Bus type", FormatStorageBusType(GetWmiPropertyValue(disk, "BusType")), "Windows Storage");
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Operational status", DisplayValue = DecodeOperationalStatus(disk["OperationalStatus"]), Source = "Windows Storage" });
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Size", DisplayValue = FormatBytes(disk["Size"]), Source = "Windows Storage" });
+                    AddPhysicalDiskTextRow(rows, name, "Spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")), "Windows Storage");
+                    AddPhysicalDiskTextRow(rows, name, "Physical sector size", FormatBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")), "Windows Storage");
+                    AddPhysicalDiskTextRow(rows, name, "Logical sector size", FormatBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")), "Windows Storage");
                 }
             }
         }
@@ -490,6 +494,16 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static void AddPhysicalDiskTextRow(List<SensorRow> rows, string hardware, string name, string value, string source)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(hardware) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow { Type = "SMART", Hardware = hardware, Name = name, DisplayValue = value, Source = source });
     }
 
     private static IEnumerable<SensorRow> GetDirectNvmeSmartRows()
@@ -1788,6 +1802,8 @@ public sealed partial class SensorReadoutForm : Form
         {
         }
 
+        AddWindowsStoragePhysicalDiskDetails(physical);
+
         cachedPhysicalDiskDetailsByHardware = physical;
         cachedLogicalDiskDetailsByRoot = logical;
         cachedStorageTopologyDetailsUtc = DateTime.UtcNow;
@@ -1831,6 +1847,74 @@ public sealed partial class SensorReadoutForm : Form
 
         AddDetail(diskDetails, "Detected partition count", partitionNumber.ToString(CultureInfo.InvariantCulture));
         physical[hardware] = diskDetails;
+    }
+
+    private static void AddWindowsStoragePhysicalDiskDetails(Dictionary<string, Dictionary<string, string>> physical)
+    {
+        if (physical == null)
+        {
+            return;
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
+            {
+                foreach (ManagementObject disk in searcher.Get())
+                {
+                    var friendlyName = GetWmiPropertyText(disk, "FriendlyName");
+                    var model = GetWmiPropertyText(disk, "Model");
+                    var hardware = NormalizeStorageHardwareName(string.IsNullOrWhiteSpace(friendlyName) ? model : friendlyName);
+                    if (string.IsNullOrWhiteSpace(hardware))
+                    {
+                        hardware = "Physical disk " + GetWmiPropertyText(disk, "DeviceId");
+                    }
+
+                    Dictionary<string, string> details;
+                    if (!physical.TryGetValue(hardware, out details) || details == null)
+                    {
+                        details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        physical[hardware] = details;
+                    }
+
+                    AddDetail(details, "Windows Storage device ID", GetWmiPropertyText(disk, "DeviceId"));
+                    AddDetail(details, "Windows Storage friendly name", friendlyName);
+                    AddDetail(details, "Windows Storage model", model);
+                    AddDetail(details, "Windows Storage manufacturer", GetWmiPropertyText(disk, "Manufacturer"));
+                    AddDetail(details, "Windows Storage serial number", GetWmiPropertyText(disk, "SerialNumber"));
+                    AddDetail(details, "Windows Storage adapter serial number", GetWmiPropertyText(disk, "AdapterSerialNumber"));
+                    AddDetail(details, "Windows Storage part number", GetWmiPropertyText(disk, "PartNumber"));
+                    AddDetail(details, "Windows Storage firmware version", GetWmiPropertyText(disk, "FirmwareVersion"));
+                    AddDetail(details, "Windows Storage software version", GetWmiPropertyText(disk, "SoftwareVersion"));
+                    AddDetail(details, "Windows Storage bus type", FormatStorageBusType(GetWmiPropertyValue(disk, "BusType")));
+                    AddDetail(details, "Windows Storage media type", DecodeMediaType(GetWmiPropertyValue(disk, "MediaType")));
+                    AddDetail(details, "Windows Storage health status", DecodeHealthStatus(GetWmiPropertyValue(disk, "HealthStatus")));
+                    AddDetail(details, "Windows Storage operational status", DecodeOperationalStatus(GetWmiPropertyValue(disk, "OperationalStatus")));
+                    AddDetail(details, "Windows Storage operational details", FormatWmiDetailValue(GetWmiPropertyValue(disk, "OperationalDetails")));
+                    AddDetail(details, "Windows Storage usage", FormatStorageUsage(GetWmiPropertyValue(disk, "Usage")));
+                    AddDetail(details, "Windows Storage supported usages", FormatWmiDetailValue(GetWmiPropertyValue(disk, "SupportedUsages")));
+                    AddDetail(details, "Windows Storage size", FormatBytes(GetWmiPropertyValue(disk, "Size")));
+                    AddDetail(details, "Windows Storage allocated size", FormatBytes(GetWmiPropertyValue(disk, "AllocatedSize")));
+                    AddDetail(details, "Windows Storage virtual disk footprint", FormatBytes(GetWmiPropertyValue(disk, "VirtualDiskFootprint")));
+                    AddDetail(details, "Windows Storage logical sector size", FormatBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")));
+                    AddDetail(details, "Windows Storage physical sector size", FormatBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")));
+                    AddDetail(details, "Windows Storage spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")));
+                    AddDetail(details, "Windows Storage physical location", GetWmiPropertyText(disk, "PhysicalLocation"));
+                    AddDetail(details, "Windows Storage slot number", GetWmiPropertyText(disk, "SlotNumber"));
+                    AddDetail(details, "Windows Storage enclosure number", GetWmiPropertyText(disk, "EnclosureNumber"));
+                    AddDetail(details, "Windows Storage FRU ID", GetWmiPropertyText(disk, "FruId"));
+                    AddDetail(details, "Windows Storage unique ID", GetWmiPropertyText(disk, "UniqueId"));
+                    AddDetail(details, "Windows Storage unique ID format", FormatStorageUniqueIdFormat(GetWmiPropertyValue(disk, "UniqueIdFormat")));
+                    AddDetail(details, "Windows Storage can pool", FormatYesNo(GetWmiPropertyValue(disk, "CanPool")));
+                    AddDetail(details, "Windows Storage cannot pool reason", FormatStorageCannotPoolReason(GetWmiPropertyValue(disk, "CannotPoolReason")));
+                    AddDetail(details, "Windows Storage other cannot pool reason", GetWmiPropertyText(disk, "OtherCannotPoolReasonDescription"));
+                    AddRawWmiDetails(details, "Windows Storage WMI", disk);
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static void AddPartitionDetails(Dictionary<string, string> diskDetails, Dictionary<string, Dictionary<string, string>> logical, int partitionNumber, Dictionary<string, string> inheritedDiskDetails, ManagementObject partition)
