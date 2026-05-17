@@ -139,8 +139,7 @@ public sealed partial class SensorReadoutForm : Form
             AnnounceDiagnosticStep(T("status.diagnosticsWritingReports", "Writing reports."), announce);
             var txtReport = System.IO.Path.Combine(stagingFolder, "SensorReadout-report.txt");
             var htmlReport = System.IO.Path.Combine(stagingFolder, "SensorReadout-report.html");
-            latestRows.Clear();
-            latestRows.AddRange(finalRows);
+            SetLatestRows(finalRows);
             SaveReportToFile(txtReport, false, false);
             SaveReportToFile(htmlReport, true, false);
 

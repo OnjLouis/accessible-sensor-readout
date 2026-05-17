@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.4.0";
+    public const string AppVersion = "3.5.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -60,6 +60,7 @@ public sealed partial class SensorReadoutForm : Form
     private Icon trayStatusIcon;
     private Icon alarmTrayIcon;
     private readonly List<SensorRow> latestRows = new List<SensorRow>();
+    private readonly Dictionary<string, SensorRow> latestRowsBySettingsKey = new Dictionary<string, SensorRow>(StringComparer.OrdinalIgnoreCase);
     private readonly object lhmLock = new object();
     private Computer lhmComputer;
     private string selectedFilterKey = "type|Performance";
@@ -85,6 +86,8 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime lastSpeechHotKeyPressedUtc;
     private int lastSelectedMeterValue = -1;
     private string lastSelectedMeterLabel = "";
+    private string lastTrayTooltipText = "";
+    private string lastTrayIconSignature = "";
     private string lastPreferencesTabName = "General";
     private bool savedFanControlsAppliedThisRun;
     private PreferencesForm openPreferencesDialog;
@@ -145,13 +148,13 @@ public sealed partial class SensorReadoutForm : Form
             settings.TrayStatusEnabled = true;
         }
         UpdateWindowTitle();
+        KeyPreview = true;
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(980, 620);
         MinimumSize = new Size(700, 420);
 
         menuStrip = new MenuStrip();
         var fileMenu = new ToolStripMenuItem("&File");
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
@@ -191,6 +194,8 @@ public sealed partial class SensorReadoutForm : Form
         batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+8", null, delegate { SelectCategoryByKey("type|Battery"); });
         viewMenu.DropDownItems.Add(batteryViewMenuItem);
         viewMenu.DropDownItems.Add("De&vices\tCtrl+9", null, delegate { SelectCategoryByKey("type|Devices"); });
+        viewMenu.DropDownItems.Add(new ToolStripSeparator());
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
         viewMenu.DropDownItems.Add(new ToolStripSeparator());
         viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
         viewMenu.DropDownItems.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
@@ -601,6 +606,18 @@ public sealed partial class SensorReadoutForm : Form
         return base.ProcessCmdKey(ref msg, keyData);
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (HandleAppShortcut(e.KeyData))
+        {
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
+    }
+
     private bool HandleAppShortcut(Keys keyData)
     {
         var keyCode = keyData & Keys.KeyCode;
@@ -802,7 +819,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ApplyTimerSettings()
     {
-        var seconds = Math.Max(2, Math.Min(300, settings.RefreshIntervalSeconds));
+        var seconds = Math.Max(1, Math.Min(300, settings.RefreshIntervalSeconds));
         settings.RefreshIntervalSeconds = seconds;
         timer.Interval = seconds * 1000;
         if (settings.AutoRefreshEnabled)

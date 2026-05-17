@@ -80,8 +80,7 @@ public sealed partial class SensorReadoutForm : Form
         var refreshStopwatch = Stopwatch.StartNew();
         if (refreshFirst)
         {
-            latestRows.Clear();
-            latestRows.AddRange(CollectSensorRows(true));
+            SetLatestRows(CollectSensorRows(true));
         }
         refreshStopwatch.Stop();
 

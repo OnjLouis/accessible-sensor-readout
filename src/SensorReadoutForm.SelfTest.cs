@@ -109,8 +109,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         var rows = CollectSensorRows(true);
         Require(rows.Count > 0, "No sensor rows were collected.");
-        latestRows.Clear();
-        latestRows.AddRange(rows);
+        SetLatestRows(rows);
         Require(rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase)), "Performance rows missing.");
         Require(rows.Any(r => !string.IsNullOrWhiteSpace(r.Name)), "Collected rows have no names.");
     }
@@ -304,7 +303,7 @@ public sealed partial class SensorReadoutForm : Form
         Require(txtText.Contains("Sensor Readout"), "TXT report does not look like a Sensor Readout report.");
         Require(htmlText.Contains("Sensor Readout"), "HTML report does not look like a Sensor Readout report.");
         Require(txtText.Contains("[SensorReadoutReportData]"), "TXT report missing wrapped internal report data.");
-        Require(!Regex.IsMatch(txtText, @"(?im)^\s*Printer\s+.+\s+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
+        Require(!Regex.IsMatch(txtText, @"(?im)^[ \t]*Printer[ \t]+[^\r\n]+[ \t]+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
             "TXT report contains verbose printer prefixes instead of the grouped printer tree.");
     }
 

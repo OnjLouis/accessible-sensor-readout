@@ -1133,6 +1133,244 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
+    private static IEnumerable<SensorRow> GetGpuPerformanceRows()
+    {
+        var rows = new List<SensorRow>();
+        AddGpuMemoryRows(rows);
+        AddGpuEngineRows(rows);
+        return rows;
+    }
+
+    private static void AddGpuMemoryRows(List<SensorRow> rows)
+    {
+        var dedicatedTotal = GetTotalGpuAdapterMemoryBytes();
+        var dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Local Adapter Memory", "Local Usage");
+        var sharedUsed = ReadGpuMemoryCounterTotal("GPU Non Local Adapter Memory", "Non Local Usage");
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Dedicated memory source", "Win32_VideoController and display registry fallback" },
+            { "Dedicated used source", "GPU Local Adapter Memory performance counter" },
+            { "Shared used source", "GPU Non Local Adapter Memory performance counter" }
+        };
+
+        if (dedicatedTotal > 0)
+        {
+            AddGpuMemoryRow(rows, "Dedicated GPU memory total", dedicatedTotal, "gpu|memory|dedicated-total", details);
+        }
+
+        if (dedicatedUsed > 0)
+        {
+            AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", details);
+        }
+
+        if (dedicatedTotal > 0 && dedicatedUsed >= 0)
+        {
+            var free = Math.Max(0, dedicatedTotal - dedicatedUsed);
+            AddGpuMemoryRow(rows, "Dedicated GPU memory free", free, "gpu|memory|dedicated-free", details);
+        }
+
+        if (sharedUsed > 0)
+        {
+            AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", details);
+        }
+    }
+
+    private static void AddGpuMemoryRow(List<SensorRow> rows, string name, double bytes, string identifier, Dictionary<string, string> details)
+    {
+        if (rows == null || bytes < 0)
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "GPU memory",
+            Name = name,
+            Identifier = identifier,
+            Value = (float)bytes,
+            DisplayValue = FormatBytes(bytes),
+            Source = "Windows GPU performance counters",
+            Details = CloneDetails(details)
+        });
+    }
+
+    private static double GetTotalGpuAdapterMemoryBytes()
+    {
+        double total = 0;
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM FROM Win32_VideoController"))
+            {
+                foreach (ManagementObject gpu in searcher.Get())
+                {
+                    double bytes;
+                    if (TryConvertToDouble(GetGpuAdapterMemoryBytes(Convert.ToString(gpu["Name"]), gpu["AdapterRAM"]), out bytes) && bytes > 0)
+                    {
+                        total += bytes;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return total;
+    }
+
+    private static bool TryConvertToDouble(object value, out double result)
+    {
+        result = 0;
+        if (value == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            result = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch
+        {
+            return double.TryParse(Convert.ToString(value), NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+        }
+    }
+
+    private static double ReadGpuMemoryCounterTotal(string categoryName, string counterName)
+    {
+        try
+        {
+            if (!PerformanceCounterCategory.Exists(categoryName))
+            {
+                return 0;
+            }
+
+            var category = new PerformanceCounterCategory(categoryName);
+            double total = 0;
+            foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
+            {
+                double value;
+                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value) || value <= 0)
+                {
+                    continue;
+                }
+
+                total += value;
+            }
+
+            return total;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static void AddGpuEngineRows(List<SensorRow> rows)
+    {
+        const string categoryName = "GPU Engine";
+        const string counterName = "Utilization Percentage";
+        try
+        {
+            if (!PerformanceCounterCategory.Exists(categoryName))
+            {
+                return;
+            }
+
+            var category = new PerformanceCounterCategory(categoryName);
+            var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
+            {
+                var engineType = ExtractGpuEngineType(instance);
+                if (string.IsNullOrWhiteSpace(engineType))
+                {
+                    continue;
+                }
+
+                double value;
+                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value) || value <= 0)
+                {
+                    continue;
+                }
+
+                double existing;
+                values.TryGetValue(engineType, out existing);
+                if (value > existing)
+                {
+                    values[engineType] = value;
+                }
+            }
+
+            foreach (var pair in values.OrderBy(p => GpuEngineSortIndex(p.Key)).ThenBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = "GPU",
+                    Name = "GPU " + FormatGpuEngineType(pair.Key) + " usage",
+                    Identifier = "gpu|engine|" + MakeIdentifierPart(pair.Key),
+                    Value = (float)pair.Value,
+                    DisplayValue = FormatNumber(Math.Round(pair.Value, 1), "0.0") + "%",
+                    Source = "Windows GPU performance counters",
+                    Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "Counter set", categoryName },
+                        { "Counter", counterName },
+                        { "Aggregation", "Highest active engine of this type" }
+                    }
+                });
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool TryReadPerformanceCounter(string categoryName, string counterName, string instanceName, out double value)
+    {
+        value = 0;
+        try
+        {
+            using (var counter = new PerformanceCounter(categoryName, counterName, instanceName, true))
+            {
+                value = counter.NextValue();
+                return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string ExtractGpuEngineType(string instance)
+    {
+        var marker = "_engtype_";
+        var index = string.IsNullOrWhiteSpace(instance) ? -1 : instance.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        return index < 0 ? "" : instance.Substring(index + marker.Length).Trim();
+    }
+
+    private static string FormatGpuEngineType(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "" : value.Trim().Replace("_", " ");
+    }
+
+    private static int GpuEngineSortIndex(string value)
+    {
+        if (string.Equals(value, "3D", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (string.Equals(value, "Copy", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (string.Equals(value, "VideoDecode", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (string.Equals(value, "VideoEncode", StringComparison.OrdinalIgnoreCase)) return 3;
+        return 10;
+    }
+
+    private static string MakeIdentifierPart(string value)
+    {
+        return Regex.Replace((value ?? "").Trim().ToLowerInvariant(), @"[^a-z0-9]+", "-").Trim('-');
+    }
+
     private bool TryAddFastCpuUsageRow(List<SensorRow> rows)
     {
         try

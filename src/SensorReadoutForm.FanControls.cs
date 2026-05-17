@@ -229,8 +229,7 @@ public sealed partial class SensorReadoutForm : Form
                     }
 
                     var rows = task.Result;
-                    latestRows.Clear();
-                    latestRows.AddRange(rows);
+                    SetLatestRows(rows);
                     MigrateLegacyStoragePerformanceSettings();
                     TryApplySavedFanControlsOnStartupAsync(rows);
                     if (updateInteractiveUi && openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
@@ -289,7 +288,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
         AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);
-        AddTimedRows(rows, "CpuDetails", GetCpuDetailRows, timings);
+        AddTimedRows(rows, "GpuPerformance", GetGpuPerformanceRows, timings);
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
@@ -313,6 +312,26 @@ public sealed partial class SensorReadoutForm : Form
             LogMessage("Debug", "CollectSensorRows took " + totalStopwatch.ElapsedMilliseconds + " ms and returned " + result.Count + " rows. Phases: " + string.Join("; ", timings.ToArray()) + ".");
         }
         return result;
+    }
+
+    private void SetLatestRows(IEnumerable<SensorRow> rows)
+    {
+        latestRows.Clear();
+        latestRowsBySettingsKey.Clear();
+        foreach (var row in rows ?? Enumerable.Empty<SensorRow>())
+        {
+            if (row == null)
+            {
+                continue;
+            }
+
+            latestRows.Add(row);
+            var key = RowSettingsKey(row);
+            if (!string.IsNullOrWhiteSpace(key) && !latestRowsBySettingsKey.ContainsKey(key))
+            {
+                latestRowsBySettingsKey[key] = row;
+            }
+        }
     }
 
     private void AddTimedRows(List<SensorRow> target, string name, Func<IEnumerable<SensorRow>> producer, List<string> timings)
@@ -363,6 +382,7 @@ public sealed partial class SensorReadoutForm : Form
             .Concat(GetAudioRows())
             .Concat(GetDisplayRows())
             .Concat(GetDeviceInventoryRows())
+            .Concat(GetCpuDetailRows())
             .Concat(GetOverviewRows())
             .ToList();
 

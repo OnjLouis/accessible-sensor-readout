@@ -43,6 +43,14 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return name.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)
+            || (string.Equals(row.Hardware, "GPU memory", StringComparison.OrdinalIgnoreCase) &&
+                (name.Equals("Dedicated GPU memory total", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("Dedicated GPU memory used", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("Dedicated GPU memory free", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("Shared GPU memory used", StringComparison.OrdinalIgnoreCase)))
+            || (string.Equals(row.Hardware, "GPU", StringComparison.OrdinalIgnoreCase) &&
+                name.StartsWith("GPU ", StringComparison.OrdinalIgnoreCase) &&
+                name.EndsWith(" usage", StringComparison.OrdinalIgnoreCase))
             || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)

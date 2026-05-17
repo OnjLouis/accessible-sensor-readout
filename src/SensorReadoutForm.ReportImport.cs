@@ -89,8 +89,7 @@ public sealed partial class SensorReadoutForm : Form
             visibleRefreshTimer.Stop();
         }
 
-        latestRows.Clear();
-        latestRows.AddRange(snapshot.Rows.Select(ToSensorRow).Where(r => r != null));
+        SetLatestRows(snapshot.Rows.Select(ToSensorRow).Where(r => r != null));
         readingTreeExpansionInitialized = false;
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
@@ -115,7 +114,7 @@ public sealed partial class SensorReadoutForm : Form
         loadedReportTitle = "";
         loadedReportMachineName = "";
         loadedReportGeneratedLocal = "";
-        latestRows.Clear();
+        SetLatestRows(Enumerable.Empty<SensorRow>());
         readingTreeExpansionInitialized = false;
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";

@@ -339,7 +339,12 @@ public sealed class LanguageCatalog
     public string Text(string key, string fallback)
     {
         string value;
-        return !string.IsNullOrWhiteSpace(key) && values.TryGetValue(key, out value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+        return !string.IsNullOrWhiteSpace(key) &&
+            values.TryGetValue(key, out value) &&
+            !string.IsNullOrWhiteSpace(value) &&
+            !string.Equals(value.Trim(), key.Trim(), StringComparison.OrdinalIgnoreCase)
+            ? value
+            : fallback;
     }
 
     public static LanguageCatalog English()

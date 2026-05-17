@@ -469,7 +469,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds <= 0 ? 5 : value.RefreshIntervalSeconds));
+        value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds <= 0 ? 5 : value.RefreshIntervalSeconds));
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator
@@ -547,7 +547,7 @@ public sealed partial class SensorReadoutForm : Form
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
         value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
-        value.RefreshIntervalSeconds = Math.Max(2, Math.Min(300, value.RefreshIntervalSeconds));
+        value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds));
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator

@@ -260,12 +260,17 @@ public sealed partial class SensorReadoutForm : Form
         var row = GetSelectedReadingRow();
         if (row == null || !IsMeterRow(row))
         {
-            selectedMeterProgressBar.Value = 0;
-            selectedMeterProgressBar.AccessibleName = T("a11y.Selected meter", "Selected meter");
-            selectedMeterProgressBar.AccessibleDescription = T("a11y.Selected reading is not a percentage meter", "Selected reading is not a percentage meter");
-            selectedMeterValueLabel.Text = T("status.noMeterForSelectedReading", "No meter for selected reading.");
-            lastSelectedMeterValue = -1;
-            lastSelectedMeterLabel = "";
+            var noMeterText = T("status.noMeterForSelectedReading", "No meter for selected reading.");
+            if (lastSelectedMeterValue != -1 || !string.Equals(lastSelectedMeterLabel, noMeterText, StringComparison.Ordinal))
+            {
+                selectedMeterProgressBar.Value = 0;
+                selectedMeterProgressBar.AccessibleName = T("a11y.Selected meter", "Selected meter");
+                selectedMeterProgressBar.AccessibleDescription = T("a11y.Selected reading is not a percentage meter", "Selected reading is not a percentage meter");
+                selectedMeterValueLabel.Text = noMeterText;
+                lastSelectedMeterValue = -1;
+                lastSelectedMeterLabel = noMeterText;
+            }
+
             return;
         }
 
@@ -273,12 +278,12 @@ public sealed partial class SensorReadoutForm : Form
         var value = (int)Math.Round(percent);
         var label = MeterLabel(row);
         var changed = value != lastSelectedMeterValue || !string.Equals(label, lastSelectedMeterLabel, StringComparison.Ordinal);
-        selectedMeterProgressBar.Value = value;
-        selectedMeterProgressBar.AccessibleName = label + ", " + value + " percent";
-        selectedMeterProgressBar.AccessibleDescription = label + ", " + value + " percent";
-        selectedMeterValueLabel.Text = label + ": " + value + "%";
         if (changed)
         {
+            selectedMeterProgressBar.Value = value;
+            selectedMeterProgressBar.AccessibleName = label + ", " + value + " percent";
+            selectedMeterProgressBar.AccessibleDescription = label + ", " + value + " percent";
+            selectedMeterValueLabel.Text = label + ": " + value + "%";
             lastSelectedMeterValue = value;
             lastSelectedMeterLabel = label;
             selectedMeterProgressBar.NotifyAccessibleValueChanged();
@@ -409,13 +414,27 @@ public sealed partial class SensorReadoutForm : Form
             ReadingTreeItem item;
             if (!string.IsNullOrWhiteSpace(node.Name) && itemByKey.TryGetValue(node.Name, out item))
             {
+                var textChanged = false;
                 if (node.Text != item.Text)
                 {
                     node.Text = item.Text;
+                    textChanged = true;
                 }
 
-                node.Tag = item.Row;
-                node.ToolTipText = GetTreeNodeDetailsHint(item);
+                var existingRow = node.Tag as SensorRow;
+                if (textChanged || (existingRow == null) != (item.Row == null))
+                {
+                    node.Tag = item.Row;
+                }
+
+                if (textChanged || string.IsNullOrWhiteSpace(node.ToolTipText) != (item.Row == null || item.Row.Details == null || item.Row.Details.Count == 0))
+                {
+                    var detailsHint = GetTreeNodeDetailsHint(item);
+                    if (!string.Equals(node.ToolTipText, detailsHint, StringComparison.Ordinal))
+                    {
+                        node.ToolTipText = detailsHint;
+                    }
+                }
             }
 
             UpdateTreeNodes(node.Nodes, itemByKey);
@@ -761,6 +780,16 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(systemItem);
         }
 
+        var graphicsRows = rows
+            .Where(IsGpuPerformanceRow)
+            .ToList();
+        if (graphicsRows.Count > 0)
+        {
+            var graphicsItem = new ReadingTreeItem { Key = "performance|graphics", Text = T("group.Graphics", "Graphics") };
+            AddHardwareGroups(graphicsItem, graphicsRows);
+            parent.Children.Add(graphicsItem);
+        }
+
         var printerRows = rows
             .Where(IsPrinterPerformanceRow)
             .ToList();
@@ -772,7 +801,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var storageRows = rows
-            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsPrinterPerformanceRow(r))
+            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r))
             .ToList();
         if (storageRows.Count > 0)
         {
@@ -880,6 +909,17 @@ public sealed partial class SensorReadoutForm : Form
         return row != null && string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
             (string.Equals(row.Hardware, "Printers", StringComparison.OrdinalIgnoreCase) ||
             (row.Hardware ?? "").StartsWith("Printer: ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsGpuPerformanceRow(SensorRow row)
+    {
+        if (row == null || !string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(row.Hardware, "GPU", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Hardware, "GPU memory", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string PrinterGroupName(SensorRow row)

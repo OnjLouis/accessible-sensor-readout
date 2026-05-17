@@ -729,6 +729,8 @@ public sealed partial class SensorReadoutForm : Form
         trayIcon.Visible = settings.TrayStatusEnabled;
         if (!settings.TrayStatusEnabled)
         {
+            lastTrayTooltipText = "";
+            lastTrayIconSignature = "";
             return;
         }
 
@@ -797,7 +799,13 @@ public sealed partial class SensorReadoutForm : Form
             return null;
         }
 
-        var exact = latestRows.FirstOrDefault(r => RowSettingsKey(r) == key);
+        SensorRow exact;
+        if (latestRowsBySettingsKey.TryGetValue(key, out exact))
+        {
+            return exact;
+        }
+
+        exact = latestRows.FirstOrDefault(r => RowSettingsKey(r) == key);
         if (exact != null)
         {
             return exact;
@@ -1272,6 +1280,11 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         text = string.IsNullOrWhiteSpace(text) ? "Sensor Readout" : text.Trim();
+        if (string.Equals(lastTrayTooltipText, text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         var fallback = text.Length <= WinFormsTrayTooltipTextLimit
             ? text
             : ShortenWinFormsTrayText(text);
@@ -1296,6 +1309,8 @@ public sealed partial class SensorReadoutForm : Form
         {
             TrySetExtendedTrayTooltipText(text);
         }
+
+        lastTrayTooltipText = text;
     }
 
     private static string ShortenWinFormsTrayText(string text)
@@ -1343,17 +1358,26 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SetTrayIcon(SensorRow row)
     {
+        var signature = TrayIconSignature(row);
+        if (string.Equals(lastTrayIconSignature, signature, StringComparison.Ordinal) &&
+            ReferenceEquals(trayIcon.Icon, trayStatusIcon))
+        {
+            return;
+        }
+
         var oldIcon = trayStatusIcon;
         try
         {
             trayStatusIcon = CreateTrayIcon(row);
             trayIcon.Icon = trayStatusIcon;
+            lastTrayIconSignature = signature;
         }
         catch (Exception ex)
         {
             LogError("Could not create tray status icon; using fallback icon. " + ex.Message);
             trayStatusIcon = (Icon)SystemIcons.Application.Clone();
             trayIcon.Icon = trayStatusIcon;
+            lastTrayIconSignature = "";
         }
 
         if (oldIcon != null)
@@ -1389,6 +1413,11 @@ public sealed partial class SensorReadoutForm : Form
 
             return IconFromBitmap(bitmap);
         }
+    }
+
+    private static string TrayIconSignature(SensorRow row)
+    {
+        return TrayColor(row).ToArgb().ToString(CultureInfo.InvariantCulture) + "|" + TrayIconText(row);
     }
 
     private static Icon IconFromBitmap(Bitmap bitmap)

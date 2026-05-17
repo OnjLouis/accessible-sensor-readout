@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.4.0.
+Current version: 3.5.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -504,6 +504,12 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.5.0
+
+- Added: Performance/Overview can now show Windows GPU memory usage where available, including dedicated GPU memory total, used, free, and shared GPU memory used. These readings can be used in notification area status, spoken hotkeys, reports, and alarms.
+- Improved: Refresh now lives in the View menu, and F5 refresh handling is more reliable from the main window.
+- Improved: The refresh interval preference can now be set as low as 1 second for users who want faster live readouts.
 
 ### 3.4.0
 

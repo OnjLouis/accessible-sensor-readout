@@ -368,9 +368,9 @@ public sealed partial class PreferencesForm : Form
         });
         refreshSecondsBox = new NumericUpDown
         {
-            Minimum = 2,
+            Minimum = 1,
             Maximum = 300,
-            Value = Math.Max(2, Math.Min(300, settings.RefreshIntervalSeconds)),
+            Value = Math.Max(1, Math.Min(300, settings.RefreshIntervalSeconds)),
             Width = 70,
             AccessibleName = "Refresh interval in seconds"
         };
