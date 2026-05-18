@@ -79,6 +79,7 @@ function Assert-VersionConsistency([string]$releaseVersion) {
     }
 
     [void](Read-ChangelogEntry $releaseVersion)
+    Assert-ManualHealth $releaseVersion
 }
 
 function Assert-ChangelogClean([string]$releaseVersion) {
@@ -98,6 +99,57 @@ function Assert-ChangelogClean([string]$releaseVersion) {
             Fail "Changelog for $releaseVersion contains forbidden/private wording: $term"
         }
     }
+}
+
+function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, [string]$label) {
+    $english = Join-Path $folder 'README-en.html'
+    if (!(Test-Path -LiteralPath $english)) {
+        Fail "$label README-en.html is missing."
+    }
+
+    $englishSize = (Get-Item -LiteralPath $english).Length
+    $maxManualSize = [Math]::Max(300000, [int64]($englishSize * 3))
+    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x00E2, [char]0x0192)
+
+    foreach ($manual in Get-ChildItem -LiteralPath $folder -Filter 'README-*.html') {
+        if ($manual.Length -gt $maxManualSize) {
+            Fail "$label $($manual.Name) is $($manual.Length) bytes, which is far larger than README-en.html ($englishSize bytes)."
+        }
+
+        $text = Get-Content -LiteralPath $manual.FullName -Raw
+        foreach ($badChar in $badEncodingChars) {
+            if ($text.IndexOf($badChar) -ge 0) {
+                Fail "$label $($manual.Name) appears to contain mojibake or bad encoding markers."
+            }
+        }
+
+        $maxLine = 0
+        foreach ($line in [System.IO.File]::ReadLines($manual.FullName)) {
+            if ($line.Length -gt $maxLine) {
+                $maxLine = $line.Length
+            }
+        }
+        if ($maxLine -gt 100000) {
+            Fail "$label $($manual.Name) has an unusually long line ($maxLine characters), which can hurt screen readers and usually indicates generated-document corruption."
+        }
+
+        $visibleVersion = [regex]::Match(
+            $text,
+            '<p>[^<]*(Current version|Aktuelle Version|Version actual|Version actuelle|Versione attuale)[^<]*</p>',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if (!$visibleVersion.Success) {
+            Fail "$label $($manual.Name) does not have a visible top-of-manual version line."
+        }
+        if ($visibleVersion.Value -notmatch [regex]::Escape($releaseVersion)) {
+            Fail "$label $($manual.Name) visible version line does not match ${releaseVersion}: $($visibleVersion.Value)"
+        }
+    }
+}
+
+function Assert-ManualHealth([string]$releaseVersion) {
+    Info "Checking manual size, visible versions, and encoding health."
+    Assert-ManualHealthForFolder (Join-Path $repoRoot 'Docs') $releaseVersion 'Docs'
+    Assert-ManualHealthForFolder (Join-Path $portable 'Docs') $releaseVersion 'portable Docs'
 }
 
 function Get-GitHubReleaseHeaders {
@@ -164,17 +216,70 @@ function Write-CommunityMentionReminder {
 }
 
 function Assert-LanguageParity {
-    Info "Checking language key parity."
-    $english = Get-Content -LiteralPath (Join-Path $portable 'Langs\English.txt') |
+    Info "Checking language key parity and encoding health."
+    $englishMap = @{}
+    Get-Content -LiteralPath (Join-Path $portable 'Langs\English.txt') -Encoding UTF8 |
         Where-Object { $_ -match '^[^#=]+=' } |
-        ForEach-Object { ($_ -split '=', 2)[0] }
+        ForEach-Object {
+            $parts = $_ -split '=', 2
+            $englishMap[$parts[0]] = $parts[1]
+        }
+    $english = @($englishMap.Keys)
+    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x00E2, [char]0x0192)
+    $mustTranslateKeys = @(
+        'ui.Compare reports',
+        'ui.Choose reports to compare',
+        'ui.Sensor Readout report comparison',
+        'ui.Before:',
+        'ui.After:',
+        'ui.Added readings',
+        'ui.Removed readings',
+        'ui.Changed readings',
+        'ui.Detail changes',
+        'ui.End of comparison.',
+        'a11y.Report comparison results',
+        'ui.Save comparison',
+        'ui.Save anonymized report',
+        'ui.Rows included:',
+        'ui.Computer name:',
+        'ui.Prepare support report',
+        'ui.Open &issue page',
+        'ui.&Copy path',
+        'ui.Open &folder',
+        'a11y.Support report instructions',
+        'ui.Data sources',
+        'ui.Enable reading history &logging',
+        'ui.Add to history &log',
+        'ui.Remove from history &log'
+    )
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $portable 'Langs') -Filter '*.txt') {
-        $keys = Get-Content -LiteralPath $file.FullName |
+        $text = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8
+        foreach ($badChar in $badEncodingChars) {
+            if ($text.IndexOf($badChar) -ge 0) {
+                Fail "$($file.Name) appears to contain mojibake or bad encoding markers."
+            }
+        }
+
+        $map = @{}
+        Get-Content -LiteralPath $file.FullName -Encoding UTF8 |
             Where-Object { $_ -match '^[^#=]+=' } |
-            ForEach-Object { ($_ -split '=', 2)[0] }
+            ForEach-Object {
+                $parts = $_ -split '=', 2
+                $map[$parts[0]] = $parts[1]
+            }
+        $keys = @($map.Keys)
         $missing = @($english | Where-Object { $_ -notin $keys })
         if ($missing.Count -gt 0) {
             Fail "$($file.Name) is missing language keys: $($missing -join ', ')"
+        }
+
+        if ($file.Name -ne 'English.txt') {
+            $untranslated = @($mustTranslateKeys | Where-Object {
+                $map.ContainsKey($_) -and $englishMap.ContainsKey($_) -and $map[$_] -eq $englishMap[$_]
+            })
+            if ($untranslated.Count -gt 0) {
+                Fail "$($file.Name) has untranslated release-critical language keys: $($untranslated -join ', ')"
+            }
         }
     }
 }
