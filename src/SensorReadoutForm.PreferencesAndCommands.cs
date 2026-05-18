@@ -91,6 +91,10 @@ public sealed partial class SensorReadoutForm : Form
         using (var dialog = new PreferencesForm(settings, latestRows, languageChoices, lastPreferencesTabName))
         {
             openPreferencesDialog = dialog;
+            dialog.LivePreferencesSaved += delegate
+            {
+                ApplyLivePreferencesFromOpenDialog(dialog);
+            };
             dialog.ApplyFanProfileRequested += delegate(FanProfileSetting profile)
             {
                 ApplyFanProfile(profile, true);
@@ -122,6 +126,26 @@ public sealed partial class SensorReadoutForm : Form
 
             ApplyPreferencesFromDialog(dialog, true, true);
         }
+    }
+
+    private void ApplyLivePreferencesFromOpenDialog(PreferencesForm dialog)
+    {
+        if (dialog == null || dialog.IsDisposed)
+        {
+            return;
+        }
+
+        ApplyPreferencesFromDialog(dialog, false, false);
+        autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
+        refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
+        trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
+        pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
+        activeTemperatureUnit = settings.TemperatureUnit;
+        activeDecimalSeparator = settings.DecimalSeparator;
+        RegisterGlobalHotKeys();
+        BuildHotkeysMenu();
+        UpdateTrayStatus();
+        ApplyTimerSettings();
     }
 
     private void ApplyPreferencesFromDialog(PreferencesForm dialog, bool updateStartupShortcut, bool refreshAfterSave)
@@ -752,6 +776,8 @@ public sealed partial class SensorReadoutForm : Form
         {
             treeRenameMenuItem.Visible = visible;
         }
+
+        UpdateTrendLoggingMenuState();
     }
 
     private bool CanRenameSelectedTreeNode()
@@ -846,7 +872,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 var previous = targetList.SelectedItem == null ? "" : Convert.ToString(targetList.SelectedItem);
                 targetList.Items.Clear();
-                targetList.Items.Add(new QuickReadoutAssignmentTarget(null));
+                targetList.Items.Add(new QuickReadoutAssignmentTarget(null, TrayAssignmentDisplayText()));
                 foreach (var profile in settings.SpokenHotKeys.Where(p => p != null))
                 {
                     targetList.Items.Add(new QuickReadoutAssignmentTarget(profile));
@@ -1143,6 +1169,20 @@ public sealed partial class SensorReadoutForm : Form
         return null;
     }
 
+    private string TrayAssignmentDisplayText()
+    {
+        var hotKey = NormalizeHotKeyText(settings.SpeakTrayHotKey);
+        if (string.IsNullOrWhiteSpace(hotKey))
+        {
+            hotKey = L("ui.no hotkey", "no hotkey");
+        }
+
+        var count = settings.TrayItemKeys == null ? 0 : settings.TrayItemKeys.Count;
+        return L("ui.Notification area status", "Notification area status") +
+            " (" + hotKey + ", " + count + " " +
+            (count == 1 ? L("ui.reading", "reading") : L("ui.readings", "readings")) + ")";
+    }
+
     private static TextBox CreateInlineHotKeyBox(string hotKey, string accessibleName)
     {
         var box = new TextBox
@@ -1216,10 +1256,12 @@ public sealed partial class SensorReadoutForm : Form
     private sealed class QuickReadoutAssignmentTarget
     {
         public readonly SpokenHotKeySetting Profile;
+        private readonly string displayText;
 
-        public QuickReadoutAssignmentTarget(SpokenHotKeySetting profile)
+        public QuickReadoutAssignmentTarget(SpokenHotKeySetting profile, string displayText = null)
         {
             Profile = profile;
+            this.displayText = displayText;
         }
 
         public bool IsTray
@@ -1229,7 +1271,7 @@ public sealed partial class SensorReadoutForm : Form
 
         public override string ToString()
         {
-            return IsTray ? "Notification area status" : Profile.ToString();
+            return IsTray ? (displayText ?? "Notification area status") : Profile.ToString();
         }
     }
 

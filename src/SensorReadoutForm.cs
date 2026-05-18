@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.5.0";
+    public const string AppVersion = "3.6.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -23,15 +23,18 @@ public sealed partial class SensorReadoutForm : Form
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
     private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
+    private readonly ToolStripMenuItem editTrendLogMenuItem;
     private ToolStripMenuItem hotkeysSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem treeSpokenHotKeyMenuItem;
+    private readonly ToolStripMenuItem treeTrendLogMenuItem;
     private readonly ToolStripMenuItem batteryViewMenuItem;
     private readonly ToolStripMenuItem returnToLiveReadingsMenuItem;
     private readonly ToolStripMenuItem autoRefreshMenuItem;
     private readonly ToolStripMenuItem refreshWhileFocusedMenuItem;
     private readonly ToolStripMenuItem trayStatusMenuItem;
+    private readonly ToolStripMenuItem trendLoggingMenuItem;
     private readonly ToolStripMenuItem celsiusMenuItem;
     private readonly ToolStripMenuItem fahrenheitMenuItem;
     private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
@@ -157,6 +160,8 @@ public sealed partial class SensorReadoutForm : Form
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Compare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Save &anonymized report...", Keys.Control | Keys.Shift | Keys.A, delegate { SaveAnonymizedReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import settings and &profiles...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Export portable &copy...", Keys.Control | Keys.Shift | Keys.E, delegate { ExportPortableCopy(); }));
@@ -177,6 +182,8 @@ public sealed partial class SensorReadoutForm : Form
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
         editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
+        editTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
+        editMenu.DropDownItems.Add(editTrendLogMenuItem);
         editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -274,6 +281,13 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(autoRefreshMenuItem);
         optionsMenu.DropDownItems.Add(refreshWhileFocusedMenuItem);
         optionsMenu.DropDownItems.Add(trayStatusMenuItem);
+        trendLoggingMenuItem = new ToolStripMenuItem(T("ui.Enable reading history &logging", "Enable reading history &logging"))
+        {
+            Checked = settings.TrendLoggingEnabled,
+            CheckOnClick = false
+        };
+        trendLoggingMenuItem.Click += delegate { ToggleTrendLoggingEnabled(); };
+        optionsMenu.DropDownItems.Add(trendLoggingMenuItem);
         optionsMenu.DropDownItems.Add(temperatureMenu);
         optionsMenu.DropDownItems.Add(languageMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
@@ -403,6 +417,8 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
         treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
+        treeTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
+        readingTree.ContextMenuStrip.Items.Add(treeTrendLogMenuItem);
         treeRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         readingTree.ContextMenuStrip.Items.Add(treeRenameMenuItem);
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
@@ -442,6 +458,12 @@ public sealed partial class SensorReadoutForm : Form
             else if (e.Control && e.Shift && e.KeyCode == Keys.H)
             {
                 ShowSpokenHotKeyAssignmentDialog();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.Shift && e.KeyCode == Keys.G)
+            {
+                ToggleSelectedReadingTrendLogging();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
@@ -704,6 +726,12 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.H)
         {
             return ShowSpokenHotKeyAssignmentDialog();
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.G)
+        {
+            ToggleSelectedReadingTrendLogging();
+            return true;
         }
 
         if (modifiers == Keys.Control && SelectCategoryByShortcut(keyCode))

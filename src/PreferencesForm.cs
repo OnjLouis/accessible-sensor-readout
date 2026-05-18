@@ -8,6 +8,8 @@ using Newtonsoft.Json;
 
 public sealed partial class PreferencesForm : Form
 {
+    public event EventHandler LivePreferencesSaved;
+
     private readonly CheckBox autoRefreshCheckBox;
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;

@@ -106,18 +106,12 @@ function Get-GitHubReleaseHeaders {
         'Accept' = 'application/vnd.github+json'
     }
 
-    try {
-        $credText = "protocol=https`nhost=github.com`n`n" | git credential fill
-        $userLine = ($credText -split "`n") | Where-Object { $_ -like 'username=*' } | Select-Object -First 1
-        $passLine = ($credText -split "`n") | Where-Object { $_ -like 'password=*' } | Select-Object -First 1
-        if ($userLine -and $passLine) {
-            $user = $userLine.Substring(9)
-            $token = $passLine.Substring(9)
-            $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$user`:$token"))
-            $headers['Authorization'] = "Basic $basic"
-        }
-    } catch {
-        # Public issue/PR/fork checks still work without credentials. Traffic checks will be skipped.
+    $token = $env:GITHUB_TOKEN
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        $token = $env:GH_TOKEN
+    }
+    if (!([string]::IsNullOrWhiteSpace($token))) {
+        $headers['Authorization'] = "Bearer $token"
     }
 
     return $headers
@@ -163,6 +157,12 @@ function Assert-GitHubActivityChecked {
     }
 }
 
+function Write-CommunityMentionReminder {
+    Info "Community mention check: search the web and public community spaces for Sensor Readout mentions before release."
+    Info "Suggested searches: `"Accessible Sensor Readout`", `"accessible-sensor-readout`", `"Sensor Readout`" `"OnjLouis`", `"Sensor Readout`" `"NVDA`", `"Sensor Readout`" `"screen reader`", and podcast/email-list/community sites."
+    Info "Look for feedback that did not arrive as a GitHub issue, especially accessibility complaints, update problems, missing hardware data, and repeated questions."
+}
+
 function Assert-LanguageParity {
     Info "Checking language key parity."
     $english = Get-Content -LiteralPath (Join-Path $portable 'Langs\English.txt') |
@@ -202,12 +202,15 @@ function Invoke-GitDiffCheck {
 }
 
 function Invoke-CommandLineReportSmoke([string]$releaseVersion) {
-    Info "Running command-line TXT/HTML report smoke."
+    Info "Running command-line TXT/HTML, anonymized, and comparison report smoke."
     $reportDir = Join-Path $SmokeRoot 'reports'
     New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
     $txt = Join-Path $reportDir "SensorReadout-smoke-$releaseVersion.txt"
     $html = Join-Path $reportDir "SensorReadout-smoke-$releaseVersion.html"
-    Remove-Item -LiteralPath $txt,$html -Force -ErrorAction SilentlyContinue
+    $anonTxt = Join-Path $reportDir "SensorReadout-smoke-anonymized-$releaseVersion.txt"
+    $anonHtml = Join-Path $reportDir "SensorReadout-smoke-anonymized-$releaseVersion.html"
+    $comparison = Join-Path $reportDir "SensorReadout-smoke-comparison-$releaseVersion.txt"
+    Remove-Item -LiteralPath $txt,$html,$anonTxt,$anonHtml,$comparison -Force -ErrorAction SilentlyContinue
 
     $exe = Join-Path $portable 'Sensor Readout.exe'
     $p = Start-Process -FilePath $exe -ArgumentList @('--report-txt', $txt) -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
@@ -217,6 +220,18 @@ function Invoke-CommandLineReportSmoke([string]$releaseVersion) {
     $p = Start-Process -FilePath $exe -ArgumentList @('--report-html', $html) -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $html)) {
         Fail "HTML report smoke failed."
+    }
+    $p = Start-Process -FilePath $exe -ArgumentList @('--anonymized-report-txt', $anonTxt) -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
+    if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $anonTxt)) {
+        Fail "Anonymized TXT report smoke failed."
+    }
+    $p = Start-Process -FilePath $exe -ArgumentList @('--anonymized-report-html', $anonHtml) -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
+    if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $anonHtml)) {
+        Fail "Anonymized HTML report smoke failed."
+    }
+    $p = Start-Process -FilePath $exe -ArgumentList @('--compare-reports', $html, $anonHtml, $comparison) -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
+    if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $comparison)) {
+        Fail "Report comparison smoke failed."
     }
 
     $txtText = Get-Content -LiteralPath $txt -Raw
@@ -229,6 +244,77 @@ function Invoke-CommandLineReportSmoke([string]$releaseVersion) {
     $htmlText = Get-Content -LiteralPath $html -Raw
     if ($htmlText -notmatch 'id="sensor-readout-report-data"') {
         Fail "HTML smoke report is missing structured report data."
+    }
+
+    $anonTxtText = Get-Content -LiteralPath $anonTxt -Raw
+    $anonHtmlText = Get-Content -LiteralPath $anonHtml -Raw
+    foreach ($text in @($anonTxtText, $anonHtmlText)) {
+        if ($text.IndexOf($env:COMPUTERNAME, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            Fail "Anonymized smoke report still contains the current computer name."
+        }
+        if ($text -match '\b(?:\d{1,3}\.){3}\d{1,3}\b') {
+            Fail "Anonymized smoke report still contains an IPv4 address."
+        }
+        if ($text -match '\b[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5}\b') {
+            Fail "Anonymized smoke report still contains a MAC address."
+        }
+    }
+    $anonTables = [regex]::Matches($anonHtmlText, '(?s)<table>.*?</table>') | ForEach-Object { $_.Value }
+    $duplicateTables = @($anonTables | Group-Object | Where-Object Count -gt 1)
+    if ($duplicateTables.Count -gt 0) {
+        Fail "Anonymized HTML report contains duplicate visible detail tables."
+    }
+
+    $comparisonText = Get-Content -LiteralPath $comparison -Raw
+    if ($comparisonText -notmatch 'Sensor Readout report comparison') {
+        Fail "Report comparison smoke output does not look like a comparison."
+    }
+}
+
+function Invoke-CommandLineDiagnosticsSmoke([string]$releaseVersion) {
+    Info "Running command-line diagnostics ZIP smoke."
+    $diagnosticsDir = Join-Path $SmokeRoot 'diagnostics'
+    New-Item -ItemType Directory -Force -Path $diagnosticsDir | Out-Null
+    $zip = Join-Path $diagnosticsDir "SensorReadout-diagnostics-smoke-$releaseVersion.zip"
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+
+    $exe = Join-Path $portable 'Sensor Readout.exe'
+    $p = Start-Process -FilePath $exe -ArgumentList @('--diagnostics', $zip, '--diagnostics-quiet') -WorkingDirectory $portable -WindowStyle Hidden -Wait -PassThru
+    if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $zip)) {
+        Fail "Command-line diagnostics smoke failed."
+    }
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+    try {
+        $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+        if (-not ($entries | Where-Object { $_.EndsWith('.html', [StringComparison]::OrdinalIgnoreCase) })) {
+            Fail "Diagnostics ZIP smoke is missing an HTML report."
+        }
+        if (-not ($entries | Where-Object { $_.EndsWith('.txt', [StringComparison]::OrdinalIgnoreCase) })) {
+            Fail "Diagnostics ZIP smoke is missing text files."
+        }
+        if (-not ($entries | Where-Object { $_.EndsWith('Diagnostics-summary.txt', [StringComparison]::OrdinalIgnoreCase) })) {
+            Fail "Diagnostics ZIP smoke is missing Diagnostics-summary.txt."
+        }
+        if ($entries | Where-Object { $_.IndexOf('staging', [StringComparison]::OrdinalIgnoreCase) -ge 0 }) {
+            Fail "Diagnostics ZIP smoke contains staging paths."
+        }
+
+        $summaryEntry = $archive.Entries | Where-Object { $_.FullName.EndsWith('Diagnostics-summary.txt', [StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+        $reader = New-Object System.IO.StreamReader($summaryEntry.Open())
+        try {
+            $summaryText = $reader.ReadToEnd()
+        } finally {
+            $reader.Dispose()
+        }
+        foreach ($term in @('Sensor Readout diagnostics', 'Initial sensor collection', 'Final sensor collection')) {
+            if ($summaryText.IndexOf($term, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                Fail "Diagnostics summary is missing expected text: $term"
+            }
+        }
+    } finally {
+        $archive.Dispose()
     }
 }
 
@@ -255,6 +341,43 @@ function New-ReleaseZip([string]$releaseVersion) {
 
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -Force
     Assert-ReleaseZipContents $zipPath
+    return $zipPath
+}
+
+function New-SourceSnapshot([string]$releaseVersion) {
+    Info "Creating source snapshot ZIP."
+    New-Item -ItemType Directory -Force -Path $sourceSnapshots | Out-Null
+    $zipPath = Join-Path $sourceSnapshots "SensorReadout-source-$releaseVersion.zip"
+    Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+
+    $tracked = @(& git -C $repoRoot ls-files)
+    if ($LASTEXITCODE -ne 0 -or $tracked.Count -eq 0) {
+        Fail "Could not list tracked files for source snapshot."
+    }
+
+    $stage = Join-Path $SmokeRoot "source-stage-$releaseVersion"
+    Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $stage | Out-Null
+    foreach ($relative in $tracked) {
+        if ([string]::IsNullOrWhiteSpace($relative)) {
+            continue
+        }
+
+        $source = Join-Path $repoRoot $relative
+        if (!(Test-Path -LiteralPath $source -PathType Leaf)) {
+            continue
+        }
+
+        $destination = Join-Path $stage $relative
+        $folder = Split-Path -Parent $destination
+        if (!(Test-Path -LiteralPath $folder)) {
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+        }
+
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+    }
+
+    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zipPath -Force
     return $zipPath
 }
 
@@ -488,6 +611,7 @@ New-Item -ItemType Directory -Force -Path $SmokeRoot,$programBuilds,$sourceSnaps
 Assert-VersionConsistency $Version
 Assert-ChangelogClean $Version
 Assert-GitHubActivityChecked
+Write-CommunityMentionReminder
 
 if (!$SkipBuild) {
     if ($SkipSelfTest) {
@@ -506,7 +630,9 @@ Assert-LanguageParity
 Assert-NoNestedPortableFolders
 Invoke-GitDiffCheck
 Invoke-CommandLineReportSmoke $Version
+Invoke-CommandLineDiagnosticsSmoke $Version
 $zipPath = New-ReleaseZip $Version
+$sourceZipPath = New-SourceSnapshot $Version
 Invoke-LocalUpgradeSmoke $Version $zipPath
 Mirror-AppCopy 'C:\Users\OnjLo\AppData\Local\Programs\Sensor Readout' 'installed copy' $true
 Mirror-AppCopy 'D:\Dropbox\SOFTWARE\SensorReadout' 'personal Dropbox copy' $false
@@ -522,4 +648,5 @@ if (!$KeepSmokeFolder) {
 
 Info "Release checks passed for $Version."
 Info "Program ZIP: $zipPath"
+Info "Source ZIP: $sourceZipPath"
 Info "After publishing the GitHub release, run: powershell -ExecutionPolicy Bypass -File .\Release.ps1 -SkipBuild -SkipSelfTest -SkipUpgradeSmoke -RunPostPublishUpdateSmoke"

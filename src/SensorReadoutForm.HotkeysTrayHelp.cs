@@ -601,6 +601,7 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
         AddPlugInHelpMenuItems(helpMenu);
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
+        helpMenu.DropDownItems.Add("Prepare support &report...", null, delegate { PrepareSupportReport(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
     }

@@ -47,6 +47,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
             form.RunSelfTestStep(results, "Report reopening and ZIP selection", delegate { form.SelfTestReportReopen(outputFolder); });
+            form.RunSelfTestStep(results, "Report tools and reading history", delegate { form.SelfTestReportToolsAndHistory(outputFolder); });
             form.RunSelfTestStep(results, "Diagnostics ZIP creation", delegate { form.SelfTestDiagnosticsZip(outputFolder); });
             form.RunSelfTestStep(results, "Language and manual files", delegate { form.SelfTestLanguageAndManualFiles(); });
             form.LogMessage("Debug", "Self-test complete.");
@@ -230,8 +231,13 @@ public sealed partial class SensorReadoutForm : Form
         var key = RowSettingsKey(row);
         settings.TrayItemKeys = new List<string>();
         settings.TrayItemKeys.Add(key);
+        settings.SpeakTrayHotKey = "Ctrl+Alt+F11";
         settings.TrayStatusEnabled = true;
         SaveSettings(settings);
+        var trayTargetText = TrayAssignmentDisplayText();
+        Require(trayTargetText.IndexOf("Ctrl+Alt+F11", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            trayTargetText.IndexOf("1 reading", StringComparison.OrdinalIgnoreCase) >= 0,
+            "Tray quick assignment target did not show hotkey and reading count.");
         Require(LoadSettings().TrayItemKeys.Contains(key), "Tray quick assignment did not persist.");
         settings.TrayItemKeys.Remove(key);
         SaveSettings(settings);
@@ -337,6 +343,49 @@ public sealed partial class SensorReadoutForm : Form
         Require(reportViewMode, "ZIP report did not enter report view.");
         Require(latestRows.Count > 0, "ZIP report view has no rows.");
         ReturnToLiveReadings();
+    }
+
+    private void SelfTestReportToolsAndHistory(string outputFolder)
+    {
+        EnsureSelfTestRows();
+        Require(latestRows.Any(r => string.Equals(r.Hardware, T("ui.Data sources", "Data sources"), StringComparison.OrdinalIgnoreCase)), "Data source summary rows missing.");
+
+        var before = BuildReportSnapshot();
+        var changedRow = before.Rows.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.DisplayValue));
+        Require(changedRow != null, "No row available for report comparison.");
+        var after = new ReportSnapshot
+        {
+            AppVersion = before.AppVersion,
+            Title = before.Title,
+            MachineName = before.MachineName,
+            GeneratedLocal = before.GeneratedLocal,
+            Rows = before.Rows.Select(r => new ReportSnapshotRow
+            {
+                Type = r.Type,
+                Hardware = r.Hardware,
+                Name = r.Name,
+                Identifier = r.Identifier,
+                Value = r.Value,
+                DisplayValue = r == changedRow ? r.DisplayValue + " self-test" : r.DisplayValue,
+                Source = r.Source,
+                Details = r.Details == null ? null : new Dictionary<string, string>(r.Details, StringComparer.OrdinalIgnoreCase)
+            }).ToList()
+        };
+        var comparison = BuildReportComparisonText(before, "before.html", after, "after.html");
+        Require(comparison.IndexOf("Changed readings", StringComparison.OrdinalIgnoreCase) >= 0, "Report comparison missing changed section.");
+        Require(comparison.IndexOf("self-test", StringComparison.OrdinalIgnoreCase) >= 0, "Report comparison did not report changed value.");
+
+        var sanitized = SanitizeReportSnapshot(before);
+        Require(string.Equals(sanitized.MachineName, "Computer", StringComparison.Ordinal), "Anonymized report did not replace machine name.");
+        var sanitizedHtml = BuildHtmlReport("", sanitized);
+        Require(sanitizedHtml.IndexOf(Environment.MachineName ?? "", StringComparison.OrdinalIgnoreCase) < 0 || string.IsNullOrWhiteSpace(Environment.MachineName), "Anonymized report still contains the current computer name.");
+
+        var row = latestRows.FirstOrDefault(IsSelectableReadoutRow);
+        Require(row != null, "No selectable row available for reading history.");
+        settings.TrendLoggingEnabled = true;
+        settings.TrendLoggingKeys = new List<string> { RowSettingsKey(row) };
+        LogTrendRows(latestRows);
+        Require(File.Exists(GetTrendLogFilePath()), "Reading history CSV was not written.");
     }
 
     private void SelfTestDiagnosticsZip(string outputFolder)

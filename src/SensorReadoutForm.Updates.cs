@@ -791,6 +791,7 @@ public sealed partial class SensorReadoutForm : Form
             "$ErrorActionPreference = 'Stop'\r\n" +
             "Add-Type -AssemblyName System.Windows.Forms\r\n" +
             "$zipUrl = " + PowerShellQuote(zipUrl) + "\r\n" +
+            "$userAgent = " + PowerShellQuote("Sensor Readout " + AppVersion) + "\r\n" +
             "$target = " + PowerShellQuote(targetDir) + "\r\n" +
             "$exe = " + PowerShellQuote(exePath) + "\r\n" +
             "$tempBase = " + PowerShellQuote(tempDir) + "\r\n" +
@@ -826,7 +827,7 @@ public sealed partial class SensorReadoutForm : Form
             "  $stage = Join-Path $root 'stage'\r\n" +
             "  [System.IO.Directory]::CreateDirectory($root) | Out-Null\r\n" +
             "  [System.IO.Directory]::CreateDirectory($stage) | Out-Null\r\n" +
-            "  Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing\r\n" +
+            "  Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing -UserAgent $userAgent\r\n" +
             "  Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force\r\n" +
             "  $source = $stage\r\n" +
             "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) {\r\n" +

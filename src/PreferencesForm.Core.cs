@@ -538,6 +538,11 @@ public sealed partial class PreferencesForm : Form
         liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SensorReadoutForm.SaveSettings(liveSettings);
+        var handler = LivePreferencesSaved;
+        if (handler != null)
+        {
+            handler(this, EventArgs.Empty);
+        }
     }
 
     private void ApplyDesktopShortcutPreference()

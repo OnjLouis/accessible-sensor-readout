@@ -228,8 +228,14 @@ public sealed partial class SensorReadoutForm : Form
                         return;
                     }
 
+                    if (reportViewMode)
+                    {
+                        return;
+                    }
+
                     var rows = task.Result;
                     SetLatestRows(rows);
+                    LogTrendRows(rows);
                     MigrateLegacyStoragePerformanceSettings();
                     TryApplySavedFanControlsOnStartupAsync(rows);
                     if (updateInteractiveUi && openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
@@ -266,7 +272,7 @@ public sealed partial class SensorReadoutForm : Form
                 finally
                 {
                     refreshInProgress = false;
-                    if (!IsDisposed && task.Status == TaskStatus.RanToCompletion)
+                    if (!IsDisposed && !reportViewMode && task.Status == TaskStatus.RanToCompletion)
                     {
                         ApplyFanCurvesAsync(task.Result);
                     }
@@ -300,7 +306,8 @@ public sealed partial class SensorReadoutForm : Form
             .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Devices" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
-            .ToList())
+            .ToList());
+        result = AddDataSourceSummaryRows(result)
             .OrderBy(s => TypeSortIndex(s.Type))
             .ThenBy(s => s.Hardware)
             .ThenBy(s => ReadingSortIndex(s.Name))

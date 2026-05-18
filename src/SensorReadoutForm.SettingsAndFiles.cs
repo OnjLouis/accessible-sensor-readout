@@ -408,6 +408,8 @@ public sealed partial class SensorReadoutForm : Form
             FanCurves = CloneFanCurves(value.FanCurves),
             ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
             PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase),
+            TrendLoggingEnabled = value.TrendLoggingEnabled,
+            TrendLoggingKeys = new List<string>(value.TrendLoggingKeys ?? new List<string>()),
             Alarms = (value.Alarms ?? new List<AlarmSetting>())
                 .Select(a => new AlarmSetting
                 {
@@ -523,6 +525,10 @@ public sealed partial class SensorReadoutForm : Form
         value.PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key))
             .ToDictionary(i => i.Key.Trim(), i => i.Value, StringComparer.OrdinalIgnoreCase);
+        value.TrendLoggingKeys = (value.TrendLoggingKeys ?? new List<string>())
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         value.ReadingSpeechLabels = new Dictionary<string, string>(value.ReadingSpeechLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && !string.IsNullOrWhiteSpace(i.Value))
             .ToDictionary(i => i.Key, i => i.Value.Trim(), StringComparer.OrdinalIgnoreCase);

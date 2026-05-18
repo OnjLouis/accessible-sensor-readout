@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.5.0.
+Current version: 3.6.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -144,10 +144,13 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | Main window | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
 | Main window | `Del` | Hide the selected reading or tree branch. |
 | Main window | `Ctrl+Shift+H` | Add the selected reading to notification area status or a spoken hotkey profile, remove it again, or create a spoken hotkey profile from the same dialog. |
+| Main window | `Ctrl+Shift+G` | Add or remove the selected reading from the optional reading history CSV log. |
 | Main window | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
 | Main window | `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
 | File commands | `Ctrl+S` | Save a report. |
 | File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
+| File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
+| File commands | `Ctrl+Shift+A` | Save an anonymized report for sharing. |
 | File commands | `Ctrl+R` | Return from a static report to live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
 | File commands | `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
@@ -201,6 +204,9 @@ Sensor Readout can also be started with a few command-line options:
 | `--close` | Close any running Sensor Readout instance and exit. |
 | `--report-txt [path]` | Save a text report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
 | `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--anonymized-report-txt [path]` | Save an anonymized text report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--anonymized-report-html [path]` | Save an anonymized HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--compare-reports before after [output]` | Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped comparison is created in the `Reports` folder. |
 | `--diagnostics [path]` | Run diagnostics, save a ZIP, and exit. If no path is supplied, a computer-named timestamped ZIP is created in the `Reports` folder. If a folder is supplied, the ZIP is created there. |
 | `--diagnostics-quiet` | Do not speak diagnostic progress or play diagnostic sounds when used with `--diagnostics`. |
 | `--no-diagnostics-speech` | Run command-line diagnostics without spoken progress, while keeping diagnostic sounds enabled if preferences allow them. |
@@ -413,6 +419,8 @@ TXT reports group values by reading type and device, so long hardware names are 
 
 The first save creates the `Reports` folder if it does not already exist. Use `File` > `Open Reports folder` or `Ctrl+Shift+O` to jump to saved reports, and use `File` > `Open Logs folder` or `Ctrl+Shift+L` when support needs the log folder. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
 
+Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name and masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them.
+
 ### Opening Someone Else's Report
 
 Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report. If someone sends a report inside a ZIP file, open the ZIP directly and Sensor Readout will use the first readable report inside it.
@@ -422,6 +430,18 @@ The report opens as a static snapshot in the normal category and tree layout, so
 Details and copy commands still work where the report contains the relevant fields. This is useful when someone sends a USB, audio, display, network, fan, battery, or SMART report and you want to inspect specific rows without reading the whole file manually.
 
 Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. HTML reports saved by Sensor Readout 2.0 or later contain a hidden machine-readable snapshot for the best import experience. TXT reports include the same reopen data after a clearly labelled internal-data line, wrapped into short lines so the readable report stays practical in text editors.
+
+### Comparing Reports
+
+Use `File` > `Compare reports...` or `Ctrl+Shift+M` to choose two Sensor Readout reports. The comparison shows added readings, removed readings, changed values, and changed Details fields. This is useful for before-and-after troubleshooting, checking whether a driver install changed hardware state, or comparing two similar machines.
+
+### Support Reports
+
+Use `Help` > `Prepare support report...` when you need to send information to the project or a support person. Sensor Readout creates the same diagnostic ZIP as `Run diagnostics...`, then shows the ZIP path with buttons to copy the path, open the containing folder, or open the GitHub issue page.
+
+### Reading History
+
+Use `Options` > `Enable reading history logging` to turn short-term CSV logging on or off. Select a reading and use `Edit` > `Add to history log` or `Ctrl+Shift+G` to include it. Sensor Readout writes the selected readings to `Logs\ReadingHistory-<ComputerName>-<Date>.csv` during normal refreshes. This is intended for temporary troubleshooting rather than permanent background monitoring.
 
 ## Settings Transfer
 
@@ -443,6 +463,7 @@ Configuration and logging created by the app:
 - `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
 - `*.srsettings.json`: optional settings transfer packages created by `File` > `Export settings and profiles...`.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and screen reader speech messages, created only when logging is enabled.
+- `Logs\ReadingHistory-<ComputerName>-<Date>.csv`: optional short-term reading history created only when reading history logging is enabled and at least one reading has been selected for it.
 - `Reports`: default folder for reports saved from the command line, from the first save dialog, or from `Help` > `Run diagnostics...`.
 - `Sounds\SR01.wav`, `Sounds\SR02.wav`, and similar: optional alarm/startup/shutdown sounds. Users can add their own `.wav` files.
 - `Data\usb.ids`: bundled USB vendor/product lookup data.
@@ -504,6 +525,18 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.6.0
+
+- Added: `File` > `Compare reports...` compares two saved Sensor Readout reports, including added, removed, changed, and detail-level differences for before-and-after troubleshooting.
+- Added: `File` > `Save anonymized report...` creates a shareable report with common private identifiers masked before sending it outside your own machine.
+- Added: `Help` > `Prepare support report...` creates a diagnostic ZIP and gives a guided support flow with the file path ready to copy or attach to a GitHub issue.
+- Added: Performance/Overview includes a Data sources group that shows which Windows, LibreHardwareMonitor, database, plug-in, and Sensor Readout sources contributed to the current view.
+- Added: Optional reading history logging can write selected readings to a short-term CSV log for troubleshooting trends during normal refreshes.
+- Added: Command-line options can now create anonymized reports and compare two saved reports for unattended testing or scripted support workflows.
+- Improved: Spoken hotkey and notification-area speech changes made in Preferences now apply immediately, so a hotkey can be tested before closing Preferences.
+- Improved: The hotkey and tray assignment dialog now shows the notification area status hotkey and selected reading count, matching the spoken hotkey entries.
+- Improved: Update downloads now use the same Sensor Readout user-agent label as update checks.
 
 ### 3.5.0
 

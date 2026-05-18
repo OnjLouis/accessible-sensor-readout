@@ -79,6 +79,8 @@ public sealed class AppSettings
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
     public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+    public bool TrendLoggingEnabled = false;
+    public List<string> TrendLoggingKeys = new List<string>();
 }
 
 public sealed class SharedAppSettings
@@ -130,6 +132,8 @@ public sealed class MachineAppSettings
     public Dictionary<string, string> ReadingSpeechLabels = new Dictionary<string, string>();
     public List<AlarmSetting> Alarms = new List<AlarmSetting>();
     public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+    public bool TrendLoggingEnabled = false;
+    public List<string> TrendLoggingKeys = new List<string>();
 }
 
 public sealed class SettingsTransferPackage

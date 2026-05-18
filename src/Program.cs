@@ -41,6 +41,23 @@ public static class Program
             saveReport = TryGetOptionValue(args, "--report-txt", out reportPath);
         }
 
+        var anonymizedReportPath = "";
+        var anonymizedReportHtml = false;
+        var saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-html", out anonymizedReportPath);
+        if (saveAnonymizedReport)
+        {
+            anonymizedReportHtml = true;
+        }
+        else
+        {
+            saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-txt", out anonymizedReportPath);
+        }
+
+        string compareBeforePath;
+        string compareAfterPath;
+        string compareOutputPath;
+        var compareReports = TryGetTwoOptionValues(args, "--compare-reports", out compareBeforePath, out compareAfterPath, out compareOutputPath);
+
         string diagnosticsPath;
         var runDiagnostics = TryGetOptionValue(args, "--diagnostics", out diagnosticsPath);
         if (!runDiagnostics)
@@ -64,6 +81,18 @@ public static class Program
         if (saveReport)
         {
             SaveCommandLineReport(reportPath, reportHtml);
+            return;
+        }
+
+        if (saveAnonymizedReport)
+        {
+            SaveCommandLineAnonymizedReport(anonymizedReportPath, anonymizedReportHtml);
+            return;
+        }
+
+        if (compareReports)
+        {
+            SaveCommandLineReportComparison(compareBeforePath, compareAfterPath, compareOutputPath);
             return;
         }
 
@@ -271,6 +300,9 @@ public static class Program
         return !HasArg(startupArgs, "--close") &&
                !HasOption(startupArgs, "--report-txt") &&
                !HasOption(startupArgs, "--report-html") &&
+               !HasOption(startupArgs, "--anonymized-report-txt") &&
+               !HasOption(startupArgs, "--anonymized-report-html") &&
+               !HasOption(startupArgs, "--compare-reports") &&
                !HasOption(startupArgs, "--diagnostics") &&
                !HasOption(startupArgs, "--run-diagnostics") &&
                !HasOption(startupArgs, "--self-test") &&
@@ -444,6 +476,42 @@ public static class Program
         return false;
     }
 
+    private static bool TryGetTwoOptionValues(string[] args, string name, out string firstValue, out string secondValue, out string thirdValue)
+    {
+        firstValue = "";
+        secondValue = "";
+        thirdValue = "";
+        if (args == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i] ?? "";
+            if (!string.Equals(arg, name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (i + 2 >= args.Length || IsOptionName(args[i + 1]) || IsOptionName(args[i + 2]))
+            {
+                throw new ArgumentException(name + " requires two report paths.");
+            }
+
+            firstValue = args[i + 1].Trim('"');
+            secondValue = args[i + 2].Trim('"');
+            if (i + 3 < args.Length && !IsOptionName(args[i + 3]))
+            {
+                thirdValue = args[i + 3].Trim('"');
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsOptionName(string value)
     {
         return !string.IsNullOrWhiteSpace(value) && (value.StartsWith("--") || value.StartsWith("/") || value.StartsWith("-"));
@@ -472,6 +540,42 @@ public static class Program
         using (var form = new SensorReadoutForm(false))
         {
             form.SaveReportToFile(path, html, true);
+        }
+    }
+
+    private static void SaveCommandLineAnonymizedReport(string path, bool html)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = System.IO.Path.Combine(
+                SensorReadoutForm.GetReportsFolderPath(),
+                "SensorReadout-Anonymized-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + (html ? ".html" : ".txt"));
+        }
+
+        using (var form = new SensorReadoutForm(false))
+        {
+            form.SaveAnonymizedReportToFile(path, html);
+        }
+    }
+
+    private static void SaveCommandLineReportComparison(string beforePath, string afterPath, string outputPath)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            outputPath = System.IO.Path.Combine(
+                SensorReadoutForm.GetReportsFolderPath(),
+                "SensorReadout-Comparison-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt");
+        }
+
+        using (var form = new SensorReadoutForm(false))
+        {
+            var folder = System.IO.Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(folder))
+            {
+                System.IO.Directory.CreateDirectory(folder);
+            }
+
+            System.IO.File.WriteAllText(outputPath, form.BuildReportComparisonFileText(beforePath, afterPath));
         }
     }
 
@@ -564,6 +668,12 @@ public static class Program
             "Save a text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--report-html [path]" + Environment.NewLine +
             "Save an HTML report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--anonymized-report-txt [path]" + Environment.NewLine +
+            "Save an anonymized text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--anonymized-report-html [path]" + Environment.NewLine +
+            "Save an anonymized HTML report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--compare-reports before after [output]" + Environment.NewLine +
+            "Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--diagnostics [path]" + Environment.NewLine +
             "Run diagnostics, save a ZIP, and exit. If no path is supplied, a computer-named timestamped ZIP is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--diagnostics-quiet" + Environment.NewLine +

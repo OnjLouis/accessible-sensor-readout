@@ -1146,32 +1146,39 @@ public sealed partial class SensorReadoutForm : Form
         var dedicatedTotal = GetTotalGpuAdapterMemoryBytes();
         var dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Local Adapter Memory", "Local Usage");
         var sharedUsed = ReadGpuMemoryCounterTotal("GPU Non Local Adapter Memory", "Non Local Usage");
-        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "Dedicated memory source", "Win32_VideoController and display registry fallback" },
-            { "Dedicated used source", "GPU Local Adapter Memory performance counter" },
-            { "Shared used source", "GPU Non Local Adapter Memory performance counter" }
-        };
-
         if (dedicatedTotal > 0)
         {
-            AddGpuMemoryRow(rows, "Dedicated GPU memory total", dedicatedTotal, "gpu|memory|dedicated-total", details);
+            AddGpuMemoryRow(rows, "Dedicated GPU memory total", dedicatedTotal, "gpu|memory|dedicated-total", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Source", "Win32_VideoController and display registry fallback" }
+            });
         }
 
         if (dedicatedUsed > 0)
         {
-            AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", details);
+            AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Source", "GPU Local Adapter Memory performance counter" }
+            });
         }
 
         if (dedicatedTotal > 0 && dedicatedUsed >= 0)
         {
             var free = Math.Max(0, dedicatedTotal - dedicatedUsed);
-            AddGpuMemoryRow(rows, "Dedicated GPU memory free", free, "gpu|memory|dedicated-free", details);
+            AddGpuMemoryRow(rows, "Dedicated GPU memory free", free, "gpu|memory|dedicated-free", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Calculated from", "Dedicated GPU memory total minus dedicated GPU memory used" },
+                { "Total source", "Win32_VideoController and display registry fallback" },
+                { "Used source", "GPU Local Adapter Memory performance counter" }
+            });
         }
 
         if (sharedUsed > 0)
         {
-            AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", details);
+            AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Source", "GPU Non Local Adapter Memory performance counter" }
+            });
         }
     }
 

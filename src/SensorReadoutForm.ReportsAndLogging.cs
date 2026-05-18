@@ -157,26 +157,32 @@ public sealed partial class SensorReadoutForm : Form
 
     private string BuildTextReport(string timingLine)
     {
+        return BuildTextReport(timingLine, BuildReportSnapshot());
+    }
+
+    private string BuildTextReport(string timingLine, ReportSnapshot snapshot)
+    {
+        snapshot = snapshot ?? BuildReportSnapshot();
         var lines = new List<string>();
-        lines.Add(BuildReportTitle());
-        lines.Add("Generated " + CurrentReportGeneratedLocal());
+        lines.Add(string.IsNullOrWhiteSpace(snapshot.Title) ? BuildReportTitle() : snapshot.Title);
+        lines.Add("Generated " + (string.IsNullOrWhiteSpace(snapshot.GeneratedLocal) ? CurrentReportGeneratedLocal() : snapshot.GeneratedLocal));
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             lines.Add(timingLine);
         }
         lines.Add("");
 
-        foreach (var typeGroup in ReportTypeGroups())
+        foreach (var typeGroup in ReportTypeGroups(snapshot))
         {
             lines.Add(DisplayTypeName(typeGroup.Key));
             var items = BuildReadingTree(typeGroup.ToList(), new DeviceFilter { Type = typeGroup.Key });
-            AddTextReportTreeLines(lines, items, 1);
+            AddTextReportTreeLines(lines, items, 1, new HashSet<string>(StringComparer.Ordinal));
             lines.Add("");
         }
 
         lines.Add("Internal Sensor Readout data below this line. This helps Sensor Readout reopen the report exactly.");
         lines.Add(ReportDataBeginMarker);
-        lines.AddRange(WrapReportPayload(EncodeReportSnapshot(BuildReportSnapshot()), 76));
+        lines.AddRange(WrapReportPayload(EncodeReportSnapshot(snapshot), 76));
         lines.Add(ReportDataEndMarker);
 
         return string.Join(Environment.NewLine, lines.ToArray());
@@ -198,24 +204,29 @@ public sealed partial class SensorReadoutForm : Form
 
     private string BuildHtmlReport(string timingLine)
     {
-        var title = BuildReportTitle();
-        var snapshot = BuildReportSnapshot();
+        return BuildHtmlReport(timingLine, BuildReportSnapshot());
+    }
+
+    private string BuildHtmlReport(string timingLine, ReportSnapshot snapshot)
+    {
+        snapshot = snapshot ?? BuildReportSnapshot();
+        var title = string.IsNullOrWhiteSpace(snapshot.Title) ? BuildReportTitle() : snapshot.Title;
         var html = new System.Text.StringBuilder();
         html.AppendLine("<!doctype html>");
         html.AppendLine("<html><head><meta charset=\"utf-8\"><title>" + HtmlEncode(title) + "</title>");
         html.AppendLine("<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.35} table{border-collapse:collapse;margin:0 0 1.2em 0} th,td{border:1px solid #888;padding:4px 8px;text-align:left} h2{margin-top:1.4em} h3{margin-bottom:.4em} h4{margin:.8em 0 .3em 0}</style>");
         html.AppendLine("</head><body>");
         html.AppendLine("<h1>" + HtmlEncode(title) + "</h1>");
-        html.AppendLine("<p>Generated " + HtmlEncode(CurrentReportGeneratedLocal()) + "</p>");
+        html.AppendLine("<p>Generated " + HtmlEncode(string.IsNullOrWhiteSpace(snapshot.GeneratedLocal) ? CurrentReportGeneratedLocal() : snapshot.GeneratedLocal) + "</p>");
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             html.AppendLine("<p>" + HtmlEncode(timingLine) + "</p>");
         }
-        foreach (var typeGroup in ReportTypeGroups())
+        foreach (var typeGroup in ReportTypeGroups(snapshot))
         {
             html.AppendLine("<h2>" + HtmlEncode(DisplayTypeName(typeGroup.Key)) + "</h2>");
             var items = BuildReadingTree(typeGroup.ToList(), new DeviceFilter { Type = typeGroup.Key });
-            AddHtmlReportTree(html, items);
+            AddHtmlReportTree(html, items, new HashSet<string>(StringComparer.Ordinal));
         }
 
         html.AppendLine("<script type=\"application/sensor-readout-report\" id=\"sensor-readout-report-data\">" + EncodeReportSnapshot(snapshot) + "</script>");
@@ -225,7 +236,21 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<IGrouping<string, SensorRow>> ReportTypeGroups()
     {
-        return latestRows
+        return ReportTypeGroups(latestRows);
+    }
+
+    private IEnumerable<IGrouping<string, SensorRow>> ReportTypeGroups(ReportSnapshot snapshot)
+    {
+        var rows = snapshot == null || snapshot.Rows == null
+            ? latestRows
+            : snapshot.Rows.Select(ToSensorRow).Where(r => r != null).ToList();
+        return ReportTypeGroups(rows);
+    }
+
+    private static IEnumerable<IGrouping<string, SensorRow>> ReportTypeGroups(IEnumerable<SensorRow> rows)
+    {
+        rows = rows ?? Enumerable.Empty<SensorRow>();
+        return rows
             .Where(r => r.Type != "Fan Control")
             .OrderBy(r => TypeSortIndex(r.Type))
             .ThenBy(r => r.Type)
@@ -234,13 +259,13 @@ public sealed partial class SensorReadoutForm : Form
             .ThenBy(g => g.Key);
     }
 
-    private static void AddTextReportTreeLines(List<string> lines, IEnumerable<ReadingTreeItem> items, int level)
+    private static void AddTextReportTreeLines(List<string> lines, IEnumerable<ReadingTreeItem> items, int level, HashSet<string> emittedDetails)
     {
         foreach (var item in items)
         {
             var indent = new string(' ', level * 2);
             AddWrappedTextReportLine(lines, indent, item.Text);
-            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0)
+            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0 && ShouldEmitReportDetails(item.Row, emittedDetails))
             {
                 foreach (var detail in OrderedReportDetails(item.Row))
                 {
@@ -248,7 +273,7 @@ public sealed partial class SensorReadoutForm : Form
                 }
             }
 
-            AddTextReportTreeLines(lines, item.Children, level + 1);
+            AddTextReportTreeLines(lines, item.Children, level + 1, emittedDetails);
         }
     }
 
@@ -302,13 +327,13 @@ public sealed partial class SensorReadoutForm : Form
         return available;
     }
 
-    private static void AddHtmlReportTree(System.Text.StringBuilder html, IEnumerable<ReadingTreeItem> items)
+    private static void AddHtmlReportTree(System.Text.StringBuilder html, IEnumerable<ReadingTreeItem> items, HashSet<string> emittedDetails)
     {
         html.AppendLine("<ul>");
         foreach (var item in items)
         {
             html.AppendLine("<li>" + HtmlEncode(item.Text));
-            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0)
+            if (item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0 && ShouldEmitReportDetails(item.Row, emittedDetails))
             {
                 html.AppendLine("<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>");
                 foreach (var detail in OrderedReportDetails(item.Row))
@@ -320,12 +345,58 @@ public sealed partial class SensorReadoutForm : Form
 
             if (item.Children.Count > 0)
             {
-                AddHtmlReportTree(html, item.Children);
+                AddHtmlReportTree(html, item.Children, emittedDetails);
             }
 
             html.AppendLine("</li>");
         }
         html.AppendLine("</ul>");
+    }
+
+    private static bool ShouldEmitReportDetails(SensorRow row, HashSet<string> emittedDetails)
+    {
+        if (row == null || row.Details == null || row.Details.Count == 0)
+        {
+            return false;
+        }
+
+        if (emittedDetails == null)
+        {
+            return true;
+        }
+
+        var signature = BuildReportDetailsSignature(row);
+        if (string.IsNullOrEmpty(signature))
+        {
+            return false;
+        }
+
+        if (emittedDetails.Contains(signature))
+        {
+            return false;
+        }
+
+        emittedDetails.Add(signature);
+        return true;
+    }
+
+    private static string BuildReportDetailsSignature(SensorRow row)
+    {
+        if (row == null || row.Details == null || row.Details.Count == 0)
+        {
+            return "";
+        }
+
+        var builder = new System.Text.StringBuilder();
+        foreach (var detail in OrderedReportDetails(row))
+        {
+            builder.Append(detail.Key ?? "");
+            builder.Append('\u001f');
+            builder.Append(detail.Value ?? "");
+            builder.Append('\u001e');
+        }
+
+        return builder.ToString();
     }
 
     private string BuildReportTitle()
