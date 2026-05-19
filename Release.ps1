@@ -3,6 +3,7 @@ param(
     [switch]$SkipSelfTest,
     [switch]$SkipUpgradeSmoke,
     [switch]$SkipPostPublishUpdateSmoke,
+    [switch]$SkipVendorDataUpdate,
     [switch]$RunPostPublishUpdateSmoke,
     [switch]$KeepSmokeFolder,
     [string]$Version = "",
@@ -15,6 +16,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 $portable = Join-Path $repoRoot 'portable'
 $buildScript = Join-Path $repoRoot 'Build.ps1'
+$dataUpdateScript = Join-Path $repoRoot 'Update-Data.ps1'
 $programBuilds = 'D:\Dropbox\backups\SensorReadout\Program Builds'
 $sourceSnapshots = 'D:\Dropbox\backups\SensorReadout\Source Snapshots'
 
@@ -300,9 +302,22 @@ function Assert-NoNestedPortableFolders {
 
 function Invoke-GitDiffCheck {
     Info "Running git diff --check."
-    & git -C $repoRoot diff --check
+    & git -C $repoRoot diff --check -- . ':(exclude)Data/usb.ids' ':(exclude)Data/oui.csv' ':(exclude)portable/Data/usb.ids' ':(exclude)portable/Data/oui.csv'
     if ($LASTEXITCODE -ne 0) {
         Fail "git diff --check failed."
+    }
+}
+
+function Update-VendorData {
+    if ($SkipVendorDataUpdate -or $RunPostPublishUpdateSmoke) {
+        Info "Skipping USB and MAC vendor database update."
+        return
+    }
+
+    Info "Updating bundled USB and MAC vendor databases."
+    & powershell -ExecutionPolicy Bypass -File $dataUpdateScript
+    if ($LASTEXITCODE -ne 0) {
+        Fail "USB and MAC vendor database update failed."
     }
 }
 
@@ -713,6 +728,7 @@ $Version = $Version.Trim().TrimStart('v','V')
 
 New-Item -ItemType Directory -Force -Path $SmokeRoot,$programBuilds,$sourceSnapshots | Out-Null
 
+Update-VendorData
 Assert-VersionConsistency $Version
 Assert-ChangelogClean $Version
 Assert-GitHubActivityChecked

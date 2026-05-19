@@ -323,6 +323,7 @@ a11y.Notification area selection status=Etat de selection de la zone de notifica
 a11y.Hidden readings=Mesures masquees
 a11y.Add selected reading to the tray order. Shortcut Control Right Arrow.=Ajouter la mesure selectionnee a l'ordre de la zone de notification. Raccourci Ctrl+Fleche droite.
 a11y.Remove selected reading from the tray order. Shortcut Control Left Arrow.=Retirer la mesure selectionnee de l'ordre de la zone de notification. Raccourci Ctrl+Fleche gauche.
+a11y.Rename the selected spoken label. Shortcut F2.=Renommer le libelle vocal selectionne. Raccourci F2.
 a11y.Move selected tray reading up. Shortcut Control Up Arrow.=Deplacer vers le haut la mesure selectionnee de la zone de notification. Raccourci Ctrl+Fleche haut.
 a11y.Move selected tray reading down. Shortcut Control Down Arrow.=Deplacer vers le bas la mesure selectionnee de la zone de notification. Raccourci Ctrl+Fleche bas.
 a11y.Language file to edit=Fichier de langue a modifier

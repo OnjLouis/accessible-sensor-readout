@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.6.1.
+Current version: 3.6.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -188,9 +188,9 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | Preferences | `Alt+I` | In Hotkeys, import spoken hotkey profiles from another machine config. |
 | Preferences | `Alt+P` | In Hotkeys, remove the selected spoken hotkey profile. |
 | Preferences | `Alt+A` | In Hotkeys, add the selected reading to the selected spoken hotkey. |
-| Preferences | `Alt+M` | In Hotkeys, remove the selected reading from the selected spoken hotkey. |
+| Preferences | `Alt+M` | In Notification area or Hotkeys, remove the selected reading. |
 | Preferences | `Alt+U` / `Alt+W` | Move the selected spoken-hotkey reading up or down. |
-| Preferences | `Alt+R` | Rename the selected spoken label. |
+| Preferences | `Alt+R` | Rename the selected spoken label for notification area status or a spoken hotkey. |
 | Preferences | `Alt+D` | Reset the selected spoken label to default. |
 | Preferences | `Delete` | Remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
 
@@ -525,6 +525,14 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.6.2
+
+- Fixed: Preferences now has a tab-reachable `Rename...` button for notification-area spoken labels, with a cleaner tab order and `Alt+R` accelerator.
+- Fixed: Spoken hotkey and notification-area speech changes made in Preferences can be tested immediately before closing Preferences, including newly created spoken hotkeys and renamed labels.
+- Improved: Display adapter Details now include additional GPU registry fields for NVIDIA, AMD, and Intel adapters, plus NVIDIA driver data from `nvidia-smi` where available, including CUDA compute capability, VBIOS, clocks, power limit, temperature, PCI IDs, and memory figures.
+- Improved: Printer rows now include richer Details from Windows printer WMI, printer configuration WMI, and print registry/driver data, while keeping binary registry blobs short enough for screen-reader review.
+- Improved: Audio device and endpoint Details now include raw Windows sound-device WMI fields and endpoint registry properties, with binary blobs summarized instead of expanded.
 
 ### 3.6.1
 

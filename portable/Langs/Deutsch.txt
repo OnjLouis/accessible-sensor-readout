@@ -323,6 +323,7 @@ a11y.Notification area selection status=Status der Infobereich-Auswahl
 a11y.Hidden readings=Ausgeblendete Messwerte
 a11y.Add selected reading to the tray order. Shortcut Control Right Arrow.=Ausgewaehlten Messwert zur Infobereich-Reihenfolge hinzufuegen. Tastenkombination Strg+Rechts.
 a11y.Remove selected reading from the tray order. Shortcut Control Left Arrow.=Ausgewaehlten Messwert aus der Infobereich-Reihenfolge entfernen. Tastenkombination Strg+Links.
+a11y.Rename the selected spoken label. Shortcut F2.=Die ausgewaehlte gesprochene Bezeichnung umbenennen. Tastenkombination F2.
 a11y.Move selected tray reading up. Shortcut Control Up Arrow.=Ausgewaehlten Infobereich-Messwert nach oben verschieben. Tastenkombination Strg+Hoch.
 a11y.Move selected tray reading down. Shortcut Control Down Arrow.=Ausgewaehlten Infobereich-Messwert nach unten verschieben. Tastenkombination Strg+Runter.
 a11y.Language file to edit=Zu bearbeitende Sprachdatei

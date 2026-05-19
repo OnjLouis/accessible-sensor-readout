@@ -32,6 +32,14 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Endpoint direction", endpoint == null ? "" : endpoint.Direction);
                     AddDetail(details, "Endpoint name", endpoint == null ? "" : endpoint.Name);
                     AddDetail(details, "Device ID", deviceId);
+                    if (endpoint != null)
+                    {
+                        foreach (var detail in endpoint.Details)
+                        {
+                            AddDetail(details, detail.Key, detail.Value);
+                        }
+                    }
+                    AddRawWmiDetails(details, "Audio device WMI", device);
 
                     var summary = BuildAudioSummary(manufacturer, endpoint);
                     rows.Add(new SensorRow
@@ -62,6 +70,10 @@ public sealed partial class SensorReadoutForm : Form
             AddDetail(details, "Bit depth", endpoint.BitsPerSample);
             AddDetail(details, "Endpoint direction", endpoint.Direction);
             AddDetail(details, "Endpoint ID", endpoint.Id);
+            foreach (var detail in endpoint.Details)
+            {
+                AddDetail(details, detail.Key, detail.Value);
+            }
             rows.Add(new SensorRow
             {
                 Type = "Audio",
@@ -217,11 +229,58 @@ public sealed partial class SensorReadoutForm : Form
                             Convert.ToString(properties.GetValue("{233164c8-1b2c-4c7d-bc68-b671687a2567},1")),
                             Convert.ToString(properties.GetValue("{80f111c3-b103-42e1-afb6-db7a6fa8be1f},0")))
                     };
+                    detail.Details["Endpoint direction"] = direction;
+                    detail.Details["Endpoint ID"] = endpointId;
+                    detail.Details["Endpoint state"] = DecodeAudioEndpointState(state);
+                    AddAudioEndpointRegistryDetails(detail.Details, properties);
 
                     ApplyAudioFormat(detail, FindAudioFormatBlob(properties));
                     result.Add(detail);
                 }
             }
+        }
+    }
+
+    private static void AddAudioEndpointRegistryDetails(Dictionary<string, string> details, RegistryKey properties)
+    {
+        if (details == null || properties == null)
+        {
+            return;
+        }
+
+        foreach (var valueName in properties.GetValueNames().OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        {
+            AddDetail(details, "Endpoint registry raw property " + valueName, AudioRegistryValueToString(properties.GetValue(valueName)));
+        }
+    }
+
+    private static string AudioRegistryValueToString(object value)
+    {
+        var bytes = value as byte[];
+        if (bytes != null)
+        {
+            return bytes.Length == 0 ? "" : "Binary data (" + bytes.Length + " bytes)";
+        }
+
+        return RegistryValueToString(value);
+    }
+
+    private static string DecodeAudioEndpointState(object value)
+    {
+        int state;
+        if (!int.TryParse(Convert.ToString(value), out state))
+        {
+            return "";
+        }
+
+        state &= 0xF;
+        switch (state)
+        {
+            case 1: return "Active";
+            case 2: return "Disabled";
+            case 4: return "Not present";
+            case 8: return "Unplugged";
+            default: return state.ToString();
         }
     }
 
@@ -344,5 +403,6 @@ public sealed partial class SensorReadoutForm : Form
         public string Channels = "";
         public string SampleRate = "";
         public string BitsPerSample = "";
+        public readonly Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 }

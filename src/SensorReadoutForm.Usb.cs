@@ -2124,6 +2124,9 @@ public sealed partial class SensorReadoutForm : Form
         if (TryPrefixDetailPath(field, "USB ", "USB", 130, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Network ", "Network", 160, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "WiFi ", "Network", 165, out prefixedPath)) return prefixedPath;
+        if (TryPrefixDetailPath(field, "Audio ", "Audio", 170, out prefixedPath)) return prefixedPath;
+        if (TryPrefixDetailPath(field, "Endpoint registry raw property ", "Endpoint registry", 175, out prefixedPath)) return prefixedPath;
+        if (TryPrefixDetailPath(field, "Endpoint ", "Endpoint", 172, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Display ", "Display", 180, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Monitor ", "Display", 185, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Battery ", "Battery", 200, out prefixedPath)) return prefixedPath;

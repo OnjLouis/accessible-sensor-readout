@@ -323,6 +323,7 @@ a11y.Notification area selection status=Notification area selection status
 a11y.Hidden readings=Hidden readings
 a11y.Add selected reading to the tray order. Shortcut Control Right Arrow.=Add selected reading to the tray order. Shortcut Control Right Arrow.
 a11y.Remove selected reading from the tray order. Shortcut Control Left Arrow.=Remove selected reading from the tray order. Shortcut Control Left Arrow.
+a11y.Rename the selected spoken label. Shortcut F2.=Rename the selected spoken label. Shortcut F2.
 a11y.Move selected tray reading up. Shortcut Control Up Arrow.=Move selected tray reading up. Shortcut Control Up Arrow.
 a11y.Move selected tray reading down. Shortcut Control Down Arrow.=Move selected tray reading down. Shortcut Control Down Arrow.
 a11y.Language file to edit=Language file to edit

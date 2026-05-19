@@ -529,13 +529,23 @@ public sealed partial class PreferencesForm : Form
         {
             liveSettings.TrayItemKeys = currentTrayItemKeys;
         }
-        liveSettings.SpokenHotKeys = CurrentSpokenHotKeys();
+        TrayItemKeys = new List<string>(liveSettings.TrayItemKeys ?? new List<string>());
+
+        var currentSpokenHotKeys = CurrentSpokenHotKeys();
+        SpokenHotKeys = CloneSpokenHotKeys(currentSpokenHotKeys);
+        liveSettings.SpokenHotKeys = CloneSpokenHotKeys(currentSpokenHotKeys);
         liveSettings.FanProfileStarterProfilesInitialized = fanProfileStarterProfilesInitialized;
-        liveSettings.FanProfiles = CurrentFanProfiles();
+        var currentFanProfiles = CurrentFanProfiles();
+        FanProfiles = CloneFanProfiles(currentFanProfiles);
+        liveSettings.FanProfiles = CloneFanProfiles(currentFanProfiles);
         liveSettings.ShowStoppedFans = fanProfileShowStoppedBox.Checked;
-        liveSettings.Alarms = CurrentAlarms();
-        liveSettings.HiddenReadingKeys = CurrentHiddenReadingKeys();
-        liveSettings.ReadingSpeechLabels = CurrentReadingSpeechLabels();
+        var currentAlarms = CurrentAlarms();
+        Alarms = CloneAlarms(currentAlarms);
+        liveSettings.Alarms = CloneAlarms(currentAlarms);
+        HiddenReadingKeys = CurrentHiddenReadingKeys();
+        liveSettings.HiddenReadingKeys = new List<string>(HiddenReadingKeys);
+        ReadingSpeechLabels = CurrentReadingSpeechLabels();
+        liveSettings.ReadingSpeechLabels = new Dictionary<string, string>(ReadingSpeechLabels, StringComparer.OrdinalIgnoreCase);
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SensorReadoutForm.SaveSettings(liveSettings);
         var handler = LivePreferencesSaved;

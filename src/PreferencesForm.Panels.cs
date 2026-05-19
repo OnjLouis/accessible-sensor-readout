@@ -43,9 +43,12 @@ public sealed partial class PreferencesForm : Form
         var addButton = CreateShortcutButton("&Add", "Alt+A", Keys.A);
         addButton.AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedTrayChoice(); };
-        var removeButton = CreateShortcutButton("&Remove", "Alt+R", Keys.R);
+        var removeButton = CreateShortcutButton("Re&move", "Alt+M", Keys.M);
         removeButton.AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedTrayChoice(); };
+        var renameLabelButton = CreateShortcutButton("&Rename...", "Alt+R", Keys.R);
+        renameLabelButton.AccessibleDescription = "Rename the selected spoken label. Shortcut F2.";
+        renameLabelButton.Click += delegate { RenameSelectedTrayChoice(); };
         var upButton = CreateShortcutButton("&Up", "Alt+U", Keys.U);
         upButton.AccessibleDescription = "Move selected tray reading up. Shortcut Control Up Arrow.";
         upButton.Click += delegate { MoveSelectedTrayChoice(-1); };
@@ -54,6 +57,7 @@ public sealed partial class PreferencesForm : Form
         downButton.Click += delegate { MoveSelectedTrayChoice(1); };
         buttons.Controls.Add(addButton);
         buttons.Controls.Add(removeButton);
+        buttons.Controls.Add(renameLabelButton);
         buttons.Controls.Add(upButton);
         buttons.Controls.Add(downButton);
 

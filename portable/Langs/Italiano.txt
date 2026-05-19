@@ -323,6 +323,7 @@ a11y.Notification area selection status=Stato selezione area di notifica
 a11y.Hidden readings=Letture nascoste
 a11y.Add selected reading to the tray order. Shortcut Control Right Arrow.=Aggiungi la lettura selezionata all'ordine dell'area di notifica. Scorciatoia Ctrl+Freccia destra.
 a11y.Remove selected reading from the tray order. Shortcut Control Left Arrow.=Rimuovi la lettura selezionata dall'ordine dell'area di notifica. Scorciatoia Ctrl+Freccia sinistra.
+a11y.Rename the selected spoken label. Shortcut F2.=Rinomina l etichetta vocale selezionata. Scorciatoia F2.
 a11y.Move selected tray reading up. Shortcut Control Up Arrow.=Sposta in alto la lettura selezionata dell'area di notifica. Scorciatoia Ctrl+Freccia su.
 a11y.Move selected tray reading down. Shortcut Control Down Arrow.=Sposta in basso la lettura selezionata dell'area di notifica. Scorciatoia Ctrl+Freccia giu.
 a11y.Language file to edit=File lingua da modificare
