@@ -160,15 +160,40 @@ function Get-GitHubReleaseHeaders {
         'Accept' = 'application/vnd.github+json'
     }
 
-    $token = $env:GITHUB_TOKEN
-    if ([string]::IsNullOrWhiteSpace($token)) {
-        $token = $env:GH_TOKEN
-    }
+    $token = Get-GitHubReleaseToken
     if (!([string]::IsNullOrWhiteSpace($token))) {
         $headers['Authorization'] = "Bearer $token"
     }
 
     return $headers
+}
+
+function Get-GitHubReleaseToken {
+    if (!([string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN))) {
+        return $env:GITHUB_TOKEN.Trim()
+    }
+    if (!([string]::IsNullOrWhiteSpace($env:GH_TOKEN))) {
+        return $env:GH_TOKEN.Trim()
+    }
+
+    $tokenPaths = @(
+        (Join-Path (Split-Path -Parent $repoRoot) 'token.txt'),
+        (Join-Path $repoRoot 'token.txt'),
+        'D:\Dropbox\backups\Codex\current\token.txt'
+    )
+
+    foreach ($path in $tokenPaths) {
+        if ([string]::IsNullOrWhiteSpace($path) -or !(Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        $token = (Get-Content -LiteralPath $path -Raw).Trim()
+        if (!([string]::IsNullOrWhiteSpace($token))) {
+            return $token
+        }
+    }
+
+    return ''
 }
 
 function Assert-GitHubActivityChecked {
@@ -204,7 +229,7 @@ function Assert-GitHubActivityChecked {
             $views = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/traffic/views" -Headers $headers
             Info "Recent GitHub traffic: $($clones.count) clones from $($clones.uniques) unique cloners; $($views.count) views from $($views.uniques) unique visitors."
         } else {
-            Info "GitHub traffic check skipped because no authenticated git credential was available."
+            Info "GitHub traffic check skipped because no GitHub token was available in GITHUB_TOKEN, GH_TOKEN, or token.txt."
         }
     } catch {
         Fail "Could not check GitHub activity: $($_.Exception.Message)"
