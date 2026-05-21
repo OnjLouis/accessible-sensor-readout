@@ -1,0 +1,19 @@
+{
+  "id": "sensorreadout.lenovo.laptop.experimental",
+  "name": "Lenovo Laptop Support (experimental)",
+  "version": "0.1.0",
+  "author": "Sensor Readout",
+  "description": "Experimental, opt-in Lenovo laptop probe. Checks Lenovo fan WMI, Windows fan, ACPI thermal zone, and Lenovo WMI interfaces for extra read-only temperature or fan data.",
+  "assembly": "LenovoThinkPadPlugIn.dll",
+  "type": "SensorReadout.LenovoThinkPadPlugIn.LenovoThinkPadPlugIn",
+  "helpLinks": [
+    {
+      "label": "Lenovo &Vantage page",
+      "url": "https://www.lenovo.com/us/en/software/vantage"
+    },
+    {
+      "label": "Lenovo &System Update page",
+      "url": "https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications"
+    }
+  ]
+}

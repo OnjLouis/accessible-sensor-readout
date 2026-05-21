@@ -373,7 +373,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         lock (slowRowsLock)
         {
-            if (cachedSlowRows.Count > 0 && (!allowRefresh || DateTime.UtcNow - cachedSlowRowsUtc < TimeSpan.FromMinutes(10)))
+            if (cachedSlowRows.Count > 0 && !allowRefresh)
             {
                 return cachedSlowRows.Select(CloneSensorRow).ToList();
             }

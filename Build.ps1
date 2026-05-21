@@ -21,6 +21,23 @@ if ($assemblyInfo -notmatch 'AssemblyFileVersion\("([^"]+)"\)') {
 }
 
 $buildVersion = $Matches[1]
+$appSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'src\SensorReadoutForm.cs') -Raw
+if ($appSource -notmatch 'AppVersion\s*=\s*"([^"]+)"') {
+    throw "Could not find AppVersion in src\SensorReadoutForm.cs"
+}
+$appVersion = $Matches[1]
+if ($buildVersion -ne "$appVersion.0") {
+    throw "Version mismatch: AppVersion is $appVersion but AssemblyFileVersion is $buildVersion."
+}
+
+$manifestText = Get-Content -LiteralPath $manifest -Raw
+if ($manifestText -notmatch 'assemblyIdentity\s+version="([^"]+)"') {
+    throw "Could not find assemblyIdentity version in src\SensorReadoutApp.exe.manifest"
+}
+if ($Matches[1] -ne $buildVersion) {
+    throw "Version mismatch: manifest assemblyIdentity version is $($Matches[1]) but AssemblyFileVersion is $buildVersion."
+}
+
 $generatedRoot = Join-Path $PSScriptRoot 'obj\GeneratedAssemblyInfo'
 New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
 
@@ -35,7 +52,8 @@ function New-GeneratedAssemblyInfo {
     @"
 [assembly: System.Reflection.AssemblyTitle("$safeTitle")]
 [assembly: System.Reflection.AssemblyProduct("Sensor Readout")]
-[assembly: System.Reflection.AssemblyCompany("Sensor Readout")]
+[assembly: System.Reflection.AssemblyCompany("Andre Louis")]
+[assembly: System.Reflection.AssemblyCopyright("Copyright (c) Andre Louis and Sensor Readout contributors")]
 [assembly: System.Reflection.AssemblyVersion("$buildVersion")]
 [assembly: System.Reflection.AssemblyFileVersion("$buildVersion")]
 [assembly: System.Reflection.AssemblyInformationalVersion("$buildVersion")]
@@ -101,11 +119,38 @@ if (Test-Path $plugInRoot) {
             ) -join ','
             $plugInAssemblyInfo = New-GeneratedAssemblyInfo -Title ("Sensor Readout " + $plugIn.Name + " Plug-In") -OutputName ($plugIn.Name + '.AssemblyInfo.cs')
             & $csc /nologo /target:library /platform:x64 /out:$plugInOutput /reference:$plugInReferences @(@($plugInSources) + @($plugInAssemblyInfo))
-            if ($LASTEXITCODE -ne 0) {
-                throw "Plug-In build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
-            }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Plug-In build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
+    }
         }
     }
+}
+
+function Assert-BinaryVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
+    )
+
+    $item = Get-Item -LiteralPath $Path
+    $fileVersion = $item.VersionInfo.FileVersion
+    $productVersion = $item.VersionInfo.ProductVersion
+    if ($fileVersion -eq $null) { $fileVersion = '' }
+    if ($productVersion -eq $null) { $productVersion = '' }
+    $fileVersion = $fileVersion.Trim()
+    $productVersion = $productVersion.Trim()
+    if ($fileVersion -ne $ExpectedVersion -or $productVersion -ne $ExpectedVersion) {
+        throw "Version mismatch for $Path. FileVersion=$fileVersion ProductVersion=$productVersion Expected=$ExpectedVersion."
+    }
+}
+
+$sensorBinaries = @($OutputPath, $sdkOutput)
+$plugInOutputRoot = Join-Path $portable 'Plug-Ins'
+if (Test-Path -LiteralPath $plugInOutputRoot) {
+    $sensorBinaries += Get-ChildItem -LiteralPath $plugInOutputRoot -Filter '*PlugIn.dll' -Recurse -File | ForEach-Object { $_.FullName }
+}
+foreach ($binary in $sensorBinaries | Where-Object { Test-Path -LiteralPath $_ }) {
+    Assert-BinaryVersion -Path $binary -ExpectedVersion $buildVersion
 }
 
 $dataSource = Join-Path $PSScriptRoot 'Data'

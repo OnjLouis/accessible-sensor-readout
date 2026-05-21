@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.6.2.
+Current version: 3.7.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -312,11 +312,11 @@ Preferences > Plug-Ins lists installed hardware plug-ins and describes what each
 
 Installed plug-ins are disabled by default. Importing a plug-in ZIP copies it into the `Plug-Ins` folder but still leaves it disabled until you check it yourself.
 
-When an enabled plug-in includes related support pages, those links appear in the Help menu. For example, the bundled laptop plug-ins can show the Dell Command | Monitor, G-Helper, HP Support Assistant, OMEN Gaming Hub, Framework BIOS and Drivers, or Framework Control pages.
+When an enabled plug-in includes related support pages, those links appear in the Help menu. For example, the bundled laptop plug-ins can show the Dell Command | Monitor, G-Helper, HP Support Assistant, OMEN Gaming Hub, Lenovo Vantage, Lenovo System Update, Framework BIOS and Drivers, or Framework Control pages.
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-Experimental HP, Dell Latitude, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
+Experimental HP, Dell Latitude, Lenovo Laptop, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -472,6 +472,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
 - `Plug-Ins\AsusRog`: experimental optional Asus laptop plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
+- `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - Users can add third-party plug-ins in their own subfolders.
 
 Language files:
@@ -507,7 +508,7 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 
 ### Laptop Brand Plug-Ins
 
-Framework, Dell, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
+Framework, Dell, Lenovo, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
 
 Framework Laptop users should also prepare Framework Control before reporting missing Framework readings:
 
@@ -518,13 +519,19 @@ Framework Laptop users should also prepare Framework Control before reporting mi
 5. Open `Options` > `Preferences` > `Plug-Ins`, enable the Framework Laptop plug-in, and close Preferences.
 6. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
-Dell, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
+Dell, Lenovo, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
 
-Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
+Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.7.0
+
+- Fixed: Manual refresh with `F5` now rebuilds USB and device inventory immediately, so newly plugged or unplugged USB devices can appear without restarting Sensor Readout.
+- Improved: The EXE, plug-in SDK, and bundled plug-in DLLs now carry matching Sensor Readout file and product version metadata, and the build fails if those versions drift.
+- Added: Experimental Lenovo Laptop Support plug-in for opt-in tester diagnostics on Lenovo systems. It checks Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces for extra read-only fan or temperature data.
 
 ### 3.6.2
 
@@ -866,4 +873,3 @@ Sensor Readout uses or bundles components from these projects:
 The main Sensor Readout application is licensed under the MIT License. See `LICENSE.txt`.
 
 Some optional bundled plug-ins or data files have their own licenses and notices. In particular, `Plug-Ins\AsusRog` contains G-Helper-derived ACPI work and ships with its own GPL notice and GPL text in that folder.
-
