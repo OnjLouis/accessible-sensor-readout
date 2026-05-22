@@ -786,12 +786,18 @@ public sealed partial class SensorReadoutForm : Form
         return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Reports");
     }
 
+    private static string GetBackupsFolderPath()
+    {
+        return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+    }
+
     private static void MigrateProgramDataFiles()
     {
         try
         {
             MoveTopLevelFilesToFolder("*.json", GetConfigFolderPath());
             MoveTopLevelFilesToFolder("*.log", GetLogsFolderPath());
+            MoveLegacyUpdateBackups();
             RepairNestedUpdateFolders();
             DeleteObsoletePortableFiles();
         }
@@ -825,7 +831,8 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        foreach (var folder in System.IO.Directory.GetDirectories(baseDirectory, "*", System.IO.SearchOption.TopDirectoryOnly))
+        foreach (var folder in System.IO.Directory.GetDirectories(baseDirectory, "*", System.IO.SearchOption.AllDirectories)
+            .OrderByDescending(p => p.Length))
         {
             RepairNestedUpdateFolder(folder);
         }
@@ -845,8 +852,54 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        BackupFolderBeforeRemoval(parent, "Folder state before repairing nested update folder.");
         CopyDirectoryContents(nested, parent);
         System.IO.Directory.Delete(nested, true);
+    }
+
+    private static void MoveLegacyUpdateBackups()
+    {
+        var legacy = System.IO.Path.Combine(GetConfigFolderPath(), "Update Backups");
+        if (!System.IO.Directory.Exists(legacy))
+        {
+            return;
+        }
+
+        BackupFolderBeforeRemoval(legacy, "Legacy Config\\Update Backups moved to top-level Backups.");
+        System.IO.Directory.Delete(legacy, true);
+    }
+
+    private static void BackupFolderBeforeRemoval(string folder, string reason)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder))
+            {
+                return;
+            }
+
+            var backupRoot = System.IO.Path.Combine(GetBackupsFolderPath(), "Recovered");
+            System.IO.Directory.CreateDirectory(backupRoot);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var name = System.IO.Path.GetFileName(folder.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+            foreach (var invalid in System.IO.Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(invalid, '_');
+            }
+
+            var zipPath = System.IO.Path.Combine(backupRoot, stamp + "-" + name + ".zip");
+            if (System.IO.File.Exists(zipPath))
+            {
+                zipPath = System.IO.Path.Combine(backupRoot, stamp + "-" + name + "-" + Guid.NewGuid().ToString("N") + ".zip");
+            }
+
+            System.IO.Compression.ZipFile.CreateFromDirectory(folder, zipPath, System.IO.Compression.CompressionLevel.Optimal, false);
+            var notePath = System.IO.Path.ChangeExtension(zipPath, ".txt");
+            System.IO.File.WriteAllText(notePath, reason + Environment.NewLine + folder);
+        }
+        catch
+        {
+        }
     }
 
     private static void CopyDirectoryContents(string sourceFolder, string destinationFolder)

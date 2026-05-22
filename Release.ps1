@@ -473,7 +473,7 @@ function New-ReleaseZip([string]$releaseVersion) {
     Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-    robocopy $portable $stage /E /XD Config Logs Reports 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    robocopy $portable $stage /E /XD Config Logs Reports Backups 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
     if ($LASTEXITCODE -ge 8) {
         Fail "Could not stage release ZIP. Robocopy exit code $LASTEXITCODE."
     }
@@ -532,7 +532,7 @@ function Assert-ReleaseZipContents([string]$zipPath) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
         $entries = @($zip.Entries | ForEach-Object { $_.FullName })
-        foreach ($prefix in @('Config/','Logs/','Reports/','Update Backups/','Update Temp/')) {
+        foreach ($prefix in @('Config/','Logs/','Reports/','Backups/','Update Backups/','Update Temp/')) {
             if ($entries | Where-Object { $_.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) }) {
                 Fail "Release ZIP contains excluded path $prefix."
             }
@@ -683,20 +683,63 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
     New-Item -ItemType Directory -Force -Path $upgradeRoot | Out-Null
     Expand-Archive -LiteralPath $previousZip -DestinationPath $upgradeRoot -Force
     $sentinel = Set-SmokeConfig $upgradeRoot
+    $legacyUpdateBackup = Join-Path $upgradeRoot 'Config\Update Backups\legacy'
+    New-Item -ItemType Directory -Force -Path $legacyUpdateBackup | Out-Null
+    Set-Content -LiteralPath (Join-Path $legacyUpdateBackup 'old-language.txt') -Value 'release-smoke legacy backup' -Encoding UTF8
+    $nestedPlugIn = Join-Path $upgradeRoot 'Plug-Ins\AsusRog\AsusRog'
+    New-Item -ItemType Directory -Force -Path $nestedPlugIn | Out-Null
+    Set-Content -LiteralPath (Join-Path $nestedPlugIn 'plugin.json') -Value '{"id":"release-smoke.bad-nested-plugin","name":"Bad nested plugin"}' -Encoding UTF8
 
     $extract = Join-Path $SmokeRoot "candidate-extract-$releaseVersion"
     Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $extract | Out-Null
     Expand-Archive -LiteralPath $candidateZip -DestinationPath $extract -Force
-    robocopy $extract $upgradeRoot /E /XD Config Logs Reports 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    foreach ($name in @('Docs','Langs','Data','Plug-Ins')) {
+        $incoming = Join-Path $extract $name
+        $existing = Join-Path $upgradeRoot $name
+        if (Test-Path -LiteralPath $incoming) {
+            Remove-Item -LiteralPath $existing -Recurse -Force -ErrorAction SilentlyContinue
+            Copy-Item -LiteralPath $incoming -Destination $existing -Recurse -Force
+        }
+    }
+    if (Test-Path -LiteralPath (Join-Path $upgradeRoot 'Config\Update Backups')) {
+        $backupRoot = Join-Path $upgradeRoot 'Backups\Updates\release-smoke'
+        New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+        Compress-Archive -LiteralPath (Join-Path $upgradeRoot 'Config\Update Backups') -DestinationPath (Join-Path $backupRoot 'Legacy-Config-Update-Backups.zip') -Force
+        Remove-Item -LiteralPath (Join-Path $upgradeRoot 'Config\Update Backups') -Recurse -Force
+    }
+    robocopy $extract $upgradeRoot /E /XD Config Logs Reports Backups Docs Langs Data Plug-Ins 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
     if ($LASTEXITCODE -ge 8) {
         Fail "Local upgrade smoke copy failed. Robocopy exit code $LASTEXITCODE."
     }
     Assert-SmokeConfigPreserved $upgradeRoot $sentinel $releaseVersion
+    foreach ($nested in @('Plug-Ins\AsusRog\AsusRog', 'Docs\Docs', 'Langs\Langs', 'Data\Data', 'Plug-Ins\Plug-Ins')) {
+        if (Test-Path -LiteralPath (Join-Path $upgradeRoot $nested)) {
+            Fail "Local upgrade smoke left nested shipped folder live: $nested"
+        }
+    }
+    if (Test-Path -LiteralPath (Join-Path $upgradeRoot 'Config\Update Backups')) {
+        Fail "Local upgrade smoke left legacy Config\Update Backups live."
+    }
+    if (!(Test-Path -LiteralPath (Join-Path $upgradeRoot 'Backups\Updates\release-smoke\Legacy-Config-Update-Backups.zip'))) {
+        Fail "Local upgrade smoke did not move legacy update backups into top-level Backups."
+    }
+    $startupRepairNested = Join-Path $upgradeRoot 'Plug-Ins\AsusRog\AsusRog'
+    New-Item -ItemType Directory -Force -Path $startupRepairNested | Out-Null
+    Set-Content -LiteralPath (Join-Path $startupRepairNested 'plugin.json') -Value '{"id":"release-smoke.startup-repair-plugin","name":"Startup repair nested plugin"}' -Encoding UTF8
+    $startupRepairLegacy = Join-Path $upgradeRoot 'Config\Update Backups\startup-repair'
+    New-Item -ItemType Directory -Force -Path $startupRepairLegacy | Out-Null
+    Set-Content -LiteralPath (Join-Path $startupRepairLegacy 'legacy.txt') -Value 'startup repair legacy backup' -Encoding UTF8
     $report = Join-Path $upgradeRoot 'Reports\release-smoke-after-upgrade.txt'
     $p = Start-Process -FilePath (Join-Path $upgradeRoot 'Sensor Readout.exe') -ArgumentList @('--report-txt', $report) -WorkingDirectory $upgradeRoot -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $report)) {
         Fail "Upgraded smoke copy could not generate a report."
+    }
+    if (Test-Path -LiteralPath $startupRepairNested) {
+        Fail "Startup repair did not remove nested Plug-In folder."
+    }
+    if (Test-Path -LiteralPath (Join-Path $upgradeRoot 'Config\Update Backups')) {
+        Fail "Startup repair did not move legacy Config\Update Backups."
     }
 }
 
@@ -737,7 +780,7 @@ function Mirror-AppCopy([string]$target, [string]$description, [bool]$launchAfte
         Start-Sleep -Seconds 2
     }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
-    robocopy $portable $target /MIR /XD Config Logs Reports 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    robocopy $portable $target /MIR /XD Config Logs Reports Backups 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
     if ($LASTEXITCODE -ge 8) {
         Fail "Could not mirror $description. Robocopy exit code $LASTEXITCODE."
     }

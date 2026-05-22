@@ -61,6 +61,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             };
 
             rows.AddRange(ReadLenovoFanMethod(context, details));
+            rows.AddRange(ReadLenovoFanTestData(context, details));
             rows.AddRange(ReadWin32Fan(context, details));
             rows.AddRange(ReadAcpiThermalZones(context, details));
 
@@ -101,6 +102,14 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     }
 
                     row.Details["Lenovo plug-in mode"] = "Read-only";
+                    foreach (var detail in details)
+                    {
+                        var key = "Lenovo probe " + detail.Key;
+                        if (!row.Details.ContainsKey(key))
+                        {
+                            row.Details[key] = detail.Value;
+                        }
+                    }
                 }
             }
 
@@ -177,6 +186,86 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 if (context != null)
                 {
                     context.Log("Debug", "Lenovo WMI probe failed for root\\WMI\\LENOVO_FAN_METHOD." + methodName + ": " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static IEnumerable<SensorReading> ReadLenovoFanTestData(IPluginContext context, Dictionary<string, string> summaryDetails)
+        {
+            var rows = new List<SensorReading>();
+            const string scopePath = @"root\WMI";
+            const string className = "LENOVO_FAN_TEST_DATA";
+
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(scopePath, "SELECT * FROM " + className))
+                using (var instances = searcher.Get())
+                {
+                    var instanceCount = 0;
+                    foreach (ManagementObject instance in instances)
+                    {
+                        instanceCount++;
+                        var details = ReadDetails(instance);
+                        details["Namespace"] = scopePath;
+                        details["WMI class"] = className;
+
+                        var fanIds = ReadNumberList(details, "FanId");
+                        var minimums = ReadNumberList(details, "FanMinSpeed");
+                        var maximums = ReadNumberList(details, "FanMaxSpeed");
+                        var fanCount = FirstNumber(details, "NumOfFans");
+                        var count = Math.Max(fanIds.Count, Math.Max(minimums.Count, maximums.Count));
+                        if (count == 0 && fanCount.HasValue && fanCount.Value > 0 && fanCount.Value < 32)
+                        {
+                            count = (int)fanCount.Value;
+                        }
+
+                        for (var index = 0; index < count; index++)
+                        {
+                            var fanId = index < fanIds.Count ? fanIds[index] : index + 1;
+                            var min = index < minimums.Count ? minimums[index] : (double?)null;
+                            var max = index < maximums.Count ? maximums[index] : (double?)null;
+                            var rowDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            {
+                                { "Fan ID", FormatNumber(fanId) },
+                                { "Live speed", "Not exposed by this WMI class." }
+                            };
+                            if (min.HasValue)
+                            {
+                                rowDetails["Minimum fan speed"] = FormatNumber(min.Value) + " RPM";
+                            }
+                            if (max.HasValue)
+                            {
+                                rowDetails["Maximum fan speed"] = FormatNumber(max.Value) + " RPM";
+                            }
+
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Fan",
+                                Hardware = "Lenovo",
+                                Name = "Fan " + FormatNumber(fanId) + " capability",
+                                Identifier = StableIdentifier("lenovo/fan-test/" + fanId.ToString(CultureInfo.InvariantCulture)),
+                                DisplayValue = FormatFanCapability(min, max),
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = rowDetails
+                            });
+                        }
+                    }
+
+                    summaryDetails["LENOVO_FAN_TEST_DATA instances"] = instanceCount.ToString(CultureInfo.InvariantCulture);
+                    if (rows.Count > 0)
+                    {
+                        summaryDetails["LENOVO_FAN_TEST_DATA fan capabilities"] = rows.Count.ToString(CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["LENOVO_FAN_TEST_DATA error"] = ex.Message;
+                if (context != null)
+                {
+                    context.Log("Debug", "Lenovo WMI probe failed for root\\WMI\\LENOVO_FAN_TEST_DATA: " + ex.Message);
                 }
             }
 
@@ -455,6 +544,47 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             }
 
             return details;
+        }
+
+        private static List<double> ReadNumberList(Dictionary<string, string> details, string key)
+        {
+            var values = new List<double>();
+            string text;
+            if (!details.TryGetValue(key, out text) || string.IsNullOrWhiteSpace(text))
+            {
+                return values;
+            }
+
+            foreach (Match match in Regex.Matches(text, @"-?\d+(?:\.\d+)?"))
+            {
+                double value;
+                if (double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+                {
+                    values.Add(value);
+                }
+            }
+
+            return values;
+        }
+
+        private static string FormatFanCapability(double? min, double? max)
+        {
+            if (min.HasValue && max.HasValue)
+            {
+                return "No live speed exposed; range " + FormatNumber(min.Value) + "-" + FormatNumber(max.Value) + " RPM";
+            }
+
+            if (max.HasValue)
+            {
+                return "No live speed exposed; maximum " + FormatNumber(max.Value) + " RPM";
+            }
+
+            if (min.HasValue)
+            {
+                return "No live speed exposed; minimum " + FormatNumber(min.Value) + " RPM";
+            }
+
+            return "No live speed exposed";
         }
 
         private static Dictionary<string, string> ReadMethodDetails(ManagementBaseObject outParams)

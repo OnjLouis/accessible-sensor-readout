@@ -222,9 +222,12 @@ public sealed partial class SensorReadoutForm : Form
 
         var updateTemp = "Config" + Path.DirectorySeparatorChar + "Update Temp";
         var updateBackups = "Config" + Path.DirectorySeparatorChar + "Update Backups";
+        var backups = "Backups";
         return string.Equals(normalized, updateTemp, StringComparison.OrdinalIgnoreCase)
             || normalized.StartsWith(updateTemp + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
             || string.Equals(normalized, updateBackups, StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith(updateBackups + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            || normalized.StartsWith(updateBackups + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, backups, StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith(backups + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 }

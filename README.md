@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.7.0.
+Current version: 3.7.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -527,6 +527,11 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 3.7.1
+
+- Fixed: Automatic updates now replace shipped folders such as Plug-Ins, Docs, Langs, and Data cleanly instead of merging new files into old folders. This prevents duplicated plug-ins and stale shipped files after updating.
+- Fixed: Update backups now go into a top-level `Backups` folder as ZIP files, while `Config`, `Logs`, and `Reports` remain reserved for live settings, logs, and saved reports.
+- Fixed: Plug-In loading now ignores duplicate manifests and only scans the root Plug-Ins folder plus one folder per plug-in, preventing nested stale copies from being loaded twice.
 ### 3.7.0
 
 - Fixed: Manual refresh with `F5` now rebuilds USB and device inventory immediately, so newly plugged or unplugged USB devices can appear without restarting Sensor Readout.

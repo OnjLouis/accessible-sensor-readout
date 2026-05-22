@@ -124,10 +124,15 @@ public sealed partial class SensorReadoutForm : Form
         {
             settings = settings ?? new AppSettings();
             var infos = new List<PlugInPreferenceInfo>();
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var manifest in FindManifestPaths(folder))
             {
                 var descriptor = ReadDescriptor(manifest, null);
                 if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id))
+                {
+                    continue;
+                }
+                if (!seenIds.Add(descriptor.Id))
                 {
                     continue;
                 }
@@ -154,10 +159,15 @@ public sealed partial class SensorReadoutForm : Form
         {
             settings = settings ?? new AppSettings();
             var links = new List<PlugInHelpLink>();
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var manifest in FindManifestPaths(folder))
             {
                 var descriptor = ReadDescriptor(manifest, null);
                 if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id) || !IsEnabled(settings, descriptor))
+                {
+                    continue;
+                }
+                if (!seenIds.Add(descriptor.Id))
                 {
                     continue;
                 }
@@ -179,11 +189,17 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             loadedOnce = true;
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var manifest in FindManifestPaths(folder))
             {
                 var descriptor = ReadDescriptor(manifest, log);
                 if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id))
                 {
+                    continue;
+                }
+                if (!seenIds.Add(descriptor.Id))
+                {
+                    log("Warning", "Ignoring duplicate Plug-In manifest for " + descriptor.Id + ": " + manifest);
                     continue;
                 }
 
@@ -239,8 +255,23 @@ public sealed partial class SensorReadoutForm : Form
                 return Enumerable.Empty<string>();
             }
 
-            return Directory.GetFiles(folder, "plugin.json", SearchOption.AllDirectories)
-                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
+            var manifests = new List<string>();
+            var rootManifest = Path.Combine(folder, "plugin.json");
+            if (File.Exists(rootManifest))
+            {
+                manifests.Add(rootManifest);
+            }
+
+            foreach (var child in Directory.GetDirectories(folder, "*", SearchOption.TopDirectoryOnly))
+            {
+                var manifest = Path.Combine(child, "plugin.json");
+                if (File.Exists(manifest))
+                {
+                    manifests.Add(manifest);
+                }
+            }
+
+            return manifests.OrderBy(p => p, StringComparer.OrdinalIgnoreCase);
         }
 
         private static PlugInDescriptor ReadDescriptor(string manifest, Action<string, string> log)

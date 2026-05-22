@@ -196,7 +196,7 @@ if ($SelfTest) {
     New-Item -ItemType Directory -Force -Path $selfTestApp | Out-Null
     New-Item -ItemType Directory -Force -Path $selfTestOutput | Out-Null
 
-    robocopy $portable $selfTestApp /E /XD Config Logs Reports 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    robocopy $portable $selfTestApp /E /XD Config Logs Reports Backups 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
     if ($LASTEXITCODE -ge 8) {
         throw "Could not create self-test app copy. Robocopy exit code $LASTEXITCODE"
     }
