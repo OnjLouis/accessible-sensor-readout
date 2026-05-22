@@ -28,7 +28,20 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             if (!IsLenovoComputer(context))
             {
-                return Enumerable.Empty<SensorReading>();
+                var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                AddMachineIdentityDetails(context, details);
+                return new[]
+                {
+                    new SensorReading
+                    {
+                        Type = "Performance",
+                        Hardware = "Overview",
+                        Name = "Lenovo Plug-In",
+                        DisplayValue = "Enabled, but this computer was not detected as Lenovo",
+                        Source = "Lenovo Laptop Support Plug-In",
+                        Details = details
+                    }
+                };
             }
 
             if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < TimeSpan.FromSeconds(30))
@@ -47,8 +60,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var machine = context == null ? null : context.Machine;
             var manufacturer = machine == null ? "" : machine.Manufacturer ?? "";
             var model = machine == null ? "" : machine.Model ?? "";
-            return ContainsAny(manufacturer, "Lenovo", "ThinkPad")
-                || ContainsAny(model, "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ");
+            if (ContainsAny(manufacturer, "Lenovo", "ThinkPad")
+                || ContainsAny(model, "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ"))
+            {
+                return true;
+            }
+
+            return QueryWmiContains(@"root\cimv2", "SELECT Manufacturer, Model FROM Win32_ComputerSystem", "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ")
+                || QueryWmiContains(@"root\cimv2", "SELECT Vendor, Name, Version FROM Win32_ComputerSystemProduct", "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ")
+                || QueryWmiContains(@"root\cimv2", "SELECT Manufacturer, Product, Version FROM Win32_BaseBoard", "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ");
         }
 
         private static IEnumerable<SensorReading> ProbeLenovo(IPluginContext context)
@@ -528,6 +548,80 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             return ContainsAny(className, "Lenovo", "Thermal", "Temperature", "Temp")
                 || Regex.IsMatch(className ?? "", @"(^|[_\W])Fan($|[_\W])", RegexOptions.IgnoreCase);
+        }
+
+        private static bool QueryWmiContains(string scopePath, string query, params string[] needles)
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject instance in instances)
+                    {
+                        foreach (PropertyData property in instance.Properties)
+                        {
+                            if (property == null || property.Value == null)
+                            {
+                                continue;
+                            }
+
+                            if (ContainsAny(FormatWmiValue(property.Value), needles))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private static void AddMachineIdentityDetails(IPluginContext context, Dictionary<string, string> details)
+        {
+            var machine = context == null ? null : context.Machine;
+            if (machine != null)
+            {
+                details["Context manufacturer"] = machine.Manufacturer ?? "";
+                details["Context model"] = machine.Model ?? "";
+            }
+
+            AddFirstWmiIdentity(details, @"root\cimv2", "SELECT Manufacturer, Model FROM Win32_ComputerSystem", "Computer system");
+            AddFirstWmiIdentity(details, @"root\cimv2", "SELECT Vendor, Name, Version FROM Win32_ComputerSystemProduct", "Computer system product");
+            AddFirstWmiIdentity(details, @"root\cimv2", "SELECT Manufacturer, Product, Version FROM Win32_BaseBoard", "Baseboard");
+        }
+
+        private static void AddFirstWmiIdentity(Dictionary<string, string> details, string scopePath, string query, string label)
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject instance in instances)
+                    {
+                        foreach (PropertyData property in instance.Properties)
+                        {
+                            if (property == null || property.Value == null)
+                            {
+                                continue;
+                            }
+
+                            details[label + " " + property.Name] = FormatWmiValue(property.Value);
+                        }
+
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                details[label + " identity error"] = ex.Message;
+            }
         }
 
         private static Dictionary<string, string> ReadDetails(ManagementObject instance)

@@ -11,6 +11,9 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object deviceBatteryRowsLock = new object();
     private DateTime deviceBatteryRowsLastReadUtc = DateTime.MinValue;
     private List<SensorRow> cachedDeviceBatteryRows = new List<SensorRow>();
+    private readonly object wmiBatteryInfoLock = new object();
+    private DateTime wmiBatteryInfoLastReadUtc = DateTime.MinValue;
+    private Dictionary<int, WmiBatteryInfo> cachedWmiBatteryInfo = new Dictionary<int, WmiBatteryInfo>();
 
     private IEnumerable<SensorRow> GetBatteryRows()
     {
@@ -680,8 +683,16 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static Dictionary<int, WmiBatteryInfo> GetWmiBatteryInfo()
+    private Dictionary<int, WmiBatteryInfo> GetWmiBatteryInfo()
     {
+        lock (wmiBatteryInfoLock)
+        {
+            if ((DateTime.UtcNow - wmiBatteryInfoLastReadUtc).TotalSeconds < 60)
+            {
+                return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+            }
+        }
+
         var result = new Dictionary<int, WmiBatteryInfo>();
         try
         {
@@ -705,6 +716,34 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
+        }
+
+        lock (wmiBatteryInfoLock)
+        {
+            cachedWmiBatteryInfo = CloneWmiBatteryInfo(result);
+            wmiBatteryInfoLastReadUtc = DateTime.UtcNow;
+            return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+        }
+    }
+
+    private static Dictionary<int, WmiBatteryInfo> CloneWmiBatteryInfo(Dictionary<int, WmiBatteryInfo> source)
+    {
+        var result = new Dictionary<int, WmiBatteryInfo>();
+        foreach (var item in source ?? new Dictionary<int, WmiBatteryInfo>())
+        {
+            var value = item.Value;
+            if (value == null)
+            {
+                continue;
+            }
+
+            result[item.Key] = new WmiBatteryInfo
+            {
+                EstimatedChargeRemaining = value.EstimatedChargeRemaining,
+                BatteryStatus = value.BatteryStatus,
+                Status = value.Status,
+                RawDetails = CloneDetails(value.RawDetails)
+            };
         }
 
         return result;

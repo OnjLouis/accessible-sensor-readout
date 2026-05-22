@@ -166,6 +166,7 @@ public sealed partial class SensorReadoutForm : Form
         var lines = new List<string>();
         lines.Add(string.IsNullOrWhiteSpace(snapshot.Title) ? BuildReportTitle() : snapshot.Title);
         lines.Add("Generated " + (string.IsNullOrWhiteSpace(snapshot.GeneratedLocal) ? CurrentReportGeneratedLocal() : snapshot.GeneratedLocal));
+        lines.Add("Sensor Readout version: " + ReportAppVersion(snapshot));
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             lines.Add(timingLine);
@@ -218,6 +219,7 @@ public sealed partial class SensorReadoutForm : Form
         html.AppendLine("</head><body>");
         html.AppendLine("<h1>" + HtmlEncode(title) + "</h1>");
         html.AppendLine("<p>Generated " + HtmlEncode(string.IsNullOrWhiteSpace(snapshot.GeneratedLocal) ? CurrentReportGeneratedLocal() : snapshot.GeneratedLocal) + "</p>");
+        html.AppendLine("<p>Sensor Readout version: " + HtmlEncode(ReportAppVersion(snapshot)) + "</p>");
         if (!string.IsNullOrWhiteSpace(timingLine))
         {
             html.AppendLine("<p>" + HtmlEncode(timingLine) + "</p>");
@@ -232,6 +234,11 @@ public sealed partial class SensorReadoutForm : Form
         html.AppendLine("<script type=\"application/sensor-readout-report\" id=\"sensor-readout-report-data\">" + EncodeReportSnapshot(snapshot) + "</script>");
         html.AppendLine("</body></html>");
         return html.ToString();
+    }
+
+    private static string ReportAppVersion(ReportSnapshot snapshot)
+    {
+        return snapshot == null || string.IsNullOrWhiteSpace(snapshot.AppVersion) ? AppVersion : snapshot.AppVersion;
     }
 
     private IEnumerable<IGrouping<string, SensorRow>> ReportTypeGroups()

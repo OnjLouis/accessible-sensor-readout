@@ -356,10 +356,36 @@ public sealed partial class SensorReadoutForm : Form
         lines.Add("64-bit process: " + Environment.Is64BitProcess);
         lines.Add("Administrator: " + (IsAdministrator() ? "yes" : "no"));
         lines.Add("Language file: " + (string.IsNullOrWhiteSpace(settings.LanguageFile) ? "automatic/default" : settings.LanguageFile));
+        AddDiagnosticPlugInSummary(lines);
         lines.Add("Logging was temporarily set to Debug for this diagnostic run.");
         lines.Add("");
         lines.AddRange(details ?? new List<string>());
         return lines;
+    }
+
+    private void AddDiagnosticPlugInSummary(List<string> lines)
+    {
+        try
+        {
+            var plugIns = LoadPlugInPreferenceInfos(settings);
+            if (plugIns.Count == 0)
+            {
+                lines.Add("Plug-ins: none found");
+                return;
+            }
+
+            lines.Add("Plug-ins:");
+            foreach (var plugIn in plugIns)
+            {
+                var name = string.IsNullOrWhiteSpace(plugIn.Name) ? plugIn.Id : plugIn.Name;
+                var version = string.IsNullOrWhiteSpace(plugIn.Version) ? "" : " " + plugIn.Version;
+                lines.Add("  " + name + version + ": " + (plugIn.Enabled ? "enabled" : "disabled"));
+            }
+        }
+        catch (Exception ex)
+        {
+            lines.Add("Plug-ins: could not read plug-in state (" + ex.Message + ")");
+        }
     }
 
     private static void AddRowSummary(List<string> lines, List<SensorRow> rows)

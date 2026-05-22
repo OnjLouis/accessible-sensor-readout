@@ -384,6 +384,7 @@ public sealed partial class SensorReadoutForm : Form
             return new List<SensorRow>();
         }
 
+        EnsureCoreWmiAvailable("slow hardware refresh");
         var rows = GetWindowsSmartRows()
             .Concat(GetUsbRowsWithDiagnostics())
             .Concat(GetAudioRows())

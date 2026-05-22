@@ -1,0 +1,19 @@
+{
+  "id": "sensorreadout.msi.laptop.experimental",
+  "name": "MSI Laptop Support (experimental)",
+  "version": "0.1.0",
+  "author": "Sensor Readout",
+  "description": "Experimental, opt-in MSI laptop support. Checks MSI ACPI WMI, Windows fan, and ACPI thermal zone interfaces for extra fan, fan-control, or temperature data.",
+  "assembly": "MsiLaptopPlugIn.dll",
+  "type": "SensorReadout.MsiLaptopPlugIn.MsiLaptopPlugIn",
+  "helpLinks": [
+    {
+      "label": "MSI &Center page",
+      "url": "https://www.msi.com/Landing/MSI-Center"
+    },
+    {
+      "label": "MSI &support page",
+      "url": "https://www.msi.com/support"
+    }
+  ]
+}

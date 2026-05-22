@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.7.1";
+    public const string AppVersion = "3.8.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -96,6 +96,8 @@ public sealed partial class SensorReadoutForm : Form
     private PreferencesForm openPreferencesDialog;
     private readonly HotKeyWindow hotKeyWindow;
     private readonly Dictionary<string, NetworkSnapshot> networkSnapshots = new Dictionary<string, NetworkSnapshot>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CachedDetailSnapshot> networkWmiDetailsCache = new Dictionary<string, CachedDetailSnapshot>(StringComparer.OrdinalIgnoreCase);
+    private readonly object networkWmiDetailsCacheLock = new object();
     private readonly Dictionary<string, LogicalDiskPerformanceCounters> logicalDiskCounters = new Dictionary<string, LogicalDiskPerformanceCounters>(StringComparer.OrdinalIgnoreCase);
     private readonly object logicalDiskCountersLock = new object();
     private readonly Dictionary<string, int> lastAppliedFanCurvePercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

@@ -625,11 +625,13 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.Focus();
     }
 
-    private static List<ReadingTreeItem> BuildReadingTree(List<SensorRow> rows, DeviceFilter filter)
+    private List<ReadingTreeItem> BuildReadingTree(List<SensorRow> rows, DeviceFilter filter)
     {
         if (rows.Count == 0)
         {
-            var loadingText = T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.");
+            var loadingText = reportViewMode
+                ? T("message.staticReportCategoryEmpty", "This static report does not contain readings for this category.")
+                : T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.");
             if (filter != null && !string.IsNullOrWhiteSpace(filter.Type))
             {
                 loadingText = DisplayTypeName(filter.Type) + ": " + loadingText;

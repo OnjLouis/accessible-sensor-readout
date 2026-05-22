@@ -49,6 +49,12 @@ public sealed partial class SensorReadoutForm : Form
         public string InterfaceType;
     }
 
+    private sealed class CachedDetailSnapshot
+    {
+        public DateTime TimestampUtc;
+        public Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct StoragePropertyQueryWithProtocol
     {
@@ -1066,6 +1072,9 @@ public sealed partial class SensorReadoutForm : Form
     private static Dictionary<string, Dictionary<string, string>> cachedPhysicalDiskDetailsByHardware;
     private static Dictionary<string, Dictionary<string, string>> cachedLogicalDiskDetailsByRoot;
     private static DateTime cachedStorageTopologyDetailsUtc = DateTime.MinValue;
+    private static readonly object gpuTotalMemoryCacheLock = new object();
+    private static DateTime cachedGpuTotalMemoryUtc = DateTime.MinValue;
+    private static double cachedGpuTotalMemoryBytes = -1;
 
     private IEnumerable<SensorRow> GetSystemPerformanceRows()
     {
@@ -1204,6 +1213,14 @@ public sealed partial class SensorReadoutForm : Form
 
     private static double GetTotalGpuAdapterMemoryBytes()
     {
+        lock (gpuTotalMemoryCacheLock)
+        {
+            if (cachedGpuTotalMemoryBytes >= 0 && (DateTime.UtcNow - cachedGpuTotalMemoryUtc).TotalMinutes < 10)
+            {
+                return cachedGpuTotalMemoryBytes;
+            }
+        }
+
         double total = 0;
         try
         {
@@ -1221,6 +1238,12 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
+        }
+
+        lock (gpuTotalMemoryCacheLock)
+        {
+            cachedGpuTotalMemoryBytes = total;
+            cachedGpuTotalMemoryUtc = DateTime.UtcNow;
         }
 
         return total;
@@ -4276,7 +4299,7 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static Dictionary<string, string> BuildNetworkAdapterDetails(NetworkInterface adapter, string macAddress, string macVendor, IPv4InterfaceStatistics stats, IPInterfaceProperties properties)
+    private Dictionary<string, string> BuildNetworkAdapterDetails(NetworkInterface adapter, string macAddress, string macVendor, IPv4InterfaceStatistics stats, IPInterfaceProperties properties)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (adapter == null)
@@ -4358,29 +4381,37 @@ public sealed partial class SensorReadoutForm : Form
         return details;
     }
 
-    private static void AddNetworkAdapterWmiDetails(Dictionary<string, string> details, string adapterId)
+    private void AddNetworkAdapterWmiDetails(Dictionary<string, string> details, string adapterId)
     {
         if (details == null || string.IsNullOrWhiteSpace(adapterId))
         {
             return;
         }
 
+        Dictionary<string, string> cached;
+        if (TryGetCachedNetworkWmiDetails(adapterId, out cached))
+        {
+            AddDetailsInPlace(details, cached);
+            return;
+        }
+
+        var wmiDetails = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE SettingID='" + EscapeWmiQueryString(adapterId) + "'"))
             {
                 foreach (ManagementObject config in searcher.Get())
                 {
-                    AddDetail(details, "WMI DHCP enabled", FormatYesNo(GetWmiPropertyValue(config, "DHCPEnabled")));
-                    AddDetail(details, "WMI DHCP server", GetWmiPropertyText(config, "DHCPServer"));
-                    AddDetail(details, "WMI DNS domain", GetWmiPropertyText(config, "DNSDomain"));
-                    AddDetail(details, "WMI DNS host name", GetWmiPropertyText(config, "DNSHostName"));
-                    AddDetail(details, "WMI DNS server search order", FormatWmiDetailValue(GetWmiPropertyValue(config, "DNSServerSearchOrder")));
-                    AddDetail(details, "WMI default gateway", FormatWmiDetailValue(GetWmiPropertyValue(config, "DefaultIPGateway")));
-                    AddDetail(details, "WMI IP addresses", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPAddress")));
-                    AddDetail(details, "WMI IP subnets", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPSubnet")));
-                    AddDetail(details, "WMI MAC address", GetWmiPropertyText(config, "MACAddress"));
-                    AddRawWmiDetails(details, "Network configuration WMI", config);
+                    AddDetail(wmiDetails, "WMI DHCP enabled", FormatYesNo(GetWmiPropertyValue(config, "DHCPEnabled")));
+                    AddDetail(wmiDetails, "WMI DHCP server", GetWmiPropertyText(config, "DHCPServer"));
+                    AddDetail(wmiDetails, "WMI DNS domain", GetWmiPropertyText(config, "DNSDomain"));
+                    AddDetail(wmiDetails, "WMI DNS host name", GetWmiPropertyText(config, "DNSHostName"));
+                    AddDetail(wmiDetails, "WMI DNS server search order", FormatWmiDetailValue(GetWmiPropertyValue(config, "DNSServerSearchOrder")));
+                    AddDetail(wmiDetails, "WMI default gateway", FormatWmiDetailValue(GetWmiPropertyValue(config, "DefaultIPGateway")));
+                    AddDetail(wmiDetails, "WMI IP addresses", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPAddress")));
+                    AddDetail(wmiDetails, "WMI IP subnets", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPSubnet")));
+                    AddDetail(wmiDetails, "WMI MAC address", GetWmiPropertyText(config, "MACAddress"));
+                    AddRawWmiDetails(wmiDetails, "Network configuration WMI", config);
                 }
             }
         }
@@ -4394,12 +4425,61 @@ public sealed partial class SensorReadoutForm : Form
             {
                 foreach (ManagementObject adapter in searcher.Get())
                 {
-                    AddRawWmiDetails(details, "Network adapter WMI", adapter);
+                    AddRawWmiDetails(wmiDetails, "Network adapter WMI", adapter);
                 }
             }
         }
         catch
         {
+        }
+
+        CacheNetworkWmiDetails(adapterId, wmiDetails);
+        AddDetailsInPlace(details, wmiDetails);
+    }
+
+    private bool TryGetCachedNetworkWmiDetails(string adapterId, out Dictionary<string, string> details)
+    {
+        details = null;
+        lock (networkWmiDetailsCacheLock)
+        {
+            CachedDetailSnapshot snapshot;
+            if (networkWmiDetailsCache.TryGetValue(adapterId, out snapshot) &&
+                snapshot != null &&
+                (DateTime.UtcNow - snapshot.TimestampUtc).TotalMinutes < 5)
+            {
+                details = CloneDetails(snapshot.Details);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CacheNetworkWmiDetails(string adapterId, Dictionary<string, string> details)
+    {
+        lock (networkWmiDetailsCacheLock)
+        {
+            networkWmiDetailsCache[adapterId] = new CachedDetailSnapshot
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Details = CloneDetails(details)
+            };
+        }
+    }
+
+    private static void AddDetailsInPlace(Dictionary<string, string> target, Dictionary<string, string> source)
+    {
+        if (target == null || source == null)
+        {
+            return;
+        }
+
+        foreach (var item in source)
+        {
+            if (!string.IsNullOrWhiteSpace(item.Key) && !target.ContainsKey(item.Key))
+            {
+                target[item.Key] = item.Value;
+            }
         }
     }
 

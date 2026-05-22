@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.7.1.
+Current version: 3.8.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -316,7 +316,7 @@ When an enabled plug-in includes related support pages, those links appear in th
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-Experimental HP, Dell Latitude, Lenovo Laptop, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
+Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -427,6 +427,8 @@ Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout T
 
 The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.
 
+Notification-area status and spoken hotkeys read from the loaded report while a report is open. Sensor Readout announces that the values are from a static report, and if a configured reading is not present in that report it says so instead of suggesting that live sensor data is still loading.
+
 Details and copy commands still work where the report contains the relevant fields. This is useful when someone sends a USB, audio, display, network, fan, battery, or SMART report and you want to inspect specific rows without reading the whole file manually.
 
 Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. HTML reports saved by Sensor Readout 2.0 or later contain a hidden machine-readable snapshot for the best import experience. TXT reports include the same reopen data after a clearly labelled internal-data line, wrapped into short lines so the readable report stays practical in text editors.
@@ -473,6 +475,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
 - `Plug-Ins\AsusRog`: experimental optional Asus laptop plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
+- `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
 - Users can add third-party plug-ins in their own subfolders.
 
 Language files:
@@ -508,7 +511,7 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 
 ### Laptop Brand Plug-Ins
 
-Framework, Dell, Lenovo, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
+Framework, Dell, Lenovo, MSI, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
 
 Framework Laptop users should also prepare Framework Control before reporting missing Framework readings:
 
@@ -519,13 +522,22 @@ Framework Laptop users should also prepare Framework Control before reporting mi
 5. Open `Options` > `Preferences` > `Plug-Ins`, enable the Framework Laptop plug-in, and close Preferences.
 6. Framework readings should appear as `Framework Control` temperature and fan rows when the local API is available.
 
-Dell, Lenovo, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
+Dell, Lenovo, MSI, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
 
-Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
+Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications). MSI users can try [MSI Center](https://www.msi.com/Landing/MSI-Center). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.8.0
+
+- Fixed: Live refresh now avoids repeated WMI queries for network adapter details, GPU memory totals, and battery metadata, reducing sustained `WmiPrvSE.exe` CPU use on lower-powered systems while keeping those details available.
+- Fixed: When elevated, Sensor Readout can now make one recovery attempt if core Windows WMI gets stuck with the specific "paging file is too small" failure that can otherwise leave USB, Devices, Battery, and other Windows-backed sections blank.
+- Fixed: Plug-ins can now load correctly from extracted downloaded ZIP builds when Windows marks the files as downloaded from the internet.
+- Added: Experimental MSI Laptop Support plug-in for opt-in tester feedback. It checks MSI ACPI WMI, Windows fan, and ACPI thermal-zone interfaces for extra fan, fan-control, or temperature data where a laptop exposes it.
+- Improved: Saved TXT and HTML reports now show the Sensor Readout version near the top of the report, making support builds easier to identify.
+- Improved: Notification-area status and spoken hotkeys now clearly announce when they are reading from a loaded static report, and report categories or hotkey readings that are absent from the report no longer imply that live data is still loading.
 
 ### 3.7.1
 

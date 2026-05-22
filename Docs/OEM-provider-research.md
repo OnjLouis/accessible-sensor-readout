@@ -17,10 +17,10 @@ This is a development note, not user-facing release documentation. The goal is t
 
 - `GetOemProviderRows()` aggregates OEM-specific rows.
 - `GetMachineIdentity()` caches `Win32_ComputerSystem` manufacturer/model.
-- `IsFrameworkComputer()`, `IsHpOmenComputer()`, and `IsAsusComputer()` centralize targeting.
-- Framework EC and Framework Control API now sit behind the OEM provider seam.
-- HP OMEN/Victus has an experimental opt-in Plug-In that performs a read-only WMI capability probe and reports diagnostic status only.
-- ASUS was researched through G-Helper, but no user-facing Plug-In is shipped because the useful integration points are not currently exposed through a supported external interface.
+- Framework, HP, Dell, ASUS, Lenovo, and MSI hardware support lives in optional Plug-Ins, disabled by default.
+- Framework EC and Framework Control API now sit behind the Plug-In seam.
+- HP OMEN/Victus, Dell, and Lenovo Plug-Ins are read-only probes for tester feedback. MSI is opt-in and can expose fan-table controls on compatible models.
+- ASUS support is experimental, opt-in, and documented separately because it includes G-Helper-derived ACPI research and limited fan-control attempts.
 
 ## Framework
 
@@ -38,7 +38,7 @@ Notes:
 
 ## HP OMEN / Victus
 
-Status: researched, not shipped.
+Status: experimental Plug-In shipped for tester feedback. It is disabled by default and read-only.
 
 Sources:
 
@@ -128,7 +128,7 @@ Next safe step:
 
 ## Lenovo Legion
 
-Status: candidate for later research.
+Status: experimental Lenovo Laptop Plug-In shipped for tester feedback. It is disabled by default and read-only.
 
 Likely sources:
 
@@ -138,6 +138,37 @@ Likely sources:
 Next safe step:
 
 - Identify whether Lenovo Legion Toolkit exposes a stable command line, IPC, or documented API before considering direct EC access.
+
+## MSI laptops
+
+Status: experimental MSI Laptop Plug-In prepared for opt-in tester feedback. It is disabled by default and exposes MSI ACPI fan-table controls on compatible models.
+
+Sources:
+
+- MSI support directs fan setup through MSI Center / Cooling Wizard.
+- Linux `msi-wmi-platform` documentation describes a Windows ACPI WMI class named `MSI_ACPI`, with a read method `Get_Fan` returning up to four fan tachometer readings.
+
+Observed Windows interface:
+
+- WMI namespace: `root\WMI`
+- Class: `MSI_ACPI`
+- Package class: `Package_32`
+- Method: `Get_Fan`
+- Output: firmware status byte followed by up to four 16-bit fan tachometer readings.
+- RPM formula from the public WMI platform notes: `RPM = 480000 / raw tachometer reading`.
+- Candidate write methods from public Linux platform-driver work: `Set_Fan` writes CPU/GPU fan tables through subfeatures `0x01` and `0x02`; `Set_AP` changes fan-table mode through subfeature `0x01` and bit `0x80`.
+
+Risk:
+
+- MSI fan control and EC writes are model-specific. Sensor Readout only exposes MSI fan-table controls after the user enables the MSI plug-in, and manual writes capture the current table/mode so automatic/default can restore it when available.
+- The tester write path writes a flat six-point CPU/GPU fan table, enables MSI fan-table mode, and attempts to restore the original table and AP mode. It must stay out of public/default behavior until tester diagnostics prove that 100% and restore both work safely.
+- If `MSI_ACPI` is absent or returns no usable readings, the Plug-In should report a clear diagnostic status row rather than inventing fan rows.
+
+Next safe step:
+
+- Ask MSI testers to enable `MSI Laptop Support (experimental)`, send diagnostics, and confirm whether `MSI_ACPI` exists and returns sane RPM values.
+- For HAMISHMSI-style controlled tests, ask the tester to enable the MSI plug-in, run diagnostics, and review whether the diagnostic fan-control test reports `Set ... to 100%: OK` and restore `OK`.
+- Ship MSI fan control publicly only after tester reports show both accepted writes and successful restore.
 
 ## Dell / Alienware
 

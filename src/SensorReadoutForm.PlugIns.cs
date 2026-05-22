@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Management;
@@ -80,15 +81,22 @@ public sealed partial class SensorReadoutForm : Form
                 try
                 {
                     var context = new PlugInContext(machine, plugIn.Directory, log);
+                    var before = rows.Count;
                     rows.AddRange((plugIn.Instance.GetReadings(context) ?? Enumerable.Empty<SensorReading>())
                         .Where(r => r != null)
                         .Select(r => ToSensorRow(r, plugIn)));
+                    log("Debug", "Plug-In " + plugIn.Id + " returned " + (rows.Count - before).ToString(CultureInfo.InvariantCulture) + " rows.");
                 }
                 catch (Exception ex)
                 {
                     plugIn.Status = "Failed: " + ex.Message;
                     log("Error", "Plug-In " + plugIn.Id + " failed while collecting rows: " + ex.Message);
                 }
+            }
+
+            foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance == null))
+            {
+                log("Debug", "Plug-In " + plugIn.Id + " is enabled but has no loaded instance. Status: " + plugIn.Status + ".");
             }
 
             return rows;
@@ -189,9 +197,11 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             loadedOnce = true;
+            var manifestCount = 0;
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var manifest in FindManifestPaths(folder))
             {
+                manifestCount++;
                 var descriptor = ReadDescriptor(manifest, log);
                 if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id))
                 {
@@ -214,6 +224,7 @@ public sealed partial class SensorReadoutForm : Form
                 loaded.Add(plugIn);
                 if (!plugIn.Enabled)
                 {
+                    log("Debug", "Plug-In " + descriptor.Id + ": disabled.");
                     continue;
                 }
 
@@ -245,6 +256,11 @@ public sealed partial class SensorReadoutForm : Form
                     plugIn.Status = "Failed: " + ex.Message;
                     log("Error", "Plug-In " + descriptor.Id + " failed to load: " + ex.Message);
                 }
+            }
+
+            if (manifestCount == 0)
+            {
+                log("Debug", "No Plug-In manifests found in " + folder + ".");
             }
         }
 

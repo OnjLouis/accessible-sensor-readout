@@ -132,6 +132,14 @@ public sealed partial class SensorReadoutForm : Form
             if (registeredFanProfileHotKeys.TryGetValue(id, out fanProfile))
             {
                 LogMessage("Debug", "Fan profile hotkey pressed: " + (fanProfile == null ? "" : fanProfile.Name));
+                if (reportViewMode)
+                {
+                    var message = T("speech.fanProfilesUnavailableInReport", "Fan profile hotkeys are unavailable while viewing a static report. Return to live readings first.");
+                    SpeakTextWithScreenReader(message, "fan profile hotkey");
+                    statusLabel.Text = message;
+                    return true;
+                }
+
                 ApplyFanProfile(fanProfile, true);
                 return true;
             }
@@ -747,14 +755,37 @@ public sealed partial class SensorReadoutForm : Form
         return BuildSpeechStatusText(GetTrayStatusRows());
     }
 
+    private string StaticReportSpeechPrefix()
+    {
+        var reportTitle = ReportWindowTitleText();
+        var prefix = string.IsNullOrWhiteSpace(reportTitle)
+            ? T("speech.staticReportPrefix", "Static report:")
+            : string.Format(T("speech.staticReportForPrefix", "Static report for {0}:"), reportTitle);
+        return prefix.TrimEnd() + " ";
+    }
+
+    private string StaticReportMissingReadingsMessage()
+    {
+        var reportTitle = ReportWindowTitleText();
+        return string.IsNullOrWhiteSpace(reportTitle)
+            ? T("speech.staticReportMissingReadings", "This static report does not contain the selected readings.")
+            : string.Format(T("speech.staticReportForMissingReadings", "The static report for {0} does not contain the selected readings."), reportTitle);
+    }
+
     private List<SensorRow> GetTrayStatusRows()
     {
         var selectedKeys = settings.TrayItemKeys ?? new List<string>();
+        var hasConfiguredKeys = selectedKeys.Any(k => !string.IsNullOrWhiteSpace(k));
         var selectedRows = selectedKeys
             .Select(FindTrayRowByKey)
             .Where(r => r != null)
             .Take(MaxTrayStatusReadings)
             .ToList();
+
+        if (reportViewMode && hasConfiguredKeys)
+        {
+            return selectedRows;
+        }
 
         if (selectedRows.Count == 0)
         {
@@ -1105,13 +1136,16 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (selectedRows == null || selectedRows.Count == 0)
         {
-            return T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
+            return reportViewMode
+                ? StaticReportMissingReadingsMessage()
+                : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
         }
 
         var items = selectedRows.Select(r => ShortSpeechReadingText(r, settings.SpeechIncludesDeviceNames, settings.ReadingSpeechLabels)).ToList();
-        return settings.SpeechIncludesDeviceNames
+        var text = settings.SpeechIncludesDeviceNames
             ? string.Join("; ", items.ToArray())
             : CompactRepeatedSpeechLabels(items);
+        return reportViewMode ? StaticReportSpeechPrefix() + text : text;
     }
 
     private static string ShortSpeechReadingText(SensorRow row, bool includeHardwareName, Dictionary<string, string> speechLabels)
@@ -1184,7 +1218,7 @@ public sealed partial class SensorReadoutForm : Form
         var count = selectedRows == null ? 0 : selectedRows.Count;
         if (count <= 0)
         {
-            return ShortenTrayText(T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), true);
+            return ShortenTrayText(reportViewMode ? StaticReportMissingReadingsMessage() : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), true);
         }
 
         if (!settings.TrayTooltipShowsPartialReadings)

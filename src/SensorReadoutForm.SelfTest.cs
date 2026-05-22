@@ -324,6 +324,21 @@ public sealed partial class SensorReadoutForm : Form
         LoadReportFile(html);
         Require(reportViewMode, "HTML report did not enter report view.");
         Require(latestRows.Count > 0, "Report view has no rows.");
+        var reportSpeech = BuildCurrentSpeechStatusText();
+        Require(reportSpeech.IndexOf("static report", StringComparison.OrdinalIgnoreCase) >= 0,
+            "Report-mode hotkey speech did not identify static report data.");
+        var previousTrayKeys = settings.TrayItemKeys == null ? new List<string>() : new List<string>(settings.TrayItemKeys);
+        settings.TrayItemKeys = new List<string> { "Missing|Report|Reading|self-test" };
+        reportSpeech = BuildCurrentSpeechStatusText();
+        Require(reportSpeech.IndexOf("does not contain", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            reportSpeech.IndexOf("wait", StringComparison.OrdinalIgnoreCase) < 0,
+            "Report-mode missing hotkey rows used live-data waiting wording.");
+        settings.TrayItemKeys = previousTrayKeys;
+        var emptyReportItems = BuildReadingTree(new List<SensorRow>(), new DeviceFilter { Type = "Fan" });
+        Require(emptyReportItems.Count == 1 &&
+            emptyReportItems[0].Text.IndexOf("static report", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            emptyReportItems[0].Text.IndexOf("refresh", StringComparison.OrdinalIgnoreCase) < 0,
+            "Report-mode empty category used live-refresh wording.");
         ReturnToLiveReadings();
 
         var zip = Path.Combine(outputFolder, "self-test-report.zip");
