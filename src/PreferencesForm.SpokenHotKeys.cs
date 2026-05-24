@@ -304,8 +304,8 @@ public sealed partial class PreferencesForm : Form
 
         presets.Add(new SpokenHotKeyPresetChoice
         {
-            Name = name,
-            Description = description,
+            Name = SensorReadoutForm.L("ui.Spoken hotkey preset " + name, name),
+            Description = SensorReadoutForm.L("ui.Spoken hotkey preset description " + name, description),
             ReadingKeys = keys
         });
     }

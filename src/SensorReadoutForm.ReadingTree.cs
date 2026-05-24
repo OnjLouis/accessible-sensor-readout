@@ -829,7 +829,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         foreach (var hardwareGroup in rows
             .GroupBy(r => ShortHardwareName(r.Hardware))
-            .OrderBy(g => g.Key))
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
         {
             var hardwareItem = new ReadingTreeItem
             {
@@ -851,6 +851,16 @@ public sealed partial class SensorReadoutForm : Form
             var overviewItem = new ReadingTreeItem { Key = "performance|overview", Text = T("group.Overview", "Overview") };
             AddOverviewGroups(overviewItem, overviewRows);
             parent.Children.Add(overviewItem);
+        }
+
+        var dataSourceRows = rows
+            .Where(IsDataSourceSummaryRow)
+            .ToList();
+        if (dataSourceRows.Count > 0)
+        {
+            var dataSourcesItem = new ReadingTreeItem { Key = "performance|data-sources", Text = T("ui.Data sources", "Data sources") };
+            AddReadingRows(dataSourcesItem, dataSourceRows);
+            parent.Children.Add(dataSourcesItem);
         }
 
         var systemRows = rows
@@ -905,7 +915,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var storageRows = rows
-            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r))
+            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsDataSourceSummaryRow(r) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r))
             .ToList();
         if (storageRows.Count > 0)
         {
@@ -913,6 +923,24 @@ public sealed partial class SensorReadoutForm : Form
             AddHardwareGroups(storageItem, storageRows);
             parent.Children.Add(storageItem);
         }
+    }
+
+    private static bool IsDataSourceSummaryRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.Identifier) &&
+            row.Identifier.StartsWith("data-source/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var hardware = ShortHardwareName(row.Hardware);
+        return string.Equals(hardware, T("ui.Data sources", "Data sources"), StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(hardware, "Data sources", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddPrinterGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)

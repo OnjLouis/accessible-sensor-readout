@@ -567,7 +567,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             foreach (var drive in System.IO.DriveInfo.GetDrives())
             {
-                if (drive.DriveType != System.IO.DriveType.Fixed || !drive.IsReady || drive.TotalSize <= 0)
+                if (!ShouldIncludeLogicalDiskDrive(drive) || drive.TotalSize <= 0)
                 {
                     continue;
                 }
@@ -577,6 +577,7 @@ public sealed partial class SensorReadoutForm : Form
                 var usedPercent = usedBytes / (double)drive.TotalSize * 100.0;
                 var freePercent = freeBytes / (double)drive.TotalSize * 100.0;
                 var hardware = GetLogicalDiskHardwareName(drive);
+                var details = BuildDriveInfoDetails(drive);
 
                 rows.Add(new SensorRow
                 {
@@ -584,7 +585,8 @@ public sealed partial class SensorReadoutForm : Form
                     Hardware = hardware,
                     Name = "Total space",
                     DisplayValue = FormatBytes(drive.TotalSize),
-                    Source = "Windows Logical Disk"
+                    Source = "Windows Logical Disk",
+                    Details = CloneDetails(details)
                 });
 
                 rows.Add(new SensorRow
@@ -594,7 +596,8 @@ public sealed partial class SensorReadoutForm : Form
                     Name = "Used space",
                     Value = (float)usedPercent,
                     DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
-                    Source = "Windows Logical Disk"
+                    Source = "Windows Logical Disk",
+                    Details = CloneDetails(details)
                 });
 
                 rows.Add(new SensorRow
@@ -604,7 +607,8 @@ public sealed partial class SensorReadoutForm : Form
                     Name = "Free space",
                     Value = (float)freePercent,
                     DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
-                    Source = "Windows Logical Disk"
+                    Source = "Windows Logical Disk",
+                    Details = CloneDetails(details)
                 });
             }
         }
@@ -630,6 +634,67 @@ public sealed partial class SensorReadoutForm : Form
         return string.IsNullOrWhiteSpace(label) ? root : root + " " + label;
     }
 
+    private static bool ShouldIncludeLogicalDiskDrive(System.IO.DriveInfo drive)
+    {
+        if (drive == null || !drive.IsReady)
+        {
+            return false;
+        }
+
+        return drive.DriveType == System.IO.DriveType.Fixed ||
+            drive.DriveType == System.IO.DriveType.Removable;
+    }
+
+    private static Dictionary<string, string> BuildDriveInfoDetails(System.IO.DriveInfo drive)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (drive == null)
+        {
+            return details;
+        }
+
+        AddDetail(details, "Drive root", drive.Name);
+        AddDetail(details, "Drive type", FormatDriveType(drive.DriveType));
+        try
+        {
+            AddDetail(details, "Drive label", drive.VolumeLabel);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            AddDetail(details, "Drive format", drive.DriveFormat);
+        }
+        catch
+        {
+        }
+
+        return details;
+    }
+
+    private static string FormatDriveType(System.IO.DriveType type)
+    {
+        switch (type)
+        {
+            case System.IO.DriveType.Fixed:
+                return "Fixed";
+            case System.IO.DriveType.Removable:
+                return "Removable";
+            case System.IO.DriveType.CDRom:
+                return "Optical";
+            case System.IO.DriveType.Network:
+                return "Network";
+            case System.IO.DriveType.Ram:
+                return "RAM disk";
+            case System.IO.DriveType.NoRootDirectory:
+                return "No root directory";
+            default:
+                return "Unknown";
+        }
+    }
+
     private IEnumerable<SensorRow> GetLogicalDiskPerformanceRows()
     {
         var rows = new List<SensorRow>();
@@ -637,7 +702,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             foreach (var drive in System.IO.DriveInfo.GetDrives())
             {
-                if (drive.DriveType != System.IO.DriveType.Fixed || !drive.IsReady)
+                if (!ShouldIncludeLogicalDiskDrive(drive))
                 {
                     continue;
                 }
@@ -655,6 +720,7 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 var hardware = GetLogicalDiskHardwareName(drive);
+                var details = BuildDriveInfoDetails(drive);
                 float readBytes;
                 float writeBytes;
                 float readActivity;
@@ -662,11 +728,11 @@ public sealed partial class SensorReadoutForm : Form
                 float totalActivity;
                 if (TryReadLogicalDiskPerformanceCounters(instance, counters, out readBytes, out writeBytes, out readActivity, out writeActivity, out totalActivity))
                 {
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read rate", Identifier = "logicaldisk/" + instance + "/read", Value = readBytes, DisplayValue = FormatBytesPerSecond(readBytes), Source = "Windows Logical Disk" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write rate", Identifier = "logicaldisk/" + instance + "/write", Value = writeBytes, DisplayValue = FormatBytesPerSecond(writeBytes), Source = "Windows Logical Disk" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read activity", Identifier = "logicaldisk/" + instance + "/read-activity", Value = readActivity, DisplayValue = FormatNumber(Math.Round(readActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write activity", Identifier = "logicaldisk/" + instance + "/write-activity", Value = writeActivity, DisplayValue = FormatNumber(Math.Round(writeActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Total activity", Identifier = "logicaldisk/" + instance + "/total-activity", Value = totalActivity, DisplayValue = FormatNumber(Math.Round(totalActivity, 1), "0.0") + "%", Source = "Windows Logical Disk" });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read rate", Identifier = "logicaldisk/" + instance + "/read", Value = readBytes, DisplayValue = FormatBytesPerSecond(readBytes), Source = "Windows Logical Disk", Details = CloneDetails(details) });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write rate", Identifier = "logicaldisk/" + instance + "/write", Value = writeBytes, DisplayValue = FormatBytesPerSecond(writeBytes), Source = "Windows Logical Disk", Details = CloneDetails(details) });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Read activity", Identifier = "logicaldisk/" + instance + "/read-activity", Value = readActivity, DisplayValue = FormatNumber(Math.Round(readActivity, 1), "0.0") + "%", Source = "Windows Logical Disk", Details = CloneDetails(details) });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Write activity", Identifier = "logicaldisk/" + instance + "/write-activity", Value = writeActivity, DisplayValue = FormatNumber(Math.Round(writeActivity, 1), "0.0") + "%", Source = "Windows Logical Disk", Details = CloneDetails(details) });
+                    rows.Add(new SensorRow { Type = "Performance", Hardware = hardware, Name = "Total activity", Identifier = "logicaldisk/" + instance + "/total-activity", Value = totalActivity, DisplayValue = FormatNumber(Math.Round(totalActivity, 1), "0.0") + "%", Source = "Windows Logical Disk", Details = CloneDetails(details) });
                 }
             }
         }

@@ -376,12 +376,28 @@ public sealed partial class PreferencesForm : Form
         public override string ToString()
         {
             var alarm = Alarm;
-            var name = alarm == null || string.IsNullOrWhiteSpace(alarm.Name) ? "Alarm" : alarm.Name.Trim();
+            var name = alarm == null || string.IsNullOrWhiteSpace(alarm.Name) ? SensorReadoutForm.L("ui.Alarm", "Alarm") : alarm.Name.Trim();
             var condition = alarm == null || string.IsNullOrWhiteSpace(alarm.Condition) ? "Above" : SensorReadoutForm.NormalizeAlarmCondition(alarm.Condition);
             var threshold = thresholdText == null ? "" : thresholdText(alarm);
             var cooldown = alarm == null || alarm.CooldownSeconds <= 0 ? 0 : alarm.CooldownSeconds;
-            return name + " (" + condition + " " + threshold + ", " + cooldown + "s cooldown)";
+            return name + " (" + LocalizedAlarmCondition(condition) + " " + threshold + ", " + cooldown + SensorReadoutForm.L("ui.seconds suffix", "s") + " " + SensorReadoutForm.L("ui.cooldown", "cooldown") + ")";
         }
+    }
+
+    private static string LocalizedAlarmCondition(string condition)
+    {
+        condition = SensorReadoutForm.NormalizeAlarmCondition(condition);
+        if (string.Equals(condition, "Below", StringComparison.OrdinalIgnoreCase))
+        {
+            return SensorReadoutForm.L("ui.Below", "Below");
+        }
+
+        if (string.Equals(condition, "Equal", StringComparison.OrdinalIgnoreCase))
+        {
+            return SensorReadoutForm.L("ui.Equal", "Equal");
+        }
+
+        return SensorReadoutForm.L("ui.Above", "Above");
     }
 
     private sealed class NotifyingListBox : ListBox

@@ -101,7 +101,7 @@ public sealed partial class PreferencesForm : Form
         addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
         var importProfileButton = CreateShortcutButton("&Import...", "Alt+I", Keys.I);
         importProfileButton.Click += delegate { ImportSpokenHotKeysFromConfig(); };
-        var presetProfileButton = CreateShortcutButton("&Presets...", "Alt+P", Keys.P);
+        var presetProfileButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Presets...", "&Presets..."), "Alt+P", Keys.P);
         presetProfileButton.Click += delegate { ShowSpokenHotKeyPresetsDialog(); };
         var removeProfileButton = CreateShortcutButton("&Remove profile", "Alt+R", Keys.R);
         removeProfileButton.Click += delegate { RemoveSelectedSpokenHotKeyProfile(); };
@@ -137,7 +137,7 @@ public sealed partial class PreferencesForm : Form
 
         editor.Controls.Add(namePanel, 0, 0);
         editor.Controls.Add(keyPanel, 0, 1);
-        editor.Controls.Add(new Label { Text = "Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 2);
+        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", "Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder."), AutoSize = true, Dock = DockStyle.Fill }, 0, 2);
         editor.Controls.Add(BuildSpokenSelectionPanel(), 0, 3);
         editor.Controls.Add(spokenSelectionStatusLabel, 0, 4);
 
@@ -218,9 +218,9 @@ public sealed partial class PreferencesForm : Form
         speechPanel.Controls.Add(fanProfileSpeechMessageBox, 1, 0);
 
         var actionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-        actionPanel.Controls.Add(new Label { Text = "Action for selected fan:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
+        actionPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Action for selected fan:", "Action for selected fan:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfileActionBox);
-        actionPanel.Controls.Add(new Label { Text = "Percent:", AutoSize = true, Padding = new Padding(12, 6, 8, 0) });
+        actionPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Percent:", "Percent:"), AutoSize = true, Padding = new Padding(12, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfilePercentBox);
 
         editor.Controls.Add(namePanel, 0, 0);
@@ -231,7 +231,7 @@ public sealed partial class PreferencesForm : Form
         editor.Controls.Add(soundPanel, 0, 5);
         editor.Controls.Add(fanProfileShowStoppedBox, 0, 6);
         editor.Controls.Add(actionPanel, 0, 7);
-        editor.Controls.Add(new Label { Text = "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", AutoSize = true, Dock = DockStyle.Fill }, 0, 8);
+        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder."), AutoSize = true, Dock = DockStyle.Fill }, 0, 8);
         editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 9);
         editor.Controls.Add(fanProfileStatusLabel, 0, 10);
 
@@ -253,8 +253,8 @@ public sealed partial class PreferencesForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.Controls.Add(new Label { Text = "Available fan controls", AutoSize = true }, 0, 0);
-        layout.Controls.Add(new Label { Text = "Profile fan actions", AutoSize = true }, 2, 0);
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available fan controls", "Available fan controls"), AutoSize = true }, 0, 0);
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Profile fan actions", "Profile fan actions"), AutoSize = true }, 2, 0);
         layout.Controls.Add(fanProfileAvailableList, 0, 1);
         layout.Controls.Add(fanProfileSelectedList, 2, 1);
 
@@ -373,7 +373,7 @@ public sealed partial class PreferencesForm : Form
 
         var alarmButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var newButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
-        var presetButton = CreateShortcutButton("&Presets...", "Alt+P", Keys.P);
+        var presetButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Presets...", "&Presets..."), "Alt+P", Keys.P);
         var removeButton = CreateShortcutButton("Re&move", "Alt+M", Keys.M);
         newButton.TabIndex = 0;
         presetButton.TabIndex = 1;

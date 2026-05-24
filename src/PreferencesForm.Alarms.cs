@@ -221,8 +221,8 @@ public sealed partial class PreferencesForm : Form
         AddPresetIfFound(result, "GPU temperature high", "Alert when GPU temperature reaches 85 C.", FindTemperatureRow("gpu"), "Above", 85, "C");
         AddPresetIfFound(result, "GPU memory free low", "Alert when dedicated GPU memory free drops below 1 GB.", FindRow("Performance", "Dedicated GPU memory free", "GPU memory"), "Below", 1, "GB");
         AddPresetIfFound(result, "Disk health low", "Alert when a disk health or remaining-life percentage drops below 90%.", FindDiskHealthRow(), "Below", 90, "%");
-        AddPresetIfFound(result, "Disk free space low", "Alert when a fixed drive reports 10% free space or less.", FindRow("Performance", "Free space", null), "Below", 10, "%");
-        AddPresetIfFound(result, "Disk activity high", "Alert when a fixed drive reports 90% total activity.", FindRow("Performance", "Total activity", null), "Above", 90, "%");
+        AddPresetIfFound(result, "Disk free space low", "Alert when a drive reports 10% free space or less.", FindRow("Performance", "Free space", null), "Below", 10, "%");
+        AddPresetIfFound(result, "Disk activity high", "Alert when a drive reports 90% total activity.", FindRow("Performance", "Total activity", null), "Above", 90, "%");
         AddPresetIfFound(result, "Printer issue", "Alert when a printer issue count or offline flag is reported.", FindPrinterIssueRow(), "Above", 0, "value");
         return result;
     }
@@ -236,8 +236,8 @@ public sealed partial class PreferencesForm : Form
 
         presets.Add(new AlarmPresetChoice
         {
-            Name = name,
-            Description = description,
+            Name = SensorReadoutForm.L("ui.Alarm preset " + name, name),
+            Description = SensorReadoutForm.L("ui.Alarm preset description " + name, description),
             Row = row,
             Condition = condition,
             Threshold = threshold,

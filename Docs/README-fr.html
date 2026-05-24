@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle: 3.9.1.</p>
+<p>Version actuelle: 3.9.2.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
 <p>Sensor Readout est disponible <a href="https://github.com/OnjLouis/accessible-sensor-readout">sur GitHub</a>.</p>
@@ -802,9 +802,10 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Changements</h2>
+<h3>3.9.2</h3><ul><li>Ameliore: les preferences, presets d alarmes, presets de raccourcis, libelles de profils de ventilateur et descriptions pour lecteur d ecran des langues non anglaises incluses ont maintenant une couverture de traduction plus complete.</li><li>Corrige: les lecteurs amovibles prets, comme les cartes SD et les cles USB, apparaissent maintenant avec l espace de stockage et les mesures disponibles d activite de disque logique, ce qui les rend disponibles pour l etat de la zone de notification, les raccourcis vocaux, les rapports et les alarmes. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">l issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
 <ul>
-<li>Correction : Sensor Readout n'attend plus indéfiniment le démarrage lent de LibreHardwareMonitor sur les systèmes où l'énumération du matériel peut prendre longtemps. Les lectures fournies par Windows peuvent apparaître d'abord, puis les lignes de température et de ventilateurs se mettent à jour lorsque LibreHardwareMonitor a terminé.</li>
+<li>Correction : Sensor Readout n'attend plus indefiniment le demarrage lent de LibreHardwareMonitor sur les systemes ou l'enumeration du materiel peut prendre longtemps. Les lectures fournies par Windows peuvent apparaitre d'abord, puis les lignes de temperature et de ventilateurs se mettent a jour lorsque LibreHardwareMonitor a termine.</li>
 </ul>
 <h3>3.9.0</h3><ul>
 <li>Ajoute : Chaque categorie principale commence maintenant par une ligne Resume de categorie avec une vue compacte des lectures, groupes, couverture des details et signaux propres a la section.</li>
