@@ -18,7 +18,13 @@ public sealed partial class SensorReadoutForm : Form
     {
         try
         {
-            lock (lhmLock)
+            if (!System.Threading.Monitor.TryEnter(lhmLock))
+            {
+                LogMessage("Debug", "LibreHardwareMonitor refresh skipped because a previous LibreHardwareMonitor refresh is still running.");
+                return GetCachedLibreHardwareMonitorRowsSnapshot();
+            }
+
+            try
             {
                 EnsureLibreHardwareMonitorComputerOpen();
 
@@ -33,10 +39,22 @@ public sealed partial class SensorReadoutForm : Form
                 UpdateCachedLhmRows(freshRows, includeSlowHardware);
                 return BuildLibreHardwareMonitorRowsFromCache(freshRows, includeSlowHardware);
             }
+            finally
+            {
+                System.Threading.Monitor.Exit(lhmLock);
+            }
         }
         catch
         {
             return Enumerable.Empty<SensorRow>();
+        }
+    }
+
+    private List<SensorRow> GetCachedLibreHardwareMonitorRowsSnapshot()
+    {
+        lock (lhmRowsLock)
+        {
+            return cachedLhmRows.Select(CloneSensorRow).ToList();
         }
     }
 

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 3.9.0.</p>
+<p>Aktuelle Version: 3.9.1.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstuetzter Luefter. Die Oberflaeche ist zuerst fuer Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Geraet oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menueleiste.</p>
 <p>Sensor Readout finden Sie <a href="https://github.com/OnjLouis/accessible-sensor-readout">auf GitHub</a>.</p>
@@ -805,8 +805,11 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Aenderungen</h2>
-<h3>3.9.0</h3>
+<h3>3.9.1</h3>
 <ul>
+<li>Behoben: Sensor Readout wartet beim Start nicht mehr unbegrenzt auf eine langsame LibreHardwareMonitor-Erkennung. Von Windows gelieferte Messwerte können zuerst erscheinen, und Temperatur- sowie Lüfterzeilen werden aktualisiert, sobald LibreHardwareMonitor fertig ist.</li>
+</ul>
+<h3>3.9.0</h3><ul>
 <li>Hinzugefuegt: Jede Hauptkategorie beginnt jetzt mit einer Kategorie-Zusammenfassung fuer Messwerte, Gruppen, Detail-Abdeckung und bereichsspezifische Hinweise.</li>
 <li>Hinzugefuegt: Leere Kategorien erklaeren jetzt den wahrscheinlich naechsten Schritt, etwa Aktualisieren, Hardware anschliessen, ein Plug-in aktivieren, versteckte Eintraege pruefen oder auf langsamere Windows-Daten warten.</li>
 <li>Hinzugefuegt: Die Alarmseite bietet praktische Vorlagen fuer verfuegbare Messwerte wie niedrigen Akku, getrenntes oder schwaches WLAN, hohe CPU/GPU-Temperatur, Datentraeger-Gesundheit, Druckerprobleme, CPU-Nutzung, Speichernutzung, Laufzeit, GPU-Speicher, freien Speicherplatz und Datentraegeraktivitaet. Vorlagen starten ungewaehlt, damit nur gewuenschte Alarme erstellt werden.</li><li>Hinzugefuegt: Die Hotkeys-Seite bietet Vorlagen fuer gesprochene Hotkeys wie Systemstatus, Netzwerkstatus, Datentraegeraktivitaet, GPU-Status, Batteriestatus und Luefter/Temperatur. Vorlagen werden ohne zugewiesene Tasten erstellt, damit sie keine vorhandenen Tastenkombinationen belegen.</li>

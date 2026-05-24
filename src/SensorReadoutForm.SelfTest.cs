@@ -124,7 +124,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             deviceList.SelectedIndex = i;
             UpdateReadingList();
-            Require(readingTree.Nodes.Count > 0, "Reading tree empty for category " + deviceList.Items[i] + ".");
+            var filter = deviceList.Items[i] as DeviceFilter;
+            var type = filter == null ? "" : filter.Type ?? "";
+            if (latestRows.Any(r => string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)))
+            {
+                Require(readingTree.Nodes.Count > 0 && !string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal), "Reading tree empty for populated category " + deviceList.Items[i] + ".");
+            }
         }
     }
 

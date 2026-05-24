@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle: 3.9.0.</p>
+<p>Version actuelle: 3.9.1.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
 <p>Sensor Readout est disponible <a href="https://github.com/OnjLouis/accessible-sensor-readout">sur GitHub</a>.</p>
@@ -802,8 +802,11 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Changements</h2>
-<h3>3.9.0</h3>
+<h3>3.9.1</h3>
 <ul>
+<li>Correction : Sensor Readout n'attend plus indéfiniment le démarrage lent de LibreHardwareMonitor sur les systèmes où l'énumération du matériel peut prendre longtemps. Les lectures fournies par Windows peuvent apparaître d'abord, puis les lignes de température et de ventilateurs se mettent à jour lorsque LibreHardwareMonitor a terminé.</li>
+</ul>
+<h3>3.9.0</h3><ul>
 <li>Ajoute : Chaque categorie principale commence maintenant par une ligne Resume de categorie avec une vue compacte des lectures, groupes, couverture des details et signaux propres a la section.</li>
 <li>Ajoute : Les categories vides expliquent maintenant l etape la plus probable, comme actualiser, connecter du materiel, activer un plug-in, verifier les elements caches ou attendre les donnees Windows plus lentes.</li>
 <li>Ajoute : L onglet Alarmes propose des presets pratiques pour les lectures disponibles, comme batterie faible, Wi-Fi deconnecte ou faible, temperature CPU/GPU elevee, sante disque, problemes d imprimante, utilisation CPU, utilisation memoire, temps de fonctionnement, memoire GPU, espace disque libre et activite disque. Les presets commencent sans cases cochees afin de creer seulement les alarmes choisies.</li><li>Ajoute : L onglet Raccourcis propose des presets de raccourcis parles pour des groupes de depart comme etat systeme, reseau, activite disque, GPU, batterie et ventilateur/temperature. Ils sont crees sans touches assignees afin de ne pas prendre de raccourcis existants.</li>

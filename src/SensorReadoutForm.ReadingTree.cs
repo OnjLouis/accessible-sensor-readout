@@ -105,7 +105,8 @@ public sealed partial class SensorReadoutForm : Form
         }
         var signature = TreeSignature(items);
         var shapeSignature = TreeShapeSignature(items);
-        if (string.Equals(lastReadingTreeSignature, signature, StringComparison.Ordinal))
+        if (string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) &&
+            string.Equals(lastReadingTreeSignature, signature, StringComparison.Ordinal))
         {
             return;
         }

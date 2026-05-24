@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versione attuale: 3.9.0.</p>
+<p>Versione attuale: 3.9.1.</p>
 <p>Sensor Readout e un'utilita Windows per leggere sensori hardware e controllare ventole compatibili, con interfaccia pensata prima di tutto per tastiera e screen reader.</p>
 <p>A sinistra mostra categorie principali, a destra una vista ad albero con letture raggruppate per dispositivo o scopo, e i comandi comuni sono in una normale barra menu.</p>
 <p>Sensor Readout e disponibile <a href="https://github.com/OnjLouis/accessible-sensor-readout">su GitHub</a>.</p>
@@ -804,8 +804,11 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Novita</h2>
-<h3>3.9.0</h3>
+<h3>3.9.1</h3>
 <ul>
+<li>Corretto: Sensor Readout non attende più indefinitamente l'avvio lento di LibreHardwareMonitor sui sistemi in cui il rilevamento dell'hardware può richiedere molto tempo. Le letture fornite da Windows possono apparire per prime, e le righe di temperatura e ventole si aggiornano quando LibreHardwareMonitor termina.</li>
+</ul>
+<h3>3.9.0</h3><ul>
 <li>Aggiunto: Ogni categoria principale ora inizia con una riga Riepilogo categoria con una vista compatta di letture, gruppi, copertura dettagli e segnali specifici.</li>
 <li>Aggiunto: Le categorie vuote ora spiegano il prossimo passo piu probabile, come aggiornare, collegare hardware, abilitare un plug-in, controllare elementi nascosti o attendere dati Windows piu lenti.</li>
 <li>Aggiunto: La scheda Allarmi ora ha preset pratici per letture disponibili come batteria bassa, Wi-Fi disconnesso o debole, temperatura CPU/GPU alta, salute disco, problemi stampante, uso CPU, uso memoria, uptime, memoria GPU, spazio disco libero e attivita disco. I preset partono non selezionati, cosi vengono creati solo gli allarmi scelti.</li><li>Aggiunto: La scheda Hotkey ora ha preset di tasti parlati per gruppi iniziali come stato sistema, rete, attivita disco, GPU, batteria e ventole/temperatura. Vengono creati senza tasti assegnati, cosi non occupano scorciatoie esistenti.</li>

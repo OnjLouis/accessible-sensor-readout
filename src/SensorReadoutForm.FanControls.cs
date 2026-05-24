@@ -286,7 +286,7 @@ public sealed partial class SensorReadoutForm : Form
         var timings = new List<string>();
         var rows = new List<SensorRow>();
 
-        AddTimedRows(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), timings);
+        AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 8000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
         AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);
@@ -345,6 +345,56 @@ public sealed partial class SensorReadoutForm : Form
     {
         var stopwatch = Stopwatch.StartNew();
         var rows = producer().Where(r => r != null).ToList();
+        stopwatch.Stop();
+        target.AddRange(rows);
+        timings.Add(name + "=" + stopwatch.ElapsedMilliseconds + " ms/" + rows.Count + " rows");
+    }
+
+    private void AddTimedRowsWithTimeout(List<SensorRow> target, string name, Func<IEnumerable<SensorRow>> producer, Func<IEnumerable<SensorRow>> fallbackProducer, int timeoutMs, List<string> timings)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var task = Task.Factory.StartNew(new Func<List<SensorRow>>(() => producer().Where(r => r != null).ToList()));
+        if (!task.Wait(timeoutMs))
+        {
+            var fallbackRows = fallbackProducer().Where(r => r != null).ToList();
+            stopwatch.Stop();
+            target.AddRange(fallbackRows);
+            timings.Add(name + "=timed out after " + stopwatch.ElapsedMilliseconds + " ms/" + fallbackRows.Count + " cached rows");
+            LogMessage("Debug", name + " did not finish within " + timeoutMs + " ms; using cached rows so other sensor data can update.");
+            task.ContinueWith(delegate(Task<List<SensorRow>> completed)
+            {
+                if (completed.IsFaulted)
+                {
+                    var ex = completed.Exception == null ? null : completed.Exception.GetBaseException();
+                    LogMessage("Debug", name + " completed after timeout with error: " + (ex == null ? "unknown" : ex.GetType().Name + ": " + ex.Message));
+                }
+                else if (completed.Status == TaskStatus.RanToCompletion)
+                {
+                    LogMessage("Debug", name + " completed after timeout with " + completed.Result.Count + " rows cached for a later refresh.");
+                    if (IsDisposed || !IsHandleCreated)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        BeginInvoke((MethodInvoker)delegate
+                        {
+                            if (!IsDisposed && !reportViewMode && !refreshInProgress)
+                            {
+                                RefreshSensors(true, false, name + "-completed-after-timeout");
+                            }
+                        });
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }
+            });
+            return;
+        }
+
+        var rows = task.Result;
         stopwatch.Stop();
         target.AddRange(rows);
         timings.Add(name + "=" + stopwatch.ElapsedMilliseconds + " ms/" + rows.Count + " rows");

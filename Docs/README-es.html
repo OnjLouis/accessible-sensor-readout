@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actual: 3.9.0.</p>
+<p>Version actual: 3.9.1.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
 <p>Sensor Readout se puede encontrar <a href="https://github.com/OnjLouis/accessible-sensor-readout">en GitHub</a>.</p>
@@ -804,8 +804,11 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Cambios</h2>
-<h3>3.9.0</h3>
+<h3>3.9.1</h3>
 <ul>
+<li>Corregido: Sensor Readout ya no espera indefinidamente a un inicio lento de LibreHardwareMonitor en sistemas donde la detección de hardware puede tardar mucho. Las lecturas proporcionadas por Windows pueden aparecer primero, y las filas de temperatura y ventiladores se actualizan cuando LibreHardwareMonitor termina.</li>
+</ul>
+<h3>3.9.0</h3><ul>
 <li>Anadido: Cada categoria principal empieza ahora con una fila de Resumen de categoria con una vista compacta de lecturas, grupos, cobertura de detalles y senales especificas.</li>
 <li>Anadido: Las categorias vacias explican ahora el siguiente paso mas probable, como actualizar, conectar hardware, activar un plug-in, revisar elementos ocultos o esperar datos lentos de Windows.</li>
 <li>Anadido: La pestana Alarmas tiene presets practicos para lecturas disponibles como bateria baja, Wi-Fi desconectado o debil, temperatura alta de CPU/GPU, salud de discos, problemas de impresora, uso de CPU, uso de memoria, tiempo de actividad, memoria GPU, espacio libre en disco y actividad de disco. Los presets empiezan sin marcar para crear solo las alarmas elegidas.</li><li>Anadido: La pestana Atajos tiene presets de atajos hablados para grupos iniciales como estado del sistema, red, actividad de disco, GPU, bateria y ventilador/temperatura. Se crean sin teclas asignadas para no ocupar atajos existentes.</li>
