@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.8.0.
+Current version: 3.9.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -46,9 +46,13 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Opens saved report files directly, including TXT or HTML reports sent inside a ZIP file.
 - Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.
 - Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.
+- Adds a Category summary row at the top of each main section, giving a quick count of readings, groups, rows with Details, and section-specific health signals where useful.
+- Gives clearer empty-section guidance when a category has no visible readings, so users know whether to refresh, enable a plug-in, connect hardware, or check hidden items.
 - Keeps the main tree readable while putting deeper technical fields behind Details, including PnP identifiers, driver data, CPU WMI fields, cache records, and memory module information where Windows exposes them.
+- Lets Details users copy only matching lines from a detailed tree, useful when a support person asks for a specific driver, ID, or firmware field.
 - Exports a portable copy ZIP of the current app, including settings, Plug-Ins, language files, custom sounds, and optional reports or logs.
 - Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
+- Adds a support-readiness summary to diagnostics so support helpers can quickly see row counts, data sources, plug-in rows, detail coverage, fan-control rows, and empty key categories.
 - Supports configurable automatic refresh.
 - Defaults to a 5-second refresh interval on new configurations.
 - Can run at Windows startup and start minimized to the notification area.
@@ -62,6 +66,9 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
+- Includes alarm presets for common cases such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU/GPU temperature, disk health warnings, and printer problems when matching readings are available.
+- Includes spoken hotkey presets for common starter profiles such as system status, network status, disk activity, GPU status, battery status, and fan/temperature status. Spoken hotkey profiles are listed by assigned key so configured shortcuts stay easy to scan.
+- Includes a Help menu accessibility setup check for screen reader output, notification area speech, show/hide keys, report/log folder availability, and common startup-minimized pitfalls.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
 - Supports opt-in hardware plug-ins from the `Plug-Ins` folder for extra machine-specific hardware support. Installed plug-ins stay disabled until you enable them in Preferences.
 - Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for laptop-specific sensor support.
@@ -131,6 +138,14 @@ You can rerun the prerequisite installer later from `Help` > `Install prerequisi
 
 For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in the `Reports` folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, `--diagnostics [path]` creates the same ZIP and exits.
 
+## Accessibility Setup
+
+Use `Help` > `Check accessibility setup...` after first run or after changing startup and hotkey preferences. It checks whether Sensor Readout can reach screen reader speech, whether notification-area speech is configured, whether report and log folders can be opened, and whether a minimized startup setup could leave you without an obvious way back to the main window.
+
+If you use `Start minimized to notification area`, set a show/hide hotkey in `Options` > `Preferences` > `Hotkeys`. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.
+
+The same Hotkeys tab can set a key for `Speak notification area status`. That key reads the configured notification-area readings without opening the main window, and it is often the fastest way to check important values such as memory, temperatures, uptime, network status, or GPU memory.
+
 ## Keyboard Shortcuts
 
 | Shortcut Group | Shortcut | Action |
@@ -154,8 +169,8 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | File commands | `Ctrl+R` | Return from a static report to live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
 | File commands | `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
-| File commands | `Ctrl+Shift+I` | Import selected settings and profiles from a transfer package. |
-| File commands | `Ctrl+I` | Import a Plug-In ZIP. |
+| File commands | `Ctrl+I` | Import selected settings and profiles from a transfer package. |
+| File commands | `Ctrl+Shift+I` | Import a Plug-In ZIP. |
 | File commands | `Ctrl+Shift+O` | Open the Reports folder. |
 | File commands | `Ctrl+Shift+L` | Open the Logs folder. |
 | Tools and help | `Ctrl+L` | Open fan controls. |
@@ -174,6 +189,10 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | Fan controls dialog | `Alt+X` | Set all visible fan controls to maximum. |
 | Fan controls dialog | `Alt+S` | Show or hide stopped fan headers. |
 | Fan controls dialog | `Alt+P` | Pause automatic updates. |
+| Details dialog | `Ctrl+M` | Copy only detail lines matching search text. |
+| Details dialog | `Ctrl+C` / `Ctrl+Shift+C` | Copy the selected Details branch, or copy value-only lines from the selected branch. |
+| Details dialog | `F3` / `F4` | Find within Details, or review the selected Details branch in a read-only text box. |
+| Details dialog | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse all Details groups. |
 | Preferences | `Ctrl+1` to `Ctrl+8` | Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
 | Preferences | `F3` | Find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
 | Preferences | `F2` | Jump to the name or rename field where applicable. |
@@ -186,7 +205,8 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 | Preferences | `Alt+I` | In Plug-Ins, import a plug-in ZIP. |
 | Preferences | `Alt+N` | In Hotkeys, create a new spoken hotkey profile. |
 | Preferences | `Alt+I` | In Hotkeys, import spoken hotkey profiles from another machine config. |
-| Preferences | `Alt+P` | In Hotkeys, remove the selected spoken hotkey profile. |
+| Preferences | `Alt+P` | In Hotkeys or Alarms, open presets. |
+| Preferences | `Alt+R` | In Hotkeys, remove the selected spoken hotkey profile. |
 | Preferences | `Alt+A` | In Hotkeys, add the selected reading to the selected spoken hotkey. |
 | Preferences | `Alt+M` | In Notification area or Hotkeys, remove the selected reading. |
 | Preferences | `Alt+U` / `Alt+W` | Move the selected spoken-hotkey reading up or down. |
@@ -259,13 +279,14 @@ If Sensor Readout restarts after install or update and the main window does not 
 
 ### Hotkeys (`Ctrl+3`)
 
-The Hotkeys tab controls global speech and visibility keys.
+The Hotkeys tab controls global speech and visibility keys. Spoken hotkey profiles are sorted by assigned key, with unassigned profiles after assigned profiles.
 
 - Show/hide hotkey: toggle the main window from anywhere.
 - Speak notification area status hotkey: speak the configured tray readings.
 - Include device names in spoken feedback: choose between fuller output such as `Ethernet Rx` and shorter output such as `Rx`.
 - Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
 - Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
+- Spoken hotkey presets: create starter profiles with useful reading groups. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
 
 Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
@@ -280,6 +301,7 @@ Fan profiles can be toggles. With that option enabled, pressing the profile hotk
 
 The Alarms tab lets you monitor readings without watching the main window.
 
+- Use `Presets...` to add common alarms for available readings, such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU or GPU temperature, disk health warnings, or printer problems.
 - Choose a reading.
 - Choose Above or equal, Below or equal, or Equal.
 - Set the threshold and unit.
@@ -294,7 +316,7 @@ The Plug-Ins tab lists installed hardware plug-ins and describes what each one d
 
 ### Hidden Items (`Ctrl+7`)
 
-The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes the update install confirmation preference, so you can bring the safety prompt back after choosing not to show it again.
+The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.
 
 ### Language Editor (`Ctrl+8`)
 
@@ -303,6 +325,8 @@ The Language editor tab edits installed language files without opening a separat
 ## Alarms And Sounds
 
 Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
+
+The `Presets...` button offers practical starter alarms when matching readings exist on the current machine. Presets start unchecked so you can choose only the ones you want. Check the threshold, sound, and cooldown before relying on them.
 
 Preferences > Startup and Install includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the `Sounds` folder. The bundled sounds use neutral names such as `SR01.wav`, `SR02.wav`, and so on, but user-added sounds can use any normal `.wav` file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.
 
@@ -324,9 +348,13 @@ For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
 The readings pane is a tree view. Choose a category from the list on the left, then review that category's readings and details on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
 
+Each category starts with a Category summary row. Open Details on that row to see a compact count of groups, readings, numeric values, rows with Details, and section-specific items such as non-working devices or storage health rows.
+
 Use the left section list to move between broad areas. This changes the view only; it does not enable, disable, or permanently select devices.
 
 Sensor Readout opens on Performance/Overview by default. There is no combined all-readings page; each reading belongs to its own section so navigation stays predictable and device names are not repeated endlessly.
+
+If a category has no visible readings, Sensor Readout now gives a category-specific hint instead of a generic blank tree. Depending on the section, it may suggest refreshing, connecting hardware, enabling a plug-in, checking hidden items, or waiting for slow Windows-backed inventory data.
 
 The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device.
 
@@ -344,7 +372,7 @@ When the selected reading is a percentage, Sensor Readout also exposes it throug
 
 Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
 
-Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, rename a fan, or hide it. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
 ## Fan Control Workflow
 
@@ -398,6 +426,8 @@ Use `Help` > `Run diagnostics...` or press `Alt+F1` when you need to collect sup
 
 The diagnostic ZIP contains a TXT report, an HTML report, a debug log, a diagnostic summary, and timing information. The run briefly tests writable fan controls at 100%, then restores each fan to the previous manual, automatic/default, or fan-curve state.
 
+The diagnostic summary includes a support-readiness section with row counts, data sources, plug-in rows, rows with Details, fan-control rows, non-working devices, and empty key categories. This is meant to help support helpers quickly decide whether a report contains enough data before asking the user for another run.
+
 Diagnostics can speak progress and play start/completion sounds. Configure this in `Options` > `Preferences` > `Startup and Install`. Command-line diagnostics use the same preferences unless you pass `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
 
 For unattended testing, run `Sensor Readout.exe --diagnostics [path]`. If `[path]` is a folder, the diagnostic ZIP is created there. If no path is supplied, Sensor Readout creates the ZIP in `Reports`.
@@ -449,7 +479,7 @@ Use `Options` > `Enable reading history logging` to turn short-term CSV logging 
 
 Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, or plug-in choices.
 
-Use `File` > `Import settings and profiles...` or `Ctrl+Shift+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
+Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
 
 Use `File` > `Export portable copy...` or `Ctrl+Shift+E` when you want the whole customized app as a ZIP. It includes Sensor Readout, `Config`, Plug-Ins, language files, custom sounds, and the other files needed to run from another folder or another PC. Reports and logs are optional checkboxes because they can be large or private.
 
@@ -529,6 +559,21 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.9.0
+
+- Added: Each main category now starts with a Category summary row that gives a compact overview of readings, groups, detail coverage, and section-specific health signals.
+- Added: Empty categories now explain the most likely next step, such as refreshing, connecting hardware, enabling a plug-in, checking hidden items, or waiting for slower Windows-backed data.
+- Added: The Alarms tab now has practical presets for common available readings such as low battery, weak or disconnected Wi-Fi, high CPU/GPU temperature, disk health warnings, printer problems, CPU usage, memory usage, uptime, GPU memory, disk free space, and disk activity. Presets start unchecked so users only create the alarms they choose.
+- Added: The Hotkeys tab now has spoken hotkey presets for common starter groups such as system status, network status, disk activity, GPU status, battery status, and fan/temperature status. Presets are created without assigned keys so they cannot steal existing shortcuts.
+- Improved: Spoken hotkey profiles are now sorted by assigned key, Hotkeys and Alarms both use `Alt+P` for Presets, and removing a spoken hotkey profile asks for confirmation unless you turn that prompt off.
+- Added: Help now includes an accessibility setup check for screen reader output, notification area speech, show/hide keys, report/log folder availability, and start-minimized setup.
+- Improved: Details now includes Copy matching, also available with `Ctrl+M`, which searches the detailed tree and copies only matching lines for easier support sharing.
+- Improved: Diagnostics now includes a support-readiness summary with data-source, plug-in, detail, fan-control, non-working-device, and empty-category counts.
+
+### 3.8.1
+
+- Improved: `File` > `Import settings and profiles...` now uses `Ctrl+I`, matching `Ctrl+E` for export. The less common Plug-In ZIP importer now uses `Ctrl+Shift+I`.
 
 ### 3.8.0
 
@@ -662,7 +707,7 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 - Added: `Edit` > `Find reading...` (`F3`) searches readings across all categories. The same F3 search dialog is available in Preferences reading lists when choosing notification area readings, spoken hotkey readings, or fan-profile controls.
 - Added: `Edit` > `Review text...` (`F4`) opens the selected reading or tree branch in a read-only edit box, making it easier to inspect exact spelling or punctuation after screen-reader speech. The Copy command confirms through the active screen reader after copying.
-- Added: `File` > `Export settings and profiles...` (`Ctrl+E`) and `File` > `Import settings and profiles...` (`Ctrl+Shift+I`) create selective transfer packages for general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, and plug-in choices. Hardware-specific items are imported unassigned, disabled, or ready for review so they can be bound safely on the current computer.
+- Added: `File` > `Export settings and profiles...` (`Ctrl+E`) and `File` > `Import settings and profiles...` (`Ctrl+I`) create selective transfer packages for general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, and plug-in choices. Hardware-specific items are imported unassigned, disabled, or ready for review so they can be bound safely on the current computer.
 - Added: Wi-Fi adapters can show connection state, SSID, access point, signal strength percentage, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details when Windows exposes them. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can also be used for notification area status, spoken hotkeys, and alarms where numeric thresholds make sense. This closes [GitHub issue #1](https://github.com/OnjLouis/accessible-sensor-readout/issues/1).
 - Improved: Notification area status can include up to eight selected readings, making room for Wi-Fi signal, System uptime, and other key readings alongside CPU, GPU, fan, or network values.
 - Improved: Startup and Install warns when minimized startup is enabled without a show/hide hotkey, and the manual explains how to reveal the tray icon if Windows hides it.

@@ -8,6 +8,18 @@ using Newtonsoft.Json;
 
 public sealed partial class PreferencesForm : Form
 {
+    private sealed class SpokenHotKeyPresetChoice
+    {
+        public string Name;
+        public string Description;
+        public List<string> ReadingKeys = new List<string>();
+
+        public override string ToString()
+        {
+            return Name + ": " + Description + " (" + ReadingKeys.Count + " readings)";
+        }
+    }
+
     private void AddSpokenHotKeyProfile()
     {
         var profile = new SpokenHotKeySetting
@@ -17,12 +29,308 @@ public sealed partial class PreferencesForm : Form
             ReadingKeys = new List<string>()
         };
         spokenHotKeys.Add(profile);
-        spokenHotKeyList.Items.Add(profile);
-        spokenHotKeyList.SelectedItem = profile;
+        RebuildSpokenHotKeyProfileList(profile);
         spokenHotKeyNameBox.Focus();
         spokenHotKeyNameBox.SelectAll();
         UpdateSpokenSelectionStatus("Created new spoken hotkey.");
         SaveLivePreferences();
+    }
+
+    private void ShowSpokenHotKeyPresetsDialog()
+    {
+        var presets = BuildAvailableSpokenHotKeyPresets();
+        if (presets.Count == 0)
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.No spoken hotkey presets are available for the current readings.", "No spoken hotkey presets are available for the current readings."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        using (var dialog = new Form())
+        {
+            dialog.Text = SensorReadoutForm.L("ui.Spoken hotkey presets", "Spoken hotkey presets");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(720, 430);
+            dialog.MinimumSize = new Size(520, 300);
+            dialog.ShowInTaskbar = false;
+            dialog.KeyPreview = true;
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(10) };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(new Label
+            {
+                Text = SensorReadoutForm.L("ui.Choose spoken hotkey presets to add:", "Choose spoken hotkey presets to add:"),
+                AutoSize = true,
+                Dock = DockStyle.Fill
+            }, 0, 0);
+
+            var list = new CheckedListBox
+            {
+                Dock = DockStyle.Fill,
+                CheckOnClick = true,
+                IntegralHeight = false,
+                AccessibleName = SensorReadoutForm.L("a11y.Spoken hotkey presets", "Spoken hotkey presets"),
+                AccessibleDescription = SensorReadoutForm.L("a11y.Check the spoken hotkey presets to create. Presets are created without key assignments.", "Check the spoken hotkey presets to create. Presets are created without key assignments.")
+            };
+            foreach (var preset in presets)
+            {
+                list.Items.Add(preset, false);
+            }
+            layout.Controls.Add(list, 0, 1);
+
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var okButton = new Button { Text = SensorReadoutForm.L("ui.&Add selected", "&Add selected"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = SensorReadoutForm.L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.Controls.Add(okButton);
+            buttons.Controls.Add(cancelButton);
+            layout.Controls.Add(buttons, 0, 2);
+
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = okButton;
+            dialog.CancelButton = cancelButton;
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    dialog.DialogResult = DialogResult.Cancel;
+                    dialog.Close();
+                }
+            };
+            dialog.Shown += delegate
+            {
+                if (list.Items.Count > 0)
+                {
+                    list.SelectedIndex = 0;
+                }
+                list.Focus();
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            var checkedPresets = list.CheckedItems.Cast<object>().OfType<SpokenHotKeyPresetChoice>().ToList();
+            var added = 0;
+            foreach (var preset in checkedPresets)
+            {
+                if (AddSpokenHotKeyPreset(preset))
+                {
+                    added++;
+                }
+            }
+
+            if (added > 0)
+            {
+                RebuildSpokenHotKeyProfileList(spokenHotKeys.LastOrDefault());
+                SaveLivePreferences();
+            }
+
+            UpdateSpokenSelectionStatus(string.Format(SensorReadoutForm.L("status.Added spoken hotkey presets:", "Added spoken hotkey presets: {0}."), added));
+        }
+    }
+
+    private bool AddSpokenHotKeyPreset(SpokenHotKeyPresetChoice preset)
+    {
+        if (preset == null || preset.ReadingKeys == null || preset.ReadingKeys.Count == 0)
+        {
+            return false;
+        }
+
+        var profile = new SpokenHotKeySetting
+        {
+            Name = UniqueSpokenHotKeyName(preset.Name),
+            HotKey = "",
+            ReadingKeys = preset.ReadingKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+        };
+        spokenHotKeys.Add(profile);
+        RebuildSpokenHotKeyProfileList(profile);
+        return true;
+    }
+
+    private void RebuildSpokenHotKeyProfileList(SpokenHotKeySetting selectedProfile)
+    {
+        if (spokenHotKeyList == null)
+        {
+            return;
+        }
+
+        var previousLoading = loadingPreferences;
+        loadingPreferences = true;
+        try
+        {
+            spokenHotKeyList.BeginUpdate();
+            try
+            {
+                spokenHotKeyList.Items.Clear();
+                foreach (var profile in SortedSpokenHotKeyProfiles())
+                {
+                    spokenHotKeyList.Items.Add(profile);
+                }
+
+                if (selectedProfile != null && spokenHotKeyList.Items.Contains(selectedProfile))
+                {
+                    spokenHotKeyList.SelectedItem = selectedProfile;
+                }
+                else if (spokenHotKeyList.Items.Count > 0)
+                {
+                    spokenHotKeyList.SelectedIndex = 0;
+                }
+            }
+            finally
+            {
+                spokenHotKeyList.EndUpdate();
+            }
+        }
+        finally
+        {
+            loadingPreferences = previousLoading;
+        }
+
+        UpdateSpokenHotKeyEditor();
+    }
+
+    private IEnumerable<SpokenHotKeySetting> SortedSpokenHotKeyProfiles()
+    {
+        return spokenHotKeys
+            .Where(p => p != null)
+            .OrderBy(p => string.IsNullOrWhiteSpace(p.HotKey) ? 1 : 0)
+            .ThenBy(p => HotKeySortKey(p.HotKey), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Name ?? "", StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string HotKeySortKey(string hotKey)
+    {
+        var normalized = SensorReadoutForm.NormalizeHotKeyText(hotKey);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "9|";
+        }
+
+        var parts = normalized.Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .ToList();
+        var key = parts.Count == 0 ? normalized : parts[parts.Count - 1];
+        var modifierRank =
+            (parts.Contains("Ctrl", StringComparer.OrdinalIgnoreCase) ? "1" : "0") +
+            (parts.Contains("Shift", StringComparer.OrdinalIgnoreCase) ? "1" : "0") +
+            (parts.Contains("Alt", StringComparer.OrdinalIgnoreCase) ? "1" : "0");
+
+        return modifierRank + "|" + BaseHotKeySortKey(key) + "|" + normalized;
+    }
+
+    private static string BaseHotKeySortKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return "9999|";
+        }
+
+        if (key.Length > 1 && (key[0] == 'F' || key[0] == 'f'))
+        {
+            int number;
+            if (int.TryParse(key.Substring(1), out number))
+            {
+                return "0100|" + number.ToString("000");
+            }
+        }
+
+        if (key.Length == 1 && char.IsLetter(key[0]))
+        {
+            return "0200|" + char.ToUpperInvariant(key[0]);
+        }
+
+        if (key.Length == 1 && char.IsDigit(key[0]))
+        {
+            return "0300|" + key;
+        }
+
+        return "0400|" + key;
+    }
+
+    private List<SpokenHotKeyPresetChoice> BuildAvailableSpokenHotKeyPresets()
+    {
+        var presets = new List<SpokenHotKeyPresetChoice>();
+        AddSpokenPresetIfAny(presets, "System status", "CPU, memory, uptime, and core temperature where available.",
+            FindPresetRow("Performance", "CPU usage", null),
+            FindPresetRow("Performance", "Memory used", "Memory"),
+            FindPresetRow("Performance", "Memory available", "Memory"),
+            FindPresetRow("Performance", "System uptime", null),
+            FindPresetTemperatureRow("cpu"));
+        AddSpokenPresetIfAny(presets, "Network status", "Current adapter rates and Wi-Fi strength where available.",
+            FindPresetRow("Network", "Receive rate", null),
+            FindPresetRow("Network", "Send rate", null),
+            FindPresetRow("Network", "Wi-Fi signal strength", null),
+            FindPresetRow("Network", "Wi-Fi RSSI", null),
+            FindPresetRow("Network", "Wi-Fi channel", null));
+        AddSpokenPresetIfAny(presets, "Disk activity", "Read/write rates and disk activity for the first fixed drive found.",
+            FindPresetRow("Performance", "Read rate", null),
+            FindPresetRow("Performance", "Write rate", null),
+            FindPresetRow("Performance", "Read activity", null),
+            FindPresetRow("Performance", "Write activity", null),
+            FindPresetRow("Performance", "Free space", null));
+        AddSpokenPresetIfAny(presets, "GPU status", "GPU temperature and memory where available.",
+            FindPresetTemperatureRow("gpu"),
+            FindPresetRow("Performance", "Dedicated GPU memory used", "GPU memory"),
+            FindPresetRow("Performance", "Dedicated GPU memory free", "GPU memory"),
+            FindPresetRow("Performance", "Shared GPU memory used", "GPU memory"));
+        AddSpokenPresetIfAny(presets, "Battery status", "Battery charge, rate, health, and cycle count where available.",
+            FindPresetRow("Battery", "Charge", null),
+            FindPresetRow("Battery", "Power rate", null),
+            FindPresetRow("Battery", "Health", null),
+            FindPresetRow("Battery", "Cycle count", null));
+        AddSpokenPresetIfAny(presets, "Fan and temperature", "Useful cooling readings where available.",
+            FindPresetTemperatureRow("cpu"),
+            FindPresetTemperatureRow("gpu"),
+            FindFirstPresetRowByType("Fan"),
+            FindPresetRow("Performance", "CPU usage", null));
+        return presets;
+    }
+
+    private void AddSpokenPresetIfAny(List<SpokenHotKeyPresetChoice> presets, string name, string description, params SensorRow[] presetRows)
+    {
+        var keys = (presetRows ?? new SensorRow[0])
+            .Where(r => r != null)
+            .Select(SensorReadoutForm.RowSettingsKey)
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (keys.Count == 0)
+        {
+            return;
+        }
+
+        presets.Add(new SpokenHotKeyPresetChoice
+        {
+            Name = name,
+            Description = description,
+            ReadingKeys = keys
+        });
+    }
+
+    private SensorRow FindPresetRow(string type, string name, string hardwareContains)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            (string.IsNullOrWhiteSpace(type) || string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(name) || string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(hardwareContains) || (r.Hardware ?? "").IndexOf(hardwareContains, StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindPresetTemperatureRow(string hardwareOrName)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            string.Equals(r.Type, "Temperature", StringComparison.OrdinalIgnoreCase) &&
+            (((r.Hardware ?? "").IndexOf(hardwareOrName, StringComparison.OrdinalIgnoreCase) >= 0) ||
+             ((r.Name ?? "").IndexOf(hardwareOrName, StringComparison.OrdinalIgnoreCase) >= 0)));
+    }
+
+    private SensorRow FindFirstPresetRowByType(string type)
+    {
+        return rows.FirstOrDefault(r => r != null && string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase));
     }
 
     private void SaveShowStoppedFansPreference()
@@ -57,20 +365,104 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
-        var index = spokenHotKeyList.SelectedIndex;
-        spokenHotKeys.Remove(profile);
-        spokenHotKeyList.Items.Remove(profile);
-        if (spokenHotKeyList.Items.Count > 0)
+        if (!ConfirmRemoveSpokenHotKeyProfile(profile))
         {
-            spokenHotKeyList.SelectedIndex = Math.Max(0, Math.Min(index, spokenHotKeyList.Items.Count - 1));
+            return;
         }
-        else
+
+        var ordered = SortedSpokenHotKeyProfiles().ToList();
+        var index = ordered.IndexOf(profile);
+        spokenHotKeys.Remove(profile);
+        var replacement = SortedSpokenHotKeyProfiles()
+            .ElementAtOrDefault(Math.Max(0, Math.Min(index, spokenHotKeys.Count - 1)));
+        RebuildSpokenHotKeyProfileList(replacement);
+        if (spokenHotKeyList.Items.Count == 0)
         {
             UpdateSpokenHotKeyEditor();
         }
 
         UpdateSpokenSelectionStatus("Removed spoken hotkey.");
         SaveLivePreferences();
+    }
+
+    private bool ConfirmRemoveSpokenHotKeyProfile(SpokenHotKeySetting profile)
+    {
+        if (profile == null || liveSettings == null || !liveSettings.ConfirmSpokenHotKeyProfileRemoval)
+        {
+            return true;
+        }
+
+        using (var dialog = new Form())
+        {
+            dialog.Text = SensorReadoutForm.L("ui.Remove spoken hotkey profile", "Remove spoken hotkey profile");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(520, 210);
+            dialog.MinimumSize = new Size(420, 190);
+            dialog.ShowInTaskbar = false;
+            dialog.KeyPreview = true;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(12)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var name = string.IsNullOrWhiteSpace(profile.Name) ? SensorReadoutForm.L("ui.Spoken hotkey", "Spoken hotkey") : profile.Name.Trim();
+            var message = string.Format(
+                SensorReadoutForm.L("message.Remove spoken hotkey profile?", "Remove the spoken hotkey profile \"{0}\"?"),
+                name);
+            layout.Controls.Add(new Label
+            {
+                Text = message,
+                AutoSize = true,
+                Dock = DockStyle.Fill
+            }, 0, 0);
+
+            var dontShowAgainBox = new CheckBox
+            {
+                Text = SensorReadoutForm.L("ui.Do not show this &message again", "Do not show this &message again"),
+                AutoSize = true,
+                AccessibleName = SensorReadoutForm.L("a11y.Do not show this message again", "Do not show this message again")
+            };
+            layout.Controls.Add(dontShowAgainBox, 0, 1);
+
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var removeButton = new Button { Text = SensorReadoutForm.L("ui.&Remove", "&Remove"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = SensorReadoutForm.L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.Controls.Add(removeButton);
+            buttons.Controls.Add(cancelButton);
+            layout.Controls.Add(buttons, 0, 2);
+
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = removeButton;
+            dialog.CancelButton = cancelButton;
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    dialog.DialogResult = DialogResult.Cancel;
+                    dialog.Close();
+                }
+            };
+
+            var confirmed = dialog.ShowDialog(this) == DialogResult.OK;
+            if (confirmed && dontShowAgainBox.Checked)
+            {
+                liveSettings.ConfirmSpokenHotKeyProfileRemoval = false;
+                if (confirmSpokenHotKeyProfileRemovalCheckBox != null)
+                {
+                    confirmSpokenHotKeyProfileRemovalCheckBox.Checked = false;
+                }
+                SaveLivePreferences();
+            }
+
+            return confirmed;
+        }
     }
 
     private void ImportSpokenHotKeysFromConfig()
@@ -123,13 +515,12 @@ public sealed partial class PreferencesForm : Form
                         ReadingKeys = resolvedKeys
                     };
                     spokenHotKeys.Add(profile);
-                    spokenHotKeyList.Items.Add(profile);
                     added++;
                 }
 
                 if (added > 0)
                 {
-                    spokenHotKeyList.SelectedIndex = spokenHotKeyList.Items.Count - 1;
+                    RebuildSpokenHotKeyProfileList(spokenHotKeys.LastOrDefault());
                     SaveLivePreferences();
                 }
 
@@ -307,7 +698,7 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
-        spokenHotKeyList.Refresh();
+        RebuildSpokenHotKeyProfileList(SelectedSpokenHotKey());
     }
 
     private void AddSelectedSpokenChoice()

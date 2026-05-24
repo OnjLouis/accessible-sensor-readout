@@ -117,6 +117,15 @@ internal static class ScreenReaderOutput
         return TryOutput(text, false, out error);
     }
 
+    public static bool IsAvailable
+    {
+        get
+        {
+            string error;
+            return EnsureLoaded(out error);
+        }
+    }
+
     public static void Shutdown()
     {
         if (!loaded)

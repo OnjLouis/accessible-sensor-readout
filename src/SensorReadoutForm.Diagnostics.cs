@@ -145,7 +145,7 @@ public sealed partial class SensorReadoutForm : Form
 
             totalStopwatch.Stop();
             var summaryPath = System.IO.Path.Combine(stagingFolder, "Diagnostics-summary.txt");
-            System.IO.File.WriteAllLines(summaryPath, BuildDiagnosticSummary(started, totalStopwatch.Elapsed, summaryLines).ToArray());
+            System.IO.File.WriteAllLines(summaryPath, BuildDiagnosticSummary(started, totalStopwatch.Elapsed, summaryLines, finalRows).ToArray());
 
             AnnounceDiagnosticStep(T("status.diagnosticsCreatingZip", "Creating diagnostics zip file."), announce);
             LogMessage("Debug", "Diagnostics: Complete.");
@@ -344,7 +344,7 @@ public sealed partial class SensorReadoutForm : Form
         return lines;
     }
 
-    private List<string> BuildDiagnosticSummary(DateTime started, TimeSpan elapsed, List<string> details)
+    private List<string> BuildDiagnosticSummary(DateTime started, TimeSpan elapsed, List<string> details, List<SensorRow> rows)
     {
         var lines = new List<string>();
         lines.Add("Sensor Readout diagnostics");
@@ -357,10 +357,38 @@ public sealed partial class SensorReadoutForm : Form
         lines.Add("Administrator: " + (IsAdministrator() ? "yes" : "no"));
         lines.Add("Language file: " + (string.IsNullOrWhiteSpace(settings.LanguageFile) ? "automatic/default" : settings.LanguageFile));
         AddDiagnosticPlugInSummary(lines);
+        AddSupportReadinessSummary(lines, rows);
         lines.Add("Logging was temporarily set to Debug for this diagnostic run.");
         lines.Add("");
         lines.AddRange(details ?? new List<string>());
         return lines;
+    }
+
+    private void AddSupportReadinessSummary(List<string> lines, List<SensorRow> rows)
+    {
+        rows = rows ?? new List<SensorRow>();
+        lines.Add("Support readiness:");
+        lines.Add("  Total rows: " + rows.Count);
+        lines.Add("  Rows with Details: " + rows.Count(r => r != null && r.Details != null && r.Details.Count > 0));
+        lines.Add("  Data sources: " + string.Join(", ", rows.Select(r => r == null ? "" : r.Source ?? "").Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s).ToArray()));
+        lines.Add("  LibreHardwareMonitor rows: " + rows.Count(r => r != null && (r.Source ?? "").IndexOf("LibreHardwareMonitor", StringComparison.OrdinalIgnoreCase) >= 0));
+        lines.Add("  Windows rows: " + rows.Count(r => r != null && (r.Source ?? "").IndexOf("Windows", StringComparison.OrdinalIgnoreCase) >= 0));
+        lines.Add("  Plug-in rows: " + rows.Count(r => r != null && (r.Source ?? "").IndexOf("Plug-In", StringComparison.OrdinalIgnoreCase) >= 0));
+        lines.Add("  Fan rows: " + rows.Count(r => r != null && string.Equals(r.Type, "Fan", StringComparison.OrdinalIgnoreCase)));
+        lines.Add("  Fan control rows: " + rows.Count(r => r != null && string.Equals(r.Type, "Fan Control", StringComparison.OrdinalIgnoreCase)));
+        lines.Add("  Temperature rows: " + rows.Count(r => r != null && string.Equals(r.Type, "Temperature", StringComparison.OrdinalIgnoreCase)));
+        lines.Add("  Device inventory rows: " + rows.Count(r => r != null && string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase)));
+        var problemDevices = rows.Count(r => r != null && string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase) && string.Equals(r.Hardware, "Non-working devices", StringComparison.OrdinalIgnoreCase));
+        lines.Add("  Non-working devices: " + problemDevices);
+        var missing = new List<string>();
+        foreach (var type in new[] { "Performance", "Temperature", "Fan", "SMART", "Network", "USB", "Audio", "Display", "Devices" })
+        {
+            if (!rows.Any(r => r != null && string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)))
+            {
+                missing.Add(type);
+            }
+        }
+        lines.Add("  Empty key categories: " + (missing.Count == 0 ? "none" : string.Join(", ", missing.ToArray())));
     }
 
     private void AddDiagnosticPlugInSummary(List<string> lines)

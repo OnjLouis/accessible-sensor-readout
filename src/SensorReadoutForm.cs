@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.8.0";
+    public const string AppVersion = "3.9.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -165,14 +165,14 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Compare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Save &anonymized report...", Keys.Control | Keys.Shift | Keys.A, delegate { SaveAnonymizedReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import settings and &profiles...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportSettingsAndProfiles(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Import settings and profiles...", Keys.Control | Keys.I, delegate { ImportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Export portable &copy...", Keys.Control | Keys.Shift | Keys.E, delegate { ExportPortableCopy(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Reports folder", Keys.Control | Keys.Shift | Keys.O, delegate { OpenReportsFolder(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Logs folder", Keys.Control | Keys.Shift | Keys.L, delegate { OpenLogsFolder(); }));
         returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
         returnToLiveReadingsMenuItem.Visible = false;
         fileMenu.DropDownItems.Add(returnToLiveReadingsMenuItem);
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Import Plug-In from ZIP...", Keys.Control | Keys.I, delegate { ImportPlugInFromZip(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import &Plug-In from ZIP...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportPlugInFromZip(); }));
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
         fileMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("E&xit", "Alt+F4", delegate { Close(); }));
 
@@ -690,6 +690,12 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         if (modifiers == Keys.Control && keyCode == Keys.I)
+        {
+            ImportSettingsAndProfiles();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.I)
         {
             ImportPlugInFromZip();
             return true;

@@ -87,8 +87,13 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ShowPreferences()
     {
+        ShowPreferences(lastPreferencesTabName);
+    }
+
+    private void ShowPreferences(string initialTabName)
+    {
         RefreshLanguageChoices(false);
-        using (var dialog = new PreferencesForm(settings, latestRows, languageChoices, lastPreferencesTabName))
+        using (var dialog = new PreferencesForm(settings, latestRows, languageChoices, string.IsNullOrWhiteSpace(initialTabName) ? lastPreferencesTabName : initialTabName))
         {
             openPreferencesDialog = dialog;
             dialog.LivePreferencesSaved += delegate

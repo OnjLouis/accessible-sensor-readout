@@ -608,10 +608,66 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
         AddPlugInHelpMenuItems(helpMenu);
+            helpMenu.DropDownItems.Add("Check accessibilit&y setup...", null, delegate { ShowAccessibilitySetupCheck(); });
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
         helpMenu.DropDownItems.Add("Prepare support &report...", null, delegate { PrepareSupportReport(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
+    }
+
+    private void ShowAccessibilitySetupCheck()
+    {
+        var lines = new List<string>();
+        lines.Add(T("ui.Accessibility setup check", "Accessibility setup check"));
+        lines.Add("");
+        AddCheckLine(lines, T("ui.Screen reader speech", "Screen reader speech"), ScreenReaderOutput.IsAvailable, ScreenReaderOutput.IsAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"));
+        AddCheckLine(lines, T("ui.Notification area status", "Notification area status"), settings.TrayStatusEnabled, settings.TrayStatusEnabled ? T("ui.Enabled", "Enabled") : T("ui.Disabled", "Disabled"));
+        AddCheckLine(lines, T("ui.Show/hide hotkey", "Show/hide hotkey"), !string.IsNullOrWhiteSpace(settings.ShowHideHotKey), string.IsNullOrWhiteSpace(settings.ShowHideHotKey) ? T("ui.Not set", "Not set") : settings.ShowHideHotKey);
+        AddCheckLine(lines, T("ui.Speak tray status hotkey", "Speak tray status hotkey"), !string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey), string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey) ? T("ui.Not set", "Not set") : settings.SpeakTrayHotKey);
+        AddCheckLine(lines, T("ui.Start minimized", "Start minimized"), !settings.StartMinimizedToTray || !string.IsNullOrWhiteSpace(settings.ShowHideHotKey), settings.StartMinimizedToTray ? T("ui.Enabled", "Enabled") : T("ui.Disabled", "Disabled"));
+        AddCheckLine(lines, T("ui.Reports folder", "Reports folder"), System.IO.Directory.Exists(GetReportsFolderPath()), GetReportsFolderPath());
+        AddCheckLine(lines, T("ui.Logs folder", "Logs folder"), System.IO.Directory.Exists(GetLogsFolderPath()), GetLogsFolderPath());
+        lines.Add("");
+        lines.Add(T("message.Accessibility setup check guidance", "Items marked Check deserve attention. They may be intentional, but they can make Sensor Readout harder to recover or test with a screen reader."));
+
+        using (var dialog = new Form())
+        {
+            dialog.Text = T("ui.Accessibility setup check", "Accessibility setup check");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(720, 420);
+            dialog.MinimumSize = new Size(460, 260);
+            dialog.ShowInTaskbar = false;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(10) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var text = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                Text = string.Join(Environment.NewLine, lines.ToArray()),
+                AccessibleName = T("a11y.Accessibility setup results", "Accessibility setup results")
+            };
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var closeButton = CreateCloseButton();
+            var prefsButton = new Button { Text = T("ui.Open &Preferences", "Open &Preferences"), AutoSize = true };
+            closeButton.Click += delegate { dialog.Close(); };
+            prefsButton.Click += delegate { dialog.Close(); ShowPreferences("Hotkeys"); };
+            buttons.Controls.Add(closeButton);
+            buttons.Controls.Add(prefsButton);
+            layout.Controls.Add(text, 0, 0);
+            layout.Controls.Add(buttons, 0, 1);
+            dialog.Controls.Add(layout);
+            dialog.CancelButton = closeButton;
+            dialog.Shown += delegate { text.Focus(); text.Select(0, 0); };
+            dialog.ShowDialog(this);
+        }
+    }
+
+    private static void AddCheckLine(List<string> lines, string label, bool ok, string value)
+    {
+        lines.Add((ok ? "OK: " : "Check: ") + label + ": " + value);
     }
 
     private void AddPlugInHelpMenuItems(ToolStripMenuItem menu)

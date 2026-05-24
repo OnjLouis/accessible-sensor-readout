@@ -101,10 +101,13 @@ public sealed partial class PreferencesForm : Form
         addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
         var importProfileButton = CreateShortcutButton("&Import...", "Alt+I", Keys.I);
         importProfileButton.Click += delegate { ImportSpokenHotKeysFromConfig(); };
-        var removeProfileButton = CreateShortcutButton("Remove &profile", "Alt+P", Keys.P);
+        var presetProfileButton = CreateShortcutButton("&Presets...", "Alt+P", Keys.P);
+        presetProfileButton.Click += delegate { ShowSpokenHotKeyPresetsDialog(); };
+        var removeProfileButton = CreateShortcutButton("&Remove profile", "Alt+R", Keys.R);
         removeProfileButton.Click += delegate { RemoveSelectedSpokenHotKeyProfile(); };
         profileButtons.Controls.Add(addProfileButton);
         profileButtons.Controls.Add(importProfileButton);
+        profileButtons.Controls.Add(presetProfileButton);
         profileButtons.Controls.Add(removeProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);
 
@@ -370,12 +373,16 @@ public sealed partial class PreferencesForm : Form
 
         var alarmButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var newButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
+        var presetButton = CreateShortcutButton("&Presets...", "Alt+P", Keys.P);
         var removeButton = CreateShortcutButton("Re&move", "Alt+M", Keys.M);
         newButton.TabIndex = 0;
-        removeButton.TabIndex = 1;
+        presetButton.TabIndex = 1;
+        removeButton.TabIndex = 2;
         newButton.Click += delegate { AddAlarm(); };
+        presetButton.Click += delegate { ShowAlarmPresetsDialog(); };
         removeButton.Click += delegate { RemoveSelectedAlarm(); };
         alarmButtons.Controls.Add(newButton);
+        alarmButtons.Controls.Add(presetButton);
         alarmButtons.Controls.Add(removeButton);
 
         var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9 };

@@ -238,7 +238,7 @@ function Assert-GitHubActivityChecked {
 
 function Write-CommunityMentionReminder {
     Info "Community mention check: search the web and public community spaces for Sensor Readout mentions before release."
-    Info "Suggested searches: `"Accessible Sensor Readout`", `"accessible-sensor-readout`", `"Sensor Readout`" `"OnjLouis`", `"Sensor Readout`" `"NVDA`", `"Sensor Readout`" `"screen reader`", and podcast/email-list/community sites."
+    Info "Suggested searches: `"Accessible Sensor Readout`", `"accessible-sensor-readout`", `"Sensor Readout`" `"OnjLouis`", `"Sensor Readout`" `"NVDA`", `"Sensor Readout`" `"JAWS`", `"Sensor Readout`" `"JFW`", `"Sensor Readout`" `"screen reader`", and podcast/email-list/community sites."
     Info "Look for feedback that did not arrive as a GitHub issue, especially accessibility complaints, update problems, missing hardware data, and repeated questions."
 }
 

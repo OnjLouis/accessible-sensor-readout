@@ -1621,7 +1621,7 @@ public sealed partial class SensorReadoutForm : Form
                 HideSelection = false,
                 ShowNodeToolTips = true,
                 AccessibleName = "Details",
-                AccessibleDescription = "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, or Escape to close."
+                AccessibleDescription = "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close."
             };
             PopulateDetailsTree(tree, row.Details);
 
@@ -1629,16 +1629,19 @@ public sealed partial class SensorReadoutForm : Form
             var closeButton = CreateCloseButton();
             var copyButton = new Button { Text = T("ui.&Copy", "&Copy"), AutoSize = true };
             var copyValueButton = new Button { Text = T("ui.Copy &value only", "Copy &value only"), AutoSize = true };
+            var copyMatchingButton = new Button { Text = T("ui.Copy &matching...", "Copy &matching..."), AutoSize = true };
             var collapseAllButton = new Button { Text = "C&ollapse all", AutoSize = true };
             var expandAllButton = new Button { Text = "&Expand all", AutoSize = true };
             closeButton.Click += delegate { dialog.Close(); };
             copyButton.Click += delegate { CopyDetailsTree(tree); };
             copyValueButton.Click += delegate { CopyDetailsTreeValueOnly(tree); };
+            copyMatchingButton.Click += delegate { CopyMatchingDetailsTreeLines(tree); };
             collapseAllButton.Click += delegate { CollapseDetailsTree(tree); };
             expandAllButton.Click += delegate { ExpandDetailsTree(tree); };
             buttons.Controls.Add(closeButton);
             buttons.Controls.Add(copyButton);
             buttons.Controls.Add(copyValueButton);
+            buttons.Controls.Add(copyMatchingButton);
             buttons.Controls.Add(collapseAllButton);
             buttons.Controls.Add(expandAllButton);
 
@@ -1746,6 +1749,14 @@ public sealed partial class SensorReadoutForm : Form
             {
                 CopyDetailsTree(tree);
             }
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return true;
+        }
+
+        if (e.Control && !e.Shift && e.KeyCode == Keys.M)
+        {
+            CopyMatchingDetailsTreeLines(tree);
             e.Handled = true;
             e.SuppressKeyPress = true;
             return true;
@@ -2275,6 +2286,104 @@ public sealed partial class SensorReadoutForm : Form
 
         Clipboard.SetText(string.Join(Environment.NewLine, lines));
         statusLabel.Text = "Copied " + lines.Count + " detail value" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+    }
+
+    private void CopyMatchingDetailsTreeLines(TreeView tree)
+    {
+        if (tree == null)
+        {
+            return;
+        }
+
+        var query = PromptForSingleLineText(
+            this,
+            T("ui.Copy matching details", "Copy matching details"),
+            T("ui.Search text:", "Search text:"),
+            "");
+        var terms = (query ?? "")
+            .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .ToArray();
+        if (terms.Length == 0)
+        {
+            tree.Focus();
+            return;
+        }
+
+        var matches = new List<TreeNode>();
+        foreach (TreeNode node in tree.Nodes)
+        {
+            AddMatchingDetailNodes(node, terms, matches);
+        }
+
+        var lines = new List<string>();
+        foreach (var match in matches)
+        {
+            AppendDetailTreeLines(match, lines, 0);
+        }
+
+        if (lines.Count == 0)
+        {
+            statusLabel.Text = T("status.No matching details found.", "No matching details found.");
+            tree.Focus();
+            return;
+        }
+
+        Clipboard.SetText(string.Join(Environment.NewLine, lines.Distinct().ToArray()));
+        statusLabel.Text = string.Format(T("status.Copied matching detail lines:", "Copied matching detail lines: {0}."), lines.Count);
+        AnnounceCopiedToClipboard();
+        tree.Focus();
+    }
+
+    private static void AddMatchingDetailNodes(TreeNode node, string[] terms, List<TreeNode> matches)
+    {
+        if (node == null || terms == null || matches == null)
+        {
+            return;
+        }
+
+        var text = GetDetailTreeNodePath(node).ToUpperInvariant();
+        if (terms.All(term => text.IndexOf(term.ToUpperInvariant(), StringComparison.Ordinal) >= 0))
+        {
+            matches.Add(node);
+        }
+
+        foreach (TreeNode child in node.Nodes)
+        {
+            AddMatchingDetailNodes(child, terms, matches);
+        }
+    }
+
+    private static string PromptForSingleLineText(IWin32Window owner, string title, string label, string initialValue)
+    {
+        using (var dialog = new Form())
+        {
+            dialog.Text = title;
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(460, 150);
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.ShowInTaskbar = false;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(10) };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var textBox = new TextBox { Text = initialValue ?? "", Dock = DockStyle.Fill };
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
+            var okButton = new Button { Text = L("ui.&OK", "&OK"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.Controls.Add(okButton);
+            buttons.Controls.Add(cancelButton);
+            layout.Controls.Add(new Label { Text = label, AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+            layout.Controls.Add(textBox, 0, 1);
+            layout.Controls.Add(buttons, 0, 2);
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = okButton;
+            dialog.CancelButton = cancelButton;
+            dialog.Shown += delegate { textBox.Focus(); textBox.SelectAll(); };
+            return dialog.ShowDialog(owner) == DialogResult.OK ? textBox.Text : "";
+        }
     }
 
     private static void AppendDetailTreeLines(TreeNode node, List<string> lines, int depth)

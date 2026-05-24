@@ -512,6 +512,7 @@ public sealed partial class PreferencesForm : Form
         liveSettings.UpdateCheckFrequency = UpdateCheckFrequency;
         liveSettings.InstallUpdatesQuietly = InstallUpdatesQuietly;
         liveSettings.ShowUpdateInstallConfirmation = ShowUpdateInstallConfirmation;
+        liveSettings.ConfirmSpokenHotKeyProfileRemoval = ConfirmSpokenHotKeyProfileRemoval;
         liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
         liveSettings.DiagnosticsSpeakProgress = DiagnosticsSpeakProgress;
         liveSettings.DiagnosticsPlaySounds = DiagnosticsPlaySounds;

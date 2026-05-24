@@ -57,6 +57,18 @@ function Assert-OuiCsv([string]$path) {
     }
 }
 
+function Normalize-DownloadedDataFile([string]$name, [string]$path) {
+    if ($name -ne 'oui.csv') {
+        return
+    }
+
+    $lines = [System.IO.File]::ReadAllLines($path)
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        $lines[$i] = $lines[$i].TrimEnd()
+    }
+    [System.IO.File]::WriteAllLines($path, $lines, [System.Text.UTF8Encoding]::new($true))
+}
+
 function Update-DataFile(
     [string]$name,
     [string]$uri,
@@ -68,6 +80,7 @@ function Update-DataFile(
     Info "Downloading $name."
     Invoke-WebRequest -Uri $uri -OutFile $download -UseBasicParsing -Headers $downloadHeaders
     & $validator $download
+    Normalize-DownloadedDataFile $name $download
 
     $oldHash = Get-FileSha256 $target
     $newHash = Get-FileSha256 $download

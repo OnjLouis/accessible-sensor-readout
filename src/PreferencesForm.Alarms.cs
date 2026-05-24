@@ -8,6 +8,21 @@ using Newtonsoft.Json;
 
 public sealed partial class PreferencesForm : Form
 {
+    private sealed class AlarmPresetChoice
+    {
+        public string Name;
+        public string Description;
+        public SensorRow Row;
+        public string Condition;
+        public double Threshold;
+        public string Unit;
+
+        public override string ToString()
+        {
+            return Name + ": " + Description;
+        }
+    }
+
     private void PopulateAlarmReadings()
     {
         if (alarmReadingBox == null)
@@ -48,6 +63,236 @@ public sealed partial class PreferencesForm : Form
         alarmNameBox.SelectAll();
         UpdateAlarmStatus("Created new alarm.");
         SaveLivePreferences();
+    }
+
+    private void ShowAlarmPresetsDialog()
+    {
+        var presets = BuildAvailableAlarmPresets();
+        if (presets.Count == 0)
+        {
+            UpdateAlarmStatus(SensorReadoutForm.L("status.No alarm presets are available for the current readings.", "No alarm presets are available for the current readings."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        using (var dialog = new Form())
+        {
+            dialog.Text = SensorReadoutForm.L("ui.Alarm presets", "Alarm presets");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(640, 420);
+            dialog.MinimumSize = new Size(460, 280);
+            dialog.ShowInTaskbar = false;
+            dialog.KeyPreview = true;
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(10) };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(new Label
+            {
+                Text = SensorReadoutForm.L("ui.Choose alarm presets to add:", "Choose alarm presets to add:"),
+                AutoSize = true,
+                Dock = DockStyle.Fill
+            }, 0, 0);
+
+            var list = new CheckedListBox
+            {
+                Dock = DockStyle.Fill,
+                CheckOnClick = true,
+                IntegralHeight = false,
+                AccessibleName = SensorReadoutForm.L("a11y.Alarm presets", "Alarm presets"),
+                AccessibleDescription = SensorReadoutForm.L("a11y.Check the alarm presets to create.", "Check the alarm presets to create.")
+            };
+            foreach (var preset in presets)
+            {
+                list.Items.Add(preset, false);
+            }
+            layout.Controls.Add(list, 0, 1);
+
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var okButton = new Button { Text = SensorReadoutForm.L("ui.&Add selected", "&Add selected"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = SensorReadoutForm.L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.Controls.Add(okButton);
+            buttons.Controls.Add(cancelButton);
+            layout.Controls.Add(buttons, 0, 2);
+
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = okButton;
+            dialog.CancelButton = cancelButton;
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    dialog.DialogResult = DialogResult.Cancel;
+                    dialog.Close();
+                }
+            };
+            dialog.Shown += delegate
+            {
+                if (list.Items.Count > 0)
+                {
+                    list.SelectedIndex = 0;
+                }
+                list.Focus();
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            var checkedPresets = list.CheckedItems.Cast<object>().OfType<AlarmPresetChoice>().ToList();
+            var added = 0;
+            var previousLoading = loadingPreferences;
+            loadingPreferences = true;
+            try
+            {
+                foreach (var preset in checkedPresets)
+                {
+                    if (AddAlarmPreset(preset))
+                    {
+                        added++;
+                    }
+                }
+            }
+            finally
+            {
+                loadingPreferences = previousLoading;
+            }
+
+            if (alarmList != null && alarmList.Items.Count > 0)
+            {
+                alarmList.SelectedIndex = alarmList.Items.Count - 1;
+                LoadSelectedAlarm();
+                alarmList.Focus();
+            }
+
+            UpdateAlarmStatus(string.Format(SensorReadoutForm.L("status.Added alarm presets:", "Added alarm presets: {0}."), added));
+            SaveLivePreferences();
+        }
+    }
+
+    private bool AddAlarmPreset(AlarmPresetChoice preset)
+    {
+        if (preset == null || preset.Row == null)
+        {
+            return false;
+        }
+
+        var key = SensorReadoutForm.RowSettingsKey(preset.Row);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        if (alarms.Any(a => a != null && string.Equals(a.ReadingKey, key, StringComparison.OrdinalIgnoreCase) && string.Equals(a.Name, preset.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var alarm = new AlarmSetting
+        {
+            Name = preset.Name,
+            ReadingKey = key,
+            Condition = preset.Condition,
+            Threshold = AlarmThresholdInputToBase(preset.Threshold, preset.Unit, preset.Row),
+            ThresholdUnit = preset.Unit,
+            Enabled = true,
+            Speak = true,
+            SoundFile = "",
+            CooldownSeconds = 60
+        };
+        alarms.Add(alarm);
+        alarmList.Items.Add(new AlarmChoice(alarm, RowForKey, FormatAlarmThresholdForList));
+        alarmList.SelectedIndex = alarmList.Items.Count - 1;
+        return true;
+    }
+
+    private List<AlarmPresetChoice> BuildAvailableAlarmPresets()
+    {
+        var result = new List<AlarmPresetChoice>();
+        AddPresetIfFound(result, "Wi-Fi disconnected", "Alert when a Wi-Fi adapter reports disconnected.", FindRow("Network", "Wi-Fi connected", null), "Equal", 0, "value");
+        AddPresetIfFound(result, "Low Wi-Fi signal", "Alert when Wi-Fi signal strength is 30% or lower.", FindRow("Network", "Wi-Fi signal strength", null), "Below", 30, "%");
+        AddPresetIfFound(result, "Battery low", "Alert when battery charge is 20% or lower.", FindBatteryChargeRow(), "Below", 20, "%");
+        AddPresetIfFound(result, "CPU usage high", "Alert when CPU usage reaches 90%.", FindRow("Performance", "CPU usage", null), "Above", 90, "%");
+        AddPresetIfFound(result, "Memory usage high", "Alert when memory usage reaches 90%.", FindRow("Performance", "Memory used", "Memory"), "Above", 90, "%");
+        AddPresetIfFound(result, "System uptime long", "Alert when Windows has been running for 7 days.", FindRow("Performance", "System uptime", null), "Above", 7, "days");
+        AddPresetIfFound(result, "CPU temperature high", "Alert when CPU temperature reaches 85 C.", FindTemperatureRow("cpu"), "Above", 85, "C");
+        AddPresetIfFound(result, "GPU temperature high", "Alert when GPU temperature reaches 85 C.", FindTemperatureRow("gpu"), "Above", 85, "C");
+        AddPresetIfFound(result, "GPU memory free low", "Alert when dedicated GPU memory free drops below 1 GB.", FindRow("Performance", "Dedicated GPU memory free", "GPU memory"), "Below", 1, "GB");
+        AddPresetIfFound(result, "Disk health low", "Alert when a disk health or remaining-life percentage drops below 90%.", FindDiskHealthRow(), "Below", 90, "%");
+        AddPresetIfFound(result, "Disk free space low", "Alert when a fixed drive reports 10% free space or less.", FindRow("Performance", "Free space", null), "Below", 10, "%");
+        AddPresetIfFound(result, "Disk activity high", "Alert when a fixed drive reports 90% total activity.", FindRow("Performance", "Total activity", null), "Above", 90, "%");
+        AddPresetIfFound(result, "Printer issue", "Alert when a printer issue count or offline flag is reported.", FindPrinterIssueRow(), "Above", 0, "value");
+        return result;
+    }
+
+    private void AddPresetIfFound(List<AlarmPresetChoice> presets, string name, string description, SensorRow row, string condition, double threshold, string unit)
+    {
+        if (row == null || !row.Value.HasValue)
+        {
+            return;
+        }
+
+        presets.Add(new AlarmPresetChoice
+        {
+            Name = name,
+            Description = description,
+            Row = row,
+            Condition = condition,
+            Threshold = threshold,
+            Unit = unit
+        });
+    }
+
+    private SensorRow FindRow(string type, string name, string hardwareContains)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            (string.IsNullOrWhiteSpace(type) || string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(name) || string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(hardwareContains) || (r.Hardware ?? "").IndexOf(hardwareContains, StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindTemperatureRow(string hardwareOrName)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            string.Equals(r.Type, "Temperature", StringComparison.OrdinalIgnoreCase) &&
+            (((r.Hardware ?? "").IndexOf(hardwareOrName, StringComparison.OrdinalIgnoreCase) >= 0) ||
+             ((r.Name ?? "").IndexOf(hardwareOrName, StringComparison.OrdinalIgnoreCase) >= 0)));
+    }
+
+    private SensorRow FindBatteryChargeRow()
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase) &&
+            ((r.DisplayValue ?? "").Contains("%") || (r.Name ?? "").IndexOf("charge", StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindDiskHealthRow()
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            string.Equals(r.Type, "SMART", StringComparison.OrdinalIgnoreCase) &&
+            ((r.DisplayValue ?? "").Contains("%") || (r.Name ?? "").IndexOf("health", StringComparison.OrdinalIgnoreCase) >= 0 || (r.Name ?? "").IndexOf("life", StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindPrinterIssueRow()
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+            ((r.Hardware ?? "").IndexOf("printer", StringComparison.OrdinalIgnoreCase) >= 0 || (r.Name ?? "").IndexOf("printer", StringComparison.OrdinalIgnoreCase) >= 0) &&
+            (((r.Name ?? "").IndexOf("issue", StringComparison.OrdinalIgnoreCase) >= 0) ||
+             ((r.Name ?? "").IndexOf("offline", StringComparison.OrdinalIgnoreCase) >= 0) ||
+             ((r.Name ?? "").IndexOf("queue", StringComparison.OrdinalIgnoreCase) >= 0)));
     }
 
     private void RemoveSelectedAlarm()
@@ -192,6 +437,7 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
+        var focusedControl = FindFocusedControl(this);
         loadingPreferences = true;
         try
         {
@@ -209,6 +455,70 @@ public sealed partial class PreferencesForm : Form
         {
             notifyingList.NotifyItemChanged(index);
         }
+
+        RestoreAlarmRefreshFocus(focusedControl);
+    }
+
+    private static Control FindFocusedControl(Control root)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (root.Focused)
+        {
+            return root;
+        }
+
+        foreach (Control child in root.Controls)
+        {
+            if (!child.ContainsFocus)
+            {
+                continue;
+            }
+
+            var focused = FindFocusedControl(child);
+            if (focused != null)
+            {
+                return focused;
+            }
+        }
+
+        return null;
+    }
+
+    private void RestoreAlarmRefreshFocus(Control focusedControl)
+    {
+        if (focusedControl == null || focusedControl.IsDisposed)
+        {
+            return;
+        }
+
+        var shouldRestore =
+            focusedControl == alarmList ||
+            focusedControl == alarmEnabledCheckBox ||
+            focusedControl == alarmNameBox ||
+            focusedControl == alarmReadingBox ||
+            focusedControl == alarmConditionBox ||
+            focusedControl == alarmThresholdBox ||
+            focusedControl == alarmThresholdUnitBox ||
+            focusedControl == alarmCooldownBox ||
+            focusedControl == alarmSpeakCheckBox ||
+            focusedControl == alarmSoundBox;
+
+        if (!shouldRestore)
+        {
+            return;
+        }
+
+        BeginInvoke((MethodInvoker)delegate
+        {
+            if (focusedControl != null && !focusedControl.IsDisposed && focusedControl.CanFocus)
+            {
+                focusedControl.Focus();
+            }
+        });
     }
 
     private string SelectedAlarmReadingKey()
@@ -290,9 +600,11 @@ public sealed partial class PreferencesForm : Form
             var canKeepUnit = units.Any(u => string.Equals(u, previousUnit, StringComparison.OrdinalIgnoreCase));
             var readingChanged = !string.Equals(lastAlarmReadingKey, SelectedAlarmReadingKey(), StringComparison.OrdinalIgnoreCase);
             var shouldResetForNewReading = preserveBaseThreshold && alarm != null && (!canKeepUnit || readingChanged);
-            var baseThreshold = preserveBaseThreshold && alarm != null && canKeepUnit && !readingChanged
-                ? alarm.Threshold
-                : AlarmThresholdInputToBase(Convert.ToDouble(alarmThresholdBox.Value), SelectedAlarmThresholdUnit(), row);
+            var baseThreshold = alarm == null
+                ? AlarmThresholdInputToBase(Convert.ToDouble(alarmThresholdBox.Value), SelectedAlarmThresholdUnit(), row)
+                : preserveBaseThreshold && (!canKeepUnit || readingChanged)
+                    ? AlarmThresholdInputToBase(Convert.ToDouble(alarmThresholdBox.Value), SelectedAlarmThresholdUnit(), row)
+                    : alarm.Threshold;
             if (shouldResetForNewReading)
             {
                 baseThreshold = DefaultAlarmThresholdForRow(row);
@@ -346,6 +658,11 @@ public sealed partial class PreferencesForm : Form
         if (row.Type == "Temperature")
         {
             return new[] { "C", "F" };
+        }
+
+        if ((row.Name ?? "").Equals("System uptime", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "minutes", "hours", "days" };
         }
 
         if (row.Type == "Fan")
@@ -428,6 +745,9 @@ public sealed partial class PreferencesForm : Form
         if (unit == "MB") return 1024.0 * 1024.0;
         if (unit == "GB") return 1024.0 * 1024.0 * 1024.0;
         if (unit == "TB") return 1024.0 * 1024.0 * 1024.0 * 1024.0;
+        if (unit == "MINUTES") return 1.0;
+        if (unit == "HOURS") return 60.0;
+        if (unit == "DAYS") return 60.0 * 24.0;
         return 1.0;
     }
 

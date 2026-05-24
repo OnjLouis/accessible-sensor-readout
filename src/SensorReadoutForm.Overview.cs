@@ -1,0 +1,352 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using System.Management;
+using System.Net.NetworkInformation;
+using System.IO.MemoryMappedFiles;
+using Microsoft.Win32.SafeHandles;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
+using LibreHardwareMonitor.Hardware;
+
+public sealed partial class SensorReadoutForm : Form
+{
+    private static IEnumerable<SensorRow> GetOverviewRows()
+    {
+        var rows = new List<SensorRow>();
+        var windowsDetails = GetWindowsHardwareDetails();
+        var firmwareDetails = GetFirmwareHardwareDetails();
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime FROM Win32_OperatingSystem"))
+            {
+                foreach (ManagementObject os in searcher.Get())
+                {
+                    AddOverviewTextRow(rows, "Windows edition", CleanWmiText(Convert.ToString(os["Caption"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows version", CleanWmiText(Convert.ToString(os["Version"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows build", CleanWmiText(Convert.ToString(os["BuildNumber"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows architecture", CleanWmiText(Convert.ToString(os["OSArchitecture"])), "Windows WMI", windowsDetails);
+                    AddOverviewTextRow(rows, "Windows install date", FormatWindowsInstallDate(os["InstallDate"]), "Windows", windowsDetails);
+                    var bootTimeText = Convert.ToString(os["LastBootUpTime"]);
+                    var bootTime = string.IsNullOrWhiteSpace(bootTimeText) ? DateTime.MinValue : ManagementDateTimeConverter.ToDateTime(bootTimeText);
+                    if (bootTime > DateTime.MinValue)
+                    {
+                        AddOverviewTextRow(rows, "Windows boot time", FormatDateTime(bootTime), "Windows WMI", windowsDetails);
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI", Details = CloneDetails(windowsDetails) });
+                    }
+                    break;
+                }
+            }
+        }
+        catch
+        {
+            rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows", Details = CloneDetails(windowsDetails) });
+        }
+
+        string baseboardManufacturer = "";
+        string baseboardProduct = "";
+        string baseboardVersion = "";
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Product, Version FROM Win32_BaseBoard"))
+            {
+                foreach (ManagementObject board in searcher.Get())
+                {
+                    baseboardManufacturer = CleanWmiText(Convert.ToString(board["Manufacturer"]));
+                    baseboardProduct = CleanWmiText(Convert.ToString(board["Product"]));
+                    baseboardVersion = CleanWmiText(Convert.ToString(board["Version"]));
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem"))
+            {
+                foreach (ManagementObject system in searcher.Get())
+                {
+                    AddOverviewTextRow(rows, "System manufacturer", CleanWmiText(Convert.ToString(system["Manufacturer"])), "Windows WMI");
+                    var systemModel = CleanWmiText(Convert.ToString(system["Model"]));
+                    if (IsGenericSystemModel(systemModel) && !string.IsNullOrWhiteSpace(baseboardProduct))
+                    {
+                        systemModel = baseboardProduct;
+                    }
+                    AddOverviewTextRow(rows, "System model", systemModel, "Windows WMI");
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        var boardDetails = GetBoardHardwareDetails();
+        AddOverviewTextRow(rows, "Baseboard manufacturer", baseboardManufacturer, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "Baseboard product", baseboardProduct, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "Baseboard version", baseboardVersion, "Windows WMI", boardDetails);
+        AddOverviewTextRow(rows, "BIOS mode", GetFirmwareMode(), "Windows registry", firmwareDetails);
+        AddOverviewTextRow(rows, "Secure Boot", GetSecureBootState(), "Windows registry", firmwareDetails);
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
+            {
+                foreach (ManagementObject bios in searcher.Get())
+                {
+                    AddOverviewTextRow(rows, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"), "Windows WMI", firmwareDetails);
+                    var version = GetWmiPropertyText(bios, "SMBIOSBIOSVersion");
+                    if (string.IsNullOrWhiteSpace(version))
+                    {
+                        version = GetWmiPropertyText(bios, "Version");
+                    }
+                    AddOverviewTextRow(rows, "BIOS version", version, "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "BIOS date", FormatWmiDate(GetWmiPropertyValue(bios, "ReleaseDate")), "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "SMBIOS version", FormatMajorMinor(GetWmiPropertyValue(bios, "SMBIOSMajorVersion"), GetWmiPropertyValue(bios, "SMBIOSMinorVersion"), true), "Windows WMI", firmwareDetails);
+                    AddOverviewTextRow(rows, "Embedded controller version", FormatMajorMinor(GetWmiPropertyValue(bios, "EmbeddedControllerMajorVersion"), GetWmiPropertyValue(bios, "EmbeddedControllerMinorVersion"), false), "Windows WMI", firmwareDetails);
+                    break;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, DriverVersion, DriverDate, PNPDeviceID FROM Win32_VideoController"))
+            {
+                foreach (ManagementObject gpu in searcher.Get())
+                {
+                    var name = Convert.ToString(gpu["Name"]);
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        name = "Display adapter";
+                    }
+
+                    AddOverviewTextRow(rows, name + " adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"])), "Windows");
+                    AddOverviewTextRow(rows, name + " driver version", Convert.ToString(gpu["DriverVersion"]), "Windows WMI");
+                    AddOverviewTextRow(rows, name + " driver date", FormatWmiDate(gpu["DriverDate"]), "Windows WMI");
+
+                    string gpuBios;
+                    string gpuBiosDate;
+                    if (TryGetGpuBiosInfo(name, Convert.ToString(gpu["PNPDeviceID"]), out gpuBios, out gpuBiosDate))
+                    {
+                        AddOverviewTextRow(rows, name + " BIOS", gpuBios, "Windows registry");
+                        AddOverviewTextRow(rows, name + " BIOS date", gpuBiosDate, "Windows registry");
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        AddPrinterOverviewRows(rows);
+
+        return rows;
+    }
+
+    private static IEnumerable<SensorRow> GetSystemUptimeRows()
+    {
+        TimeSpan uptime;
+        try
+        {
+            uptime = TimeSpan.FromMilliseconds(NativeMethods.GetTickCount64());
+        }
+        catch
+        {
+            uptime = TimeSpan.FromMilliseconds(Environment.TickCount & int.MaxValue);
+        }
+
+        return new[]
+        {
+            new SensorRow
+            {
+                Type = "Performance",
+                Hardware = "Overview",
+                Name = "System uptime",
+                Value = (float)Math.Max(0, uptime.TotalMinutes),
+                DisplayValue = FormatUptime(uptime),
+                Source = "Windows"
+            }
+        };
+    }
+
+    private static void AddOverviewTextRow(List<SensorRow> rows, string name, string value, string source)
+    {
+        AddOverviewTextRow(rows, name, value, source, null);
+    }
+
+    private static void AddOverviewTextRow(List<SensorRow> rows, string name, string value, string source, Dictionary<string, string> details)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Overview",
+            Name = name,
+            DisplayValue = value.Trim(),
+            Source = source,
+            Details = CloneDetails(details)
+        });
+    }
+
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalSeconds < 0)
+        {
+            uptime = TimeSpan.Zero;
+        }
+
+        var parts = new List<string>();
+        if (uptime.Days > 0)
+        {
+            parts.Add(uptime.Days + " day" + (uptime.Days == 1 ? "" : "s"));
+        }
+
+        if (uptime.Hours > 0 || parts.Count > 0)
+        {
+            parts.Add(uptime.Hours + " hour" + (uptime.Hours == 1 ? "" : "s"));
+        }
+
+        parts.Add(uptime.Minutes + " minute" + (uptime.Minutes == 1 ? "" : "s"));
+        return string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatWindowsInstallDate(object wmiValue)
+    {
+        DateTime parsed;
+        if (TryParseWmiDate(wmiValue, out parsed) && IsPlausibleWindowsInstallDate(parsed))
+        {
+            return FormatWindowsInstallDateWithAge(parsed);
+        }
+
+        if (TryGetWindowsInstallDateFromRegistry(out parsed) && IsPlausibleWindowsInstallDate(parsed))
+        {
+            return FormatWindowsInstallDateWithAge(parsed);
+        }
+
+        return "";
+    }
+
+    private static string FormatWindowsInstallDateWithAge(DateTime installDate)
+    {
+        var today = DateTime.Today;
+        var date = installDate.Date;
+        if (date > today)
+        {
+            return installDate.ToString("yyyy-MM-dd");
+        }
+
+        var totalDays = (today - date).Days;
+        return installDate.ToString("yyyy-MM-dd") + " (" + FormatElapsedDateAge(date, today, totalDays) + ")";
+    }
+
+    private static string FormatElapsedDateAge(DateTime startDate, DateTime endDate, int totalDays)
+    {
+        if (totalDays <= 0)
+        {
+            return "today";
+        }
+
+        var detailed = FormatCalendarAge(startDate, endDate);
+        var dayText = totalDays + " day" + (totalDays == 1 ? "" : "s") + " ago";
+        if (string.IsNullOrWhiteSpace(detailed) || detailed == dayText)
+        {
+            return dayText;
+        }
+
+        return dayText + "; " + detailed;
+    }
+
+    private static string FormatCalendarAge(DateTime startDate, DateTime endDate)
+    {
+        var years = 0;
+        while (startDate.AddYears(years + 1) <= endDate)
+        {
+            years++;
+        }
+
+        var cursor = startDate.AddYears(years);
+        var months = 0;
+        while (cursor.AddMonths(months + 1) <= endDate)
+        {
+            months++;
+        }
+
+        cursor = cursor.AddMonths(months);
+        var remainingDays = (endDate - cursor).Days;
+        var weeks = remainingDays / 7;
+        var days = remainingDays % 7;
+
+        var parts = new List<string>();
+        AddAgePart(parts, years, "year");
+        AddAgePart(parts, months, "month");
+        AddAgePart(parts, weeks, "week");
+        AddAgePart(parts, days, "day");
+
+        return parts.Count == 0 ? "" : string.Join(", ", parts.ToArray()) + " ago";
+    }
+
+    private static void AddAgePart(List<string> parts, int value, string unit)
+    {
+        if (value <= 0)
+        {
+            return;
+        }
+
+        parts.Add(value + " " + unit + (value == 1 ? "" : "s"));
+    }
+
+    private static bool TryGetWindowsInstallDateFromRegistry(out DateTime installDate)
+    {
+        installDate = DateTime.MinValue;
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+            {
+                long fileTime;
+                if (TryConvertToInt64(key == null ? null : key.GetValue("InstallTime"), out fileTime) && fileTime > 0)
+                {
+                    installDate = DateTime.FromFileTime(fileTime);
+                    return true;
+                }
+
+                long unixSeconds;
+                if (TryConvertToInt64(key == null ? null : key.GetValue("InstallDate"), out unixSeconds) && unixSeconds > 0)
+                {
+                    installDate = new DateTime(1970, 1, 1).AddSeconds(unixSeconds).ToLocalTime();
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool IsPlausibleWindowsInstallDate(DateTime value)
+    {
+        return value.Year >= 2000 && value <= DateTime.Now.AddDays(1);
+    }
+
+    private static string FormatDateTime(DateTime value)
+    {
+        return value.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+}

@@ -57,6 +57,7 @@ public sealed class AppSettings
     public string UpdateCheckFrequency = "Startup";
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
+    public bool ConfirmSpokenHotKeyProfileRemoval = true;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;
@@ -105,6 +106,7 @@ public sealed class SharedAppSettings
     public string UpdateCheckFrequency = "Startup";
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
+    public bool ConfirmSpokenHotKeyProfileRemoval = true;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;

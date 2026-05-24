@@ -629,9 +629,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (rows.Count == 0)
         {
-            var loadingText = reportViewMode
-                ? T("message.staticReportCategoryEmpty", "This static report does not contain readings for this category.")
-                : T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.");
+            var loadingText = EmptyCategoryMessage(filter == null ? "" : filter.Type);
             if (filter != null && !string.IsNullOrWhiteSpace(filter.Type))
             {
                 loadingText = DisplayTypeName(filter.Type) + ": " + loadingText;
@@ -643,37 +641,44 @@ public sealed partial class SensorReadoutForm : Form
         if (!string.IsNullOrWhiteSpace(filter.Type))
         {
             var typeItem = new ReadingTreeItem { Key = "type|" + filter.Type, Text = DisplayTypeName(filter.Type) };
+            var summaryItem = BuildCategorySummaryItem(filter.Type, rows);
             if (filter.Type == "Performance")
             {
                 AddPerformanceGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
                 return typeItem.Children;
             }
 
             if (filter.Type == "Temperature")
             {
                 AddTemperatureGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
                 return typeItem.Children;
             }
 
             if (filter.Type == "USB")
             {
                 AddUsbGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
                 return typeItem.Children;
             }
 
             if (filter.Type == "Audio")
             {
                 AddAudioGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
                 return typeItem.Children;
             }
 
             if (filter.Type == "Devices")
             {
                 AddDeviceInventoryGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
                 return typeItem.Children;
             }
 
             AddHardwareGroups(typeItem, rows);
+            InsertCategorySummary(typeItem, summaryItem);
             return typeItem.Children;
         }
 
@@ -687,6 +692,102 @@ public sealed partial class SensorReadoutForm : Form
         var root = new ReadingTreeItem { Key = "readings", Text = T("type.Readings", "Readings") };
         AddReadingRows(root, rows);
         return new List<ReadingTreeItem> { root };
+    }
+
+    private string EmptyCategoryMessage(string type)
+    {
+        if (reportViewMode)
+        {
+            return T("message.staticReportCategoryEmpty", "This static report does not contain readings for this category.");
+        }
+
+        type = type ?? "";
+        if (type.Equals("Fan", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noFanReadingsYet", "No fan readings are visible yet. Some systems need LibreHardwareMonitor, PawnIO, or a laptop Plug-In, and some hardware does not expose fan sensors to Windows.");
+        }
+        if (type.Equals("Temperature", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noTemperatureReadingsYet", "No temperature readings are visible yet. Sensor Readout will show them when LibreHardwareMonitor, Core Temp, Windows, or an enabled hardware Plug-In exposes them.");
+        }
+        if (type.Equals("SMART", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noSmartReadingsYet", "No SMART readings are visible yet. Some drives, USB bridges, RAID controllers, or Windows storage drivers hide SMART data.");
+        }
+        if (type.Equals("Network", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noNetworkReadingsYet", "No network readings are visible yet. Check that Windows exposes an active network adapter; Wi-Fi details require a Wi-Fi adapter and Windows WLAN data.");
+        }
+        if (type.Equals("USB", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noUsbReadingsYet", "No USB readings are visible yet. Press F5 after plugging or unplugging hardware so Sensor Readout can rebuild the USB inventory.");
+        }
+        if (type.Equals("Battery", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noBatteryReadingsYet", "No battery readings are visible yet. Desktop systems and some battery drivers do not expose battery data to Windows.");
+        }
+        return T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.");
+    }
+
+    private static void InsertCategorySummary(ReadingTreeItem typeItem, ReadingTreeItem summaryItem)
+    {
+        if (typeItem == null || summaryItem == null)
+        {
+            return;
+        }
+
+        typeItem.Children.Insert(0, summaryItem);
+    }
+
+    private ReadingTreeItem BuildCategorySummaryItem(string type, List<SensorRow> rows)
+    {
+        if (string.IsNullOrWhiteSpace(type) || rows == null || rows.Count == 0)
+        {
+            return null;
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var hardwareCount = rows.Select(r => ShortHardwareName(r.Hardware)).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        AddDetail(details, "Category", DisplayTypeName(type));
+        AddDetail(details, "Reading count", rows.Count.ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, "Device or group count", hardwareCount.ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, "Numeric readings", rows.Count(r => r.Value.HasValue).ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, "Rows with details", rows.Count(r => r.Details != null && r.Details.Count > 0).ToString(CultureInfo.InvariantCulture));
+
+        if (type.Equals("Network", StringComparison.OrdinalIgnoreCase))
+        {
+            AddDetail(details, "Network adapters up", rows.Count(r => string.Equals(r.Name, "Status", StringComparison.OrdinalIgnoreCase) && string.Equals(r.DisplayValue, "Up", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture));
+            AddDetail(details, "WiFi connected rows", rows.Count(r => string.Equals(r.Name, "Wi-Fi connected", StringComparison.OrdinalIgnoreCase) && r.Value.HasValue && r.Value.Value >= 1).ToString(CultureInfo.InvariantCulture));
+        }
+        else if (type.Equals("Devices", StringComparison.OrdinalIgnoreCase))
+        {
+            AddDetail(details, "Non-working devices", rows.Count(r => string.Equals(r.Hardware, "Non-working devices", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture));
+        }
+        else if (type.Equals("SMART", StringComparison.OrdinalIgnoreCase))
+        {
+            AddDetail(details, "Drives or storage groups", hardwareCount.ToString(CultureInfo.InvariantCulture));
+        }
+        else if (type.Equals("Battery", StringComparison.OrdinalIgnoreCase))
+        {
+            var charge = rows.FirstOrDefault(r => r.Value.HasValue && (r.DisplayValue ?? "").Contains("%"));
+            AddDetail(details, "Current charge", charge == null ? "" : FormatValue(charge));
+        }
+
+        var display = rows.Count + " reading" + (rows.Count == 1 ? "" : "s") + " across " + hardwareCount + " group" + (hardwareCount == 1 ? "" : "s");
+        return new ReadingTreeItem
+        {
+            Key = "category-summary|" + type,
+            Text = T("ui.Category summary", "Category summary") + ": " + display,
+            Row = new SensorRow
+            {
+                Type = type,
+                Hardware = T("ui.Category summary", "Category summary"),
+                Name = T("ui.Category summary", "Category summary"),
+                DisplayValue = display,
+                Source = "Sensor Readout",
+                Details = details
+            }
+        };
     }
 
     private List<ReadingTreeItem> FilterHiddenReadingItems(IEnumerable<ReadingTreeItem> items)

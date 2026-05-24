@@ -20,6 +20,7 @@ public sealed partial class PreferencesForm : Form
     private readonly ComboBox updateCheckFrequencyBox;
     private readonly CheckBox installUpdatesQuietlyCheckBox;
     private readonly CheckBox showUpdateInstallConfirmationCheckBox;
+    private readonly CheckBox confirmSpokenHotKeyProfileRemovalCheckBox;
     private readonly ComboBox updateAvailableSoundBox;
     private readonly CheckBox diagnosticsSpeakProgressCheckBox;
     private readonly CheckBox diagnosticsPlaySoundsCheckBox;
@@ -112,6 +113,7 @@ public sealed partial class PreferencesForm : Form
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
     public bool InstallUpdatesQuietly { get { return installUpdatesQuietlyCheckBox != null && installUpdatesQuietlyCheckBox.Checked; } }
     public bool ShowUpdateInstallConfirmation { get { return showUpdateInstallConfirmationCheckBox == null || showUpdateInstallConfirmationCheckBox.Checked; } }
+    public bool ConfirmSpokenHotKeyProfileRemoval { get { return confirmSpokenHotKeyProfileRemovalCheckBox == null || confirmSpokenHotKeyProfileRemovalCheckBox.Checked; } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
     public bool DiagnosticsPlaySounds { get { return diagnosticsPlaySoundsCheckBox == null || diagnosticsPlaySoundsCheckBox.Checked; } }
@@ -886,7 +888,7 @@ public sealed partial class PreferencesForm : Form
         fanProfilePercentBox.ValueChanged += delegate { SaveSelectedFanProfileAction(); };
         fanProfileSelectedList.SelectedIndexChanged += delegate { LoadSelectedFanProfileAction(); };
         alarmList.SelectedIndexChanged += delegate { LoadSelectedAlarm(); };
-        alarmEnabledCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(); };
+        alarmEnabledCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(false); };
         alarmNameBox.TextChanged += delegate { SaveSelectedAlarm(false); };
         alarmReadingBox.SelectedIndexChanged += delegate
         {
@@ -897,10 +899,10 @@ public sealed partial class PreferencesForm : Form
 
             var readingChanged = !string.Equals(lastAlarmReadingKey, SelectedAlarmReadingKey(), StringComparison.OrdinalIgnoreCase);
             RefreshAlarmThresholdUnitChoices(readingChanged);
-            SaveSelectedAlarm();
+            SaveSelectedAlarm(false);
             lastAlarmReadingKey = SelectedAlarmReadingKey();
         };
-        alarmConditionBox.SelectedIndexChanged += delegate { SaveSelectedAlarm(); };
+        alarmConditionBox.SelectedIndexChanged += delegate { SaveSelectedAlarm(false); };
         alarmThresholdBox.ValueChanged += delegate { SaveSelectedAlarm(false); };
         alarmThresholdUnitBox.SelectedIndexChanged += delegate
         {
@@ -910,13 +912,13 @@ public sealed partial class PreferencesForm : Form
             }
 
             RefreshAlarmThresholdForSelectedUnit();
-            SaveSelectedAlarm();
+            SaveSelectedAlarm(false);
         };
         alarmCooldownBox.ValueChanged += delegate { SaveSelectedAlarm(false); };
-        alarmSpeakCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(); };
+        alarmSpeakCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(false); };
         alarmSoundBox.SelectedIndexChanged += delegate
         {
-            SaveSelectedAlarm();
+            SaveSelectedAlarm(false);
             PreviewSelectedSound(alarmSoundBox);
         };
         alarmList.KeyDown += AlarmListKeyDown;
@@ -931,7 +933,7 @@ public sealed partial class PreferencesForm : Form
         AttachIncrementalListSearch(spokenSelectedList);
         AttachIncrementalListSearch(fanProfileAvailableList);
         AttachIncrementalListSearch(fanProfileSelectedList);
-        foreach (var profile in spokenHotKeys)
+        foreach (var profile in SortedSpokenHotKeyProfiles())
         {
             spokenHotKeyList.Items.Add(profile);
         }
@@ -972,6 +974,14 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = "Show update install confirmation",
             AccessibleDescription = "When checked, Download and install asks before Sensor Readout closes, installs the update, and reopens."
         };
+        confirmSpokenHotKeyProfileRemovalCheckBox = new CheckBox
+        {
+            Text = "Confirm spoken hotkey profile &removal",
+            Checked = settings.ConfirmSpokenHotKeyProfileRemoval,
+            AutoSize = true,
+            AccessibleName = "Confirm spoken hotkey profile removal",
+            AccessibleDescription = "When checked, Sensor Readout asks before removing a spoken hotkey profile."
+        };
         foreach (var key in hiddenReadingKeys.OrderBy(k => k))
         {
             var index = hiddenItemsList.Items.Add(key);
@@ -994,16 +1004,18 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(10)
         };
+        hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.Controls.Add(new Label { Text = "Hidden readings and groups. Checked items are hidden. Uncheck items to show them again.", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
-        hiddenLayout.Controls.Add(hiddenItemsList, 0, 2);
+        hiddenLayout.Controls.Add(confirmSpokenHotKeyProfileRemovalCheckBox, 0, 2);
+        hiddenLayout.Controls.Add(hiddenItemsList, 0, 3);
         var hiddenButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
         var unhideSelectedButton = new Button { Text = "&Show selected", AutoSize = true };
         unhideSelectedButton.Click += delegate
@@ -1023,7 +1035,7 @@ public sealed partial class PreferencesForm : Form
         };
         hiddenButtons.Controls.Add(unhideSelectedButton);
         hiddenButtons.Controls.Add(unhideAllButton);
-        hiddenLayout.Controls.Add(hiddenButtons, 0, 3);
+        hiddenLayout.Controls.Add(hiddenButtons, 0, 4);
         hiddenTab.Controls.Add(hiddenLayout);
 
         var dialogButtons = new FlowLayoutPanel
@@ -1180,6 +1192,7 @@ public sealed partial class PreferencesForm : Form
         updateCheckFrequencyBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
         installUpdatesQuietlyCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         showUpdateInstallConfirmationCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        confirmSpokenHotKeyProfileRemovalCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateAvailableSoundBox.SelectedIndexChanged += delegate
         {
             SaveLivePreferences();
