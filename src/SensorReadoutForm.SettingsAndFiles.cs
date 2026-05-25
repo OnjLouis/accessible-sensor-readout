@@ -369,6 +369,8 @@ public sealed partial class SensorReadoutForm : Form
             ConfirmSpokenHotKeyProfileRemoval = value.ConfirmSpokenHotKeyProfileRemoval,
             InitialSetupWizardDismissed = value.InitialSetupWizardDismissed,
             ShowTipsOnStartup = value.ShowTipsOnStartup,
+            LastLanguageEditorFile = value.LastLanguageEditorFile,
+            LastLanguageEditorKey = value.LastLanguageEditorKey,
             LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
             UpdateAvailableSoundFile = value.UpdateAvailableSoundFile,
             DiagnosticsSpeakProgress = value.DiagnosticsSpeakProgress,
@@ -460,6 +462,8 @@ public sealed partial class SensorReadoutForm : Form
         target.ConfirmSpokenHotKeyProfileRemoval = shared.ConfirmSpokenHotKeyProfileRemoval;
         target.InitialSetupWizardDismissed = shared.InitialSetupWizardDismissed;
         target.ShowTipsOnStartup = shared.ShowTipsOnStartup;
+        target.LastLanguageEditorFile = shared.LastLanguageEditorFile;
+        target.LastLanguageEditorKey = shared.LastLanguageEditorKey;
         target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
         target.UpdateAvailableSoundFile = shared.UpdateAvailableSoundFile;
         target.DiagnosticsSpeakProgress = shared.DiagnosticsSpeakProgress;
@@ -485,6 +489,8 @@ public sealed partial class SensorReadoutForm : Form
         value.LanguageFile = SanitizeLanguageFileName(value.LanguageFile);
         value.ShowHideHotKey = NormalizeHotKeyText(value.ShowHideHotKey);
         value.SpeakTrayHotKey = NormalizeHotKeyText(value.SpeakTrayHotKey);
+        value.LastLanguageEditorFile = SanitizeLanguageFileName(value.LastLanguageEditorFile);
+        value.LastLanguageEditorKey = (value.LastLanguageEditorKey ?? "").Trim();
         value.HotKeyCopyDoublePressMs = NormalizeHotKeyCopyDoublePressMs(value.HotKeyCopyDoublePressMs);
         value.UpdateCheckFrequency = NormalizeUpdateCheckFrequency(string.IsNullOrWhiteSpace(value.UpdateCheckFrequency) ? (value.CheckForUpdatesAtStartup ? "Startup" : "Never") : value.UpdateCheckFrequency);
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
@@ -567,6 +573,8 @@ public sealed partial class SensorReadoutForm : Form
         value.LanguageFile = SanitizeLanguageFileName(value.LanguageFile);
         value.ShowHideHotKey = NormalizeHotKeyText(value.ShowHideHotKey);
         value.SpeakTrayHotKey = NormalizeHotKeyText(value.SpeakTrayHotKey);
+        value.LastLanguageEditorFile = SanitizeLanguageFileName(value.LastLanguageEditorFile);
+        value.LastLanguageEditorKey = (value.LastLanguageEditorKey ?? "").Trim();
         value.HotKeyCopyDoublePressMs = NormalizeHotKeyCopyDoublePressMs(value.HotKeyCopyDoublePressMs);
         value.UpdateCheckFrequency = NormalizeUpdateCheckFrequency(string.IsNullOrWhiteSpace(value.UpdateCheckFrequency) ? (value.CheckForUpdatesAtStartup ? "Startup" : "Never") : value.UpdateCheckFrequency);
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);

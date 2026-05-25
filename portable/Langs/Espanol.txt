@@ -929,3 +929,6 @@ a11y.Speak startup message=Leer mensaje de inicio
 ui.Category summary count={0} {1} en {2} {3}
 ui.group=grupo
 ui.groups=grupos
+ui.Find language entry=Buscar entrada de idioma
+ui.Search entries:=Buscar entradas:
+a11y.Select an entry, then edit its value below. Press F2 to move to the value field, or F3 to search entries.=Seleccione una entrada y edite su valor abajo. Pulse F2 para ir al campo de valor, o F3 para buscar entradas.

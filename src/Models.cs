@@ -60,6 +60,8 @@ public sealed class AppSettings
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
     public bool InitialSetupWizardDismissed = false;
     public bool ShowTipsOnStartup = false;
+    public string LastLanguageEditorFile = "";
+    public string LastLanguageEditorKey = "";
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;
@@ -111,6 +113,8 @@ public sealed class SharedAppSettings
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
     public bool InitialSetupWizardDismissed = false;
     public bool ShowTipsOnStartup = false;
+    public string LastLanguageEditorFile = "";
+    public string LastLanguageEditorKey = "";
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;

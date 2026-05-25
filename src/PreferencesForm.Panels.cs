@@ -655,8 +655,9 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Language entries",
-            AccessibleDescription = "Select an entry, then edit its value below. Press F2 to move to the value field."
+            AccessibleDescription = "Select an entry, then edit its value below. Press F2 to move to the value field, or F3 to search entries."
         };
+        AttachIncrementalListSearch(languageEntryList);
         languageEntryList.SelectedIndexChanged += delegate { LoadSelectedLanguageEntryValue(); };
         languageEntryList.KeyDown += delegate(object sender, KeyEventArgs e)
         {
@@ -664,6 +665,11 @@ public sealed partial class PreferencesForm : Form
             {
                 languageEntryValueBox.Focus();
                 languageEntryValueBox.SelectAll();
+                e.Handled = true;
+            }
+            else if (e.KeyCode == Keys.F3)
+            {
+                ShowLanguageEntrySearch();
                 e.Handled = true;
             }
         };
@@ -684,10 +690,29 @@ public sealed partial class PreferencesForm : Form
         layout.Controls.Add(languageEntryValueBox, 0, 3);
         layout.Controls.Add(buttonPanel, 0, 4);
 
-        languageEditorFileBox.SelectedIndexChanged += delegate { LoadLanguageEditorEntries(); };
+        languageEditorFileBox.SelectedIndexChanged += delegate
+        {
+            var choice = languageEditorFileBox.SelectedItem as LanguageChoice;
+            if (choice != null)
+            {
+                liveSettings.LastLanguageEditorFile = choice.FileName ?? "";
+                SaveLivePreferences();
+            }
+            LoadLanguageEditorEntries();
+        };
         if (languageEditorFileBox.Items.Count > 0)
         {
-            languageEditorFileBox.SelectedIndex = 0;
+            var selectedIndex = 0;
+            for (var i = 0; i < languageEditorFileBox.Items.Count; i++)
+            {
+                var choice = languageEditorFileBox.Items[i] as LanguageChoice;
+                if (choice != null && string.Equals(choice.FileName ?? "", liveSettings.LastLanguageEditorFile ?? "", StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+            languageEditorFileBox.SelectedIndex = selectedIndex;
         }
 
         return layout;
@@ -707,13 +732,24 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
+        var previousKey = liveSettings.LastLanguageEditorKey ?? "";
         foreach (var key in SensorReadoutForm.ReadLanguageFile(choice.FullPath).Keys.OrderBy(LanguageEntrySortKey))
         {
             languageEntryList.Items.Add(new LanguageEntryChoice { Key = key, Label = FriendlyLanguageEntryLabel(key) });
         }
         if (languageEntryList.Items.Count > 0)
         {
-            languageEntryList.SelectedIndex = 0;
+            var selectedIndex = 0;
+            for (var i = 0; i < languageEntryList.Items.Count; i++)
+            {
+                var entry = languageEntryList.Items[i] as LanguageEntryChoice;
+                if (entry != null && string.Equals(entry.Key, previousKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+            languageEntryList.SelectedIndex = selectedIndex;
         }
     }
 
@@ -728,9 +764,44 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
+        liveSettings.LastLanguageEditorFile = choice.FileName ?? "";
+        liveSettings.LastLanguageEditorKey = key;
+        SaveLivePreferences();
         var values = SensorReadoutForm.ReadLanguageFile(choice.FullPath);
         string value;
         languageEntryValueBox.Text = values.TryGetValue(key, out value) ? value : "";
+    }
+
+    private void ShowLanguageEntrySearch()
+    {
+        if (languageEntryList == null || languageEntryList.Items.Count == 0)
+        {
+            return;
+        }
+
+        var selected = SensorReadoutForm.ShowSearchDialog(
+            this,
+            SensorReadoutForm.L("ui.Find language entry", "Find language entry"),
+            SensorReadoutForm.L("ui.Search entries:", "Search entries:"),
+            languageEntryList.Items.Cast<object>(),
+            delegate(object item) { return item == null ? "" : item.ToString(); },
+            delegate(object item)
+            {
+                var entry = item as LanguageEntryChoice;
+                if (entry == null)
+                {
+                    return item == null ? "" : item.ToString();
+                }
+
+                return entry.Key + " " + entry.Label;
+            });
+        if (selected == null)
+        {
+            return;
+        }
+
+        languageEntryList.SelectedItem = selected;
+        languageEntryList.Focus();
     }
 
     private void SaveSelectedLanguageEntry()

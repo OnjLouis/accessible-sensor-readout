@@ -929,3 +929,6 @@ a11y.Speak startup message=Pronuncia messaggio di avvio
 ui.Category summary count={0} {1} in {2} {3}
 ui.group=gruppo
 ui.groups=gruppi
+ui.Find language entry=Trova voce lingua
+ui.Search entries:=Cerca voci:
+a11y.Select an entry, then edit its value below. Press F2 to move to the value field, or F3 to search entries.=Seleziona una voce, poi modifica il valore qui sotto. Premi F2 per passare al campo valore, oppure F3 per cercare le voci.

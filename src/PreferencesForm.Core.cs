@@ -169,6 +169,12 @@ public sealed partial class PreferencesForm : Form
             return true;
         }
 
+        if (keyData == Keys.F3 && IsSelectedPreferencesTab("Language editor"))
+        {
+            ShowLanguageEntrySearch();
+            return true;
+        }
+
         if (keyData == Keys.Enter)
         {
             if (alarmList != null && alarmList.Focused)
@@ -204,6 +210,13 @@ public sealed partial class PreferencesForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool IsSelectedPreferencesTab(string tabName)
+    {
+        return preferencesTabs != null &&
+            preferencesTabs.SelectedTab != null &&
+            string.Equals(preferencesTabs.SelectedTab.Name, tabName, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool SelectPreferencesTabByShortcut(Keys key)
