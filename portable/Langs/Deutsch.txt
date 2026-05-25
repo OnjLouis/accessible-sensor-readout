@@ -926,3 +926,6 @@ a11y.Alarm name=Alarmname
 a11y.Fan profile sound=Klang f?r L?fterprofil
 a11y.Open project page=Projektseite ?ffnen
 a11y.Speak startup message=Startmeldung sprechen
+ui.Category summary count={0} {1} in {2} {3}
+ui.group=Gruppe
+ui.groups=Gruppen

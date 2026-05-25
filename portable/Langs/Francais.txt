@@ -926,3 +926,6 @@ a11y.Alarm name=Nom de l alarme
 a11y.Fan profile sound=Son du profil de ventilateur
 a11y.Open project page=Ouvrir la page du projet
 a11y.Speak startup message=Lire le message de d?marrage
+ui.Category summary count={0} {1} dans {2} {3}
+ui.group=groupe
+ui.groups=groupes

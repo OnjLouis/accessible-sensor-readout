@@ -774,7 +774,12 @@ public sealed partial class SensorReadoutForm : Form
             AddDetail(details, "Current charge", charge == null ? "" : FormatValue(charge));
         }
 
-        var display = rows.Count + " reading" + (rows.Count == 1 ? "" : "s") + " across " + hardwareCount + " group" + (hardwareCount == 1 ? "" : "s");
+        var display = string.Format(
+            T("ui.Category summary count", "{0} {1} across {2} {3}"),
+            rows.Count.ToString(CultureInfo.InvariantCulture),
+            rows.Count == 1 ? T("ui.reading", "reading") : T("ui.readings", "readings"),
+            hardwareCount.ToString(CultureInfo.InvariantCulture),
+            hardwareCount == 1 ? T("ui.group", "group") : T("ui.groups", "groups"));
         return new ReadingTreeItem
         {
             Key = "category-summary|" + type,
