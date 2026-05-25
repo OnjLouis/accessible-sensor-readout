@@ -114,6 +114,10 @@ public sealed partial class SensorReadoutForm : Form
                 ApplyPreferencesFromDialog(dialog, false, false);
                 UninstallLocalInstallAndClose();
             };
+            dialog.ResetAllSettingsRequested += delegate
+            {
+                ResetAllSettingsAndRestart(dialog);
+            };
             if (latestRows.Count > 0)
             {
                 dialog.UpdateSensorRows(latestRows);
@@ -170,6 +174,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
         settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
         settings.TrayTooltipShowsPartialReadings = dialog.TrayTooltipShowsPartialReadings;
+        settings.ShowTipsOnStartup = dialog.ShowTipsOnStartup;
         settings.RunAtStartup = dialog.RunAtStartup;
         settings.StartMinimizedToTray = dialog.StartMinimizedToTray;
         settings.CheckForUpdatesAtStartup = dialog.CheckForUpdatesAtStartup;
@@ -238,7 +243,7 @@ public sealed partial class SensorReadoutForm : Form
         ApplyTimerSettings();
         StartAutomaticUpdateChecks();
         RefreshSensors(false, false, "plug-in preferences");
-        statusLabel.Text = "Preferences saved.";
+        statusLabel.Text = L("status.Preferences saved.", "Preferences saved.");
     }
 
     private void ImportPlugInFromZip()
@@ -249,7 +254,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         plugInManager = null;
-        statusLabel.Text = "Plug-In imported. Enable it from Options, Preferences, Plug-Ins.";
+        statusLabel.Text = L("status.Plug-In imported. Enable it from Options, Preferences, Plug-Ins.", "Plug-In imported. Enable it from Options, Preferences, Plug-Ins.");
         RefreshSensors(false, false, "plug-in import");
     }
 
@@ -265,7 +270,7 @@ public sealed partial class SensorReadoutForm : Form
         if (lines.Count > 0)
         {
             Clipboard.SetText(string.Join(Environment.NewLine, lines.ToArray()));
-            statusLabel.Text = "Copied " + lines.Count + " line" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+            statusLabel.Text = string.Format(L("status.Copied lines to clipboard.", "Copied {0} line{1} to clipboard."), lines.Count, lines.Count == 1 ? "" : "s");
         }
     }
 
@@ -281,7 +286,7 @@ public sealed partial class SensorReadoutForm : Form
         if (lines.Count > 0)
         {
             Clipboard.SetText(string.Join(Environment.NewLine, lines.ToArray()));
-            statusLabel.Text = "Copied " + lines.Count + " value" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+            statusLabel.Text = string.Format(L("status.Copied values to clipboard.", "Copied {0} value{1} to clipboard."), lines.Count, lines.Count == 1 ? "" : "s");
         }
     }
 
@@ -692,7 +697,7 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
         }
 
-        statusLabel.Text = "Hidden " + readingTree.SelectedNode.Text + ". Use Options, Preferences, Hidden items to show it again.";
+            statusLabel.Text = string.Format(L("status.Hidden reading. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), readingTree.SelectedNode.Text);
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         UpdateReadingList(fallbackKey);
@@ -703,14 +708,14 @@ public sealed partial class SensorReadoutForm : Form
         var row = GetSelectedReadingRow();
         if (!CanRenameReadingRow(row))
         {
-            statusLabel.Text = "Select a fan reading before renaming.";
+            statusLabel.Text = L("status.Select a fan reading before renaming.", "Select a fan reading before renaming.");
             return;
         }
 
         var controlIdentifier = row.Type == "Fan Control" ? row.Identifier : GuessControlIdentifier(row.Identifier);
         if (string.IsNullOrWhiteSpace(controlIdentifier))
         {
-            statusLabel.Text = "Could not match this fan reading to a fan control.";
+            statusLabel.Text = L("status.Could not match this fan reading to a fan control.", "Could not match this fan reading to a fan control.");
             return;
         }
 
@@ -718,7 +723,7 @@ public sealed partial class SensorReadoutForm : Form
         string currentLabel;
         labels.TryGetValue(controlIdentifier, out currentLabel);
         var baseName = BaseFanReadingName(row.Name);
-        var newLabel = PromptForText("Rename Fan", "Friendly name for " + baseName + ":", currentLabel ?? "");
+        var newLabel = PromptForText(L("ui.Rename Fan", "Rename Fan"), string.Format(L("ui.Friendly name for fan:", "Friendly name for {0}:"), baseName), currentLabel ?? "");
         if (newLabel == null)
         {
             return;
@@ -737,7 +742,9 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         SaveFanLabels(labels);
-        statusLabel.Text = string.IsNullOrWhiteSpace(newLabel) ? "Removed fan label for " + baseName + "." : "Renamed " + baseName + " to " + newLabel + ".";
+        statusLabel.Text = string.IsNullOrWhiteSpace(newLabel)
+            ? string.Format(L("status.Removed fan label for.", "Removed fan label for {0}."), baseName)
+            : string.Format(L("status.Renamed fan to.", "Renamed {0} to {1}."), baseName, newLabel);
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         RefreshSensors();
@@ -1196,7 +1203,7 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = "Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it."
+            AccessibleDescription = L("a11y.Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.", "Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.")
         };
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {

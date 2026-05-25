@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.9.2";
+    public const string AppVersion = "3.10.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -595,6 +595,8 @@ public sealed partial class SensorReadoutForm : Form
             {
                 PlayStartupSound();
             }
+
+            BeginInvoke((MethodInvoker)ShowStartupOnboardingIfNeeded);
         };
 
         Resize += delegate
@@ -905,7 +907,7 @@ public sealed partial class SensorReadoutForm : Form
         lastReadingTreeShapeSignature = "";
         UpdateReadingList();
         UpdateTrayStatus();
-        statusLabel.Text = "Temperature unit set to " + TemperatureUnitDisplayName(settings.TemperatureUnit) + ".";
+        statusLabel.Text = string.Format(T("status.Temperature unit set to.", "Temperature unit set to {0}."), TemperatureUnitDisplayName(settings.TemperatureUnit));
     }
 
     private void UpdateTemperatureUnitMenu()

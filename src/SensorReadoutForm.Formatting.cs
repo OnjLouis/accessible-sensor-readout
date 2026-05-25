@@ -54,6 +54,8 @@ public sealed partial class SensorReadoutForm : Form
             || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Total space", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Used space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Free space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Read rate", StringComparison.OrdinalIgnoreCase)

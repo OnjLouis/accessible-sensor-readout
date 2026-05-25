@@ -196,18 +196,39 @@ function Get-GitHubReleaseToken {
     return ''
 }
 
-function Assert-GitHubActivityChecked {
+function Get-ChangelogClosedIssueNumbers([string]$releaseVersion) {
+    $entry = Read-ChangelogEntry $releaseVersion
+    $numbers = @()
+    foreach ($match in [regex]::Matches($entry, '(?i)\b(?:closes|fixes|resolves)\s+(?:github\s+)?(?:issue\s+)?#(\d+)\b')) {
+        $numbers += [int]$match.Groups[1].Value
+    }
+    foreach ($match in [regex]::Matches($entry, 'https://github\.com/OnjLouis/accessible-sensor-readout/issues/(\d+)')) {
+        if ($entry -match '(?i)\b(?:closes|fixes|resolves)\b') {
+            $numbers += [int]$match.Groups[1].Value
+        }
+    }
+    return @($numbers | Select-Object -Unique)
+}
+
+function Assert-GitHubActivityChecked([string]$releaseVersion) {
     Info "Checking GitHub issues, pull requests, forks, and traffic."
     $headers = Get-GitHubReleaseHeaders
     try {
         $repo = 'OnjLouis/accessible-sensor-readout'
         $issues = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/issues?state=open&per_page=100" -Headers $headers
         $realIssues = @($issues | Where-Object { -not $_.pull_request })
-        if ($realIssues.Count -gt 0) {
-            $summary = ($realIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
+        $closedByThisRelease = Get-ChangelogClosedIssueNumbers $releaseVersion
+        $blockingIssues = @($realIssues | Where-Object { [int]$_.number -notin $closedByThisRelease })
+        if ($blockingIssues.Count -gt 0) {
+            $summary = ($blockingIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
             Fail "Open GitHub issues need review before release: $summary"
         }
-        Info "No open GitHub issues."
+        if ($realIssues.Count -gt 0) {
+            $summary = ($realIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
+            Info "Open GitHub issues are covered by this release changelog: $summary"
+        } else {
+            Info "No open GitHub issues."
+        }
 
         $pulls = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/pulls?state=open&per_page=100" -Headers $headers | Where-Object { $_ -and $_.number })
         if ($pulls.Count -gt 0) {
@@ -829,7 +850,7 @@ New-Item -ItemType Directory -Force -Path $SmokeRoot,$programBuilds,$sourceSnaps
 Update-VendorData
 Assert-VersionConsistency $Version
 Assert-ChangelogClean $Version
-Assert-GitHubActivityChecked
+Assert-GitHubActivityChecked $Version
 Write-CommunityMentionReminder
 
 if (!$SkipBuild) {

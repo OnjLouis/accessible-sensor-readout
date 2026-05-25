@@ -364,7 +364,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            statusLabel.Text = "Nothing to copy for " + description + ".";
+            statusLabel.Text = string.Format(T("status.Nothing to copy for.", "Nothing to copy for {0}."), description);
             System.Media.SystemSounds.Beep.Play();
             return;
         }
@@ -372,13 +372,13 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             Clipboard.SetText(text);
-            statusLabel.Text = "Copied " + description + " to clipboard.";
+            statusLabel.Text = string.Format(T("status.Copied to clipboard.", "Copied {0} to clipboard."), description);
             LogMessage("Normal", "Copied " + description + " to clipboard: " + text);
             AnnounceCopiedToClipboard();
         }
         catch (Exception ex)
         {
-            statusLabel.Text = "Could not copy " + description + " to clipboard.";
+            statusLabel.Text = string.Format(T("status.Could not copy to clipboard.", "Could not copy {0} to clipboard."), description);
             LogError("Could not copy " + description + " to clipboard: " + ex.Message);
             System.Media.SystemSounds.Beep.Play();
         }
@@ -418,7 +418,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             if (statusLabel != null)
             {
-                statusLabel.Text = "Spoke " + description + " with screen reader.";
+                statusLabel.Text = string.Format(T("status.Spoke with screen reader.", "Spoke {0} with screen reader."), description);
             }
             LogMessage("Normal", "Spoke " + description + " with screen reader: " + text);
             return;
@@ -426,7 +426,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (statusLabel != null)
         {
-            statusLabel.Text = "Could not speak with screen reader. " + error;
+            statusLabel.Text = T("status.Could not speak with screen reader.", "Could not speak with screen reader.") + " " + error;
         }
         LogError("Could not speak with screen reader. " + error);
         System.Media.SystemSounds.Beep.Play();
@@ -601,14 +601,16 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Clear();
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Manual", Keys.F1, delegate { ShowManual(); }));
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
-        helpMenu.DropDownItems.Add("Version &history...", null, delegate { ShowVersionHistoryDialog(); });
+        helpMenu.DropDownItems.Add("&Version history...", null, delegate { ShowVersionHistoryDialog(); });
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));
         helpMenu.DropDownItems.Add("Con&tact", null, delegate { OpenContactPage(); });
         helpMenu.DropDownItems.Add("&Donate", null, delegate { OpenDonatePage(); });
         helpMenu.DropDownItems.Add("Install Core Temp &support...", null, delegate { ShowCoreTempSupportOptions(); });
         helpMenu.DropDownItems.Add("&Install prerequisites...", null, delegate { RunPrerequisiteInstaller(); });
         AddPlugInHelpMenuItems(helpMenu);
-            helpMenu.DropDownItems.Add("Check accessibilit&y setup...", null, delegate { ShowAccessibilitySetupCheck(); });
+        helpMenu.DropDownItems.Add("Run initial set&up wizard...", null, delegate { ShowInitialSetupWizard(false); });
+        helpMenu.DropDownItems.Add("&Hints and tips...", null, delegate { ShowTipsDialog(false); });
+        helpMenu.DropDownItems.Add("Check accessibilit&y setup...", null, delegate { ShowAccessibilitySetupCheck(); });
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
         helpMenu.DropDownItems.Add("Prepare support &report...", null, delegate { PrepareSupportReport(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());

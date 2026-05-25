@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 public sealed partial class PreferencesForm : Form
 {
     public event EventHandler LivePreferencesSaved;
+    public event EventHandler ResetAllSettingsRequested;
 
     private readonly CheckBox autoRefreshCheckBox;
     private readonly CheckBox refreshWhileFocusedCheckBox;
@@ -21,6 +22,7 @@ public sealed partial class PreferencesForm : Form
     private readonly CheckBox installUpdatesQuietlyCheckBox;
     private readonly CheckBox showUpdateInstallConfirmationCheckBox;
     private readonly CheckBox confirmSpokenHotKeyProfileRemovalCheckBox;
+    private readonly CheckBox showTipsOnStartupCheckBox;
     private readonly ComboBox updateAvailableSoundBox;
     private readonly CheckBox diagnosticsSpeakProgressCheckBox;
     private readonly CheckBox diagnosticsPlaySoundsCheckBox;
@@ -114,6 +116,7 @@ public sealed partial class PreferencesForm : Form
     public bool InstallUpdatesQuietly { get { return installUpdatesQuietlyCheckBox != null && installUpdatesQuietlyCheckBox.Checked; } }
     public bool ShowUpdateInstallConfirmation { get { return showUpdateInstallConfirmationCheckBox == null || showUpdateInstallConfirmationCheckBox.Checked; } }
     public bool ConfirmSpokenHotKeyProfileRemoval { get { return confirmSpokenHotKeyProfileRemovalCheckBox == null || confirmSpokenHotKeyProfileRemovalCheckBox.Checked; } }
+    public bool ShowTipsOnStartup { get { return showTipsOnStartupCheckBox != null && showTipsOnStartupCheckBox.Checked; } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
     public bool DiagnosticsPlaySounds { get { return diagnosticsPlaySoundsCheckBox == null || diagnosticsPlaySoundsCheckBox.Checked; } }
@@ -982,6 +985,14 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = "Confirm spoken hotkey profile removal",
             AccessibleDescription = "When checked, Sensor Readout asks before removing a spoken hotkey profile."
         };
+        showTipsOnStartupCheckBox = new CheckBox
+        {
+            Text = "Show &tips on startup",
+            Checked = settings.ShowTipsOnStartup,
+            AutoSize = true,
+            AccessibleName = "Show tips on startup",
+            AccessibleDescription = "When checked, Sensor Readout shows a short hint or tip when it starts."
+        };
         foreach (var key in hiddenReadingKeys.OrderBy(k => k))
         {
             var index = hiddenItemsList.Items.Add(key);
@@ -1004,9 +1015,10 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             Padding = new Padding(10)
         };
+        hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1015,7 +1027,8 @@ public sealed partial class PreferencesForm : Form
         hiddenLayout.Controls.Add(new Label { Text = "Hidden readings and groups. Checked items are hidden. Uncheck items to show them again.", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
         hiddenLayout.Controls.Add(confirmSpokenHotKeyProfileRemovalCheckBox, 0, 2);
-        hiddenLayout.Controls.Add(hiddenItemsList, 0, 3);
+        hiddenLayout.Controls.Add(showTipsOnStartupCheckBox, 0, 3);
+        hiddenLayout.Controls.Add(hiddenItemsList, 0, 4);
         var hiddenButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
         var unhideSelectedButton = new Button { Text = "&Show selected", AutoSize = true };
         unhideSelectedButton.Click += delegate
@@ -1035,7 +1048,22 @@ public sealed partial class PreferencesForm : Form
         };
         hiddenButtons.Controls.Add(unhideSelectedButton);
         hiddenButtons.Controls.Add(unhideAllButton);
-        hiddenLayout.Controls.Add(hiddenButtons, 0, 4);
+        var resetSettingsButton = new Button
+        {
+            Text = "Delete all &settings...",
+            AutoSize = true,
+            AccessibleName = "Delete all settings",
+            AccessibleDescription = "Deletes Sensor Readout settings and restarts with defaults. Logs and reports are kept."
+        };
+        resetSettingsButton.Click += delegate
+        {
+            if (ResetAllSettingsRequested != null)
+            {
+                ResetAllSettingsRequested(this, EventArgs.Empty);
+            }
+        };
+        hiddenButtons.Controls.Add(resetSettingsButton);
+        hiddenLayout.Controls.Add(hiddenButtons, 0, 5);
         hiddenTab.Controls.Add(hiddenLayout);
 
         var dialogButtons = new FlowLayoutPanel
@@ -1193,6 +1221,7 @@ public sealed partial class PreferencesForm : Form
         installUpdatesQuietlyCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         showUpdateInstallConfirmationCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         confirmSpokenHotKeyProfileRemovalCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        showTipsOnStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateAvailableSoundBox.SelectedIndexChanged += delegate
         {
             SaveLivePreferences();

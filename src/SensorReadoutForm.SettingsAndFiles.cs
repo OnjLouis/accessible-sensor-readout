@@ -367,6 +367,8 @@ public sealed partial class SensorReadoutForm : Form
             InstallUpdatesQuietly = value.InstallUpdatesQuietly,
             ShowUpdateInstallConfirmation = value.ShowUpdateInstallConfirmation,
             ConfirmSpokenHotKeyProfileRemoval = value.ConfirmSpokenHotKeyProfileRemoval,
+            InitialSetupWizardDismissed = value.InitialSetupWizardDismissed,
+            ShowTipsOnStartup = value.ShowTipsOnStartup,
             LastAutomaticUpdateCheckUtc = value.LastAutomaticUpdateCheckUtc,
             UpdateAvailableSoundFile = value.UpdateAvailableSoundFile,
             DiagnosticsSpeakProgress = value.DiagnosticsSpeakProgress,
@@ -456,6 +458,8 @@ public sealed partial class SensorReadoutForm : Form
         target.InstallUpdatesQuietly = shared.InstallUpdatesQuietly;
         target.ShowUpdateInstallConfirmation = shared.ShowUpdateInstallConfirmation;
         target.ConfirmSpokenHotKeyProfileRemoval = shared.ConfirmSpokenHotKeyProfileRemoval;
+        target.InitialSetupWizardDismissed = shared.InitialSetupWizardDismissed;
+        target.ShowTipsOnStartup = shared.ShowTipsOnStartup;
         target.LastAutomaticUpdateCheckUtc = shared.LastAutomaticUpdateCheckUtc;
         target.UpdateAvailableSoundFile = shared.UpdateAvailableSoundFile;
         target.DiagnosticsSpeakProgress = shared.DiagnosticsSpeakProgress;

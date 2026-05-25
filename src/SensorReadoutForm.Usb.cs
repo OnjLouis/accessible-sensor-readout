@@ -1620,8 +1620,8 @@ public sealed partial class SensorReadoutForm : Form
                 Dock = DockStyle.Fill,
                 HideSelection = false,
                 ShowNodeToolTips = true,
-                AccessibleName = "Details",
-                AccessibleDescription = "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close."
+                AccessibleName = T("a11y.Details", "Details"),
+                AccessibleDescription = T("a11y.Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.", "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.")
             };
             PopulateDetailsTree(tree, row.Details);
 
@@ -1630,8 +1630,8 @@ public sealed partial class SensorReadoutForm : Form
             var copyButton = new Button { Text = T("ui.&Copy", "&Copy"), AutoSize = true };
             var copyValueButton = new Button { Text = T("ui.Copy &value only", "Copy &value only"), AutoSize = true };
             var copyMatchingButton = new Button { Text = T("ui.Copy &matching...", "Copy &matching..."), AutoSize = true };
-            var collapseAllButton = new Button { Text = "C&ollapse all", AutoSize = true };
-            var expandAllButton = new Button { Text = "&Expand all", AutoSize = true };
+            var collapseAllButton = new Button { Text = T("ui.C&ollapse all", "C&ollapse all"), AutoSize = true };
+            var expandAllButton = new Button { Text = T("ui.&Expand all", "&Expand all"), AutoSize = true };
             closeButton.Click += delegate { dialog.Close(); };
             copyButton.Click += delegate { CopyDetailsTree(tree); };
             copyValueButton.Click += delegate { CopyDetailsTreeValueOnly(tree); };
@@ -2256,7 +2256,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         Clipboard.SetText(string.Join(Environment.NewLine, lines));
-        statusLabel.Text = "Copied " + lines.Count + " detail line" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+        statusLabel.Text = string.Format(T("status.Copied detail lines to clipboard.", "Copied {0} detail line{1} to clipboard."), lines.Count, lines.Count == 1 ? "" : "s");
     }
 
     private void CopyDetailsTreeValueOnly(TreeView tree)
@@ -2285,7 +2285,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         Clipboard.SetText(string.Join(Environment.NewLine, lines));
-        statusLabel.Text = "Copied " + lines.Count + " detail value" + (lines.Count == 1 ? "" : "s") + " to clipboard.";
+        statusLabel.Text = string.Format(T("status.Copied detail values to clipboard.", "Copied {0} detail value{1} to clipboard."), lines.Count, lines.Count == 1 ? "" : "s");
     }
 
     private void CopyMatchingDetailsTreeLines(TreeView tree)

@@ -59,7 +59,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         languageMenuItem.DropDownItems.Add(new ToolStripSeparator());
-        languageMenuItem.DropDownItems.Add("Open languages folder", null, delegate { OpenLanguagesFolder(); });
+        languageMenuItem.DropDownItems.Add(T("ui.Open languages folder", "Open languages folder"), null, delegate { OpenLanguagesFolder(); });
     }
 
     private static IEnumerable<LanguageChoice> UserSelectableLanguageChoices(IEnumerable<LanguageChoice> choices)
@@ -90,7 +90,7 @@ public sealed partial class SensorReadoutForm : Form
         LoadSelectedLanguage();
         BuildLanguageMenu();
         ApplyLanguage();
-        statusLabel.Text = "Language set to " + activeLanguage.DisplayName + ".";
+        statusLabel.Text = string.Format(T("status.Language set to.", "Language set to {0}."), activeLanguage.DisplayName);
     }
 
     private void LoadSelectedLanguage()
@@ -314,7 +314,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Could not open languages folder: " + ex.Message, "Sensor Readout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, T("message.Could not open languages folder:", "Could not open languages folder:") + " " + ex.Message, "Sensor Readout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -520,7 +520,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(owner, "Could not open languages folder: " + ex.Message, "Sensor Readout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(owner, T("message.Could not open languages folder:", "Could not open languages folder:") + " " + ex.Message, "Sensor Readout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 

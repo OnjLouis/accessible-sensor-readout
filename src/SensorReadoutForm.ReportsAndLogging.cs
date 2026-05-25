@@ -42,7 +42,7 @@ public sealed partial class SensorReadoutForm : Form
             var stopwatch = Stopwatch.StartNew();
             SaveReportToFile(dialog.FileName, html, false);
             stopwatch.Stop();
-            statusLabel.Text = "Saved report to " + dialog.FileName + " in " + FormatElapsed(stopwatch.Elapsed) + ".";
+            statusLabel.Text = string.Format(T("status.Saved report to in.", "Saved report to {0} in {1}."), dialog.FileName, FormatElapsed(stopwatch.Elapsed));
         }
     }
 

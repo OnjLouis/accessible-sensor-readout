@@ -541,10 +541,11 @@ public sealed partial class SensorReadoutForm : Form
             var version = release == null ? AppVersion : (release.TagName ?? AppVersion).Trim().TrimStart('v', 'V');
             var releaseUrl = release == null || string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl;
             var notesText = FormatReleaseNotesForDialog(release == null ? "" : release.Body, T("message.noReleaseNotes", "No release notes were provided for this update."));
+            var headerText = string.Format(T("message.latestReleaseHeader", "Latest release: {0}"), version);
 
             using (var dialog = new Form())
             {
-                dialog.Text = T("ui.Version history", "Version history");
+                dialog.Text = T("ui.Version history", "Version history") + " - " + version;
                 dialog.StartPosition = FormStartPosition.CenterParent;
                 dialog.Width = 720;
                 dialog.Height = 520;
@@ -568,7 +569,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     AutoSize = true,
                     Dock = DockStyle.Top,
-                    Text = string.Format(T("message.latestReleaseHeader", "Latest release: {0}"), version),
+                    Text = headerText,
                     Padding = new Padding(0, 0, 0, 8)
                 }, 0, 0);
 
@@ -578,8 +579,8 @@ public sealed partial class SensorReadoutForm : Form
                     Multiline = true,
                     ReadOnly = true,
                     ScrollBars = ScrollBars.Vertical,
-                    Text = notesText,
-                    AccessibleName = T("a11y.Version history", "Version history")
+                    Text = headerText + Environment.NewLine + Environment.NewLine + notesText,
+                    AccessibleName = T("a11y.Version history", "Version history") + " " + version
                 }, 0, 1);
 
                 var buttons = new FlowLayoutPanel

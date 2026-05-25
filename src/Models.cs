@@ -58,6 +58,8 @@ public sealed class AppSettings
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
+    public bool InitialSetupWizardDismissed = false;
+    public bool ShowTipsOnStartup = false;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;
@@ -107,6 +109,8 @@ public sealed class SharedAppSettings
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
+    public bool InitialSetupWizardDismissed = false;
+    public bool ShowTipsOnStartup = false;
     public string LastAutomaticUpdateCheckUtc = "";
     public string UpdateAvailableSoundFile = "";
     public bool DiagnosticsSpeakProgress = true;

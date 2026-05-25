@@ -648,7 +648,7 @@ public sealed partial class SensorReadoutForm : Form
         var row = GetSelectedFanControlTarget();
         if (row == null || row.Type != "Fan Control")
         {
-            statusLabel.Text = "Open fan controls and select a fan control target.";
+            statusLabel.Text = T("status.Open fan controls and select a fan control target.", "Open fan controls and select a fan control target.");
             LogFanAction(statusLabel.Text);
             return;
         }
@@ -713,7 +713,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (fanPercentBox == null)
         {
-            statusLabel.Text = "Open fan controls before resetting fans.";
+            statusLabel.Text = T("status.Open fan controls before resetting fans.", "Open fan controls before resetting fans.");
             return;
         }
         fanPercentBox.Value = 50;
@@ -756,14 +756,14 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (fanControlBox == null || fanPercentBox == null)
         {
-            statusLabel.Text = "Open fan controls before applying a fan profile.";
+            statusLabel.Text = T("status.Open fan controls before applying a fan profile.", "Open fan controls before applying a fan profile.");
             return;
         }
         fanPercentBox.Value = percent;
         var controls = fanControlBox.Items.Cast<SensorRow>().ToList();
         if (controls.Count == 0)
         {
-            statusLabel.Text = "No visible fan controls to adjust.";
+            statusLabel.Text = T("status.No visible fan controls to adjust.", "No visible fan controls to adjust.");
             LogFanAction(statusLabel.Text);
             return;
         }
@@ -1114,7 +1114,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (fanControlBox == null || fanLabelBox == null)
         {
-            statusLabel.Text = "Open fan controls before saving a fan label.";
+            statusLabel.Text = T("status.Open fan controls before saving a fan label.", "Open fan controls before saving a fan label.");
             return;
         }
 
@@ -1139,7 +1139,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         SaveFanLabels(labels);
-        statusLabel.Text = "Saved fan label for " + BaseFanControlName(row.Name) + ".";
+        statusLabel.Text = string.Format(T("status.Saved fan label for.", "Saved fan label for {0}."), BaseFanControlName(row.Name));
         UpdateFanControlBox();
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
