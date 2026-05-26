@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.10.2.
+Current version: 3.10.3.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -24,7 +24,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 
 ## What It Does
 
-- Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.
+- Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
@@ -559,6 +559,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.10.3
+
+- Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.
 
 ### 3.10.2
 

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 3.10.2.</p>
+<p>Aktuelle Version: 3.10.3.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstuetzter Luefter. Die Oberflaeche ist zuerst fuer Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Geraet oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menueleiste.</p>
 <p>Sensor Readout finden Sie <a href="https://github.com/OnjLouis/accessible-sensor-readout">auf GitHub</a>.</p>
@@ -90,7 +90,7 @@
 <p>Mein Wunsch ist, dass Sensor Readout zum Goldstandard seiner Klasse wird: ein barrierefreiheitsorientiertes Werkzeug, das blinde und sehbehinderte Menschen in technischen Support-Jobs ihren Kunden geben koennen, damit diese Berichte erstellen und Hilfe bei der Fehlersuche bekommen koennen. Ich strebe nach Exzellenz, und ich hoffe, Sie spueren das bei der Nutzung.</p>
 <h2 id="what-it-does">Was es macht</h2>
 <ul>
-<li>Liest Temperaturen, Luefterdrehzahlen, Speichergesundheit, Speicherkapazitaet und ausgewaehlte Hardware-Zaehler.</li>
+<li>Liest Temperaturen, Luefterdrehzahlen, Speichergesundheit, Speicherkapazitaet, BitLocker-Laufwerksstatus, sofern Windows ihn bereitstellt, und ausgewaehlte Hardware-Zaehler.</li>
 <li>Zeigt eine Geraete-Kategorie mit Windows-PnP-Inventar, einschliesslich PCI-/Systemgeraeten, Speichercontrollern, Eingabegeraeten, Bluetooth, Druckern, Sicherheitsgeraeten und kurzen Querverweisen fuer USB-, Audio-, Anzeige- und Netzwerkhardware.</li>
 <li>Fuehrt Geraete mit Windows-Problemcodes, Treiberfehlern oder Nicht-OK-Status oben in Geraete unter Nicht funktionierende Geraete auf und behaelt sie zusaetzlich in ihrer normalen Hardwaregruppe.</li>
 <li>Zeigt eine Leistungs-/Uebersichtsseite fuer Laufzeit, BIOS, GPU, CPU-Nutzung, Speichernutzung und Laufwerksaktivitaet.</li>
@@ -445,7 +445,7 @@
 <td>
 <code>Strg+1</code> to <code>Strg+8</code>
 </td>
-<td>Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor.</td>
+<td>Springt zu Allgemein, Start und Installation, Hotkeys, Luefterprofile, Alarme, Plug-Ins, Ausgeblendete Elemente oder Sprach-Editor.</td>
 </tr>
 <tr>
 <td>Einstellungen</td>
@@ -805,7 +805,7 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Aenderungen</h2>
-<h3>3.10.2</h3><ul><li>Behoben: Der Sprach-Editor unterstuetzt jetzt F3-Suche vom Tab aus, merkt sich die zuletzt bearbeitete Datei und den letzten Eintrag und verarbeitet getippte mehrbuchstabige Navigation in der Eintragsliste.</li></ul><h3>3.10.1</h3><ul><li>Behoben: Kategorie-Zusammenfassungen lokalisieren jetzt die Z?hlung von Messwerten und Gruppen, statt englische W?rter in nicht-englischen Sprachen zu mischen.</li><li>Behoben: Italienische Update- und Installationsmeldungen verwenden jetzt die n?tigen Akzentzeichen.</li></ul>
+<h3>3.10.3</h3><ul><li>Hinzugefuegt: Speicher zeigt jetzt den BitLocker-Status fuer Laufwerke, sofern Windows ihn bereitstellt. Schutz, Verschluesselung, Sperrstatus, Methode und Volume-Details sind ueber Details verfuegbar.</li></ul><h3>3.10.2</h3><ul><li>Behoben: Der Sprach-Editor unterstuetzt jetzt F3-Suche vom Tab aus, merkt sich die zuletzt bearbeitete Datei und den letzten Eintrag und verarbeitet getippte mehrbuchstabige Navigation in der Eintragsliste.</li></ul><h3>3.10.1</h3><ul><li>Behoben: Kategorie-Zusammenfassungen lokalisieren jetzt die Z?hlung von Messwerten und Gruppen, statt englische W?rter in nicht-englischen Sprachen zu mischen.</li><li>Behoben: Italienische Update- und Installationsmeldungen verwenden jetzt die n?tigen Akzentzeichen.</li></ul>
 <h3>3.10.0</h3><ul><li>Hinzugefuegt: Hilfe enthaelt jetzt einen Einrichtungsassistenten fuer Ein-/Ausblenden- und Infobereich-Sprechen-Hotkeys sowie einen Hinweise-und-Tipps-Dialog, der optional beim Start erscheinen kann.</li><li>Hinzugefuegt: Einstellungen enthaelt jetzt Alle Einstellungen loeschen, um neu anzufangen oder eine Kopie vor dem Weitergeben zu bereinigen. Logs und Berichte bleiben erhalten.</li><li>Behoben: Gesamtplatz- und belegter-Platz-Messwerte koennen jetzt zum Infobereich-Status und zu gesprochenen Hotkeys hinzugefuegt werden. Schliesst <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">Issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Verbessert: Die mitgelieferten nicht-englischen Voreinstellungen, Alarmvorlagen, Hotkey-Vorlagen, Luefterprofil-Bezeichnungen und Screenreader-Beschreibungen sind jetzt umfassender uebersetzt.</li><li>Behoben: Bereite Wechseldatentraeger wie SD-Karten und USB-Sticks erscheinen jetzt mit Speicherplatz und verfuegbaren logischen Laufwerksaktivitaetswerten, sodass sie fuer Infobereich-Status, gesprochene Hotkeys, Berichte und Alarme verfuegbar sind. Schliesst <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">Issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
@@ -859,13 +859,13 @@
 </ul>
 <h3>3.6.0</h3>
 <ul>
-<li>Added: <code>File</code> &gt; <code>Compare reports...</code> compares two saved Sensor Readout reports, including added, removed, changed, and detail-level differences for before-and-after troubleshooting.</li>
-<li>Added: <code>File</code> &gt; <code>Save anonymized report...</code> creates a shareable report with common private identifiers masked before sending it outside your own machine.</li>
-<li>Added: <code>Help</code> &gt; <code>Prepare support report...</code> creates a diagnostic ZIP and gives a guided support flow with the file path ready to copy or attach to a GitHub issue.</li>
-<li>Added: Performance/Overview includes a Data sources group that shows which Windows, LibreHardwareMonitor, database, plug-in, and Sensor Readout sources contributed to the current view.</li>
-<li>Added: Optional reading history logging can write selected readings to a short-term CSV log for troubleshooting trends during normal refreshes.</li>
-<li>Added: Command-line options can now create anonymized reports and compare two saved reports for unattended testing or scripted support workflows.</li>
-<li>Improved: Spoken hotkey and notification-area speech changes made in Preferences now apply immediately, so a hotkey can be tested before closing Preferences.</li>
+<li>Hinzugefuegt: <code>Datei</code> &gt; <code>Berichte vergleichen...</code> vergleicht zwei gespeicherte Sensor-Readout-Berichte, einschliesslich hinzugefuegter, entfernter, geaenderter und detailbezogener Unterschiede fuer Vorher/Nachher-Fehlersuche.</li>
+<li>Hinzugefuegt: <code>Datei</code> &gt; <code>Anonymisierten Bericht speichern...</code> erstellt einen teilbaren Bericht, bei dem uebliche private Kennungen vor dem Weitergeben ausserhalb des eigenen Computers maskiert werden.</li>
+<li>Hinzugefuegt: <code>Hilfe</code> &gt; <code>Supportbericht vorbereiten...</code> erstellt eine Diagnose-ZIP-Datei und bietet einen gefuehrten Supportablauf, bei dem der Dateipfad zum Kopieren oder Anhaengen an ein GitHub-Issue bereitsteht.</li>
+<li>Hinzugefuegt: Leistung/Uebersicht enthaelt eine Gruppe Datenquellen, die zeigt, welche Windows-, LibreHardwareMonitor-, Datenbank-, Plug-In- und Sensor-Readout-Quellen zur aktuellen Ansicht beigetragen haben.</li>
+<li>Hinzugefuegt: Die optionale Messwertverlaufs-Protokollierung kann ausgewaehlte Messwerte in ein kurzzeitiges CSV-Protokoll schreiben, um Trends waehrend normaler Aktualisierungen zu untersuchen.</li>
+<li>Hinzugefuegt: Befehlszeilenoptionen koennen jetzt anonymisierte Berichte erstellen und zwei gespeicherte Berichte fuer unbeaufsichtigte Tests oder geskriptete Supportablaeufe vergleichen.</li>
+<li>Verbessert: Aenderungen an gesprochenen Hotkeys und Infobereich-Sprachausgabe in den Einstellungen werden jetzt sofort angewendet, sodass ein Hotkey vor dem Schliessen der Einstellungen getestet werden kann.</li>
 <li>Verbessert: Der Dialog Hotkey- und Infobereich-Zuweisung zeigt jetzt den Infobereich-Status-Hotkey und die Anzahl der ausgewaehlten Messwerte an, passend zu den Eintraegen fuer gesprochene Hotkeys.</li>
 <li>Verbessert: Update-Downloads verwenden jetzt dieselbe Sensor-Readout-User-Agent-Kennung wie Update-Pruefungen.</li>
 </ul>
@@ -877,9 +877,9 @@
 </ul>
 <h3>3.4.0</h3>
 <ul>
-<li>Improved: SMART and disk Details now include more Windows physical-drive information where available, including bus type, sector sizes, firmware/software version, serial and unique IDs, physical location, slot/enclosure fields, storage usage, pool eligibility, and spindle speed for drives that report it.</li>
-<li>Improved: Asus laptop support can now fall back to ASUS WMI sensor readings and ASUS thermal-mode fan control on models that reject direct fan-curve writes.</li>
-<li>Improved: <code>Ctrl+Shift+H</code> can now add or remove the selected reading from notification area status as well as spoken hotkey profiles, and it can create a new spoken hotkey profile without opening Preferences first.</li>
+<li>Verbessert: SMART- und Datentraeger-Details enthalten jetzt mehr Windows-Informationen zum physischen Laufwerk, wenn verfuegbar, darunter Bustyp, Sektorgroessen, Firmware-/Softwareversion, Serien- und eindeutige IDs, physischer Ort, Slot-/Gehaeusefelder, Speichernutzung, Pool-Eignung und Drehzahl bei Laufwerken, die sie melden.</li>
+<li>Verbessert: Asus-Laptop-Unterstuetzung kann jetzt auf ASUS-WMI-Sensorwerte und ASUS-Lueftersteuerung per Thermal-Modus zurueckfallen, wenn Modelle direkte Luefterkurven-Schreibvorgaenge ablehnen.</li>
+<li>Verbessert: <code>Strg+Umschalt+H</code> kann den ausgewaehlten Messwert jetzt zum Infobereich-Status und zu gesprochenen Hotkey-Profilen hinzufuegen oder daraus entfernen und ein neues gesprochenes Hotkey-Profil erstellen, ohne zuerst die Einstellungen zu oeffnen.</li>
 </ul>
 <h3>3.3.1</h3>
 <ul>

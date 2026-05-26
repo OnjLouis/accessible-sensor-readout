@@ -55,6 +55,8 @@ public sealed partial class SensorReadoutForm : Form
         public Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
+    private static DateTime bitLockerQueryDisabledUntilUtc = DateTime.MinValue;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct StoragePropertyQueryWithProtocol
     {
@@ -565,6 +567,7 @@ public sealed partial class SensorReadoutForm : Form
         var rows = new List<SensorRow>();
         try
         {
+            var logicalDetails = GetLogicalDiskDetailsByRoot();
             foreach (var drive in System.IO.DriveInfo.GetDrives())
             {
                 if (!ShouldIncludeLogicalDiskDrive(drive) || drive.TotalSize <= 0)
@@ -578,6 +581,11 @@ public sealed partial class SensorReadoutForm : Form
                 var freePercent = freeBytes / (double)drive.TotalSize * 100.0;
                 var hardware = GetLogicalDiskHardwareName(drive);
                 var details = BuildDriveInfoDetails(drive);
+                Dictionary<string, string> topologyDetails;
+                if (logicalDetails.TryGetValue(GetLogicalDiskRootFromHardware(hardware), out topologyDetails))
+                {
+                    details = MergeDetails(details, topologyDetails);
+                }
 
                 rows.Add(new SensorRow
                 {
@@ -610,6 +618,20 @@ public sealed partial class SensorReadoutForm : Form
                     Source = "Windows Logical Disk",
                     Details = CloneDetails(details)
                 });
+
+                var bitLockerStatus = GetDictionaryValue(details, "BitLocker status");
+                if (!string.IsNullOrWhiteSpace(bitLockerStatus))
+                {
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Performance",
+                        Hardware = hardware,
+                        Name = "BitLocker status",
+                        DisplayValue = bitLockerStatus,
+                        Source = "Windows BitLocker",
+                        Details = CloneDetails(details)
+                    });
+                }
             }
         }
         catch
@@ -891,6 +913,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddWindowsStoragePhysicalDiskDetails(physical);
+        AddBitLockerDetails(logical);
 
         cachedPhysicalDiskDetailsByHardware = physical;
         cachedLogicalDiskDetailsByRoot = logical;
@@ -1055,6 +1078,294 @@ public sealed partial class SensorReadoutForm : Form
         if (logicalNumber == 0)
         {
             AddDetail(diskDetails, label + " volume", "No drive letter exposed by Windows");
+        }
+    }
+
+    private static void AddBitLockerDetails(Dictionary<string, Dictionary<string, string>> logical)
+    {
+        if (logical == null)
+        {
+            return;
+        }
+
+        if (DateTime.UtcNow < bitLockerQueryDisabledUntilUtc)
+        {
+            return;
+        }
+
+        Dictionary<string, Dictionary<string, string>> result = null;
+        Exception error = null;
+        var thread = new System.Threading.Thread(delegate()
+        {
+            try
+            {
+                result = QueryBitLockerDetails();
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+        });
+        thread.IsBackground = true;
+        thread.Name = "Sensor Readout BitLocker WMI";
+        thread.Start();
+
+        if (!thread.Join(TimeSpan.FromSeconds(3)))
+        {
+            bitLockerQueryDisabledUntilUtc = DateTime.UtcNow.AddMinutes(30);
+            return;
+        }
+
+        if (error != null || result == null)
+        {
+            return;
+        }
+
+        foreach (var item in result)
+        {
+            Dictionary<string, string> details;
+            if (!logical.TryGetValue(item.Key, out details) || details == null)
+            {
+                details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                logical[item.Key] = details;
+            }
+
+            foreach (var detail in item.Value)
+            {
+                AddDetail(details, detail.Key, detail.Value);
+            }
+        }
+    }
+
+    private static Dictionary<string, Dictionary<string, string>> QueryBitLockerDetails()
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var options = new ConnectionOptions
+            {
+                Timeout = TimeSpan.FromSeconds(2),
+                Impersonation = ImpersonationLevel.Impersonate
+            };
+            var scope = new ManagementScope(@"\\.\root\CIMV2\Security\MicrosoftVolumeEncryption", options);
+            scope.Connect();
+            var enumerationOptions = new EnumerationOptions
+            {
+                Timeout = TimeSpan.FromSeconds(2),
+                ReturnImmediately = true
+            };
+            using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT * FROM Win32_EncryptableVolume"), enumerationOptions))
+            {
+                foreach (ManagementObject volume in searcher.Get())
+                {
+                    var driveLetter = GetWmiPropertyText(volume, "DriveLetter");
+                    if (string.IsNullOrWhiteSpace(driveLetter))
+                    {
+                        continue;
+                    }
+
+                    var root = driveLetter.TrimEnd('\\');
+                    var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                    var protectionStatus = GetBitLockerMethodValue(volume, "GetProtectionStatus", "ProtectionStatus", "ProtectionStatus");
+                    var conversionStatus = GetBitLockerMethodValue(volume, "GetConversionStatus", "ConversionStatus", "ConversionStatus");
+                    var encryptionPercentage = GetBitLockerMethodValue(volume, "GetConversionStatus", "EncryptionPercentage", "EncryptionPercentage");
+                    var encryptionMethod = GetBitLockerMethodValue(volume, "GetEncryptionMethod", "EncryptionMethod", "EncryptionMethod");
+                    var lockStatus = GetBitLockerMethodValue(volume, "GetLockStatus", "LockStatus", "LockStatus");
+
+                    var statusText = FormatBitLockerStatus(protectionStatus, conversionStatus, encryptionPercentage, lockStatus);
+                    AddDetail(details, "BitLocker status", statusText);
+                    AddDetail(details, "BitLocker protection status", DecodeBitLockerProtectionStatus(protectionStatus));
+                    AddDetail(details, "BitLocker conversion status", DecodeBitLockerConversionStatus(conversionStatus));
+                    AddDetail(details, "BitLocker encryption percentage", FormatBitLockerPercentage(encryptionPercentage));
+                    AddDetail(details, "BitLocker encryption method", DecodeBitLockerEncryptionMethod(encryptionMethod));
+                    AddDetail(details, "BitLocker lock status", DecodeBitLockerLockStatus(lockStatus));
+                    AddDetail(details, "BitLocker drive letter", driveLetter);
+                    AddDetail(details, "BitLocker device ID", GetWmiPropertyText(volume, "DeviceID"));
+                    AddDetail(details, "BitLocker persistent volume ID", GetWmiPropertyText(volume, "PersistentVolumeID"));
+                    AddDetail(details, "BitLocker volume type", DecodeBitLockerVolumeType(GetWmiPropertyValue(volume, "VolumeType")));
+                    AddRawWmiDetails(details, "BitLocker WMI", volume);
+                    result[root] = details;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
+    }
+
+    private static object GetBitLockerMethodValue(ManagementObject volume, string methodName, string outputName, string propertyName)
+    {
+        if (volume == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var propertyValue = GetWmiPropertyValue(volume, propertyName);
+            if (propertyValue != null && !string.IsNullOrWhiteSpace(Convert.ToString(propertyValue)))
+            {
+                return propertyValue;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using (var result = volume.InvokeMethod(methodName, null, null))
+            {
+                if (result == null)
+                {
+                    return null;
+                }
+
+                return result[outputName];
+            }
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string FormatBitLockerStatus(object protectionStatus, object conversionStatus, object encryptionPercentage, object lockStatus)
+    {
+        var protection = DecodeBitLockerProtectionStatus(protectionStatus);
+        var conversion = DecodeBitLockerConversionStatus(conversionStatus);
+        var percent = FormatBitLockerPercentage(encryptionPercentage);
+        var locked = DecodeBitLockerLockStatus(lockStatus);
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(protection))
+        {
+            parts.Add(protection);
+        }
+
+        if (!string.IsNullOrWhiteSpace(conversion) && !conversion.Equals(protection, StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add(conversion);
+        }
+
+        if (!string.IsNullOrWhiteSpace(percent))
+        {
+            parts.Add(percent);
+        }
+
+        if (!string.IsNullOrWhiteSpace(locked) && !locked.Equals("Unlocked", StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add(locked);
+        }
+
+        return parts.Count == 0 ? "" : string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatBitLockerPercentage(object value)
+    {
+        var text = Convert.ToString(value);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        double percent;
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out percent)
+            ? FormatNumber(Math.Round(percent, 0), "0") + "%"
+            : text;
+    }
+
+    private static string DecodeBitLockerProtectionStatus(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Protection off";
+            case 1: return "Protection on";
+            case 2: return "Protection unknown";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string DecodeBitLockerConversionStatus(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Fully decrypted";
+            case 1: return "Fully encrypted";
+            case 2: return "Encryption in progress";
+            case 3: return "Decryption in progress";
+            case 4: return "Encryption paused";
+            case 5: return "Decryption paused";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string DecodeBitLockerEncryptionMethod(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "None";
+            case 1: return "AES 128 with diffuser";
+            case 2: return "AES 256 with diffuser";
+            case 3: return "AES 128";
+            case 4: return "AES 256";
+            case 5: return "Hardware encryption";
+            case 6: return "XTS-AES 128";
+            case 7: return "XTS-AES 256";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string DecodeBitLockerLockStatus(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Unlocked";
+            case 1: return "Locked";
+            default: return Convert.ToString(value);
+        }
+    }
+
+    private static string DecodeBitLockerVolumeType(object value)
+    {
+        int code;
+        if (!TryConvertToInt32(value, out code))
+        {
+            return Convert.ToString(value);
+        }
+
+        switch (code)
+        {
+            case 0: return "Operating system volume";
+            case 1: return "Fixed data volume";
+            case 2: return "Removable data volume";
+            default: return Convert.ToString(value);
         }
     }
 

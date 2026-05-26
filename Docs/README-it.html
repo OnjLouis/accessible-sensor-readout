@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versione attuale: 3.10.2.</p>
+<p>Versione attuale: 3.10.3.</p>
 <p>Sensor Readout e un'utilita Windows per leggere sensori hardware e controllare ventole compatibili, con interfaccia pensata prima di tutto per tastiera e screen reader.</p>
 <p>A sinistra mostra categorie principali, a destra una vista ad albero con letture raggruppate per dispositivo o scopo, e i comandi comuni sono in una normale barra menu.</p>
 <p>Sensor Readout e disponibile <a href="https://github.com/OnjLouis/accessible-sensor-readout">su GitHub</a>.</p>
@@ -90,7 +90,7 @@
 <p>Il mio desiderio e che Sensor Readout diventi il punto di riferimento della sua classe: uno strumento pensato prima di tutto per l accessibilita, che le persone cieche e ipovedenti che lavorano nel supporto tecnico possano dare ai loro clienti per generare report e ricevere aiuto nella risoluzione dei problemi. Punto all eccellenza, e spero che tu lo percepisca quando lo usi.</p>
 <h2 id="what-it-does">Cosa fa</h2>
 <ul>
-<li>Legge temperature, RPM ventole, salute e capacita storage, e contatori hardware selezionati.</li>
+<li>Legge temperature, RPM ventole, salute e capacita storage, stato BitLocker delle unita quando Windows lo espone, e contatori hardware selezionati.</li>
 <li>Mostra una categoria Dispositivi con inventario PnP di Windows, inclusi dispositivi PCI/sistema, controller di archiviazione, dispositivi di input, Bluetooth, stampanti, dispositivi di sicurezza e voci sintetiche correlate per hardware USB, audio, schermo e rete.</li>
 <li>Mette i dispositivi con codici problema Windows, errori driver o stato non OK in un chiaro gruppo Dispositivi non funzionanti in cima a Dispositivi, mantenendoli anche nel loro normale gruppo hardware.</li>
 <li>Mostra Prestazioni/Panoramica con uptime, BIOS, GPU, uso CPU, uso memoria e attivita lettura/scrittura delle unita.</li>
@@ -444,7 +444,7 @@
 <td>
 <code>Ctrl+1</code> to <code>Ctrl+8</code>
 </td>
-<td>Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor.</td>
+<td>Vai a Generale, Avvio e installazione, Hotkey, Profili ventole, Allarmi, Plug-In, Elementi nascosti o Editor lingua.</td>
 </tr>
 <tr>
 <td>Preferenze</td>
@@ -804,7 +804,7 @@
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
 <h2 id="changelog">Novita</h2>
-<h3>3.10.2</h3><ul><li>Corretto: l editor della lingua ora supporta la ricerca con F3 dalla scheda, ricorda l ultimo file e l ultima voce modificati e gestisce la navigazione digitata con piu lettere nell elenco delle voci.</li></ul><h3>3.10.1</h3><ul><li>Corretto: le righe Riepilogo categoria ora localizzano i conteggi di letture e gruppi invece di mescolare parole inglesi nelle lingue non inglesi.</li><li>Corretto: i messaggi italiani di aggiornamento e installazione ora usano correttamente gli accenti dove necessario.</li></ul>
+<h3>3.10.3</h3><ul><li>Aggiunto: Archiviazione ora mostra lo stato BitLocker delle unita quando Windows lo espone, con protezione, crittografia, blocco, metodo e dettagli del volume disponibili da Dettagli.</li></ul><h3>3.10.2</h3><ul><li>Corretto: l editor della lingua ora supporta la ricerca con F3 dalla scheda, ricorda l ultimo file e l ultima voce modificati e gestisce la navigazione digitata con piu lettere nell elenco delle voci.</li></ul><h3>3.10.1</h3><ul><li>Corretto: le righe Riepilogo categoria ora localizzano i conteggi di letture e gruppi invece di mescolare parole inglesi nelle lingue non inglesi.</li><li>Corretto: i messaggi italiani di aggiornamento e installazione ora usano correttamente gli accenti dove necessario.</li></ul>
 <h3>3.10.0</h3><ul><li>Aggiunto: Aiuto include ora una procedura guidata iniziale per i tasti mostra/nascondi e leggi stato area di notifica, piu una finestra di suggerimenti che puo apparire all avvio.</li><li>Aggiunto: Preferenze include ora Elimina tutte le impostazioni per ricominciare o pulire una copia prima di condividerla. Log e report vengono conservati.</li><li>Corretto: le letture dello spazio totale e dello spazio usato ora possono essere aggiunte allo stato dell area di notifica e ai tasti parlati. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">l issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Migliorato: preferenze, preset degli allarmi, preset dei tasti, etichette dei profili ventola e descrizioni per screen reader nelle lingue non inglesi incluse hanno ora una copertura di traduzione piu ampia.</li><li>Corretto: le unita rimovibili pronte, come schede SD e chiavette USB, ora appaiono con spazio di archiviazione e letture disponibili di attivita disco logico, rendendole disponibili per stato dell area di notifica, tasti parlati, report e allarmi. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">l issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
@@ -858,13 +858,13 @@
 </ul>
 <h3>3.6.0</h3>
 <ul>
-<li>Added: <code>File</code> &gt; <code>Compare reports...</code> compares two saved Sensor Readout reports, including added, removed, changed, and detail-level differences for before-and-after troubleshooting.</li>
-<li>Added: <code>File</code> &gt; <code>Save anonymized report...</code> creates a shareable report with common private identifiers masked before sending it outside your own machine.</li>
-<li>Added: <code>Help</code> &gt; <code>Prepare support report...</code> creates a diagnostic ZIP and gives a guided support flow with the file path ready to copy or attach to a GitHub issue.</li>
-<li>Added: Performance/Overview includes a Data sources group that shows which Windows, LibreHardwareMonitor, database, plug-in, and Sensor Readout sources contributed to the current view.</li>
-<li>Added: Optional reading history logging can write selected readings to a short-term CSV log for troubleshooting trends during normal refreshes.</li>
-<li>Added: Command-line options can now create anonymized reports and compare two saved reports for unattended testing or scripted support workflows.</li>
-<li>Improved: Spoken hotkey and notification-area speech changes made in Preferences now apply immediately, so a hotkey can be tested before closing Preferences.</li>
+<li>Aggiunto: <code>File</code> &gt; <code>Confronta report...</code> confronta due report Sensor Readout salvati, incluse differenze aggiunte, rimosse, modificate e a livello di dettagli per risoluzione problemi prima/dopo.</li>
+<li>Aggiunto: <code>File</code> &gt; <code>Salva report anonimizzato...</code> crea un report condivisibile con identificatori privati comuni mascherati prima dell invio fuori dal proprio computer.</li>
+<li>Aggiunto: <code>Aiuto</code> &gt; <code>Prepara report di supporto...</code> crea uno ZIP diagnostico e offre un flusso guidato di supporto con il percorso pronto da copiare o allegare a un issue GitHub.</li>
+<li>Aggiunto: Prestazioni/Panoramica include un gruppo Fonti dati che mostra quali fonti Windows, LibreHardwareMonitor, database, plug-in e Sensor Readout hanno contribuito alla vista corrente.</li>
+<li>Aggiunto: Il registro opzionale della cronologia letture puo scrivere le letture selezionate in un registro CSV temporaneo per analizzare tendenze durante gli aggiornamenti normali.</li>
+<li>Aggiunto: Le opzioni da riga di comando ora possono creare report anonimizzati e confrontare due report salvati per test non presidiati o flussi di supporto con script.</li>
+<li>Migliorato: Le modifiche alla voce degli hotkey parlati e dell area di notifica nelle Preferenze ora si applicano subito, cosi un hotkey puo essere provato prima di chiudere le Preferenze.</li>
 <li>Migliorato: il dialogo di assegnazione hotkey e area di notifica ora mostra l hotkey dello stato area di notifica e il numero di letture selezionate, come le voci degli hotkey vocali.</li>
 <li>Migliorato: i download degli aggiornamenti ora usano la stessa etichetta user-agent Sensor Readout dei controlli aggiornamenti.</li>
 </ul>
@@ -876,9 +876,9 @@
 </ul>
 <h3>3.4.0</h3>
 <ul>
-<li>Improved: SMART and disk Details now include more Windows physical-drive information where available, including bus type, sector sizes, firmware/software version, serial and unique IDs, physical location, slot/enclosure fields, storage usage, pool eligibility, and spindle speed for drives that report it.</li>
-<li>Improved: Asus laptop support can now fall back to ASUS WMI sensor readings and ASUS thermal-mode fan control on models that reject direct fan-curve writes.</li>
-<li>Improved: <code>Ctrl+Shift+H</code> can now add or remove the selected reading from notification area status as well as spoken hotkey profiles, and it can create a new spoken hotkey profile without opening Preferences first.</li>
+<li>Migliorato: I Dettagli SMART e disco ora includono piu informazioni Windows sull unita fisica quando disponibili, inclusi tipo bus, dimensioni settore, versione firmware/software, ID seriali e univoci, posizione fisica, campi slot/enclosure, uso storage, idoneita pool e velocita di rotazione per le unita che la riportano.</li>
+<li>Migliorato: Il supporto laptop Asus ora puo usare come fallback le letture sensori ASUS WMI e il controllo ventole ASUS in modalita termica sui modelli che rifiutano la scrittura diretta delle curve ventola.</li>
+<li>Migliorato: <code>Ctrl+Maiusc+H</code> ora puo aggiungere o rimuovere la lettura selezionata dallo stato dell area di notifica e dai profili hotkey parlati, e puo creare un nuovo profilo hotkey parlato senza aprire prima le Preferenze.</li>
 </ul>
 <h3>3.3.1</h3>
 <ul>
@@ -1075,7 +1075,7 @@
 <li>Nuovo: Preferenze ora supporta Canc per rimuovere elementi selezionati, Ctrl+1 fino a Ctrl+6 per cambiare scheda, F2 per campi nome/modifica e Invio per il campo valore principale quando applicabile.</li>
 <li>Cambiato: il codice sorgente e stato diviso in file mirati per avvio, modelli, preferenze, finestra principale e interop nativo/screen reader, rendendo piu sicura la manutenzione futura.</li>
 <li>Aggiunto: opzioni da riga di comando per avviare minimizzato, chiudere un istanza in esecuzione, impostare il livello di logging e salvare report TXT o HTML.</li>
-<li>Corretto: le note di aggiornamento ora mostrano chiaramente le righe del changelog GitHub invece di unire gli elementi Markdown.</li>
+<li>Corretto: le note di aggiornamento ora mostrano chiaramente le righe del registro modifiche GitHub invece di unire gli elementi Markdown.</li>
 </ul>
 <h3>1.3.1</h3>
 <ul>

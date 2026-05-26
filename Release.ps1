@@ -67,14 +67,14 @@ function Assert-VersionConsistency([string]$releaseVersion) {
     }
 
     foreach ($manual in Get-ChildItem -LiteralPath (Join-Path $repoRoot 'Docs') -Filter 'README-*.html') {
-        $text = Get-Content -LiteralPath $manual.FullName -Raw
+        $text = Get-Content -LiteralPath $manual.FullName -Raw -Encoding UTF8
         if ($text -notmatch [regex]::Escape($releaseVersion)) {
             Fail "$($manual.Name) does not mention $releaseVersion."
         }
     }
 
     foreach ($manual in Get-ChildItem -LiteralPath (Join-Path $portable 'Docs') -Filter 'README-*.html') {
-        $text = Get-Content -LiteralPath $manual.FullName -Raw
+        $text = Get-Content -LiteralPath $manual.FullName -Raw -Encoding UTF8
         if ($text -notmatch [regex]::Escape($releaseVersion)) {
             Fail "portable Docs $($manual.Name) does not mention $releaseVersion."
         }
@@ -118,7 +118,7 @@ function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, 
             Fail "$label $($manual.Name) is $($manual.Length) bytes, which is far larger than README-en.html ($englishSize bytes)."
         }
 
-        $text = Get-Content -LiteralPath $manual.FullName -Raw
+        $text = Get-Content -LiteralPath $manual.FullName -Raw -Encoding UTF8
         foreach ($badChar in $badEncodingChars) {
             if ($text.IndexOf($badChar) -ge 0) {
                 Fail "$label $($manual.Name) appears to contain mojibake or bad encoding markers."
@@ -357,6 +357,145 @@ function Assert-LanguageParity {
             })
             if ($untranslated.Count -gt 0) {
                 Fail "$($file.Name) has untranslated release-critical language keys: $($untranslated -join ', ')"
+            }
+
+            $englishLeaks = @()
+            foreach ($key in @($englishMap.Keys | Sort-Object)) {
+                if (!$map.ContainsKey($key)) {
+                    continue
+                }
+
+                $englishValue = $englishMap[$key]
+                $localizedValue = $map[$key]
+                if (Test-UntranslatedEnglishValue $key $englishValue $localizedValue) {
+                    $englishLeaks += $key
+                }
+            }
+
+            if ($englishLeaks.Count -gt 0) {
+                Fail "$($file.Name) has likely untranslated English language values: $($englishLeaks -join ', ')"
+            }
+        }
+    }
+
+    Assert-ManualEnglishLeakSmoke
+}
+
+function Test-UntranslatedEnglishValue([string]$key, [string]$englishValue, [string]$localizedValue) {
+    if ([string]::IsNullOrWhiteSpace($key) -or [string]::IsNullOrWhiteSpace($englishValue) -or [string]::IsNullOrWhiteSpace($localizedValue)) {
+        return $false
+    }
+
+    if ($englishValue.Trim() -cne $localizedValue.Trim()) {
+        return $false
+    }
+
+    if ($key -match '^(language\.name|manual\.file)$') {
+        return $false
+    }
+
+    if ($key -match '^(reading\.|plugin\.|pluginDescription\.)') {
+        return $false
+    }
+
+    if ($englishValue.Length -lt 6) {
+        return $false
+    }
+
+    if ($englishValue -notmatch '[A-Za-z]') {
+        return $false
+    }
+
+    $allowedValuePatterns = @(
+        '^(Sensor Readout|Windows|GitHub|LibreHardwareMonitor|PawnIO|Tolk|NVDA|JAWS|JFW)$',
+        '^(CPU|GPU|USB|SMART|NVMe|PCI|ACPI|BIOS|UEFI|TPM|WMI|OUI|MAC|IP|DNS|DHCP|SSID|RSSI)$',
+        '^(OK|N/A|Auto|XTS-AES 128|XTS-AES 256|AES 128|AES 256|BitLocker)$',
+        '^[A-Z0-9 _./:+%()&,-]+$',
+        '^https?://',
+        '^[A-Za-z0-9_. -]+\.(txt|html|json|wav|zip|dll|exe|cmd|ps1)$'
+    )
+    foreach ($pattern in $allowedValuePatterns) {
+        if ($englishValue -match $pattern) {
+            return $false
+        }
+    }
+
+    $translatablePrefixes = @(
+        'ui.',
+        'message.',
+        'a11y.',
+        'status.',
+        'group.',
+        'details.',
+        'tray.'
+    )
+    foreach ($prefix in $translatablePrefixes) {
+        if ($key.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Assert-ManualEnglishLeakSmoke {
+    Info "Checking non-English manuals for obvious English fallback text."
+    $checks = @{
+        'README-de.html' = @(
+            'Current version',
+            'Changelog',
+            'Fixed:',
+            'Added:',
+            'Improved:',
+            'Language editor',
+            'Preferences',
+            'Details available'
+        )
+        'README-es.html' = @(
+            'Current version',
+            'Changelog',
+            'Fixed:',
+            'Added:',
+            'Improved:',
+            'Language editor',
+            'Preferences',
+            'Details available'
+        )
+        'README-fr.html' = @(
+            'Current version',
+            'Changelog',
+            'Fixed:',
+            'Added:',
+            'Improved:',
+            'Language editor',
+            'Preferences',
+            'Details available'
+        )
+        'README-it.html' = @(
+            'Current version',
+            'Changelog',
+            'Fixed:',
+            'Added:',
+            'Improved:',
+            'Language editor',
+            'Preferences',
+            'Details available'
+        )
+    }
+
+    foreach ($folder in @((Join-Path $repoRoot 'Docs'), (Join-Path $portable 'Docs'))) {
+        foreach ($name in $checks.Keys) {
+            $path = Join-Path $folder $name
+            if (!(Test-Path -LiteralPath $path)) {
+                continue
+            }
+
+            $html = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+            $text = [regex]::Replace($html, '<[^>]+>', ' ')
+            $text = [System.Net.WebUtility]::HtmlDecode($text)
+            $found = @($checks[$name] | Where-Object { $text.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
+            if ($found.Count -gt 0) {
+                Fail "$name contains likely untranslated English manual text: $($found -join ', ')"
             }
         }
     }

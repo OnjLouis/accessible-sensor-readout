@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actual: 3.10.2.</p>
+<p>Version actual: 3.10.3.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
 <p>Sensor Readout se puede encontrar <a href="https://github.com/OnjLouis/accessible-sensor-readout">en GitHub</a>.</p>
@@ -90,7 +90,7 @@
 <p>Mi deseo es que Sensor Readout se convierta en el referente de su clase: una herramienta pensada primero para la accesibilidad, que las personas ciegas y con baja vision que trabajan en soporte tecnico puedan entregar a sus clientes para que generen informes y reciban ayuda para resolver problemas. Busco la excelencia, y espero que lo notes al usarla.</p>
 <h2 id="what-it-does">Qu hace</h2>
 <ul>
-<li>Lee temperaturas, RPM de ventiladores, salud y capacidad de almacenamiento, y contadores de hardware seleccionados.</li>
+<li>Lee temperaturas, RPM de ventiladores, salud y capacidad de almacenamiento, estado de BitLocker de las unidades cuando Windows lo expone, y contadores de hardware seleccionados.</li>
 <li>Muestra una categoria Dispositivos con inventario PnP de Windows, incluidos dispositivos PCI/sistema, controladores de almacenamiento, dispositivos de entrada, Bluetooth, impresoras, dispositivos de seguridad y entradas breves relacionadas para hardware USB, audio, pantalla y red.</li>
 <li>Coloca los dispositivos con codigos de problema de Windows, fallos de controlador o estado no OK en un grupo claro Dispositivos que no funcionan al principio de Dispositivos, manteniendolos tambien en su grupo normal de hardware.</li>
 <li>Muestra una pgina Rendimiento/Vista general con tiempo activo, BIOS, GPU, uso de CPU, uso de memoria y actividad de lectura/escritura de unidades.</li>
@@ -444,7 +444,7 @@
 <td>
 <code>Ctrl+1</code> to <code>Ctrl+8</code>
 </td>
-<td>Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor.</td>
+<td>Saltar a General, Inicio e instalacion, Atajos, Perfiles de ventilador, Alarmas, Plug-Ins, Elementos ocultos o Editor de idioma.</td>
 </tr>
 <tr>
 <td>Preferencias</td>
@@ -802,9 +802,9 @@
 <p>Sensor Readout solo lee estas rutas de soporte opcionales salvo que un plug-in indique otra cosa; no actualiza firmware ni reemplaza las herramientas del fabricante.</p>
 <h2 id="report-comparison-support-and-history">Report Comparison, Support, And History</h2>
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
-<p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
+<p>Use <code>Opciones</code> &gt; <code>Activar registro de historial de lecturas</code>, seleccione una lectura y pulse <code>Ctrl+Mayus+G</code> o elija <code>Editar</code> &gt; <code>Anadir al registro de historial</code> para escribir las lecturas seleccionadas en un registro CSV temporal en <code>Logs</code>. Rendimiento/Vista general tambien incluye un grupo Fuentes de datos que muestra que fuentes de Windows, LibreHardwareMonitor, plug-in, base de datos y Sensor Readout contribuyeron a la vista actual.</p>
 <h2 id="changelog">Cambios</h2>
-<h3>3.10.2</h3><ul><li>Corregido: el editor de idioma ahora admite busqueda con F3 desde la pestana, recuerda el ultimo archivo y la ultima entrada editados, y permite navegacion escrita con varias letras en la lista de entradas.</li></ul><h3>3.10.1</h3><ul><li>Corregido: las filas de resumen de categor?a ahora localizan los recuentos de lecturas y grupos en lugar de mezclar texto ingl?s en idiomas no ingleses.</li><li>Corregido: los mensajes italianos de actualizaci?n e instalaci?n ahora usan los acentos necesarios.</li></ul>
+<h3>3.10.3</h3><ul><li>Anadido: Almacenamiento ahora muestra el estado de BitLocker de las unidades cuando Windows lo expone, con proteccion, cifrado, bloqueo, metodo y detalles del volumen disponibles desde Detalles.</li></ul><h3>3.10.2</h3><ul><li>Corregido: el editor de idioma ahora admite busqueda con F3 desde la pestana, recuerda el ultimo archivo y la ultima entrada editados, y permite navegacion escrita con varias letras en la lista de entradas.</li></ul><h3>3.10.1</h3><ul><li>Corregido: las filas de resumen de categor?a ahora localizan los recuentos de lecturas y grupos en lugar de mezclar texto ingl?s en idiomas no ingleses.</li><li>Corregido: los mensajes italianos de actualizaci?n e instalaci?n ahora usan los acentos necesarios.</li></ul>
 <h3>3.10.0</h3><ul><li>Anadido: Ayuda incluye ahora un asistente de configuracion inicial para los atajos de mostrar/ocultar y hablar el area de notificacion, mas un navegador de consejos que puede aparecer opcionalmente al iniciar.</li><li>Anadido: Preferencias incluye ahora Eliminar todos los ajustes para empezar de nuevo o limpiar una copia antes de compartirla. Los registros e informes se conservan.</li><li>Corregido: las lecturas de espacio total y espacio usado ahora se pueden anadir al estado del area de notificacion y a los atajos hablados. Cierra <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">el issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Mejorado: las preferencias, los presets de alarmas, los presets de atajos, las etiquetas de perfiles de ventilador y las descripciones para lectores de pantalla de los idiomas no ingleses incluidos tienen ahora una cobertura de traduccion mas amplia.</li><li>Corregido: las unidades extraibles listas, como tarjetas SD y memorias USB, ahora aparecen con espacio de almacenamiento y lecturas disponibles de actividad de disco logico, por lo que se pueden usar en el estado del area de notificacion, atajos hablados, informes y alarmas. Cierra <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">el issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
@@ -858,12 +858,12 @@
 </ul>
 <h3>3.6.0</h3>
 <ul>
-<li>Added: <code>File</code> &gt; <code>Compare reports...</code> compares two saved Sensor Readout reports, including added, removed, changed, and detail-level differences for before-and-after troubleshooting.</li>
-<li>Added: <code>File</code> &gt; <code>Save anonymized report...</code> creates a shareable report with common private identifiers masked before sending it outside your own machine.</li>
-<li>Added: <code>Help</code> &gt; <code>Prepare support report...</code> creates a diagnostic ZIP and gives a guided support flow with the file path ready to copy or attach to a GitHub issue.</li>
-<li>Added: Performance/Overview includes a Data sources group that shows which Windows, LibreHardwareMonitor, database, plug-in, and Sensor Readout sources contributed to the current view.</li>
-<li>Added: Optional reading history logging can write selected readings to a short-term CSV log for troubleshooting trends during normal refreshes.</li>
-<li>Added: Command-line options can now create anonymized reports and compare two saved reports for unattended testing or scripted support workflows.</li>
+<li>Anadido: <code>Archivo</code> &gt; <code>Comparar informes...</code> compara dos informes guardados de Sensor Readout, incluidos cambios anadidos, eliminados, modificados y diferencias de detalle para diagnostico antes/despues.</li>
+<li>Anadido: <code>Archivo</code> &gt; <code>Guardar informe anonimizado...</code> crea un informe compartible con identificadores privados comunes ocultos antes de enviarlo fuera de su propio equipo.</li>
+<li>Anadido: <code>Ayuda</code> &gt; <code>Preparar informe de soporte...</code> crea un ZIP de diagnostico y ofrece un flujo guiado de soporte con la ruta lista para copiar o adjuntar a un issue de GitHub.</li>
+<li>Anadido: Rendimiento/Vista general incluye un grupo Fuentes de datos que muestra que fuentes de Windows, LibreHardwareMonitor, base de datos, plug-in y Sensor Readout contribuyeron a la vista actual.</li>
+<li>Anadido: El registro opcional de historial de lecturas puede escribir lecturas seleccionadas en un registro CSV temporal para analizar tendencias durante las actualizaciones normales.</li>
+<li>Anadido: Las opciones de linea de comandos ahora pueden crear informes anonimizados y comparar dos informes guardados para pruebas sin supervision o flujos de soporte con scripts.</li>
 <li>Mejorado: El dialogo de asignacion de hotkey y area de notificacion ahora muestra el hotkey del estado del area de notificacion y la cantidad de lecturas seleccionadas, igual que las entradas de hotkeys hablados.</li>
 <li>Mejorado: Las descargas de actualizacion ahora usan la misma etiqueta de agente de usuario de Sensor Readout que las comprobaciones de actualizacion.</li>
 </ul>
@@ -875,9 +875,9 @@
 </ul>
 <h3>3.4.0</h3>
 <ul>
-<li>Improved: SMART and disk Details now include more Windows physical-drive information where available, including bus type, sector sizes, firmware/software version, serial and unique IDs, physical location, slot/enclosure fields, storage usage, pool eligibility, and spindle speed for drives that report it.</li>
-<li>Improved: Asus laptop support can now fall back to ASUS WMI sensor readings and ASUS thermal-mode fan control on models that reject direct fan-curve writes.</li>
-<li>Improved: <code>Ctrl+Shift+H</code> can now add or remove the selected reading from notification area status as well as spoken hotkey profiles, and it can create a new spoken hotkey profile without opening Preferences first.</li>
+<li>Mejorado: Los Detalles SMART y de disco ahora incluyen mas informacion de Windows sobre la unidad fisica cuando esta disponible, incluidos tipo de bus, tamanos de sector, version de firmware/software, IDs de serie y unicos, ubicacion fisica, campos de ranura/carcasa, uso de almacenamiento, elegibilidad de agrupacion y velocidad de giro en unidades que la informan.</li>
+<li>Mejorado: La compatibilidad con portatiles Asus ahora puede recurrir a lecturas de sensores ASUS WMI y control de ventilador por modo termico ASUS en modelos que rechazan escrituras directas de curvas de ventilador.</li>
+<li>Mejorado: <code>Ctrl+Mayus+H</code> ahora puede anadir o quitar la lectura seleccionada del estado del area de notificacion y de los perfiles de atajos hablados, y puede crear un nuevo perfil de atajo hablado sin abrir primero Preferencias.</li>
 </ul>
 <h3>3.3.1</h3>
 <ul>
@@ -1074,7 +1074,7 @@
 <li>Nuevo: Preferencias ahora admite Supr para eliminar elementos seleccionados, Ctrl+1 a Ctrl+6 para cambiar de pestaa, F2 para campos de nombre/edicion y Enter para el campo de valor principal cuando corresponde.</li>
 <li>Cambiado: el cdigo fuente se ha dividido en archivos enfocados para inicio, modelos, preferencias, ventana principal e interop nativo/lector de pantalla, haciendo ms seguro el mantenimiento futuro.</li>
 <li>Aadido: opciones de lnea de comandos para iniciar minimizado, cerrar una instancia en ejecucin, definir el nivel de registro y guardar informes TXT o HTML.</li>
-<li>Corregido: las notas de actualizacin ahora muestran claramente las lineas del changelog de GitHub en vez de juntar elementos Markdown.</li>
+<li>Corregido: las notas de actualizacin ahora muestran claramente las lineas del registro de cambios de GitHub en vez de juntar elementos Markdown.</li>
 </ul>
 <h3>1.3.1</h3>
 <ul>

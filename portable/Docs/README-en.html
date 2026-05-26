@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 3.10.2.</p>
+<p>Current version: 3.10.3.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li>
@@ -103,7 +103,7 @@
 <a href="https://onj.me">Andre Louis</a>, creator of Sensor Readout.</p>
 <h2 id="what-it-does">What It Does</h2>
 <ul>
-<li>Reads temperatures, fan RPM, storage health, storage capacity, connected-device information, and selected hardware counters.</li>
+<li>Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.</li>
 <li>Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread information, memory usage, and storage read/write activity, grouped so related information stays together.</li>
 <li>Opens the main UI immediately while the first sensor refresh continues in the background.</li>
 <li>Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as SSID, signal strength, RSSI, channel, frequency, radio type, and security where Windows provides them.</li>
@@ -954,7 +954,7 @@
 <p>Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try <a href="https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor">Dell Command | Monitor</a>. Lenovo users can try <a href="https://www.lenovo.com/us/en/software/vantage">Lenovo Vantage</a> or <a href="https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications">Lenovo System Update</a>. MSI users can try <a href="https://www.msi.com/Landing/MSI-Center">MSI Center</a>. Asus users can try <a href="https://g-helper.com/">G-Helper</a>. HP, OMEN, and Victus users can try <a href="https://support.hp.com/us-en/help/hp-support-assistant">HP Support Assistant</a> and <a href="https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html">OMEN Gaming Hub</a>. These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.</p>
 <p>Sensor Readout only reads these optional support paths unless a plug-in says otherwise; it does not flash firmware or replace the laptop maker's own tools.</p>
 <h2 id="changelog">Changelog</h2>
-<h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
+<h3>3.10.3</h3><ul><li>Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.</li></ul><h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
 <h3>3.10.0</h3><ul><li>Added: Help now includes an initial setup wizard for show/hide and speak-tray hotkeys, plus a hints and tips browser that can optionally appear at startup.</li><li>Added: Preferences now includes a Delete all settings command for starting fresh or cleaning a copy before sharing it. Logs and reports are kept.</li><li>Fixed: Total space and used space readings can now be added to notification area status and spoken hotkeys. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Improved: Bundled non-English preferences, alarm presets, hotkey presets, fan profile labels, and screen reader descriptions now have broader translation coverage.</li><li>Fixed: Ready removable drives such as SD cards and USB flash drives now appear with storage space and available logical-disk activity readings, making them available for notification area status, spoken hotkeys, reports, and alarms. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
