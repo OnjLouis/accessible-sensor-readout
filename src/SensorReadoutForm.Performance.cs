@@ -26,6 +26,17 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly object gpuTotalMemoryCacheLock = new object();
     private static DateTime cachedGpuTotalMemoryUtc = DateTime.MinValue;
     private static double cachedGpuTotalMemoryBytes = -1;
+    private static readonly object pagingFileCacheLock = new object();
+    private static DateTime cachedPagingFileRowsUtc = DateTime.MinValue;
+    private static PagingFileSummary cachedPagingFileSummary;
+
+    private sealed class PagingFileSummary
+    {
+        public double TotalBytes;
+        public double UsedBytes;
+        public double PeakBytes;
+        public readonly Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
 
     private IEnumerable<SensorRow> GetSystemPerformanceRows()
     {
@@ -82,6 +93,7 @@ public sealed partial class SensorReadoutForm : Form
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
+                    AddPagingFileRows(rows);
                     break;
                 }
             }
@@ -719,11 +731,153 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedBytes), Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows" });
+            AddPagingFileRows(rows);
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static void AddPagingFileRows(List<SensorRow> rows)
+    {
+        var summary = GetPagingFileSummary();
+        if (summary == null || summary.TotalBytes <= 0)
+        {
+            return;
+        }
+
+        var usedBytes = Math.Max(0, Math.Min(summary.UsedBytes, summary.TotalBytes));
+        var freeBytes = Math.Max(0, summary.TotalBytes - usedBytes);
+        var usedPercent = summary.TotalBytes <= 0 ? 0 : usedBytes / summary.TotalBytes * 100.0;
+        var freePercent = summary.TotalBytes <= 0 ? 0 : freeBytes / summary.TotalBytes * 100.0;
+        var details = CloneDetails(summary.Details);
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Paging file total",
+            Identifier = "memory|paging-file|total",
+            DisplayValue = FormatBytes(summary.TotalBytes),
+            Source = "Windows WMI",
+            Details = details
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Paging file used",
+            Identifier = "memory|paging-file|used",
+            Value = (float)usedPercent,
+            DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+            Source = "Windows WMI",
+            Details = details
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Paging file free",
+            Identifier = "memory|paging-file|free",
+            Value = (float)freePercent,
+            DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+            Source = "Windows WMI",
+            Details = details
+        });
+    }
+
+    private static PagingFileSummary GetPagingFileSummary()
+    {
+        lock (pagingFileCacheLock)
+        {
+            if (cachedPagingFileSummary != null && (DateTime.UtcNow - cachedPagingFileRowsUtc).TotalSeconds < 30)
+            {
+                return cachedPagingFileSummary;
+            }
+        }
+
+        PagingFileSummary summary = null;
+        try
+        {
+            var options = new EnumerationOptions
+            {
+                ReturnImmediately = true,
+                Timeout = TimeSpan.FromSeconds(2)
+            };
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, AllocatedBaseSize, CurrentUsage, PeakUsage FROM Win32_PageFileUsage"))
+            {
+                searcher.Options = options;
+                var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    { "Source", "Win32_PageFileUsage" }
+                };
+                double totalBytes = 0;
+                double usedBytes = 0;
+                double peakBytes = 0;
+                int index = 0;
+                foreach (ManagementObject pageFile in searcher.Get())
+                {
+                    index++;
+                    var name = CleanWmiText(Convert.ToString(pageFile["Name"]));
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        name = "Paging file " + index.ToString(CultureInfo.InvariantCulture);
+                    }
+
+                    var allocatedMb = WmiMegabytesToBytes(pageFile["AllocatedBaseSize"]);
+                    var currentMb = WmiMegabytesToBytes(pageFile["CurrentUsage"]);
+                    var peakMb = WmiMegabytesToBytes(pageFile["PeakUsage"]);
+                    totalBytes += Math.Max(0, allocatedMb);
+                    usedBytes += Math.Max(0, currentMb);
+                    peakBytes += Math.Max(0, peakMb);
+                    AddDetail(details, "Paging file " + index.ToString(CultureInfo.InvariantCulture) + " path", name);
+                    AddDetail(details, name + " total", FormatBytes(allocatedMb));
+                    AddDetail(details, name + " used", FormatBytes(currentMb));
+                    AddDetail(details, name + " peak used", FormatBytes(peakMb));
+                }
+
+                if (totalBytes > 0)
+                {
+                    summary = new PagingFileSummary
+                    {
+                        TotalBytes = totalBytes,
+                        UsedBytes = usedBytes,
+                        PeakBytes = peakBytes
+                    };
+                    foreach (var pair in details)
+                    {
+                        summary.Details[pair.Key] = pair.Value;
+                    }
+
+                    AddDetail(summary.Details, "Paging file total", FormatBytes(totalBytes));
+                    AddDetail(summary.Details, "Paging file used", FormatBytes(Math.Max(0, Math.Min(usedBytes, totalBytes))));
+                    AddDetail(summary.Details, "Paging file free", FormatBytes(Math.Max(0, totalBytes - Math.Max(0, Math.Min(usedBytes, totalBytes)))));
+                    AddDetail(summary.Details, "Paging file peak used", FormatBytes(peakBytes));
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        lock (pagingFileCacheLock)
+        {
+            cachedPagingFileSummary = summary;
+            cachedPagingFileRowsUtc = DateTime.UtcNow;
+            return cachedPagingFileSummary;
+        }
+    }
+
+    private static double WmiMegabytesToBytes(object value)
+    {
+        double megabytes;
+        if (!TryConvertToDouble(value, out megabytes) || megabytes <= 0)
+        {
+            return 0;
+        }
+
+        return megabytes * 1024.0 * 1024.0;
     }
 }

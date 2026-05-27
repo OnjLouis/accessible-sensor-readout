@@ -54,6 +54,8 @@ public sealed partial class SensorReadoutForm : Form
             || name.Equals("System uptime", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory used", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Memory available", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Paging file used", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Paging file free", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Total space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Used space", StringComparison.OrdinalIgnoreCase)
             || name.Equals("Space used", StringComparison.OrdinalIgnoreCase)
@@ -287,6 +289,11 @@ public sealed partial class SensorReadoutForm : Form
         if (text.Equals("Memory used", StringComparison.OrdinalIgnoreCase))
         {
             return "Mem";
+        }
+
+        if (text.StartsWith("Paging file ", StringComparison.OrdinalIgnoreCase))
+        {
+            return text.Replace("Paging file", "Pagefile");
         }
 
         return text.Replace(" Activity", "").Replace(" activity", "");

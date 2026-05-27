@@ -1894,6 +1894,9 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 5;
         if (clean.Equals("Memory available", StringComparison.OrdinalIgnoreCase)) return 6;
+        if (clean.Equals("Paging file total", StringComparison.OrdinalIgnoreCase)) return 7;
+        if (clean.Equals("Paging file used", StringComparison.OrdinalIgnoreCase)) return 8;
+        if (clean.Equals("Paging file free", StringComparison.OrdinalIgnoreCase)) return 9;
         if (clean.Equals("Data read", StringComparison.OrdinalIgnoreCase)) return 10;
         if (clean.Equals("Data written", StringComparison.OrdinalIgnoreCase)) return 11;
         if (clean.Equals("Read rate", StringComparison.OrdinalIgnoreCase)) return 12;

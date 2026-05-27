@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.10.3.
+Current version: 3.10.4.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -25,7 +25,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
-- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, and storage read/write activity, grouped so related information stays together.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
@@ -559,6 +559,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 3.10.4
+
+- Added: Performance/Overview now shows paging file total, used, and free space where Windows exposes it. These readings can also be used in spoken hotkeys and notification area status. Closes [issue #8](https://github.com/OnjLouis/accessible-sensor-readout/issues/8).
 
 ### 3.10.3
 
