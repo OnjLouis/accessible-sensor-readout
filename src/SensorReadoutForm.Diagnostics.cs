@@ -43,6 +43,7 @@ public sealed partial class SensorReadoutForm : Form
         diagnosticsRunning = true;
         var timerWasEnabled = timer.Enabled;
         timer.Stop();
+        var diagnosticsStopwatch = Stopwatch.StartNew();
 
         Task.Factory.StartNew(delegate
         {
@@ -54,18 +55,25 @@ public sealed partial class SensorReadoutForm : Form
             {
                 ApplyTimerSettings();
             }
+            diagnosticsStopwatch.Stop();
 
             if (task.IsFaulted)
             {
                 var message = task.Exception == null ? "Diagnostics failed." : task.Exception.GetBaseException().Message;
                 statusLabel.Text = T("status.diagnosticsFailed", "Diagnostics failed.") + " " + message;
                 LogError("Diagnostics failed. " + message);
+                if (IsMinimizedOrHidden())
+                {
+                    RestoreFromTray();
+                }
                 MessageBox.Show(this, T("status.diagnosticsFailed", "Diagnostics failed.") + " " + message, diagnosticsCaption, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             var zipPath = task.Result;
-            statusLabel.Text = T("status.diagnosticsSavedTo", "Diagnostics saved to") + " " + zipPath + ".";
+            var elapsedText = FormatElapsed(diagnosticsStopwatch.Elapsed);
+            statusLabel.Text = T("status.diagnosticsSavedTo", "Diagnostics saved to") + " " + zipPath + " " + string.Format(T("status.inElapsed", "in {0}."), elapsedText);
+            LogMessage("Normal", "Diagnostics saved to " + zipPath + " in " + elapsedText + ".");
             try
             {
                 Process.Start(new ProcessStartInfo
@@ -79,8 +87,6 @@ public sealed partial class SensorReadoutForm : Form
             {
                 try { Process.Start(GetReportsFolderPath()); } catch { }
             }
-
-            MessageBox.Show(this, T("status.diagnosticsSavedTo", "Diagnostics saved to") + ":" + Environment.NewLine + zipPath, diagnosticsCaption, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }, TaskScheduler.FromCurrentSynchronizationContext());
     }
 

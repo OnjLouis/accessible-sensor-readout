@@ -214,6 +214,7 @@ message.diagnosticsConfirm=Eseguire la diagnostica? Sensor Readout creera report
 status.diagnosticsStarting=Avvio diagnostica di Sensor Readout.
 status.diagnosticsFailed=Diagnostica non riuscita.
 status.diagnosticsSavedTo=Diagnostica salvata in
+status.inElapsed=dopo {0}.
 status.diagnosticsComplete=Diagnostica di Sensor Readout completata.
 status.diagnosticsCompleteShort=Completato.
 status.diagnosticsCollectingSensors=Raccolta dati sensori.

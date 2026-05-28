@@ -2,18 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "3.10.4";
+    public const string AppVersion = "3.10.5";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
     public const int MaxTrayStatusReadings = 8;
     private const int RefreshIntervalMs = 5000;
     private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
+    private static readonly TimeSpan HiddenAutoRefreshMinimumInterval = TimeSpan.FromSeconds(15);
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
     private const int SpokenHotKeyBaseId = 2100;
@@ -125,6 +127,7 @@ public sealed partial class SensorReadoutForm : Form
     private bool visibleRefreshPending;
     private DateTime lastUserNavigationUtc = DateTime.MinValue;
     private DateTime lastFocusedAutoRefreshUtc = DateTime.MinValue;
+    private DateTime lastHiddenAutoRefreshUtc = DateTime.MinValue;
     private List<LanguageChoice> languageChoices = new List<LanguageChoice>();
     private string languageFolderSignature = "";
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
@@ -877,6 +880,18 @@ public sealed partial class SensorReadoutForm : Form
             return false;
         }
 
+        var now = DateTime.UtcNow;
+        if (IsMinimizedOrHidden() && !RequiresRealtimeBackgroundRefresh())
+        {
+            if (now - lastHiddenAutoRefreshUtc < HiddenAutoRefreshMinimumInterval)
+            {
+                return false;
+            }
+
+            lastHiddenAutoRefreshUtc = now;
+            return true;
+        }
+
         if (!ContainsFocus)
         {
             return true;
@@ -887,7 +902,6 @@ public sealed partial class SensorReadoutForm : Form
             return false;
         }
 
-        var now = DateTime.UtcNow;
         if (now - lastFocusedAutoRefreshUtc < FocusedAutoRefreshMinimumInterval)
         {
             return false;
@@ -895,6 +909,13 @@ public sealed partial class SensorReadoutForm : Form
 
         lastFocusedAutoRefreshUtc = now;
         return true;
+    }
+
+    private bool RequiresRealtimeBackgroundRefresh()
+    {
+        return settings.TrendLoggingEnabled ||
+            (settings.Alarms != null && settings.Alarms.Any(a => a != null && a.Enabled)) ||
+            (settings.FanCurves != null && settings.FanCurves.Any(c => c != null && c.Enabled));
     }
 
     private void SetTemperatureUnit(string unit)

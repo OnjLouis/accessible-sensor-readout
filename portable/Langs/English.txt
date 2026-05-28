@@ -214,6 +214,7 @@ message.diagnosticsConfirm=Run diagnostics? Sensor Readout will create text and 
 status.diagnosticsStarting=Starting Sensor Readout diagnostics.
 status.diagnosticsFailed=Diagnostics failed.
 status.diagnosticsSavedTo=Diagnostics saved to
+status.inElapsed=in {0}.
 status.diagnosticsComplete=Sensor Readout diagnostics complete.
 status.diagnosticsCompleteShort=Complete.
 status.diagnosticsCollectingSensors=Collecting sensor data.
