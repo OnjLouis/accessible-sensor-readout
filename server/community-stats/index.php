@@ -127,6 +127,7 @@ $installModes = aggregate_value($items, 'system', 'installMode');
 <body>
   <h1>Sensor Readout Community Stats</h1>
   <p>These are opt-in aggregate hardware and accessibility coverage stats submitted from Sensor Readout. The upload payload is allow-listed and does not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, or full report rows.</p>
+  <p><a href="https://github.com/OnjLouis/accessible-sensor-readout/releases/latest">Download Sensor Readout</a> or visit the <a href="https://github.com/OnjLouis/accessible-sensor-readout">project page</a>.</p>
 
   <h2>Summary</h2>
   <table>
