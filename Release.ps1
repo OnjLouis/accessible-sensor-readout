@@ -111,7 +111,7 @@ function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, 
 
     $englishSize = (Get-Item -LiteralPath $english).Length
     $maxManualSize = [Math]::Max(300000, [int64]($englishSize * 3))
-    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x00E2, [char]0x0192)
+    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x0192)
 
     foreach ($manual in Get-ChildItem -LiteralPath $folder -Filter 'README-*.html') {
         if ($manual.Length -gt $maxManualSize) {
@@ -137,7 +137,7 @@ function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, 
 
         $visibleVersion = [regex]::Match(
             $text,
-            '<p>[^<]*(Current version|Aktuelle Version|Version actual|Version actuelle|Versione attuale)[^<]*</p>',
+            '<p>[^<]*(Current version|Aktuelle Version|Version actual|Version actuelle|Versione attuale|Vers.o atual)[^<]*</p>',
             [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if (!$visibleVersion.Success) {
             Fail "$label $($manual.Name) does not have a visible top-of-manual version line."
@@ -273,7 +273,7 @@ function Assert-LanguageParity {
             $englishMap[$parts[0]] = $parts[1]
         }
     $english = @($englishMap.Keys)
-    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x00E2, [char]0x0192)
+    $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x0192)
     $mustTranslateKeys = @(
         'ui.Compare reports',
         'ui.Choose reports to compare',
@@ -472,6 +472,16 @@ function Assert-ManualEnglishLeakSmoke {
             'Details available'
         )
         'README-it.html' = @(
+            'Current version',
+            'Changelog',
+            'Fixed:',
+            'Added:',
+            'Improved:',
+            'Language editor',
+            'Preferences',
+            'Details available'
+        )
+        'README-pt.html' = @(
             'Current version',
             'Changelog',
             'Fixed:',

@@ -284,6 +284,10 @@ public sealed partial class SensorReadoutForm : Form
         {
             return "Espanol.txt";
         }
+        if (string.Equals(language, "pt", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Portugues.txt";
+        }
 
         return "";
     }

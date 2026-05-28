@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.0.1.
+Current version: 4.0.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -532,7 +532,7 @@ Language files:
 - Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
 - `Langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
 - The decimal separator can also be changed from Preferences without editing a language file.
-- Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, and `README-it.html`.
+- Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, `README-it.html`, and `README-pt.html`.
 
 Optional screen-reader speech:
 
@@ -572,6 +572,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.0.2
+
+- Added: Portuguese language and a Portuguese manual, contributed by Vitor Ferreira.
 
 ### 4.0.1
 
@@ -972,6 +976,8 @@ Created by Codex. Ideas by Andre Louis.
 Questions and feedback can be sent through `Help` > `Contact` in the app or <https://onj.me/contact>.
 
 Sensor Readout is free software. If you want to support Andre's work, use `Help` > `Donate` in the app or visit <https://www.paypal.me/AndreLouis>.
+
+Portuguese translation and manual by Vitor Ferreira.
 
 Sensor Readout uses or bundles components from these projects:
 

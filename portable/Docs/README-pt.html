@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<title>Sensor Readout Manual</title>
+<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;max-width:1100px;margin:2rem auto;padding:0 1rem;}code{font-family:Consolas,monospace;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:.4rem;text-align:left;}h1,h2,h3{line-height:1.2;}</style>
+</head>
+<body>
+<h1>Sensor Readout</h1>
+<p>Versão atual: 4.0.2.</p>
+<h2 id="contents">Conteúdo</h2>
+<ul><li><a href="#first-run">Primeira utilização</a></li><li><a href="#keys">Teclas principais</a></li><li><a href="#categories">Categorias e detalhes</a></li><li><a href="#reports">Relatórios e estatísticas da comunidade</a></li><li><a href="#preferences">Preferências</a></li><li><a href="#plugins">Plug-ins</a></li><li><a href="#language">Idiomas</a></li><li><a href="#changelog">Novidades</a></li><li><a href="#credits">Créditos</a></li></ul>
+<h2 id="first-run">Primeira utilização</h2>
+<p>O Sensor Readout é uma aplicação Windows gratuita, portátil ou instalável, criada para mostrar informação de hardware de forma acessível a utilizadores de teclado e leitores de ecrã.</p>
+<p>A lista da esquerda escolhe a categoria. A árvore da direita mostra as leituras dessa categoria. Quando uma leitura diz que tem detalhes, prima <code>Enter</code> ou use o comando Detalhes para ver informação técnica adicional numa árvore pesquisável.</p>
+<p>Na primeira configuração, é recomendado definir uma tecla global para mostrar ou ocultar a janela e outra para falar o estado da área de notificação. O assistente inicial pode ser aberto novamente no menu Ajuda.</p>
+<h2 id="keys">Teclas principais</h2>
+<table><thead><tr><th>Tecla</th><th>Ação</th></tr></thead><tbody>
+<tr><td><code>F1</code></td><td>Abre este manual.</td></tr>
+<tr><td><code>Shift+F1</code></td><td>Procura atualizações.</td></tr>
+<tr><td><code>F3</code></td><td>Pesquisa as leituras da categoria atual ou a vista ativa.</td></tr>
+<tr><td><code>F4</code></td><td>Mostra o texto da leitura selecionada numa caixa só de leitura.</td></tr>
+<tr><td><code>F5</code></td><td>Atualiza as leituras.</td></tr>
+<tr><td><code>Enter</code></td><td>Abre Detalhes quando a leitura selecionada os fornece.</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Copia o texto completo da leitura selecionada.</td></tr>
+<tr><td><code>Ctrl+Shift+C</code></td><td>Copia apenas o valor da leitura selecionada.</td></tr>
+<tr><td><code>Ctrl+M</code></td><td>Copia linhas correspondentes na vista de detalhes.</td></tr>
+<tr><td><code>Ctrl+S</code></td><td>Guarda um relatório.</td></tr>
+<tr><td><code>Alt+F1</code></td><td>Cria um relatório de diagnóstico.</td></tr>
+</tbody></table>
+<h2 id="categories">Categorias e detalhes</h2>
+<p>As categorias incluem Desempenho/Resumo, Temperaturas, Ventiladores, SMART, Rede, USB, Áudio, Ecrã, Dispositivos e Bateria. Algumas máquinas não fornecem todos os dados; nesse caso, a categoria explica o que falta ou o que pode tentar a seguir.</p>
+<p>Os detalhes são usados para informação mais técnica, como campos WMI, registo, IDs de hardware, volumes de disco, rede, firmware, CPU, placa-mãe, impressoras e dispositivos. Isto mantém a árvore principal limpa sem esconder informação útil para suporte técnico.</p>
+<h2 id="reports">Relatórios e estatísticas da comunidade</h2>
+<p>Use <code>Ficheiro</code> &gt; <code>Guardar relatório</code> ou <code>Ctrl+S</code> para criar relatórios TXT ou HTML. O HTML é a melhor escolha quando pretende preservar a estrutura completa.</p>
+<p><code>Ficheiro</code> &gt; <code>Guardar relatório anonimizado</code> remove identificadores comuns antes de partilhar um relatório. Mesmo assim, deve rever qualquer relatório antes de o enviar a outra pessoa.</p>
+<p><code>Ajuda</code> &gt; <code>Partilhar estatísticas anónimas da comunidade</code> cria um pequeno payload permitido para ajudar a perceber que hardware o Sensor Readout cobre. A aplicação mostra o JSON exato antes do envio e não envia nada automaticamente. Não inclui nome do computador, nome de utilizador, números de série, MAC, IP, caminhos, etiquetas de unidades, IDs de dispositivo, IDs PnP, detalhes brutos, programas instalados ou linhas completas do relatório.</p>
+<p>A página pública de estatísticas está em <a href="https://onj.me/srstats/">https://onj.me/srstats/</a>.</p>
+<h2 id="preferences">Preferências</h2>
+<p>As Preferências controlam idioma, atualização automática, intervalo de atualização, sons, mensagens faladas, teclas globais, estado da área de notificação, perfis de ventilador, alarmes, plug-ins, itens ocultos e o editor de idioma. As alterações são guardadas imediatamente na maioria das páginas.</p>
+<p>Também é possível exportar e importar definições. Algumas leituras dependem do hardware da máquina atual e podem precisar de ser associadas novamente depois de importar um perfil noutro computador.</p>
+<h2 id="plugins">Plug-ins</h2>
+<p>Os plug-ins opcionais podem expor dados específicos de portáteis Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus. Estão desativados até serem ativados em <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Plug-ins</code>.</p>
+<p>Os plug-ins não garantem leituras em todos os modelos. Os fabricantes decidem que informação disponibilizam ao Windows.</p>
+<h2 id="language">Idiomas</h2>
+<p>Os ficheiros de idioma ficam na pasta <code>Langs</code>. O ficheiro português incluído é <code>Portugues.txt</code>, com nome visível <code>Português</code>, e abre este manual através de <code>manual.file=README-pt.html</code>.</p>
+<p>O editor de idioma nas Preferências permite procurar com <code>F3</code>, editar entradas e guardar alterações sem abrir um editor externo.</p>
+<h2 id="changelog">Novidades</h2>
+<h3>4.0.2</h3><ul><li>Adicionado: idioma português e manual em português, contribuídos por Vitor Ferreira.</li></ul>
+<h3>4.0.1</h3><ul><li>Corrigido: o envio das estatísticas da comunidade usa agora explicitamente definições TLS modernas, evitando erros de canal seguro SSL/TLS em alguns sistemas.</li></ul>
+<h3>4.0.0</h3><ul><li>Adicionado: Ajuda &gt; Partilhar estatísticas anónimas da comunidade permite enviar voluntariamente um pequeno resumo da cobertura de hardware. O Sensor Readout mostra primeiro o JSON exato e não envia nada sem confirmação.</li><li>Privacidade: as estatísticas da comunidade são separadas dos relatórios anonimizados e não incluem identificadores privados. Apenas é enviado o hash SHA-256 de uma ID aleatória local, para que a mesma máquina possa atualizar a sua entrada agregada.</li></ul>
+<h2 id="credits">Créditos</h2>
+<p>Criado por Codex. Ideias de Andre Louis.</p>
+<p>Tradução portuguesa e manual por Vitor Ferreira.</p>
+<p>Perguntas e feedback podem ser enviados através de <code>Ajuda</code> &gt; <code>Contacto</code> na aplicação ou <a href="https://onj.me/contact">https://onj.me/contact</a>.</p>
+<p>O Sensor Readout é software gratuito. Para apoiar o trabalho do Andre, use <code>Ajuda</code> &gt; <code>Donativos</code> na aplicação ou visite <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a>.</p>
+<p>O Sensor Readout usa ou inclui componentes como LibreHardwareMonitor, PawnIO, Newtonsoft.Json, HidSharp, DiskInfoToolkit, RAMSPDToolkit, Tolk, Framework Control, G-Helper, usb.ids, a base de dados de fornecedores MAC/OUI e Microsoft .NET Framework.</p>
+<h2 id="license">Licença</h2>
+<p>A aplicação principal Sensor Readout usa a licença MIT. Consulte <code>LICENSE.txt</code>. Alguns plug-ins e ficheiros de dados incluídos têm licenças e avisos próprios.</p>
+</body>
+</html>
