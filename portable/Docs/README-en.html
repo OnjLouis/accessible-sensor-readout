@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 3.10.5.</p>
+<p>Current version: 4.0.0.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li>
@@ -704,6 +704,18 @@
 </tr>
 <tr>
 <td>
+<code>--anonymous-report-txt [path]</code>
+</td>
+<td>Alias for <code>--anonymized-report-txt</code>, intended for automated privacy checks.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-html [path]</code>
+</td>
+<td>Alias for <code>--anonymized-report-html</code>, intended for automated privacy checks.</td>
+</tr>
+<tr>
+<td>
 <code>--compare-reports before after [output]</code>
 </td>
 <td>Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped comparison is created in the <code>Reports</code> folder.</td>
@@ -731,6 +743,12 @@
 <code>--no-diagnostics-sounds</code>
 </td>
 <td>Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it.</td>
+</tr>
+<tr>
+<td>
+<code>--community-stats-json [path]</code>
+</td>
+<td>Write the allow-listed anonymous community stats payload and exit. This does not upload it.</td>
 </tr>
 <tr>
 <td>--log off\</td>
@@ -870,6 +888,11 @@
 <p>The save dialog offers TXT and HTML reports. TXT reports group values by reading type and device, so long hardware names are written once as headings instead of being repeated on every line. HTML reports use formatted tables with sensor, value, and source columns.</p>
 <p>The first save creates the <code>Reports</code> folder if it does not already exist. Use <code>File</code> &gt; <code>Open Reports folder</code> or <code>Ctrl+Shift+O</code> to jump to saved reports, and use <code>File</code> &gt; <code>Open Logs folder</code> or <code>Ctrl+Shift+L</code> when support needs the log folder. To share a report, send the saved <code>.html</code> or <code>.txt</code> file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use <code>Help</code> &gt; <code>Run diagnostics...</code> instead; diagnostics include both report formats, logs, and a summary in one ZIP file.</p>
 <p>Use <code>File</code> &gt; <code>Save anonymized report...</code> or <code>Ctrl+Shift+A</code> when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name and masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them.</p>
+<h3 id="anonymous-community-stats">Anonymous Community Stats</h3>
+<p>Use <code>Help</code> &gt; <code>Share anonymous community stats...</code> if you want to help improve Sensor Readout's hardware and accessibility coverage data without sending a report. This is explicit opt-in only: Sensor Readout builds the small JSON payload, shows you the exact text first, and uploads nothing unless you press <code>Upload</code>.</p>
+<p>Community stats are not anonymized reports. They are a separate allow-listed payload containing only aggregate and broad setup fields, such as app version, Windows version, CPU vendor and core counts, GPU vendor counts, memory totals, category coverage counts, enabled plug-in IDs, selected language, install mode, refresh/update settings, configured hotkey and notification-area counts, and detected supported screen reader names. The payload does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows.</p>
+<p>Sensor Readout stores a random local anonymous client ID in its settings and sends only a SHA-256 hash of that ID. This lets one installation update its previous aggregate entry without using hardware-derived identity. Deleting the app settings or using a separate portable copy creates a new anonymous entry.</p>
+<p>After a successful upload, Sensor Readout opens the public aggregate page at <a href="https://onj.me/srstats/">onj.me/srstats</a>. You can also visit that page without submitting anything. For testing, <code>Sensor Readout.exe --community-stats-json [path]</code> writes the same allow-listed payload to a file and exits without uploading it.</p>
 <h3 id="opening-a-report">Opening someone else's report</h3>
 <p>Press <code>Ctrl+O</code> or use <code>File</code> &gt; <code>Open report...</code> to load a saved Sensor Readout TXT or HTML report. If someone sends a report inside a ZIP file, open the ZIP directly and Sensor Readout will use the first readable report inside it.</p>
 <p>The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.</p>
@@ -954,7 +977,7 @@
 <p>Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try <a href="https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor">Dell Command | Monitor</a>. Lenovo users can try <a href="https://www.lenovo.com/us/en/software/vantage">Lenovo Vantage</a> or <a href="https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications">Lenovo System Update</a>. MSI users can try <a href="https://www.msi.com/Landing/MSI-Center">MSI Center</a>. Asus users can try <a href="https://g-helper.com/">G-Helper</a>. HP, OMEN, and Victus users can try <a href="https://support.hp.com/us-en/help/hp-support-assistant">HP Support Assistant</a> and <a href="https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html">OMEN Gaming Hub</a>. These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.</p>
 <p>Sensor Readout only reads these optional support paths unless a plug-in says otherwise; it does not flash firmware or replace the laptop maker's own tools.</p>
 <h2 id="changelog">Changelog</h2>
-<h3>3.10.5</h3><ul><li>Fixed: Diagnostics no longer shows a completion dialog after opening the Reports folder, preventing an inaccessible hidden dialog if Sensor Readout is hidden while diagnostics are running. The status line now includes how long diagnostics took.</li><li>Improved: When Sensor Readout is hidden or minimized and no alarms, fan curves, or history logging need close monitoring, automatic refresh is throttled to reduce background impact on slower laptops. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Added: Performance/Overview now shows paging file total, used, and free space where Windows exposes it. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.</li></ul><h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
+<h3>4.0.0</h3><ul><li>Added: Help &gt; Share anonymous community stats lets users opt in to sending a small hardware-coverage summary. Sensor Readout shows the exact JSON first and uploads nothing unless the user presses Upload.</li><li>Privacy: Community stats are separate from anonymized reports and do not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows. A random local anonymous client ID is stored locally, and only its SHA-256 hash is sent so one machine can update its aggregate entry.</li></ul><h3>3.10.5</h3><ul><li>Fixed: Diagnostics no longer shows a completion dialog after opening the Reports folder, preventing an inaccessible hidden dialog if Sensor Readout is hidden while diagnostics are running. The status line now includes how long diagnostics took.</li><li>Improved: When Sensor Readout is hidden or minimized and no alarms, fan curves, or history logging need close monitoring, automatic refresh is throttled to reduce background impact on slower laptops. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Added: Performance/Overview now shows paging file total, used, and free space where Windows exposes it. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.</li></ul><h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
 <h3>3.10.0</h3><ul><li>Added: Help now includes an initial setup wizard for show/hide and speak-tray hotkeys, plus a hints and tips browser that can optionally appear at startup.</li><li>Added: Preferences now includes a Delete all settings command for starting fresh or cleaning a copy before sharing it. Logs and reports are kept.</li><li>Fixed: Total space and used space readings can now be added to notification area status and spoken hotkeys. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Improved: Bundled non-English preferences, alarm presets, hotkey presets, fan profile labels, and screen reader descriptions now have broader translation coverage.</li><li>Fixed: Ready removable drives such as SD cards and USB flash drives now appear with storage space and available logical-disk activity readings, making them available for notification area status, spoken hotkeys, reports, and alarms. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">issue #6</a>.</li></ul>
 <h3>3.9.1</h3>

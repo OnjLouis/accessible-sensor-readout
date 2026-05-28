@@ -415,6 +415,7 @@ public sealed partial class SensorReadoutForm : Form
             PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase),
             TrendLoggingEnabled = value.TrendLoggingEnabled,
             TrendLoggingKeys = new List<string>(value.TrendLoggingKeys ?? new List<string>()),
+            CommunityStatsClientId = value.CommunityStatsClientId ?? "",
             Alarms = (value.Alarms ?? new List<AlarmSetting>())
                 .Select(a => new AlarmSetting
                 {
@@ -580,6 +581,7 @@ public sealed partial class SensorReadoutForm : Form
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
         value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
+        value.CommunityStatsClientId = (value.CommunityStatsClientId ?? "").Trim();
         if (!string.IsNullOrWhiteSpace(value.ShowHideHotKey) &&
             string.Equals(value.ShowHideHotKey, value.SpeakTrayHotKey, StringComparison.OrdinalIgnoreCase))
         {

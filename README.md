@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 3.10.5.
+Current version: 4.0.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -226,11 +226,14 @@ Sensor Readout can also be started with a few command-line options:
 | `--report-html [path]` | Save an HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
 | `--anonymized-report-txt [path]` | Save an anonymized text report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
 | `--anonymized-report-html [path]` | Save an anonymized HTML report and exit. If no path is supplied, a timestamped report is created in the `Reports` folder. |
+| `--anonymous-report-txt [path]` | Alias for `--anonymized-report-txt`, intended for automated privacy checks. |
+| `--anonymous-report-html [path]` | Alias for `--anonymized-report-html`, intended for automated privacy checks. |
 | `--compare-reports before after [output]` | Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped comparison is created in the `Reports` folder. |
 | `--diagnostics [path]` | Run diagnostics, save a ZIP, and exit. If no path is supplied, a computer-named timestamped ZIP is created in the `Reports` folder. If a folder is supplied, the ZIP is created there. |
 | `--diagnostics-quiet` | Do not speak diagnostic progress or play diagnostic sounds when used with `--diagnostics`. |
 | `--no-diagnostics-speech` | Run command-line diagnostics without spoken progress, while keeping diagnostic sounds enabled if preferences allow them. |
 | `--no-diagnostics-sounds` | Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it. |
+| `--community-stats-json [path]` | Write the allow-listed anonymous community stats payload and exit. This does not upload it. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
@@ -451,6 +454,16 @@ The first save creates the `Reports` folder if it does not already exist. Use `F
 
 Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name and masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them.
 
+### Anonymous Community Stats
+
+Use `Help` > `Share anonymous community stats...` if you want to help improve Sensor Readout's hardware and accessibility coverage data without sending a report. This is explicit opt-in only: Sensor Readout builds the small JSON payload, shows you the exact text first, and uploads nothing unless you press `Upload`.
+
+Community stats are not anonymized reports. They are a separate allow-listed payload containing only aggregate and broad setup fields, such as app version, Windows version, CPU vendor and core counts, GPU vendor counts, memory totals, category coverage counts, enabled plug-in IDs, selected language, install mode, refresh/update settings, configured hotkey and notification-area counts, and detected supported screen reader names. The payload does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows.
+
+Sensor Readout stores a random local anonymous client ID in its settings and sends only a SHA-256 hash of that ID. This lets one installation update its previous aggregate entry without using hardware-derived identity. Deleting the app settings or using a separate portable copy creates a new anonymous entry.
+
+After a successful upload, Sensor Readout opens the public aggregate page at [onj.me/srstats](https://onj.me/srstats/). You can also visit that page without submitting anything. For testing, `Sensor Readout.exe --community-stats-json [path]` writes the same allow-listed payload to a file and exits without uploading it.
+
 ### Opening Someone Else's Report
 
 Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report. If someone sends a report inside a ZIP file, open the ZIP directly and Sensor Readout will use the first readable report inside it.
@@ -559,6 +572,11 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.0.0
+
+- Added: `Help` > `Share anonymous community stats...` lets users opt in to sending a small hardware-coverage summary. Sensor Readout shows the exact JSON first and uploads nothing unless the user presses `Upload`.
+- Privacy: Community stats are separate from anonymized reports and do not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows. A random local anonymous client ID is stored locally, and only its SHA-256 hash is sent so one machine can update its aggregate entry.
 
 ### 3.10.5
 

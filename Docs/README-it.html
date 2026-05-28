@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versione attuale: 3.10.5.</p>
+<p>Versione attuale: 4.0.0.</p>
 <p>Sensor Readout e un'utilita Windows per leggere sensori hardware e controllare ventole compatibili, con interfaccia pensata prima di tutto per tastiera e screen reader.</p>
 <p>A sinistra mostra categorie principali, a destra una vista ad albero con letture raggruppate per dispositivo o scopo, e i comandi comuni sono in una normale barra menu.</p>
 <p>Sensor Readout e disponibile <a href="https://github.com/OnjLouis/accessible-sensor-readout">su GitHub</a>.</p>
@@ -318,7 +318,7 @@
 <td>
 <code>Ctrl+Shift+O</code>
 </td>
-<td>Open the Reports folder.</td>
+<td>Apri la cartella Reports.</td>
 </tr>
 <tr>
 <td>Comandi file</td>
@@ -612,19 +612,31 @@
 <td>
 <code>--anonymized-report-txt [path]</code>
 </td>
-<td>Save an anonymized text report and exit. If no path is supplied, a timestamped report is created in the <code>Reports</code> folder.</td>
+<td>Salva un report di testo anonimizzato ed esce. Senza percorso, crea un report con data e ora nella cartella <code>Reports</code>.</td>
 </tr>
 <tr>
 <td>
 <code>--anonymized-report-html [path]</code>
 </td>
-<td>Save an anonymized HTML report and exit. If no path is supplied, a timestamped report is created in the <code>Reports</code> folder.</td>
+<td>Salva un report HTML anonimizzato ed esce. Senza percorso, crea un report con data e ora nella cartella <code>Reports</code>.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-txt [path]</code>
+</td>
+<td>Alias di <code>--anonymized-report-txt</code>, pensato per controlli automatici sulla privacy.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-html [path]</code>
+</td>
+<td>Alias di <code>--anonymized-report-html</code>, pensato per controlli automatici sulla privacy.</td>
 </tr>
 <tr>
 <td>
 <code>--compare-reports before after [output]</code>
 </td>
-<td>Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped comparison is created in the <code>Reports</code> folder.</td>
+<td>Confronta due report Sensor Readout e salva il testo del confronto. Senza percorso di output, viene creato un confronto con data e ora nella cartella <code>Reports</code>.</td>
 </tr>
 <tr>
 <td>
@@ -649,6 +661,12 @@
 <code>--no-diagnostics-sounds</code>
 </td>
 <td>Esegue diagnostica da riga di comando senza suoni di inizio o fine, mantenendo la voce se consentita dalle preferenze.</td>
+</tr>
+<tr>
+<td>
+<code>--community-stats-json [percorso]</code>
+</td>
+<td>Scrive il payload anonimo consentito delle statistiche della comunità ed esce. Non lo carica.</td>
 </tr>
 <tr>
 <td>
@@ -734,6 +752,11 @@
 <p>Premere <code>Ctrl+S</code> o usare <code>File</code> &gt; <code>Salva report...</code>.</p>
 <p>La finestra di salvataggio offre report TXT e HTML. TXT raggruppa per tipo di lettura e dispositivo, cosi i nomi hardware lunghi vengono scritti una volta come intestazioni. HTML usa tabelle con sensore, valore e fonte.</p>
 <p>Il primo salvataggio crea la cartella <code>Reports</code> se non esiste. Per condividere un report, inviare il file <code>.html</code> o <code>.txt</code> salvato. HTML di solito e piu facile da leggere in un browser; TXT e comodo da incollare nei messaggi. Se serve un pacchetto di supporto piu completo, usare <code>Aiuto</code> &gt; <code>Esegui diagnostica...</code>; la diagnostica include entrambi i formati, log e riepilogo in uno ZIP.</p>
+<h3 id="anonymous-community-stats">Statistiche anonime della comunita</h3>
+<p>Usare <code>Aiuto</code> &gt; <code>Condividi statistiche anonime della comunita...</code> se si vuole aiutare a migliorare la copertura hardware e accessibilita di Sensor Readout senza inviare un report. E solo su consenso esplicito: Sensor Readout crea prima il piccolo payload JSON, mostra il testo esatto e non carica nulla finche non si preme <code>Carica</code>.</p>
+<p>Le statistiche della comunita non sono report anonimizzati. Sono un payload separato e basato su lista consentita, con soli campi aggregati e generali, come versione dell app, versione di Windows, produttore CPU e numero di core, conteggi dei produttori GPU, totali memoria, conteggi di copertura per categoria, ID dei plug-in attivati, lingua selezionata, modalita di installazione, impostazioni di aggiornamento, conteggi di hotkey e area di notifica, e nomi dei lettori schermo supportati rilevati. Non include nome computer, nome utente, numeri seriali, indirizzi MAC o IP, percorsi, etichette unita, ID dispositivo, ID PnP, campi Dettagli grezzi, programmi installati o righe complete del report.</p>
+<p>Sensor Readout salva nelle impostazioni un ID client anonimo locale casuale e invia solo un hash SHA-256 di quell ID. Cosi una installazione puo aggiornare la propria voce aggregata precedente senza usare un identita derivata dall hardware. Eliminare le impostazioni dell app o usare una copia portatile separata crea una nuova voce anonima.</p>
+<p>Dopo un caricamento riuscito, Sensor Readout apre la pagina pubblica aggregata su <a href="https://onj.me/srstats/">onj.me/srstats</a>. Si puo anche visitare quella pagina senza inviare nulla. Per test, <code>Sensor Readout.exe --community-stats-json [percorso]</code> scrive lo stesso payload consentito in un file ed esce senza caricarlo.</p>
 <h3 id="opening-a-report">Aprire il report di un altro computer</h3>
 <p>Premere <code>Ctrl+O</code> o usare <code>File</code> &gt; <code>Apri report...</code> per caricare un report TXT o HTML salvato da Sensor Readout. Se qualcuno invia un report dentro un file ZIP, aprire direttamente lo ZIP e Sensor Readout usera il primo report leggibile al suo interno.</p>
 <p>Il report si apre come istantanea statica nella normale vista categorie e albero. Cosi e possibile esaminare il computer di un altra persona come se fosse la vista corrente. La modalita report statico non aggiorna valori live, non esegue allarmi e non controlla hardware. Mostra solo i dati salvati nel report.</p>
@@ -802,9 +825,9 @@
 <p>Sensor Readout legge solo questi percorsi di supporto opzionali salvo diversa indicazione di un plug-in; non aggiorna firmware e non sostituisce gli strumenti del produttore.</p>
 <h2 id="report-comparison-support-and-history">Report Comparison, Support, And History</h2>
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
-<p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
+<p>Usare <code>Opzioni</code> &gt; <code>Abilita registro cronologia letture</code>, poi selezionare una lettura e premere <code>Ctrl+Maiusc+G</code> o scegliere <code>Modifica</code> &gt; <code>Aggiungi al registro cronologia</code> per scrivere le letture selezionate in un CSV temporaneo in <code>Logs</code>. Prestazioni/Panoramica include anche un gruppo Fonti dati che mostra quali fonti Windows, LibreHardwareMonitor, plug-in, database e Sensor Readout hanno contribuito alla vista corrente.</p>
 <h2 id="changelog">Novita</h2>
-<h3>3.10.5</h3><ul><li>Corretto: la diagnostica non mostra piu una finestra di completamento dopo aver aperto la cartella report, evitando una finestra nascosta non accessibile se Sensor Readout e nascosto durante la diagnostica. La riga di stato ora indica quanto tempo ha richiesto la diagnostica.</li><li>Migliorato: quando Sensor Readout e nascosto o minimizzato e nessun allarme, curva ventola o registrazione cronologia richiede monitoraggio ravvicinato, l aggiornamento automatico viene limitato per ridurre l impatto in background sui laptop piu lenti. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Aggiunto: Prestazioni/Panoramica ora mostra spazio totale, usato e libero del file di paging quando Windows lo espone. Queste letture possono essere usate anche nei tasti parlati e nello stato dell area di notifica. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Aggiunto: Archiviazione ora mostra lo stato BitLocker delle unita quando Windows lo espone, con protezione, crittografia, blocco, metodo e dettagli del volume disponibili da Dettagli.</li></ul><h3>3.10.2</h3><ul><li>Corretto: l editor della lingua ora supporta la ricerca con F3 dalla scheda, ricorda l ultimo file e l ultima voce modificati e gestisce la navigazione digitata con piu lettere nell elenco delle voci.</li></ul><h3>3.10.1</h3><ul><li>Corretto: le righe Riepilogo categoria ora localizzano i conteggi di letture e gruppi invece di mescolare parole inglesi nelle lingue non inglesi.</li><li>Corretto: i messaggi italiani di aggiornamento e installazione ora usano correttamente gli accenti dove necessario.</li></ul>
+<h3>4.0.0</h3><ul><li>Aggiunto: Aiuto &gt; Condividi statistiche anonime della comunità permette agli utenti di inviare volontariamente un piccolo riepilogo della copertura hardware. Sensor Readout mostra prima il JSON esatto e non carica nulla a meno che l utente prema Invia.</li><li>Privacy: le statistiche della comunità sono separate dai report anonimizzati e non includono nome del computer, nome utente, numeri di serie, indirizzi MAC o IP, percorsi, etichette delle unità, ID dispositivo, ID PnP, campi Dettagli grezzi, programmi installati o righe complete del report. Un ID client anonimo casuale viene salvato localmente, e viene inviato solo il suo hash SHA-256 così una macchina può aggiornare la propria voce aggregata.</li></ul><h3>3.10.5</h3><ul><li>Corretto: la diagnostica non mostra piu una finestra di completamento dopo aver aperto la cartella report, evitando una finestra nascosta non accessibile se Sensor Readout e nascosto durante la diagnostica. La riga di stato ora indica quanto tempo ha richiesto la diagnostica.</li><li>Migliorato: quando Sensor Readout e nascosto o minimizzato e nessun allarme, curva ventola o registrazione cronologia richiede monitoraggio ravvicinato, l aggiornamento automatico viene limitato per ridurre l impatto in background sui laptop piu lenti. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Aggiunto: Prestazioni/Panoramica ora mostra spazio totale, usato e libero del file di paging quando Windows lo espone. Queste letture possono essere usate anche nei tasti parlati e nello stato dell area di notifica. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Aggiunto: Archiviazione ora mostra lo stato BitLocker delle unita quando Windows lo espone, con protezione, crittografia, blocco, metodo e dettagli del volume disponibili da Dettagli.</li></ul><h3>3.10.2</h3><ul><li>Corretto: l editor della lingua ora supporta la ricerca con F3 dalla scheda, ricorda l ultimo file e l ultima voce modificati e gestisce la navigazione digitata con piu lettere nell elenco delle voci.</li></ul><h3>3.10.1</h3><ul><li>Corretto: le righe Riepilogo categoria ora localizzano i conteggi di letture e gruppi invece di mescolare parole inglesi nelle lingue non inglesi.</li><li>Corretto: i messaggi italiani di aggiornamento e installazione ora usano correttamente gli accenti dove necessario.</li></ul>
 <h3>3.10.0</h3><ul><li>Aggiunto: Aiuto include ora una procedura guidata iniziale per i tasti mostra/nascondi e leggi stato area di notifica, piu una finestra di suggerimenti che puo apparire all avvio.</li><li>Aggiunto: Preferenze include ora Elimina tutte le impostazioni per ricominciare o pulire una copia prima di condividerla. Log e report vengono conservati.</li><li>Corretto: le letture dello spazio totale e dello spazio usato ora possono essere aggiunte allo stato dell area di notifica e ai tasti parlati. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">l issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Migliorato: preferenze, preset degli allarmi, preset dei tasti, etichette dei profili ventola e descrizioni per screen reader nelle lingue non inglesi incluse hanno ora una copertura di traduzione piu ampia.</li><li>Corretto: le unita rimovibili pronte, come schede SD e chiavette USB, ora appaiono con spazio di archiviazione e letture disponibili di attivita disco logico, rendendole disponibili per stato dell area di notifica, tasti parlati, report e allarmi. Chiude <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">l issue #6</a>.</li></ul>
 <h3>3.9.1</h3>

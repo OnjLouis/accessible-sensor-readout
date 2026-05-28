@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle: 3.10.5.</p>
+<p>Version actuelle: 4.0.0.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
 <p>Sensor Readout est disponible <a href="https://github.com/OnjLouis/accessible-sensor-readout">sur GitHub</a>.</p>
@@ -317,7 +317,7 @@
 <td>
 <code>Ctrl+Shift+O</code>
 </td>
-<td>Open the Reports folder.</td>
+<td>Ouvrir le dossier Reports.</td>
 </tr>
 <tr>
 <td>Commandes de fichier</td>
@@ -611,19 +611,31 @@
 <td>
 <code>--anonymized-report-txt [path]</code>
 </td>
-<td>Save an anonymized text report and exit. If no path is supplied, a timestamped report is created in the <code>Reports</code> folder.</td>
+<td>Enregistrer un rapport texte anonymise et quitter. Sans chemin, un rapport horodate est cree dans le dossier <code>Reports</code>.</td>
 </tr>
 <tr>
 <td>
 <code>--anonymized-report-html [path]</code>
 </td>
-<td>Save an anonymized HTML report and exit. If no path is supplied, a timestamped report is created in the <code>Reports</code> folder.</td>
+<td>Enregistrer un rapport HTML anonymise et quitter. Sans chemin, un rapport horodate est cree dans le dossier <code>Reports</code>.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-txt [path]</code>
+</td>
+<td>Alias de <code>--anonymized-report-txt</code>, prevu pour les controles automatiques de confidentialite.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-html [path]</code>
+</td>
+<td>Alias de <code>--anonymized-report-html</code>, prevu pour les controles automatiques de confidentialite.</td>
 </tr>
 <tr>
 <td>
 <code>--compare-reports before after [output]</code>
 </td>
-<td>Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped comparison is created in the <code>Reports</code> folder.</td>
+<td>Comparer deux rapports Sensor Readout et enregistrer le texte de comparaison. Sans chemin de sortie, une comparaison horodatee est creee dans le dossier <code>Reports</code>.</td>
 </tr>
 <tr>
 <td>
@@ -648,6 +660,12 @@
 <code>--no-diagnostics-sounds</code>
 </td>
 <td>Executer le diagnostic en ligne de commande sans sons de debut ou de fin, tout en gardant la voix si les préférences l autorisent.</td>
+</tr>
+<tr>
+<td>
+<code>--community-stats-json [chemin]</code>
+</td>
+<td>Écrit la charge utile anonyme autorisée des statistiques de la communauté et quitte. Elle n’est pas téléversée.</td>
 </tr>
 <tr>
 <td>
@@ -733,6 +751,11 @@
 <p>Appuyez sur <code>Ctrl+S</code> ou utilisez <code>Fichier</code> &gt; <code>Enregistrer le rapport...</code>.</p>
 <p>La fenetre d enregistrement propose des rapports TXT et HTML. Le TXT groupe les valeurs par type de mesure et par appareil, afin que les longs noms materiels ne soient pas repetes sur chaque ligne. Le HTML utilise des tableaux avec capteur, valeur et source.</p>
 <p>Le premier enregistrement cree le dossier <code>Reports</code> s il n existe pas. Pour partager un rapport, envoyez le fichier <code>.html</code> ou <code>.txt</code> enregistre. Le HTML est generalement plus facile a lire dans un navigateur; le TXT est pratique pour coller dans un message. Si quelqu un a besoin d un paquet de support complet, utilisez plutot <code>Aide</code> &gt; <code>Executer les diagnostics...</code>; les diagnostics incluent les deux formats, les journaux et un resume dans un ZIP.</p>
+<h3 id="anonymous-community-stats">Statistiques anonymes de la communaute</h3>
+<p>Utilisez <code>Aide</code> &gt; <code>Partager des statistiques anonymes de la communaute...</code> si vous voulez aider a ameliorer la couverture materielle et accessibilite de Sensor Readout sans envoyer de rapport. C est uniquement sur accord explicite : Sensor Readout cree d abord la petite charge JSON, affiche le texte exact, et n envoie rien tant que vous n appuyez pas sur <code>Envoyer</code>.</p>
+<p>Les statistiques de communaute ne sont pas des rapports anonymises. Elles forment une charge separee et limitee par liste d autorisation, contenant seulement des champs agreges et generaux, comme la version de l app, la version de Windows, le fabricant du CPU et le nombre de coeurs, les comptes de fabricants GPU, les totaux de memoire, les comptes de couverture par categorie, les IDs de plug-ins actives, la langue choisie, le mode d installation, les reglages d actualisation et de mise a jour, les comptes de raccourcis et zone de notification, et les noms de lecteurs d ecran compatibles detectes. Elle ne contient pas le nom de l ordinateur, le nom d utilisateur, les numeros de serie, les adresses MAC ou IP, les chemins, les etiquettes de lecteurs, les IDs de peripheriques, les IDs PnP, les champs Details bruts, les programmes installes, ni les lignes completes du rapport.</p>
+<p>Sensor Readout stocke dans ses reglages un ID client anonyme local aleatoire et envoie seulement un hash SHA-256 de cet ID. Ainsi, une installation peut mettre a jour son entree agregee precedente sans utiliser une identite derivee du materiel. Supprimer les reglages de l app ou utiliser une copie portable separee cree une nouvelle entree anonyme.</p>
+<p>Apres un envoi reussi, Sensor Readout ouvre la page publique agregee sur <a href="https://onj.me/srstats/">onj.me/srstats</a>. Vous pouvez aussi visiter cette page sans rien envoyer. Pour les tests, <code>Sensor Readout.exe --community-stats-json [chemin]</code> ecrit la meme charge autorisee dans un fichier puis quitte sans l envoyer.</p>
 <h3 id="opening-a-report">Ouvrir le rapport d un autre ordinateur</h3>
 <p>Appuyez sur <code>Ctrl+O</code> ou utilisez <code>Fichier</code> &gt; <code>Ouvrir un rapport...</code> pour charger un rapport TXT ou HTML Sensor Readout. Si quelqu un envoie un rapport dans un fichier ZIP, ouvrez directement le ZIP; Sensor Readout utilisera le premier rapport lisible trouve.</p>
 <p>Le rapport s ouvre comme un instantane statique dans la presentation normale par categories et arborescence. Vous pouvez ainsi examiner la machine d une autre personne comme si c etait votre vue actuelle. Le mode rapport statique ne met pas les valeurs a jour, ne lance pas les alarmes et ne controle aucun materiel. Il affiche seulement les donnees enregistrees dans le rapport.</p>
@@ -800,9 +823,9 @@
 <p>Sensor Readout lit seulement ces chemins de support optionnels sauf indication contraire d un plug-in; il ne flashe pas le firmware et ne remplace pas les outils du fabricant.</p>
 <h2 id="report-comparison-support-and-history">Report Comparison, Support, And History</h2>
 <p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
-<p>Use <code>Options</code> &gt; <code>Enable reading history logging</code>, then select a reading and press <code>Ctrl+Shift+G</code> or choose <code>Edit</code> &gt; <code>Add to history log</code> to write selected readings to a short-term CSV log in <code>Logs</code>. Performance/Overview also includes a Data sources group showing which Windows, LibreHardwareMonitor, plug-in, database, and Sensor Readout sources contributed to the current view.</p>
+<p>Utilisez <code>Options</code> &gt; <code>Activer le journal d historique des mesures</code>, puis selectionnez une mesure et appuyez sur <code>Ctrl+Maj+G</code> ou choisissez <code>Edition</code> &gt; <code>Ajouter au journal d historique</code> pour ecrire les mesures choisies dans un CSV temporaire dans <code>Logs</code>. Performance/Synthese inclut aussi un groupe de sources de donnees indiquant quelles sources Windows, LibreHardwareMonitor, plug-in, base de donnees et Sensor Readout ont contribue a la vue actuelle.</p>
 <h2 id="changelog">Changements</h2>
-<h3>3.10.5</h3><ul><li>Corrige : Diagnostics n affiche plus de boite de dialogue de fin apres l ouverture du dossier des rapports, ce qui evite une boite de dialogue cachee inaccessible si Sensor Readout est masque pendant les diagnostics. La ligne d etat indique maintenant la duree des diagnostics.</li><li>Ameliore : lorsque Sensor Readout est masque ou minimise et qu aucune alarme, courbe de ventilateur ou journalisation d historique ne demande une surveillance rapprochee, l actualisation automatique est ralentie afin de reduire l impact en arriere-plan sur les portables plus lents. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Ajoute: Performances/Vue d ensemble affiche maintenant la taille totale, utilisee et libre du fichier d echange lorsque Windows l expose. Ces mesures peuvent aussi etre utilisees dans les raccourcis vocaux et dans l etat de la zone de notification. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Ajoute: Stockage affiche maintenant l etat BitLocker des lecteurs lorsque Windows l expose, avec protection, chiffrement, verrouillage, methode et details du volume disponibles depuis Details.</li></ul><h3>3.10.2</h3><ul><li>Corrige : l editeur de langue prend maintenant en charge la recherche F3 depuis l onglet, memorise le dernier fichier et la derniere entree modifies, et gere la navigation tapee sur plusieurs lettres dans la liste des entrees.</li></ul><h3>3.10.1</h3><ul><li>Corrig? : les lignes de r?sum? de cat?gorie localisent maintenant les nombres de lectures et de groupes au lieu de m?langer des mots anglais dans les autres langues.</li><li>Corrig? : les messages italiens de mise ? jour et d installation utilisent maintenant les accents n?cessaires.</li></ul>
+<h3>4.0.0</h3><ul><li>Ajouté : Aide &gt; Partager des statistiques anonymes de la communauté permet aux utilisateurs d envoyer volontairement un petit résumé de couverture matérielle. Sensor Readout affiche d abord le JSON exact et ne téléverse rien sauf si l utilisateur appuie sur Envoyer.</li><li>Confidentialité : les statistiques de la communauté sont séparées des rapports anonymisés et ne contiennent pas le nom de l ordinateur, le nom d utilisateur, les numéros de série, les adresses MAC ou IP, les chemins, les étiquettes de lecteurs, les identifiants de périphérique, les identifiants PnP, les champs Détails bruts, les programmes installés ni les lignes complètes du rapport. Un ID client anonyme aléatoire est stocké localement, et seul son hash SHA-256 est envoyé afin qu une machine puisse mettre à jour son entrée agrégée.</li></ul><h3>3.10.5</h3><ul><li>Corrige : Diagnostics n affiche plus de boite de dialogue de fin apres l ouverture du dossier des rapports, ce qui evite une boite de dialogue cachee inaccessible si Sensor Readout est masque pendant les diagnostics. La ligne d etat indique maintenant la duree des diagnostics.</li><li>Ameliore : lorsque Sensor Readout est masque ou minimise et qu aucune alarme, courbe de ventilateur ou journalisation d historique ne demande une surveillance rapprochee, l actualisation automatique est ralentie afin de reduire l impact en arriere-plan sur les portables plus lents. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Ajoute: Performances/Vue d ensemble affiche maintenant la taille totale, utilisee et libre du fichier d echange lorsque Windows l expose. Ces mesures peuvent aussi etre utilisees dans les raccourcis vocaux et dans l etat de la zone de notification. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Ajoute: Stockage affiche maintenant l etat BitLocker des lecteurs lorsque Windows l expose, avec protection, chiffrement, verrouillage, methode et details du volume disponibles depuis Details.</li></ul><h3>3.10.2</h3><ul><li>Corrige : l editeur de langue prend maintenant en charge la recherche F3 depuis l onglet, memorise le dernier fichier et la derniere entree modifies, et gere la navigation tapee sur plusieurs lettres dans la liste des entrees.</li></ul><h3>3.10.1</h3><ul><li>Corrig? : les lignes de r?sum? de cat?gorie localisent maintenant les nombres de lectures et de groupes au lieu de m?langer des mots anglais dans les autres langues.</li><li>Corrig? : les messages italiens de mise ? jour et d installation utilisent maintenant les accents n?cessaires.</li></ul>
 <h3>3.10.0</h3><ul><li>Ajoute: Aide inclut maintenant un assistant de configuration initiale pour les raccourcis afficher/masquer et parler l etat de la zone de notification, ainsi qu une fenetre de conseils pouvant apparaitre au demarrage.</li><li>Ajoute: Préférences inclut maintenant Supprimer tous les reglages pour repartir de zero ou nettoyer une copie avant de la partager. Les journaux et rapports sont conserves.</li><li>Corrige: les mesures d espace total et d espace utilise peuvent maintenant etre ajoutees a l etat de la zone de notification et aux raccourcis vocaux. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">l issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Ameliore: les préférences, presets d alarmes, presets de raccourcis, libelles de profils de ventilateur et descriptions pour lecteur d ecran des langues non anglaises incluses ont maintenant une couverture de traduction plus complete.</li><li>Corrige: les lecteurs amovibles prets, comme les cartes SD et les cles USB, apparaissent maintenant avec l espace de stockage et les mesures disponibles d activite de disque logique, ce qui les rend disponibles pour l etat de la zone de notification, les raccourcis vocaux, les rapports et les alarmes. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">l issue #6</a>.</li></ul>
 <h3>3.9.1</h3>

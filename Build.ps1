@@ -157,7 +157,10 @@ $dataSource = Join-Path $PSScriptRoot 'Data'
 $dataTarget = Join-Path $portable 'Data'
 if (Test-Path $dataSource) {
     New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
-    Copy-Item -LiteralPath (Join-Path $dataSource '*') -Destination $dataTarget -Force
+    $dataFiles = Get-ChildItem -LiteralPath $dataSource -File -Force
+    if ($dataFiles.Count -gt 0) {
+        Copy-Item -LiteralPath $dataFiles.FullName -Destination $dataTarget -Force
+    }
 }
 
 $langTarget = Join-Path $portable 'Langs'

@@ -86,6 +86,7 @@ public sealed class AppSettings
     public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
     public bool TrendLoggingEnabled = false;
     public List<string> TrendLoggingKeys = new List<string>();
+    public string CommunityStatsClientId = "";
 }
 
 public sealed class SharedAppSettings
@@ -144,6 +145,7 @@ public sealed class MachineAppSettings
     public Dictionary<string, bool> PlugInsEnabled = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
     public bool TrendLoggingEnabled = false;
     public List<string> TrendLoggingKeys = new List<string>();
+    public string CommunityStatsClientId = "";
 }
 
 public sealed class SettingsTransferPackage

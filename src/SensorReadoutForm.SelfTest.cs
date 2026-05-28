@@ -48,6 +48,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
             form.RunSelfTestStep(results, "Report reopening and ZIP selection", delegate { form.SelfTestReportReopen(outputFolder); });
             form.RunSelfTestStep(results, "Report tools and reading history", delegate { form.SelfTestReportToolsAndHistory(outputFolder); });
+            form.RunSelfTestStep(results, "Community stats payload privacy", delegate { form.SelfTestCommunityStatsPayloadPrivacy(); });
             form.RunSelfTestStep(results, "Diagnostics ZIP creation", delegate { form.SelfTestDiagnosticsZip(outputFolder); });
             form.RunSelfTestStep(results, "Language and manual files", delegate { form.SelfTestLanguageAndManualFiles(); });
             form.LogMessage("Debug", "Self-test complete.");
@@ -100,10 +101,14 @@ public sealed partial class SensorReadoutForm : Form
     {
         settings.ShowHideHotKey = "Ctrl+Alt+F12";
         settings.SpeakTrayHotKey = "Ctrl+Alt+F11";
+        settings.CommunityStatsClientId = "self-test-client-id";
         SaveSettings(settings);
         var reloaded = LoadSettings();
         Require(string.Equals(reloaded.ShowHideHotKey, "Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase), "Show/hide hotkey did not round-trip.");
         Require(string.Equals(reloaded.SpeakTrayHotKey, "Ctrl+Alt+F11", StringComparison.OrdinalIgnoreCase), "Speak tray hotkey did not round-trip.");
+        Require(string.Equals(reloaded.CommunityStatsClientId, "self-test-client-id", StringComparison.Ordinal), "Community stats client ID did not round-trip.");
+        var transferPackage = BuildSettingsTransferPackage(new HashSet<string>(new[] { TransferTray }, StringComparer.OrdinalIgnoreCase));
+        Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.CommunityStatsClientId), "Settings transfer exported the local community stats client ID.");
     }
 
     private void SelfTestSensorCollection()
@@ -408,6 +413,22 @@ public sealed partial class SensorReadoutForm : Form
         settings.TrendLoggingKeys = new List<string> { RowSettingsKey(row) };
         LogTrendRows(latestRows);
         Require(File.Exists(GetTrendLogFilePath()), "Reading history CSV was not written.");
+    }
+
+    private void SelfTestCommunityStatsPayloadPrivacy()
+    {
+        EnsureSelfTestRows();
+        settings.CommunityStatsClientId = "self-test-client-id";
+        SaveSettings(settings);
+        var payload = BuildCommunityStatsPayload();
+        var json = JsonConvert.SerializeObject(payload, Formatting.Indented);
+        Require(json.IndexOf("self-test-client-id", StringComparison.OrdinalIgnoreCase) < 0, "Community stats payload exposed the raw client ID.");
+        Require(json.IndexOf(Environment.MachineName ?? "", StringComparison.OrdinalIgnoreCase) < 0 || string.IsNullOrWhiteSpace(Environment.MachineName), "Community stats payload exposed the machine name.");
+        Require(!Regex.IsMatch(json, @"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "Community stats payload exposed an IPv4 address.");
+        Require(!Regex.IsMatch(json, @"\b[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5}\b", RegexOptions.IgnoreCase), "Community stats payload exposed a MAC address.");
+        Require(json.IndexOf("rowsByCategory", StringComparison.OrdinalIgnoreCase) >= 0, "Community stats payload missing category counts.");
+        Require(json.IndexOf("anonymousClientIdHash", StringComparison.OrdinalIgnoreCase) >= 0, "Community stats payload missing client hash.");
+        Require(json.IndexOf("Rows", StringComparison.OrdinalIgnoreCase) < 0 || json.IndexOf("full report rows", StringComparison.OrdinalIgnoreCase) >= 0, "Community stats payload appears to include full report row data.");
     }
 
     private void SelfTestDiagnosticsZip(string outputFolder)

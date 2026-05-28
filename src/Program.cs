@@ -43,14 +43,16 @@ public static class Program
 
         var anonymizedReportPath = "";
         var anonymizedReportHtml = false;
-        var saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-html", out anonymizedReportPath);
+        var saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-html", out anonymizedReportPath) ||
+            TryGetOptionValue(args, "--anonymous-report-html", out anonymizedReportPath);
         if (saveAnonymizedReport)
         {
             anonymizedReportHtml = true;
         }
         else
         {
-            saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-txt", out anonymizedReportPath);
+            saveAnonymizedReport = TryGetOptionValue(args, "--anonymized-report-txt", out anonymizedReportPath) ||
+                TryGetOptionValue(args, "--anonymous-report-txt", out anonymizedReportPath);
         }
 
         string compareBeforePath;
@@ -69,6 +71,8 @@ public static class Program
         var noDiagnosticsSounds = quietDiagnostics || HasArg(args, "--no-diagnostics-sounds");
         string selfTestPath;
         var runSelfTest = TryGetOptionValue(args, "--self-test", out selfTestPath);
+        string communityStatsPath;
+        var saveCommunityStatsPayload = TryGetOptionValue(args, "--community-stats-json", out communityStatsPath);
 
         if (HasArg(args, "--help") || HasArg(args, "-?") || HasArg(args, "/?"))
         {
@@ -106,6 +110,12 @@ public static class Program
         if (runSelfTest)
         {
             SensorReadoutForm.RunSelfTest(selfTestPath);
+            return;
+        }
+
+        if (saveCommunityStatsPayload)
+        {
+            SaveCommandLineCommunityStatsPayload(communityStatsPath);
             return;
         }
 
@@ -302,10 +312,13 @@ public static class Program
                !HasOption(startupArgs, "--report-html") &&
                !HasOption(startupArgs, "--anonymized-report-txt") &&
                !HasOption(startupArgs, "--anonymized-report-html") &&
+               !HasOption(startupArgs, "--anonymous-report-txt") &&
+               !HasOption(startupArgs, "--anonymous-report-html") &&
                !HasOption(startupArgs, "--compare-reports") &&
                !HasOption(startupArgs, "--diagnostics") &&
                !HasOption(startupArgs, "--run-diagnostics") &&
                !HasOption(startupArgs, "--self-test") &&
+               !HasOption(startupArgs, "--community-stats-json") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
                !HasArg(startupArgs, "/?");
@@ -587,6 +600,21 @@ public static class Program
         }
     }
 
+    private static void SaveCommandLineCommunityStatsPayload(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            path = System.IO.Path.Combine(
+                SensorReadoutForm.GetReportsFolderPath(),
+                "SensorReadout-CommunityStats-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
+        }
+
+        using (var form = new SensorReadoutForm(false))
+        {
+            form.SaveCommunityStatsPayloadToFile(path);
+        }
+    }
+
     private static void CloseOtherInstances()
     {
         var current = Process.GetCurrentProcess();
@@ -672,6 +700,8 @@ public static class Program
             "Save an anonymized text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--anonymized-report-html [path]" + Environment.NewLine +
             "Save an anonymized HTML report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
+            "--anonymous-report-txt [path] or --anonymous-report-html [path]" + Environment.NewLine +
+            "Aliases for the anonymized report switches, intended for automated privacy checks." + Environment.NewLine + Environment.NewLine +
             "--compare-reports before after [output]" + Environment.NewLine +
             "Compare two Sensor Readout reports and save the comparison text. If no output path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--diagnostics [path]" + Environment.NewLine +
@@ -682,6 +712,8 @@ public static class Program
             "Disable only speech or only sounds when used with --diagnostics." + Environment.NewLine + Environment.NewLine +
             "--self-test [path]" + Environment.NewLine +
             "Run internal non-interactive self-tests and write results to the chosen folder." + Environment.NewLine + Environment.NewLine +
+            "--community-stats-json [path]" + Environment.NewLine +
+            "Write the allow-listed anonymous community stats payload and exit. This does not upload it." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

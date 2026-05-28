@@ -203,6 +203,7 @@ public sealed partial class SensorReadoutForm : Form
         machine.LoggingLevel = "";
         machine.FanLabels = new Dictionary<string, string>();
         machine.FanControlSettings = new Dictionary<string, FanControlSetting>();
+        machine.CommunityStatsClientId = "";
         package.MachineSettings = includeMachine ? machine : null;
         return package;
     }
