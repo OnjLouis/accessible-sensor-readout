@@ -2,60 +2,290 @@
 <html lang="pt">
 <head>
 <meta charset="utf-8">
-<title>Sensor Readout Manual</title>
-<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;max-width:1100px;margin:2rem auto;padding:0 1rem;}code{font-family:Consolas,monospace;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:.4rem;text-align:left;}h1,h2,h3{line-height:1.2;}</style>
+<title>Manual do Sensor Readout</title>
+<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;max-width:1100px;margin:2rem auto;padding:0 1rem;}code{font-family:Consolas,monospace;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:.4rem;text-align:left;vertical-align:top;}h1,h2,h3{line-height:1.2;}ul{padding-left:1.4rem;}</style>
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versão atual: 4.0.2.</p>
+<p>Versão atual: 4.0.3.</p>
 <h2 id="contents">Conteúdo</h2>
-<ul><li><a href="#first-run">Primeira utilização</a></li><li><a href="#keys">Teclas principais</a></li><li><a href="#categories">Categorias e detalhes</a></li><li><a href="#reports">Relatórios e estatísticas da comunidade</a></li><li><a href="#preferences">Preferências</a></li><li><a href="#plugins">Plug-ins</a></li><li><a href="#language">Idiomas</a></li><li><a href="#changelog">Novidades</a></li><li><a href="#credits">Créditos</a></li></ul>
+<ul>
+<li><a href="#why-sensor-readout-exists">Porque existe o Sensor Readout</a></li>
+<li><a href="#what-it-does">O que faz</a></li>
+<li><a href="#prerequisites">Pré-requisitos</a></li>
+<li><a href="#official-links">Ligações oficiais</a></li>
+<li><a href="#first-run">Primeira utilização</a></li>
+<li><a href="#accessibility-setup">Configuração de acessibilidade</a></li>
+<li><a href="#keyboard-shortcuts">Atalhos de teclado</a></li>
+<li><a href="#command-line-options">Opções de linha de comandos</a></li>
+<li><a href="#preferences">Preferências</a></li>
+<li><a href="#alarms-and-sounds">Alarmes e sons</a></li>
+<li><a href="#plug-ins">Plug-ins</a></li>
+<li><a href="#reading-sensors">Leitura dos sensores</a></li>
+<li><a href="#fan-control-workflow">Fluxo de controlo de ventoinhas</a></li>
+<li><a href="#fan-curves">Curvas de ventoinha</a></li>
+<li><a href="#fan-profiles">Perfis de ventoinha</a></li>
+<li><a href="#example-setups">Exemplos de configuração</a></li>
+<li><a href="#diagnostics">Diagnósticos</a></li>
+<li><a href="#reports">Relatórios</a></li>
+<li><a href="#settings-transfer">Transferência de definições</a></li>
+<li><a href="#files">Ficheiros</a></li>
+<li><a href="#notes">Notas</a></li>
+<li><a href="#changelog">Novidades</a></li>
+<li><a href="#credits">Créditos</a></li>
+<li><a href="#license">Licença</a></li>
+</ul>
+<h2 id="why-sensor-readout-exists">Porque existe o Sensor Readout</h2>
+<p>Há muita informação sobre o próprio computador que costuma estar difícil de encontrar: escondida no Gestor de Dispositivos, espalhada por ferramentas antigas do Windows, bloqueada em aplicações pagas ou apresentada de forma pouco acessível. O Sensor Readout pretende juntar essa informação num só programa gratuito, portátil ou instalável, para que o utilizador não tenha de procurar em vários sítios.</p>
+<p>Este projeto nasceu da frustração com o estado da acessibilidade na parte técnica da informática em Windows. A intenção é criar uma ferramenta que uma pessoa cega ou com baixa visão possa usar sem pedir a alguém para ler a janela, interpretar ícones ou navegar em painéis visuais pouco claros.</p>
+<p>O objetivo é que técnicos de suporte, utilizadores avançados e clientes consigam descobrir mais sobre uma máquina, gerar relatórios úteis e resolver problemas com menos barreiras. O Sensor Readout tenta mostrar tudo o que consegue obter honestamente. Quando o Windows, o firmware, o controlador ou a biblioteca de sensores não expõem uma informação, a aplicação não inventa valores.</p>
+<p>Espero que descubras tanto sobre o teu computador com esta aplicação como eu descobri sobre o meu, e que fiques agradavelmente surpreendido com o que encontrares.</p>
+<p>O meu desejo é que esta aplicação se torne uma referência na sua área, e que pessoas cegas ou com baixa visão que trabalham em suporte técnico possam entregá-la aos seus clientes, pedir relatórios e resolver problemas com mais confiança.</p>
+<p>Andre Louis, criador do Sensor Readout.</p>
+<h2 id="what-it-does">O que faz</h2>
+<p>O Sensor Readout lê sensores e informação de hardware a partir do Windows, LibreHardwareMonitor, Core Temp quando disponível, bases de dados incluídas e plug-ins opcionais. Mostra temperaturas, ventoinhas, estado SMART, rede, USB, áudio, ecrã, bateria, dispositivos, impressoras, firmware, CPU, memória, discos, volumes, detalhes de controladores e outros dados que o sistema expõe.</p>
+<p>A janela principal tem uma lista de categorias à esquerda e uma árvore de leituras à direita. As leituras principais ficam limpas e diretas. Informação mais técnica fica atrás de Detalhes, acessível com <code>Enter</code>, pelo menu de contexto ou pelo comando Detalhes quando a leitura selecionada o suporta.</p>
+<p>Também pode criar relatórios TXT e HTML, relatórios anonimizados, pacotes de suporte, comparações entre relatórios, histórico CSV de leituras, alarmes, perfis de ventoinha, curvas de ventoinha, hotkeys globais faladas e estado configurável da área de notificação.</p>
+<p>O Sensor Readout não substitui ferramentas oficiais de firmware, atualização de BIOS ou software de fabricante. Ele lê e organiza informação; quando um plug-in oferece controlo de ventoinha, essa capacidade é explicitamente apresentada e depende do hardware suportar escrita segura.</p>
+<h2 id="prerequisites">Pré-requisitos</h2>
+<p>O Sensor Readout é uma aplicação Windows baseada em .NET Framework. Muitas leituras funcionam sem instalação extra, mas algumas funções de baixo nível precisam de componentes adicionais ou permissões elevadas.</p>
+<ul>
+<li>Windows com .NET Framework compatível.</li>
+<li>Execução como administrador para acesso completo a sensores de motherboard e controlo de ventoinhas em muitos sistemas.</li>
+<li>PawnIO para acesso de baixo nível em hardware suportado.</li>
+<li>Core Temp opcional para temperaturas e carga de CPU quando LibreHardwareMonitor não expõe esses dados.</li>
+<li>Ferramentas de fabricante opcionais em portáteis, quando ajudam a expor dados específicos.</li>
+</ul>
+<h2 id="official-links">Ligações oficiais</h2>
+<ul>
+<li>Projeto: <a href="https://github.com/OnjLouis/accessible-sensor-readout">https://github.com/OnjLouis/accessible-sensor-readout</a></li>
+<li>Versão mais recente: <a href="https://github.com/OnjLouis/accessible-sensor-readout/releases/latest">https://github.com/OnjLouis/accessible-sensor-readout/releases/latest</a></li>
+<li>Estatísticas anónimas da comunidade: <a href="https://onj.me/srstats/">https://onj.me/srstats/</a></li>
+<li>Contacto: <a href="https://onj.me/contact">https://onj.me/contact</a></li>
+<li>Donativos: <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a></li>
+</ul>
+<h2 id="prerequisite-installer">Instalador de pré-requisitos</h2>
+<p>O ficheiro <code>Install-Prerequisites.cmd</code> inicia o instalador PowerShell de pré-requisitos. Ele tenta usar ferramentas comuns como winget ou Chocolatey quando disponíveis e pode abrir as páginas oficiais quando uma instalação automática não é adequada.</p>
+<p>O instalador de pré-requisitos é separado da aplicação principal. Não deve ser necessário executá-lo em todas as máquinas, mas pode ajudar quando faltam componentes necessários para sensores de baixo nível.</p>
+<h2 id="manual-install-commands">Comandos manuais de instalação</h2>
+<p>Se preferir instalar componentes manualmente, use as páginas oficiais dos respetivos projetos. Para Core Temp, use a página oficial do Core Temp. Para PawnIO, use a página do PawnIO.Setup. Instale apenas componentes que façam sentido para a sua máquina.</p>
 <h2 id="first-run">Primeira utilização</h2>
-<p>O Sensor Readout é uma aplicação Windows gratuita, portátil ou instalável, criada para mostrar informação de hardware de forma acessível a utilizadores de teclado e leitores de ecrã.</p>
-<p>A lista da esquerda escolhe a categoria. A árvore da direita mostra as leituras dessa categoria. Quando uma leitura diz que tem detalhes, prima <code>Enter</code> ou use o comando Detalhes para ver informação técnica adicional numa árvore pesquisável.</p>
-<p>Na primeira configuração, é recomendado definir uma tecla global para mostrar ou ocultar a janela e outra para falar o estado da área de notificação. O assistente inicial pode ser aberto novamente no menu Ajuda.</p>
-<h2 id="keys">Teclas principais</h2>
+<p>Ao iniciar, o Sensor Readout carrega as definições, escolhe um idioma com base no idioma do Windows quando possível, cria as pastas necessárias e começa a recolher leituras. Algumas leituras aparecem imediatamente; outras dependem de consultas mais lentas ou de hardware que demora a responder.</p>
+<p>Se a aplicação estiver configurada para iniciar minimizada, recomenda-se fortemente configurar uma hotkey global para mostrar ou ocultar a janela. Sem essa tecla, pode ser difícil voltar à janela se o ícone da área de notificação estiver escondido pelo Windows.</p>
+<p>O assistente inicial pode ajudar a definir a tecla de mostrar/ocultar e a tecla para falar o estado da área de notificação. Pode ser executado novamente no menu Ajuda.</p>
+<h2 id="accessibility-setup">Configuração de acessibilidade</h2>
+<p>O Sensor Readout foi pensado primeiro para teclado e leitor de ecrã. A maioria dos comandos tem aceleradores de menu, atalhos ou ambos. Os botões importantes têm nomes acessíveis e as leituras selecionadas podem ser revistas sem copiar primeiro.</p>
+<ul>
+<li>Defina uma hotkey de mostrar/ocultar se usar a aplicação minimizada.</li>
+<li>Defina uma hotkey para falar o estado da área de notificação se quiser ouvir leituras sem abrir a janela.</li>
+<li>Use <code>F3</code> para procurar numa categoria ou numa vista de detalhes.</li>
+<li>Use <code>F4</code> para rever o texto da leitura selecionada numa caixa de edição só de leitura.</li>
+<li>Use <code>Ctrl+C</code> para copiar a leitura completa e <code>Ctrl+Shift+C</code> para copiar apenas o valor.</li>
+<li>Quando uma leitura tem Detalhes, o leitor de ecrã anuncia essa informação no fim do texto da linha.</li>
+</ul>
+<h2 id="keyboard-shortcuts">Atalhos de teclado</h2>
 <table><thead><tr><th>Tecla</th><th>Ação</th></tr></thead><tbody>
-<tr><td><code>F1</code></td><td>Abre este manual.</td></tr>
+<tr><td><code>Ctrl+0</code></td><td>Vai para Desempenho/Resumo.</td></tr>
+<tr><td><code>Ctrl+1</code> a <code>Ctrl+8</code></td><td>Nas Preferências, muda para Geral, Arranque e Instalação, Hotkeys, Perfis de ventoinha, Alarmes, Plug-ins, Itens ocultos ou Editor de idioma.</td></tr>
+<tr><td><code>F1</code></td><td>Abre o manual do idioma selecionado.</td></tr>
 <tr><td><code>Shift+F1</code></td><td>Procura atualizações.</td></tr>
-<tr><td><code>F3</code></td><td>Pesquisa as leituras da categoria atual ou a vista ativa.</td></tr>
-<tr><td><code>F4</code></td><td>Mostra o texto da leitura selecionada numa caixa só de leitura.</td></tr>
-<tr><td><code>F5</code></td><td>Atualiza as leituras.</td></tr>
-<tr><td><code>Enter</code></td><td>Abre Detalhes quando a leitura selecionada os fornece.</td></tr>
+<tr><td><code>Alt+F1</code></td><td>Prepara um relatório de suporte/diagnóstico.</td></tr>
+<tr><td><code>F2</code></td><td>Renomeia quando a vista atual o permite.</td></tr>
+<tr><td><code>F3</code></td><td>Pesquisa leituras ou detalhes.</td></tr>
+<tr><td><code>F4</code></td><td>Mostra o texto da leitura selecionada para revisão.</td></tr>
+<tr><td><code>F5</code></td><td>Atualiza leituras e inventários.</td></tr>
+<tr><td><code>Enter</code></td><td>Abre Detalhes para a leitura selecionada, quando disponível.</td></tr>
+<tr><td><code>Esc</code></td><td>Fecha diálogos ou volta à janela anterior quando aplicável.</td></tr>
 <tr><td><code>Ctrl+C</code></td><td>Copia o texto completo da leitura selecionada.</td></tr>
 <tr><td><code>Ctrl+Shift+C</code></td><td>Copia apenas o valor da leitura selecionada.</td></tr>
-<tr><td><code>Ctrl+M</code></td><td>Copia linhas correspondentes na vista de detalhes.</td></tr>
+<tr><td><code>Ctrl+M</code></td><td>Nos Detalhes, copia linhas que correspondem a uma pesquisa.</td></tr>
 <tr><td><code>Ctrl+S</code></td><td>Guarda um relatório.</td></tr>
-<tr><td><code>Alt+F1</code></td><td>Cria um relatório de diagnóstico.</td></tr>
+<tr><td><code>Ctrl+I</code></td><td>Importa definições e perfis.</td></tr>
+<tr><td><code>Ctrl+E</code></td><td>Exporta definições e perfis.</td></tr>
+<tr><td><code>Ctrl+Shift+I</code></td><td>Importa um plug-in em ZIP.</td></tr>
+<tr><td><code>Ctrl+Shift+A</code></td><td>Guarda um relatório anonimizado.</td></tr>
+<tr><td><code>Ctrl+Shift+M</code></td><td>Compara relatórios.</td></tr>
+<tr><td><code>Ctrl+Shift+H</code></td><td>Adiciona ou remove a leitura atual de uma hotkey falada ou do estado da área de notificação.</td></tr>
+<tr><td><code>Ctrl+Shift+G</code></td><td>Adiciona ou remove a leitura atual do histórico CSV.</td></tr>
 </tbody></table>
-<h2 id="categories">Categorias e detalhes</h2>
-<p>As categorias incluem Desempenho/Resumo, Temperaturas, Ventiladores, SMART, Rede, USB, Áudio, Ecrã, Dispositivos e Bateria. Algumas máquinas não fornecem todos os dados; nesse caso, a categoria explica o que falta ou o que pode tentar a seguir.</p>
-<p>Os detalhes são usados para informação mais técnica, como campos WMI, registo, IDs de hardware, volumes de disco, rede, firmware, CPU, placa-mãe, impressoras e dispositivos. Isto mantém a árvore principal limpa sem esconder informação útil para suporte técnico.</p>
-<h2 id="reports">Relatórios e estatísticas da comunidade</h2>
-<p>Use <code>Ficheiro</code> &gt; <code>Guardar relatório</code> ou <code>Ctrl+S</code> para criar relatórios TXT ou HTML. O HTML é a melhor escolha quando pretende preservar a estrutura completa.</p>
-<p><code>Ficheiro</code> &gt; <code>Guardar relatório anonimizado</code> remove identificadores comuns antes de partilhar um relatório. Mesmo assim, deve rever qualquer relatório antes de o enviar a outra pessoa.</p>
-<p><code>Ajuda</code> &gt; <code>Partilhar estatísticas anónimas da comunidade</code> cria um pequeno payload permitido para ajudar a perceber que hardware o Sensor Readout cobre. A aplicação mostra o JSON exato antes do envio e não envia nada automaticamente. Não inclui nome do computador, nome de utilizador, números de série, MAC, IP, caminhos, etiquetas de unidades, IDs de dispositivo, IDs PnP, detalhes brutos, programas instalados ou linhas completas do relatório.</p>
-<p>A página pública de estatísticas está em <a href="https://onj.me/srstats/">https://onj.me/srstats/</a>.</p>
+<h2 id="command-line-options">Opções de linha de comandos</h2>
+<p>As opções de linha de comandos servem para testes, suporte e automação. Algumas opções criam relatórios e fecham automaticamente. Outras controlam o arranque da aplicação.</p>
+<ul>
+<li><code>--minimized</code>: inicia minimizado na área de notificação.</li>
+<li><code>--close</code>: pede a uma instância em execução para fechar de forma normal.</li>
+<li><code>--log-level</code>: define o nível de registo.</li>
+<li><code>--save-report-txt caminho</code>: guarda um relatório TXT.</li>
+<li><code>--save-report-html caminho</code>: guarda um relatório HTML.</li>
+<li><code>--save-anonymized-report-txt caminho</code>: guarda um relatório TXT anonimizado.</li>
+<li><code>--save-anonymized-report-html caminho</code>: guarda um relatório HTML anonimizado.</li>
+<li><code>--compare-reports antes depois saida</code>: compara dois relatórios.</li>
+<li><code>--diagnostics caminho</code>: cria um ZIP de diagnóstico.</li>
+<li><code>--community-stats-json caminho</code>: gera silenciosamente o payload JSON das estatísticas anónimas da comunidade para teste local. Não faz upload.</li>
+</ul>
 <h2 id="preferences">Preferências</h2>
-<p>As Preferências controlam idioma, atualização automática, intervalo de atualização, sons, mensagens faladas, teclas globais, estado da área de notificação, perfis de ventilador, alarmes, plug-ins, itens ocultos e o editor de idioma. As alterações são guardadas imediatamente na maioria das páginas.</p>
-<p>Também é possível exportar e importar definições. Algumas leituras dependem do hardware da máquina atual e podem precisar de ser associadas novamente depois de importar um perfil noutro computador.</p>
-<h2 id="plugins">Plug-ins</h2>
-<p>Os plug-ins opcionais podem expor dados específicos de portáteis Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus. Estão desativados até serem ativados em <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Plug-ins</code>.</p>
-<p>Os plug-ins não garantem leituras em todos os modelos. Os fabricantes decidem que informação disponibilizam ao Windows.</p>
-<h2 id="language">Idiomas</h2>
-<p>Os ficheiros de idioma ficam na pasta <code>Langs</code>. O ficheiro português incluído é <code>Portugues.txt</code>, com nome visível <code>Português</code>, e abre este manual através de <code>manual.file=README-pt.html</code>.</p>
-<p>O editor de idioma nas Preferências permite procurar com <code>F3</code>, editar entradas e guardar alterações sem abrir um editor externo.</p>
+<p>As Preferências estão em <code>Opções</code> &gt; <code>Preferências</code>. A maioria das alterações é guardada imediatamente. Fechar a janela não é um botão de guardar; é apenas a forma normal de sair do diálogo.</p>
+<h3>Geral (<code>Ctrl+1</code>)</h3>
+<p>Inclui idioma, separador decimal, intervalo de atualização, atualizações automáticas, sons, mensagens faladas, comportamento minimizado e opções gerais de apresentação. O idioma pode ser alterado sem reiniciar a aplicação.</p>
+<h3>Arranque e Instalação (<code>Ctrl+2</code>)</h3>
+<p>Permite instalar a aplicação neste PC, criar atalho no ambiente de trabalho, configurar arranque com o Windows, remover a instalação local e escolher se a aplicação inicia minimizada. Quando a aplicação já está instalada no local esperado, o separador mostra opções de remoção em vez de continuar a oferecer a instalação.</p>
+<h3>Hotkeys (<code>Ctrl+3</code>)</h3>
+<p>Permite configurar hotkeys globais faladas. Cada perfil pode ter várias leituras, uma tecla, nomes falados personalizados e ordem própria. As alterações podem ser testadas imediatamente. Existem predefinições para estado do sistema, rede, atividade de disco, GPU, bateria e ventoinhas/temperaturas.</p>
+<h3>Perfis de ventoinha (<code>Ctrl+4</code>)</h3>
+<p>Perfis de ventoinha aplicam várias ações de ventoinha em conjunto, incluindo voltar ao modo automático. Podem ser ligados a hotkeys e sons, quando os controlos de ventoinha são suportados pela máquina.</p>
+<h3>Alarmes (<code>Ctrl+5</code>)</h3>
+<p>Alarmes monitorizam leituras e podem falar, tocar sons ou piscar o ícone da área de notificação. Existem predefinições para bateria fraca, Wi-Fi fraco ou desligado, CPU/GPU quente, pouca memória, pouco espaço em disco, saúde de disco baixa, atividade de disco alta, uptime longo e problemas de impressora.</p>
+<h3>Plug-ins (<code>Ctrl+6</code>)</h3>
+<p>Mostra plug-ins instalados e permite ativar ou desativar plug-ins opcionais. Os plug-ins ficam desativados por predefinição. Alterações aplicam-se depois de fechar as Preferências.</p>
+<h3>Itens ocultos (<code>Ctrl+7</code>)</h3>
+<p>Permite rever leituras ocultas, restaurá-las e reativar avisos que foram escondidos com opções do tipo não mostrar novamente.</p>
+<h3>Editor de idioma (<code>Ctrl+8</code>)</h3>
+<p>Edita ficheiros de idioma instalados sem abrir um editor externo. O inglês é o idioma de referência. Entradas em falta usam o inglês como alternativa. O editor suporta <code>F3</code>, lembra a última entrada editada e permite navegação por várias letras na lista.</p>
+<h2 id="alarms-and-sounds">Alarmes e sons</h2>
+<p>Alarmes podem usar comparações acima, abaixo, igual, diferente, ligado/desligado ou texto, conforme a leitura. Cada alarme tem tempo de espera para evitar repetição excessiva. Sons WAV podem ser colocados na pasta <code>Sounds</code> e escolhidos nas Preferências.</p>
+<p>Os alarmes dependem da leitura existir. Se uma leitura só aparece numa máquina específica, um perfil importado pode precisar de ser reassociado nessa máquina.</p>
+<h2 id="plug-ins">Plug-ins</h2>
+<p>O sistema de plug-ins permite adicionar suporte específico para fabricantes sem tornar a aplicação principal mais arriscada. Os plug-ins incluídos podem procurar interfaces de portáteis Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus.</p>
+<p>Para importar um plug-in, use <code>Ficheiro</code> &gt; <code>Importar plug-in ZIP</code>. O plug-in é validado, copiado para a pasta certa e fica desativado até ser ativado manualmente.</p>
+<h2 id="reading-sensors">Leitura dos sensores</h2>
+<p>As leituras vêm de várias fontes. LibreHardwareMonitor fornece muitos sensores de CPU, GPU, motherboard, armazenamento e ventoinhas. O Windows fornece informação de dispositivos, rede, bateria, impressoras, discos, volumes, drivers, firmware e WMI. Core Temp pode fornecer CPU quando necessário. Bases de dados incluídas dão nomes de fornecedores USB e MAC/OUI.</p>
+<p>Algumas leituras são rápidas e atualizam frequentemente. Outras são cacheadas ou recolhidas em caminhos mais lentos para evitar uso excessivo de CPU e WMI. Isto é especialmente importante em portáteis lentos ou máquinas onde WMI fica caro.</p>
+<h2 id="fan-control-workflow">Fluxo de controlo de ventoinhas</h2>
+<p>Controlo de ventoinhas só aparece quando o hardware expõe controlos escrevíveis. Muitas máquinas mostram RPM mas não permitem controlo. Antes de alterar ventoinhas, confirme que a leitura corresponde à ventoinha certa e que o sistema tem refrigeração segura.</p>
+<ol>
+<li>Execute como administrador.</li>
+<li>Confirme que as ventoinhas aparecem na categoria Ventoinhas.</li>
+<li>Abra <code>Opções</code> &gt; <code>Controlos de ventoinha</code>.</li>
+<li>Ative <code>Mostrar paradas</code> se uma ventoinha controlável estiver escondida porque está em fan-stop.</li>
+<li>Teste alterações pequenas antes de criar curvas automáticas.</li>
+</ol>
+<h2 id="fan-curves">Curvas de ventoinha</h2>
+<p>Curvas ligam uma leitura de temperatura a um controlo de ventoinha. Uma curva define ponto baixo, ponto alto e ponto de emergência. O Sensor Readout aplica percentagens entre esses pontos quando a curva está ativa.</p>
+<p>Curvas são poderosas e devem ser criadas com cuidado. Se uma curva for substituída temporariamente por controlo manual ou perfil, ela volta quando a ventoinha regressa ao modo automático/predefinido.</p>
+<h2 id="fan-profiles">Perfis de ventoinha</h2>
+<p>Perfis aplicam várias ações de uma vez. Podem ser usados para voltar tudo ao automático, aplicar um modo silencioso, criar um modo de teste ou ligar uma configuração a uma hotkey. Como o suporte depende do hardware, uma configuração importada pode precisar de ajustes.</p>
+<h2 id="example-setups">Exemplos de configuração</h2>
+<ul>
+<li>Hotkey de estado geral: CPU, memória usada, memória livre, uptime e GPU.</li>
+<li>Hotkey de rede: estado, IP, velocidade, receção e envio.</li>
+<li>Hotkey de disco: atividade, leitura, escrita e espaço livre dos discos importantes.</li>
+<li>Alarme de bateria: abaixo de 20% com fala e som.</li>
+<li>Alarme de Wi-Fi: desligado ou sinal baixo.</li>
+<li>Perfil de ventoinha: voltar ao automático depois de testar uma percentagem manual.</li>
+</ul>
+<h2 id="diagnostics">Diagnósticos</h2>
+<p>O relatório de diagnóstico cria um ZIP com informação útil para suporte. Inclui resumo, relatórios, logs e dados relevantes para entender que fontes contribuíram para as leituras. Não deve substituir uma revisão cuidadosa antes de partilhar dados privados.</p>
+<p>O comando de diagnóstico abre a pasta de relatórios quando termina e mostra o tempo gasto na linha de estado. Não deixa um diálogo escondido para trás quando a aplicação está minimizada.</p>
+<h2 id="reports">Relatórios</h2>
+<h3 id="saving-a-report">Guardar um relatório</h3>
+<p><code>Ctrl+S</code> guarda um relatório. HTML preserva melhor a estrutura e é normalmente a melhor escolha para partilhar. TXT é útil para leitura simples, mas alguns dados internos são quebrados em linhas para evitar linhas demasiado longas.</p>
+<h3 id="anonymous-community-stats">Estatísticas anónimas da comunidade</h3>
+<p><code>Ajuda</code> &gt; <code>Partilhar estatísticas anónimas da comunidade</code> cria um pequeno payload JSON separado dos relatórios anonimizados. A aplicação mostra exatamente o que será enviado antes do upload. Nada é enviado automaticamente.</p>
+<p>O payload não inclui nome do computador, nome de utilizador, números de série, endereços MAC ou IP, caminhos, etiquetas de unidades, IDs de dispositivo, IDs PnP, detalhes brutos, programas instalados ou linhas completas de relatório. Uma ID aleatória local é guardada no computador, e apenas o hash SHA-256 dessa ID é enviado para permitir atualizar a entrada agregada da mesma máquina.</p>
+<p>Depois de enviar, a aplicação abre a página pública de estatísticas: <a href="https://onj.me/srstats/">https://onj.me/srstats/</a>. A página também pode ser visitada sem enviar estatísticas.</p>
+<h3 id="opening-a-report">Abrir o relatório de outra pessoa</h3>
+<p>Relatórios HTML, TXT e alguns ZIPs de diagnóstico podem ser abertos no Sensor Readout. Quando um relatório está aberto, a janela indica que está em modo de relatório. Hotkeys e estado da área de notificação referem-se ao relatório carregado, não à máquina ao vivo.</p>
+<h3>Comparar relatórios</h3>
+<p>A comparação mostra leituras adicionadas, removidas, alteradas e diferenças de detalhes. É útil para comparar antes/depois de uma atualização, duas máquinas diferentes ou o mesmo computador com configurações diferentes.</p>
+<h3>Relatórios de suporte</h3>
+<p>O relatório de suporte prepara um ZIP e dá um fluxo orientado para copiar o caminho, abrir a pasta ou abrir a página de issues. Isto reduz erros ao enviar dados para análise.</p>
+<h3>Histórico de leituras</h3>
+<p>O histórico grava leituras selecionadas num CSV temporário em <code>Logs</code>. É útil para observar tendências curtas, como temperatura, carga, rede ou disco durante uma tarefa.</p>
+<h2 id="settings-transfer">Transferência de definições</h2>
+<p>Exportar definições cria um ficheiro JSON com perfis, hotkeys, alarmes e outras escolhas. Importar permite escolher que partes trazer. Leituras genéricas como CPU, memória e uptime podem funcionar diretamente; leituras ligadas a hardware específico podem precisar de nova associação.</p>
+<p>Também existe uma opção para empacotar uma cópia instalada com configuração, sons e personalizações para usar noutro local. Reveja sempre a cópia antes de a partilhar.</p>
+<h2 id="files">Ficheiros</h2>
+<ul>
+<li><code>Config</code>: definições partilhadas e específicas da máquina.</li>
+<li><code>Logs</code>: logs de execução e histórico CSV.</li>
+<li><code>Reports</code>: relatórios guardados.</li>
+<li><code>Docs</code>: manuais HTML incluídos.</li>
+<li><code>Langs</code>: ficheiros de idioma.</li>
+<li><code>Data</code>: bases de dados de fornecedores USB/MAC e hashes de idiomas incluídos.</li>
+<li><code>Plug-Ins</code>: plug-ins opcionais.</li>
+<li><code>Backups</code>: backups criados durante atualizações quando necessário.</li>
+</ul>
+<h2 id="notes">Notas</h2>
+<p>Suporte de ventoinhas depende de LibreHardwareMonitor, PawnIO, chip de sensores da motherboard, firmware e permissões. GPUs e discos podem aparecer sem elevação, mas motherboard e ventoinhas frequentemente precisam de administrador.</p>
+<p>Se a temperatura ou carga de CPU estiver em falta, instalar e executar Core Temp pode ajudar. O Core Temp é opcional e usado apenas como fallback.</p>
+<p>Se controlos de ventoinha não aparecerem, abra <code>Opções</code> &gt; <code>Controlos de ventoinha</code> e ative <code>Mostrar paradas</code>. Algumas placas reportam cabeçalhos controláveis como parados ou indefinidos até começarem a rodar.</p>
+<h3>Plug-ins de marcas de portáteis</h3>
+<p>Utilizadores de Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus podem obter melhor visibilidade de ventoinhas ou temperaturas ativando o plug-in correspondente. Estes plug-ins não garantem dados em todos os modelos.</p>
+<p>Ferramentas do fabricante também podem ajudar: Dell Command | Monitor, Lenovo Vantage, Lenovo System Update, MSI Center, G-Helper, HP Support Assistant e OMEN Gaming Hub. São ferramentas externas; instale apenas o que fizer sentido para a sua máquina.</p>
 <h2 id="changelog">Novidades</h2>
+<h3>4.0.3</h3><ul><li>Corrigido: o manual em português é agora um guia de utilizador completo incluído, em vez de um resumo curto, mantendo o padrão esperado para os idiomas distribuídos.</li></ul>
 <h3>4.0.2</h3><ul><li>Adicionado: idioma português e manual em português, contribuídos por Vitor Ferreira.</li></ul>
 <h3>4.0.1</h3><ul><li>Corrigido: o envio das estatísticas da comunidade usa agora explicitamente definições TLS modernas, evitando erros de canal seguro SSL/TLS em alguns sistemas.</li></ul>
-<h3>4.0.0</h3><ul><li>Adicionado: Ajuda &gt; Partilhar estatísticas anónimas da comunidade permite enviar voluntariamente um pequeno resumo da cobertura de hardware. O Sensor Readout mostra primeiro o JSON exato e não envia nada sem confirmação.</li><li>Privacidade: as estatísticas da comunidade são separadas dos relatórios anonimizados e não incluem identificadores privados. Apenas é enviado o hash SHA-256 de uma ID aleatória local, para que a mesma máquina possa atualizar a sua entrada agregada.</li></ul>
+<h3>4.0.0</h3><ul><li>Adicionado: estatísticas anónimas da comunidade com pré-visualização exata do JSON e upload apenas por escolha explícita.</li><li>Privacidade: as estatísticas são separadas de relatórios anonimizados e não incluem identificadores privados, caminhos, IDs de dispositivos, programas instalados ou linhas completas de relatório.</li></ul>
+<h3>3.10.5</h3><ul><li>Corrigido: diagnósticos já não deixam um diálogo de conclusão escondido quando a aplicação está oculta.</li><li>Melhorado: atualização automática reduz atividade em segundo plano quando a aplicação está escondida e nada precisa de monitorização apertada.</li></ul>
+<h3>3.10.4</h3><ul><li>Adicionado: tamanho total, usado e livre do ficheiro de paginação, disponível para relatórios, hotkeys e área de notificação.</li></ul>
+<h3>3.10.3</h3><ul><li>Adicionado: estado BitLocker de unidades quando o Windows fornece essa informação.</li></ul>
+<h3>3.10.2</h3><ul><li>Corrigido: editor de idioma com pesquisa F3, memória da última entrada e navegação por várias letras.</li></ul>
+<h3>3.10.1</h3><ul><li>Corrigido: resumos de categoria localizam contagens de leituras e grupos.</li><li>Corrigido: mensagens italianas de atualização e instalação usam acentos corretos.</li></ul>
+<h3>3.10.0</h3><ul><li>Adicionado: assistente inicial, dicas, opção de apagar definições e suporte para espaço total/usado em hotkeys e área de notificação.</li></ul>
+<h3>3.9.2</h3><ul><li>Melhorado: maior cobertura de tradução para preferências, predefinições, perfis e descrições acessíveis.</li><li>Corrigido: unidades removíveis prontas aparecem com espaço e atividade de disco lógico.</li></ul>
+<h3>3.9.1</h3><ul><li>Corrigido: Sensor Readout já não espera indefinidamente por arranque lento do LibreHardwareMonitor.</li></ul>
+<h3>3.9.0</h3><ul><li>Adicionado: resumo de categoria, mensagens para categorias vazias, predefinições de alarmes, predefinições de hotkeys, verificação de acessibilidade e copiar correspondências em Detalhes.</li></ul>
+<h3>3.8.1</h3><ul><li>Melhorado: importar definições usa <code>Ctrl+I</code> e importar plug-in ZIP usa <code>Ctrl+Shift+I</code>.</li></ul>
+<h3>3.8.0</h3><ul><li>Corrigido: menos consultas WMI repetidas para reduzir CPU em máquinas lentas.</li><li>Corrigido: recuperação de WMI em falha específica quando elevado.</li><li>Adicionado: plug-in experimental MSI e identificação de versão em relatórios.</li></ul>
+<h3>3.7.1</h3><ul><li>Corrigido: atualizações substituem pastas incluídas limpas, evitando plug-ins duplicados e ficheiros antigos vivos.</li></ul>
+<h3>3.7.0</h3><ul><li>Corrigido: <code>F5</code> reconstrói USB e dispositivos imediatamente.</li><li>Melhorado: EXE, SDK e plug-ins têm versões de ficheiro correspondentes.</li><li>Adicionado: plug-in experimental Lenovo.</li></ul>
+<h3>3.6.2</h3><ul><li>Corrigido: botão Renomear nas Preferências e hotkeys testáveis sem fechar Preferências.</li><li>Melhorado: Detalhes de GPU, impressoras e áudio com mais dados técnicos.</li></ul>
+<h3>3.6.1</h3><ul><li>Corrigido: manuais localizados corrompidos ou enormes são bloqueados pelos checks de release.</li></ul>
+<h3>3.6.0</h3><ul><li>Adicionado: comparar relatórios, relatório anonimizado, relatório de suporte, fontes de dados, histórico de leituras e opções de linha de comandos para suporte.</li></ul>
+<h3>3.5.0</h3><ul><li>Adicionado: memória GPU do Windows e leituras de GPU em hotkeys, relatórios e alarmes.</li><li>Melhorado: atualizar vive no menu Ver e intervalo mínimo pode ser 1 segundo.</li></ul>
+<h3>3.4.0</h3><ul><li>Melhorado: Detalhes de discos/SMART, suporte Asus e adição rápida a hotkeys ou área de notificação.</li></ul>
+<h3>3.3.1</h3><ul><li>Corrigido: arranque com Windows usa tarefa de logon elevada para maior fiabilidade.</li></ul>
+<h3>3.3.0</h3><ul><li>Melhorado: grupos de Performance/Resumo, Detalhes profundos de CPU, baseboard, Windows, firmware, discos e rede.</li><li>Adicionado: copiar só valor com <code>Ctrl+Shift+C</code> e anúncio Has Details no fim da linha.</li></ul>
+<h3>3.2.1</h3><ul><li>Corrigido: opção de arranque atualiza também aprovação de Startup Apps do Windows.</li></ul>
+<h3>3.2.0</h3><ul><li>Melhorado: Performance/Resumo mais organizado e impressoras agrupadas por impressora.</li><li>Adicionado: estado de impressoras e cartuchos quando o Windows fornece.</li></ul>
+<h3>3.1.1</h3><ul><li>Corrigido: SMART volta a mostrar totais de leitura/escrita NVMe quando disponíveis.</li></ul>
+<h3>3.1.0</h3><ul><li>Adicionado: Hotkeys menu, ação rápida para adicionar leitura a hotkey, teste automatizado mais amplo e estado da área de notificação mais configurável.</li></ul>
+<h3>3.0.1</h3><ul><li>Corrigido: atualização preserva configurações, relatórios e logs sem os colocar em builds públicos.</li></ul>
+<h3>3.0.0</h3><ul><li>Adicionado: categoria Dispositivos como inventário estilo Gestor de Dispositivos, com grupos amigáveis e Detalhes ricos.</li></ul>
+<h3>2.3.0</h3><ul><li>Melhorado: fluxo de instalação/desinstalação local, atalhos, cópia portátil, relatórios ZIP e título com nome da máquina.</li></ul>
+<h3>2.2.1</h3><ul><li>Corrigido: uptime atualiza corretamente.</li></ul>
+<h3>2.2.0</h3><ul><li>Adicionado: informação Wi-Fi, uptime, pesquisa F3, revisão F4, exportação/importação de perfis e melhor documentação.</li></ul>
+<h3>2.1.0</h3><ul><li>Adicionado: instalação local a partir da aplicação, melhorias de relatórios Windows e links de apoio para plug-ins de portáteis.</li></ul>
+<h3>2.0.0</h3><ul><li>Adicionado: plug-ins, manuais multilingues, menus de relatórios/logs, diagnósticos, detalhes e melhorias de acessibilidade.</li></ul>
+<h3>1.6.2</h3><ul><li>Melhorado: correções de atualização, documentação e fluxo de release.</li></ul>
+<h3>1.6.1</h3><ul><li>Corrigido: suporte Core Temp e fechamento com <code>--close</code>.</li></ul>
+<h3>1.6.0</h3><ul><li>Adicionado: sistema de plug-ins, importação de plug-ins, plug-in Framework, documentação de desenvolvimento e relatórios melhores.</li></ul>
+<h3>1.5.2</h3><ul><li>Corrigido: Framework sem API disponível já não atrasa leituras normais.</li></ul>
+<h3>1.5.1</h3><ul><li>Adicionado: API Framework Control opcional, categoria Bateria e notas de configuração Framework.</li></ul>
+<h3>1.5.0</h3><ul><li>Adicionado: categoria USB, curvas de ventoinha, perfis de ventoinha, atualizações automáticas configuráveis, base de dados MAC/OUI e suporte Tolk.</li></ul>
+<h3>1.4.3</h3><ul><li>Alterado: definições partilhadas e específicas da máquina foram separadas.</li></ul>
+<h3>1.4.2</h3><ul><li>Corrigido: atualizações já não criam pastas aninhadas como <code>Langs\Langs</code>.</li></ul>
+<h3>1.4.1</h3><ul><li>Corrigido: captura de Ctrl+Alt e fala após cópia por duplo pressionar.</li></ul>
+<h3>1.4.0</h3><ul><li>Adicionado: alarmes de leitura, sons, hotkeys com cópia, Preferências melhoradas e divisão de código.</li></ul>
+<h3>1.3.1</h3><ul><li>Adicionado: fallback Core Temp para CPU.</li></ul>
+<h3>1.3.0</h3><ul><li>Adicionado: vários perfis de hotkey falada, nomes falados, agrupamento de fala e separador dedicado de Hotkeys.</li></ul>
+<h3>1.2.1</h3><ul><li>Corrigido: espaço livre/usado de armazenamento vem de discos lógicos Windows.</li></ul>
+<h3>1.2.0</h3><ul><li>Adicionado: interface multilingue, editor de idioma, manuais HTML, unidade de temperatura, separador decimal, hotkeys globais, mensagens NVDA, atualizações e melhorias de acessibilidade.</li></ul>
+<h3>1.1.0</h3><ul><li>Adicionado: Rede como secção, Performance no topo, startup, progresso acessível, ordenação da área de notificação e links do projeto.</li></ul>
+<h3>1.0.0</h3><ul><li>Primeira versão portátil com sensores, relatórios, leituras na área de notificação, definições por computador, itens ocultos, nomes de ventoinhas e controlo direto de ventoinhas LibreHardwareMonitor/PawnIO.</li></ul>
 <h2 id="credits">Créditos</h2>
 <p>Criado por Codex. Ideias de Andre Louis.</p>
 <p>Tradução portuguesa e manual por Vitor Ferreira.</p>
 <p>Perguntas e feedback podem ser enviados através de <code>Ajuda</code> &gt; <code>Contacto</code> na aplicação ou <a href="https://onj.me/contact">https://onj.me/contact</a>.</p>
 <p>O Sensor Readout é software gratuito. Para apoiar o trabalho do Andre, use <code>Ajuda</code> &gt; <code>Donativos</code> na aplicação ou visite <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a>.</p>
-<p>O Sensor Readout usa ou inclui componentes como LibreHardwareMonitor, PawnIO, Newtonsoft.Json, HidSharp, DiskInfoToolkit, RAMSPDToolkit, Tolk, Framework Control, G-Helper, usb.ids, a base de dados de fornecedores MAC/OUI e Microsoft .NET Framework.</p>
+<p>O Sensor Readout usa ou inclui componentes destes projetos:</p>
+<ul>
+<li><a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a> e <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">LibreHardwareMonitor no GitHub</a>, para acesso a sensores de hardware.</li>
+<li><a href="https://github.com/namazso/PawnIO">PawnIO</a> e <a href="https://github.com/namazso/PawnIO.Setup">PawnIO.Setup</a>, para acesso de baixo nível.</li>
+<li><a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, para ficheiros de configuração.</li>
+<li><a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, usado por LibreHardwareMonitor.</li>
+<li><a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, para dados de armazenamento.</li>
+<li><a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>, para dados SPD de memória.</li>
+<li><a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core</a>, usado por dependências de LibreHardwareMonitor.</li>
+<li><a href="https://github.com/dkager/tolk">Tolk screen reader library</a>, para fala opcional por leitor de ecrã.</li>
+<li><a href="https://github.com/ozturkkl/framework-control">Framework Control</a>, usado pela API local opcional.</li>
+<li><a href="https://github.com/seerge/g-helper">G-Helper</a>, cuja investigação ACPI GPL é usada no plug-in Asus opcional.</li>
+<li><a href="http://www.linux-usb.org/usb-ids.html">usb.ids</a>, usado para nomes de fornecedores e produtos USB.</li>
+<li><a href="https://github.com/uxmansarwar/mac-address-vendor-database">MAC Address Vendor Database</a>, usado para fornecedores MAC/OUI.</li>
+<li>Microsoft .NET Framework e bibliotecas de suporte.</li>
+</ul>
 <h2 id="license">Licença</h2>
-<p>A aplicação principal Sensor Readout usa a licença MIT. Consulte <code>LICENSE.txt</code>. Alguns plug-ins e ficheiros de dados incluídos têm licenças e avisos próprios.</p>
+<p>A aplicação principal Sensor Readout usa a licença MIT. Consulte <code>LICENSE.txt</code>.</p>
+<p>Alguns plug-ins ou ficheiros de dados incluídos têm licenças e avisos próprios. Em particular, <code>Plug-Ins\AsusRog</code> contém trabalho ACPI derivado do G-Helper e inclui o respetivo aviso GPL e texto GPL nessa pasta.</p>
 </body>
 </html>
