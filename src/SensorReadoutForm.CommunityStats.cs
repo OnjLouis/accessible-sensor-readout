@@ -608,6 +608,7 @@ public sealed partial class SensorReadoutForm : Form
             throw new InvalidOperationException("Community stats payload is empty.");
         }
 
+        ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2 for older .NET Framework defaults.
         using (var client = new WebClient())
         {
             client.Encoding = Encoding.UTF8;
