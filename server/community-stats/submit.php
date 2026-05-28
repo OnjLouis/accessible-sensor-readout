@@ -88,6 +88,102 @@ function safe_count_map($value): array {
     return $result;
 }
 
+function rate_limit_response(string $message, int $retryAfterSeconds): void {
+    http_response_code(429);
+    header('Retry-After: ' . max(1, $retryAfterSeconds));
+    echo json_encode(['ok' => false, 'error' => $message]);
+    exit;
+}
+
+function enforce_rate_limit(string $dataDir, string $clientHash): void {
+    $now = time();
+    $hourAgo = $now - 3600;
+    $dayAgo = $now - 86400;
+    $minClientIntervalSeconds = 30;
+    $maxClientPerHour = 8;
+    $maxClientPerDay = 24;
+    $maxGlobalPerHour = 300;
+    $maxGlobalPerDay = 2000;
+
+    $lockPath = $dataDir . '/rate-limits.lock';
+    $lock = @fopen($lockPath, 'c');
+    if ($lock === false) {
+        return;
+    }
+
+    if (!flock($lock, LOCK_EX)) {
+        fclose($lock);
+        return;
+    }
+
+    $ratePath = $dataDir . '/rate-limits.json';
+    $state = ['global' => [], 'clients' => []];
+    if (is_file($ratePath)) {
+        $decoded = json_decode((string)file_get_contents($ratePath), true);
+        if (is_array($decoded)) {
+            $state = array_merge($state, $decoded);
+        }
+    }
+
+    $global = array_values(array_filter((array)($state['global'] ?? []), static function ($timestamp) use ($dayAgo): bool {
+        return is_numeric($timestamp) && (int)$timestamp >= $dayAgo;
+    }));
+    $clients = is_array($state['clients'] ?? null) ? $state['clients'] : [];
+    foreach ($clients as $hash => $timestamps) {
+        if (!preg_match('/^[a-f0-9]{64}$/', (string)$hash) || !is_array($timestamps)) {
+            unset($clients[$hash]);
+            continue;
+        }
+        $clients[$hash] = array_values(array_filter($timestamps, static function ($timestamp) use ($dayAgo): bool {
+            return is_numeric($timestamp) && (int)$timestamp >= $dayAgo;
+        }));
+        if (count($clients[$hash]) === 0) {
+            unset($clients[$hash]);
+        }
+    }
+    $client = array_values($clients[$clientHash] ?? []);
+
+    $globalHour = count(array_filter($global, static function ($timestamp) use ($hourAgo): bool {
+        return (int)$timestamp >= $hourAgo;
+    }));
+    if ($globalHour >= $maxGlobalPerHour || count($global) >= $maxGlobalPerDay) {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+        rate_limit_response('Too many community stats submissions right now. Please try again later.', 3600);
+    }
+
+    if (count($client) > 0) {
+        $last = max(array_map('intval', $client));
+        $sinceLast = $now - $last;
+        if ($sinceLast < $minClientIntervalSeconds) {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+            rate_limit_response('Community stats were submitted too recently. Please wait a moment and try again.', $minClientIntervalSeconds - $sinceLast);
+        }
+    }
+
+    $clientHour = count(array_filter($client, static function ($timestamp) use ($hourAgo): bool {
+        return (int)$timestamp >= $hourAgo;
+    }));
+    if ($clientHour >= $maxClientPerHour || count($client) >= $maxClientPerDay) {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+        rate_limit_response('This anonymous client has submitted community stats too often. Please try again later.', 3600);
+    }
+
+    $global[] = $now;
+    $client[] = $now;
+    $clients[$clientHash] = $client;
+    $state = ['global' => $global, 'clients' => $clients];
+    $tmp = $ratePath . '.tmp';
+    if (file_put_contents($tmp, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) !== false) {
+        @rename($tmp, $ratePath);
+    }
+
+    flock($lock, LOCK_UN);
+    fclose($lock);
+}
+
 $clientHash = isset($payload['anonymousClientIdHash']) ? (string)$payload['anonymousClientIdHash'] : '';
 if (!preg_match('/^[a-f0-9]{64}$/', $clientHash)) {
     http_response_code(400);
@@ -208,6 +304,8 @@ $denyPath = $dataDir . '/.htaccess';
 if (!is_file($denyPath)) {
     @file_put_contents($denyPath, "Require all denied\nDeny from all\n");
 }
+
+enforce_rate_limit($dataDir, $clientHash);
 
 $storePath = $dataDir . '/community-stats.json';
 $store = [];
