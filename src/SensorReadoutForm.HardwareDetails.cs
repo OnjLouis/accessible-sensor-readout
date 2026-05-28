@@ -33,6 +33,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     AddDetail(details, "CPU name", GetWmiPropertyText(cpu, "Name"));
                     AddDetail(details, "CPU manufacturer", GetWmiPropertyText(cpu, "Manufacturer"));
+                    AddDetail(details, "CPU generation", FormatCpuGeneration(GetWmiPropertyText(cpu, "Name"), GetWmiPropertyText(cpu, "Manufacturer")));
                     AddDetail(details, "CPU description", GetWmiPropertyText(cpu, "Description"));
                     AddDetail(details, "CPU caption", GetWmiPropertyText(cpu, "Caption"));
                     AddDetail(details, "CPU device ID", GetWmiPropertyText(cpu, "DeviceID"));

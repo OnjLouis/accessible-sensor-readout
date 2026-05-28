@@ -110,6 +110,7 @@ public sealed partial class SensorReadoutForm : Form
         var rows = new List<SensorRow>();
         AddGpuMemoryRows(rows);
         AddGpuEngineRows(rows);
+        AddNvidiaSmiPerformanceRows(rows);
         return rows;
     }
 
@@ -172,6 +173,157 @@ public sealed partial class SensorReadoutForm : Form
             Source = "Windows GPU performance counters",
             Details = CloneDetails(details)
         });
+    }
+
+    private static void AddNvidiaSmiPerformanceRows(List<SensorRow> rows)
+    {
+        if (rows == null)
+        {
+            return;
+        }
+
+        var output = RunNvidiaSmiQuery("--query-gpu=name,pci.bus_id,driver_version,vbios_version,temperature.gpu,fan.speed,utilization.gpu,memory.total,memory.used,memory.free,power.draw,power.limit,clocks.gr,clocks.mem");
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return;
+        }
+
+        var index = 0;
+        foreach (var line in output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = line.Split(',').Select(f => f.Trim()).ToArray();
+            if (fields.Length < 14)
+            {
+                continue;
+            }
+
+            var gpuIndex = index++;
+            var gpuName = string.IsNullOrWhiteSpace(fields[0]) ? "NVIDIA GPU" : fields[0];
+            var idPrefix = "nvidia-smi|gpu|" + gpuIndex.ToString(CultureInfo.InvariantCulture) + "|";
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "NVIDIA SMI name", gpuName },
+                { "NVIDIA SMI bus ID", fields[1] },
+                { "NVIDIA SMI driver version", fields[2] },
+                { "NVIDIA SMI VBIOS version", fields[3] },
+                { "Source", "nvidia-smi.exe" }
+            };
+
+            float value;
+            if (TryParseNvidiaSmiFloat(fields[4], out value))
+            {
+                rows.Add(new SensorRow
+                {
+                    Type = "Temperature",
+                    Hardware = gpuName,
+                    Name = "GPU temperature",
+                    Identifier = idPrefix + "temperature",
+                    Value = value,
+                    Source = "NVIDIA SMI",
+                    Details = CloneDetails(details)
+                });
+            }
+
+            if (TryParseNvidiaSmiFloat(fields[5], out value))
+            {
+                rows.Add(new SensorRow
+                {
+                    Type = "Fan",
+                    Hardware = gpuName,
+                    Name = "GPU fan duty cycle",
+                    Identifier = idPrefix + "fan-duty",
+                    Value = value,
+                    DisplayValue = FormatNumber(Math.Round(value, 0), "0") + "%",
+                    Source = "NVIDIA SMI",
+                    Details = CloneDetails(details)
+                });
+            }
+
+            if (TryParseNvidiaSmiFloat(fields[6], out value))
+            {
+                AddNvidiaSmiPerformanceRow(rows, "GPU", "GPU usage", idPrefix + "usage", value, "%", details);
+            }
+
+            AddNvidiaSmiMemoryRow(rows, "NVIDIA GPU memory total", idPrefix + "memory-total", fields[7], details);
+            AddNvidiaSmiMemoryRow(rows, "NVIDIA GPU memory used", idPrefix + "memory-used", fields[8], details);
+            AddNvidiaSmiMemoryRow(rows, "NVIDIA GPU memory free", idPrefix + "memory-free", fields[9], details);
+
+            if (TryParseNvidiaSmiFloat(fields[10], out value))
+            {
+                AddNvidiaSmiPerformanceRow(rows, "GPU", "GPU power draw", idPrefix + "power-draw", value, " W", details);
+            }
+
+            if (TryParseNvidiaSmiFloat(fields[11], out value))
+            {
+                AddNvidiaSmiPerformanceRow(rows, "GPU", "GPU power limit", idPrefix + "power-limit", value, " W", details);
+            }
+
+            if (TryParseNvidiaSmiFloat(fields[12], out value))
+            {
+                AddNvidiaSmiPerformanceRow(rows, "GPU", "GPU graphics clock", idPrefix + "graphics-clock", value, " MHz", details);
+            }
+
+            if (TryParseNvidiaSmiFloat(fields[13], out value))
+            {
+                AddNvidiaSmiPerformanceRow(rows, "GPU", "GPU memory clock", idPrefix + "memory-clock", value, " MHz", details);
+            }
+        }
+    }
+
+    private static void AddNvidiaSmiMemoryRow(List<SensorRow> rows, string name, string identifier, string mibText, Dictionary<string, string> details)
+    {
+        float mib;
+        if (!TryParseNvidiaSmiFloat(mibText, out mib) || mib < 0)
+        {
+            return;
+        }
+
+        var bytes = mib * 1024.0 * 1024.0;
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "GPU memory",
+            Name = name,
+            Identifier = identifier,
+            Value = (float)bytes,
+            DisplayValue = FormatBytes(bytes),
+            Source = "NVIDIA SMI",
+            Details = CloneDetails(details)
+        });
+    }
+
+    private static void AddNvidiaSmiPerformanceRow(List<SensorRow> rows, string hardware, string name, string identifier, float value, string suffix, Dictionary<string, string> details)
+    {
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = hardware,
+            Name = name,
+            Identifier = identifier,
+            Value = value,
+            DisplayValue = FormatNumber(Math.Round(value, suffix == "%" ? 1 : 0), suffix == "%" ? "0.0" : "0") + suffix,
+            Source = "NVIDIA SMI",
+            Details = CloneDetails(details)
+        });
+    }
+
+    private static bool TryParseNvidiaSmiFloat(string text, out float value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var clean = text.Trim();
+        if (clean.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("[Not Supported]", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("Not Supported", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return float.TryParse(clean, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
     private static double GetTotalGpuAdapterMemoryBytes()
@@ -423,8 +575,11 @@ public sealed partial class SensorReadoutForm : Form
             {
                 foreach (ManagementObject cpu in searcher.Get())
                 {
-                    AddCpuDetailRow(rows, "CPU name", Convert.ToString(cpu["Name"]), cpuDetails);
-                    AddCpuDetailRow(rows, "CPU vendor", Convert.ToString(cpu["Manufacturer"]), cpuDetails);
+                    var cpuName = Convert.ToString(cpu["Name"]);
+                    var cpuManufacturer = Convert.ToString(cpu["Manufacturer"]);
+                    AddCpuDetailRow(rows, "CPU name", cpuName, cpuDetails);
+                    AddCpuDetailRow(rows, "CPU generation", FormatCpuGeneration(cpuName, cpuManufacturer), cpuDetails);
+                    AddCpuDetailRow(rows, "CPU vendor", cpuManufacturer, cpuDetails);
                     AddCpuDetailRow(rows, "CPU cores", Convert.ToString(cpu["NumberOfCores"]), cpuDetails);
                     AddCpuDetailRow(rows, "CPU threads", Convert.ToString(cpu["NumberOfLogicalProcessors"]), cpuDetails);
                     AddCpuDetailRow(rows, "CPU max clock", FormatMegahertz(cpu["MaxClockSpeed"]), cpuDetails);
@@ -632,6 +787,101 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
             return "";
+        }
+    }
+
+    private static string FormatCpuGeneration(string cpuName, string manufacturer)
+    {
+        var text = (cpuName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        if (!ContainsAny(text, "Intel", "Core") && !ContainsAny(manufacturer, "Intel", "GenuineIntel"))
+        {
+            return "";
+        }
+
+        var dash = text.IndexOf('-');
+        if (dash < 0 || dash + 1 >= text.Length)
+        {
+            return "";
+        }
+
+        var digits = "";
+        for (var i = dash + 1; i < text.Length; i++)
+        {
+            if (!char.IsDigit(text[i]))
+            {
+                break;
+            }
+
+            digits += text[i];
+        }
+
+        if (digits.Length < 4)
+        {
+            return "";
+        }
+
+        int generation;
+        if (digits.Length >= 5)
+        {
+            if (!int.TryParse(digits.Substring(0, 2), out generation))
+            {
+                return "";
+            }
+        }
+        else if (!int.TryParse(digits.Substring(0, 1), out generation))
+        {
+            return "";
+        }
+
+        if (generation <= 0)
+        {
+            return "";
+        }
+
+        return FormatOrdinal(generation) + " Gen Intel Core";
+    }
+
+    private static bool ContainsAny(string text, params string[] values)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        foreach (var value in values ?? new string[0])
+        {
+            if (!string.IsNullOrWhiteSpace(value) && text.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string FormatOrdinal(int value)
+    {
+        var mod100 = value % 100;
+        if (mod100 >= 11 && mod100 <= 13)
+        {
+            return value.ToString(CultureInfo.InvariantCulture) + "th";
+        }
+
+        switch (value % 10)
+        {
+            case 1:
+                return value.ToString(CultureInfo.InvariantCulture) + "st";
+            case 2:
+                return value.ToString(CultureInfo.InvariantCulture) + "nd";
+            case 3:
+                return value.ToString(CultureInfo.InvariantCulture) + "rd";
+            default:
+                return value.ToString(CultureInfo.InvariantCulture) + "th";
         }
     }
 

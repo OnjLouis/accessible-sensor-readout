@@ -1458,6 +1458,7 @@ public sealed partial class SensorReadoutForm : Form
         AddNamedReadingGroup(parent, rows, "cpu|identity", T("group.CPU identity", "Identity"), new[]
         {
             "CPU name",
+            "CPU generation",
             "CPU vendor",
             "CPU architecture",
             "CPU socket",
@@ -1489,6 +1490,7 @@ public sealed partial class SensorReadoutForm : Form
         var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CPU name",
+            "CPU generation",
             "CPU vendor",
             "CPU architecture",
             "CPU socket",
@@ -1872,10 +1874,11 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Model", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("CPU name", StringComparison.OrdinalIgnoreCase)) return 0;
-        if (clean.Equals("CPU vendor", StringComparison.OrdinalIgnoreCase)) return 1;
-        if (clean.Equals("CPU architecture", StringComparison.OrdinalIgnoreCase)) return 2;
-        if (clean.Equals("CPU socket", StringComparison.OrdinalIgnoreCase)) return 3;
-        if (clean.Equals("CPU processor ID", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("CPU generation", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("CPU vendor", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("CPU architecture", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("CPU socket", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("CPU processor ID", StringComparison.OrdinalIgnoreCase)) return 5;
         if (clean.Equals("CPU cores", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("CPU threads", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("CPU current clock", StringComparison.OrdinalIgnoreCase)) return 3;

@@ -320,16 +320,20 @@ public sealed partial class SensorReadoutForm : Form
 
     private static string RunNvidiaSmiQuery()
     {
+        return RunNvidiaSmiQuery("--query-gpu=name,gpu_bus_id,driver_version,vbios_version,compute_cap,pci.device_id,pci.sub_device_id,pci.bus_id,memory.total,memory.used,memory.free,temperature.gpu,power.limit,clocks.max.graphics,clocks.max.memory");
+    }
+
+    private static string RunNvidiaSmiQuery(string queryArguments)
+    {
         try
         {
             var start = new ProcessStartInfo
             {
                 FileName = "nvidia-smi.exe",
-                Arguments = "--query-gpu=name,gpu_bus_id,driver_version,vbios_version,compute_cap,pci.device_id,pci.sub_device_id,pci.bus_id,memory.total,memory.used,memory.free,temperature.gpu,power.limit,clocks.max.graphics,clocks.max.memory --format=csv,noheader,nounits",
+                Arguments = queryArguments + " --format=csv,noheader,nounits",
                 CreateNoWindow = true,
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
+                RedirectStandardOutput = true
             };
             using (var process = Process.Start(start))
             {

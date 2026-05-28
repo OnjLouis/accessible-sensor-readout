@@ -289,6 +289,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 8000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
         AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
+        AddTimedRows(rows, "WindowsFanDevices", () => GetWindowsFanDeviceRows(rows), timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);
         AddTimedRows(rows, "SystemUptime", GetSystemUptimeRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);

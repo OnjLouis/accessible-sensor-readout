@@ -215,12 +215,30 @@ public sealed partial class SensorReadoutForm : Form
 
         var hardwareName = hardware.Name ?? "";
         if (hardware.HardwareType.ToString().Equals("SuperIO", StringComparison.OrdinalIgnoreCase) &&
-            hardwareName.IndexOf("Nuvoton NCT6795D", StringComparison.OrdinalIgnoreCase) >= 0)
+            IsMotherboardSuperIoName(hardwareName))
         {
             return "Motherboard";
         }
 
         return NormalizeHardwareName(hardwareName);
+    }
+
+    private static bool IsMotherboardSuperIoName(string hardwareName)
+    {
+        if (string.IsNullOrWhiteSpace(hardwareName))
+        {
+            return false;
+        }
+
+        return hardwareName.IndexOf("Nuvoton", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("NCT", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("ITE", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("IT86", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("Winbond", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("Fintek", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("Super I/O", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("SuperIO", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            hardwareName.IndexOf("ASUS", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string SensorDeduplicationKey(SensorRow row)

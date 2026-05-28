@@ -602,6 +602,7 @@ public sealed partial class SensorReadoutForm : Form
         return !string.IsNullOrWhiteSpace(identifier) &&
             (identifier.IndexOf("NVApi", StringComparison.OrdinalIgnoreCase) >= 0 ||
             identifier.IndexOf("/gpu-", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            identifier.IndexOf("/control/gpu", StringComparison.OrdinalIgnoreCase) >= 0 ||
             identifier.IndexOf("gpu-nvidia", StringComparison.OrdinalIgnoreCase) >= 0 ||
             identifier.IndexOf("gpu-amd", StringComparison.OrdinalIgnoreCase) >= 0);
     }
