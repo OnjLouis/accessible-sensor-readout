@@ -49,11 +49,11 @@ function normalize_architecture_value(string $value): string {
     $compact = strtolower(str_replace([' ', '_'], '-', $clean));
     $compact = preg_replace('/-+/', '-', $compact);
 
-    if (in_array($compact, ['64-bit', 'x64', 'amd64', 'x86-64'], true)) {
+    if (in_array($compact, ['64-bit', '64-bits', '64bit', '64bits', 'x64', 'amd64', 'x86-64', 'x86-64-bit', 'x86-64-bits'], true)) {
         return '64-bit';
     }
 
-    if (in_array($compact, ['32-bit', 'x86', 'i386', 'i686'], true)) {
+    if (in_array($compact, ['32-bit', '32-bits', '32bit', '32bits', 'x86', 'i386', 'i686'], true)) {
         return '32-bit';
     }
 
@@ -174,7 +174,7 @@ $machineCount = count($items);
 $plugins = aggregate_list($items, 'availability', 'enabledPlugIns');
 $screenReaders = aggregate_list($items, 'accessibility', 'detectedScreenReaders');
 $cpuVendors = aggregate_value($items, 'hardwareSummary', 'cpuVendor');
-$cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture');
+$cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture', 'normalize_architecture_value');
 $cpuTypes = aggregate_value($items, 'hardwareSummary', 'cpuProcessorType');
 $gpuVendors = aggregate_map($items, 'hardwareSummary', 'gpuVendorCounts');
 $memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal', 'normalize_size_value');
