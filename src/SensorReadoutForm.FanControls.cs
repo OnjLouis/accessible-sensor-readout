@@ -286,7 +286,7 @@ public sealed partial class SensorReadoutForm : Form
         var timings = new List<string>();
         var rows = new List<SensorRow>();
 
-        AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 8000 : 2000, timings);
+        AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 20000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
         AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);

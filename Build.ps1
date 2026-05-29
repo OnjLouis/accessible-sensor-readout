@@ -82,6 +82,43 @@ $references = @(
     $sdkOutput
 ) -join ','
 
+function Assert-ConfigBindingRedirectsMatchShippedAssemblies {
+    $configPath = Join-Path $portable 'Sensor Readout.exe.config'
+    if (-not (Test-Path -LiteralPath $configPath)) {
+        return
+    }
+
+    [xml]$config = Get-Content -LiteralPath $configPath -Raw
+    $namespace = New-Object System.Xml.XmlNamespaceManager($config.NameTable)
+    $namespace.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
+    $redirects = $config.SelectNodes('//asm:dependentAssembly', $namespace)
+    foreach ($redirect in $redirects) {
+        $identity = $redirect.SelectSingleNode('asm:assemblyIdentity', $namespace)
+        $binding = $redirect.SelectSingleNode('asm:bindingRedirect', $namespace)
+        if ($identity -eq $null -or $binding -eq $null) {
+            continue
+        }
+
+        $assemblyName = [string]$identity.name
+        $redirectVersion = [string]$binding.newVersion
+        if ([string]::IsNullOrWhiteSpace($assemblyName) -or [string]::IsNullOrWhiteSpace($redirectVersion)) {
+            continue
+        }
+
+        $assemblyPath = Join-Path $portable ($assemblyName + '.dll')
+        if (-not (Test-Path -LiteralPath $assemblyPath)) {
+            throw "Config binding redirect references $assemblyName $redirectVersion, but $assemblyName.dll is not shipped in the portable folder."
+        }
+
+        $actualVersion = [System.Reflection.AssemblyName]::GetAssemblyName($assemblyPath).Version.ToString()
+        if ($actualVersion -ne $redirectVersion) {
+            throw "Config binding redirect for $assemblyName points to $redirectVersion, but shipped assembly version is $actualVersion."
+        }
+    }
+}
+
+Assert-ConfigBindingRedirectsMatchShippedAssemblies
+
 & $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /out:$OutputPath /reference:$references $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"

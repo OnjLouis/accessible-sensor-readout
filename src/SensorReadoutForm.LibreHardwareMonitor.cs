@@ -44,9 +44,10 @@ public sealed partial class SensorReadoutForm : Form
                 System.Threading.Monitor.Exit(lhmLock);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            return Enumerable.Empty<SensorRow>();
+            LogMessage("Debug", "LibreHardwareMonitor refresh failed. " + ex.GetType().Name + ": " + ex.Message);
+            return GetCachedLibreHardwareMonitorRowsSnapshot();
         }
     }
 
