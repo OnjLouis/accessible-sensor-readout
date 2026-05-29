@@ -49,6 +49,14 @@ function normalize_architecture_value(string $value): string {
     $compact = strtolower(str_replace([' ', '_'], '-', $clean));
     $compact = preg_replace('/-+/', '-', $compact);
 
+    if (preg_match('/(?:^|[^0-9])64[^0-9]*bits?(?:[^a-z]|$)/i', $clean) === 1) {
+        return '64-bit';
+    }
+
+    if (preg_match('/(?:^|[^0-9])32[^0-9]*bits?(?:[^a-z]|$)/i', $clean) === 1) {
+        return '32-bit';
+    }
+
     if (in_array($compact, ['64-bit', '64-bits', '64bit', '64bits', 'x64', 'amd64', 'x86-64', 'x86-64-bit', 'x86-64-bits'], true)) {
         return '64-bit';
     }
