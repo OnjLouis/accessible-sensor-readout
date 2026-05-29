@@ -600,6 +600,7 @@ function Invoke-CommandLineReportSmoke([string]$releaseVersion) {
     if ($txtText -notmatch '\[SensorReadoutReportData\]') {
         Fail "TXT smoke report is missing labelled internal report data."
     }
+    Assert-LocalLowLevelSensorCoverage $txtText
     if ($txtText -match '(?m)^.{600,}$') {
         Fail "TXT smoke report contains an unexpectedly long line."
     }
@@ -630,6 +631,24 @@ function Invoke-CommandLineReportSmoke([string]$releaseVersion) {
     $comparisonText = Get-Content -LiteralPath $comparison -Raw
     if ($comparisonText -notmatch 'Sensor Readout report comparison') {
         Fail "Report comparison smoke output does not look like a comparison."
+    }
+}
+
+function Assert-LocalLowLevelSensorCoverage([string]$txtText) {
+    if ([string]::IsNullOrWhiteSpace($txtText)) {
+        Fail "Low-level sensor smoke could not inspect an empty TXT report."
+    }
+
+    if ($txtText -notmatch '(?m)^\s+LibreHardwareMonitor:\s+[1-9]\d*\s+reading') {
+        Fail "Low-level sensor smoke did not find any LibreHardwareMonitor rows in the command-line report."
+    }
+
+    if ($txtText -notmatch '(?m)^\s+Temperatures:\s+[1-9]\d*\s+reading') {
+        Fail "Low-level sensor smoke did not find temperature rows in the command-line report."
+    }
+
+    if ($txtText -notmatch '(?m)^\s+Fans:\s+[1-9]\d*\s+reading') {
+        Fail "Low-level sensor smoke did not find fan rows in the command-line report."
     }
 }
 
