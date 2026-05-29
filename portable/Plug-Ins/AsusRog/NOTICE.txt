@@ -1,10 +1,12 @@
-Asus Laptop Support Plug-In
-===========================
+Asus ROG Support Plug-In
+========================
 
 This is an experimental, opt-in Sensor Readout hardware plug-in for Asus
-laptops. It reads Asus ATKACPI or ASUS WMI temperature and fan duty-cycle
-values where available. Fan control remains limited to models that accept the
-known ATKACPI fan curve or fan range calls.
+ROG laptops and desktops. It reads Asus ATKACPI or ASUS WMI temperature and
+fan tachometer values where available. Fan control remains limited to laptop
+models that accept the known ATKACPI fan curve or fan range calls; desktop
+tower profiles are treated as read-only by this plug-in and should use
+LibreHardwareMonitor/PawnIO fan controls when the motherboard exposes them.
 
 Initial plug-in work by Jason Fayre and Claude Code.
 Integration, diagnostics, accessibility, and packaging by Sensor Readout
@@ -22,4 +24,4 @@ The corresponding source code is available in the Sensor Readout repository
 under PlugIns/AsusRog.
 
 The main Sensor Readout application remains MIT-licensed. This notice applies
-to the optional Asus Laptop Support plug-in.
+to the optional Asus ROG Support plug-in.

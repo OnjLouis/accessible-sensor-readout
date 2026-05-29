@@ -14,10 +14,10 @@ namespace SensorReadout.AsusRogPlugIn
         private readonly PluginInfo info = new PluginInfo
         {
             Id = "sensorreadout.asus.rog.experimental",
-            Name = "Asus Laptop Support (experimental)",
-            Version = "0.2.0",
+            Name = "Asus ROG Support (experimental)",
+            Version = "0.3.0",
             Author = "Jason Fayre, Claude Code, and Sensor Readout contributors",
-            Description = "Experimental, opt-in Asus laptop probe. Reads temperatures and fan duty-cycle percentages through ATKACPI or ASUS WMI where available, and attempts ATKACPI fan control on supported models. Based in part on G-Helper ACPI research."
+            Description = "Experimental, opt-in Asus ROG probe. Reads ASUS WMI/ATKACPI fan tachometer and temperature values where available, avoids laptop fan-curve writes on desktop towers, and attempts ATKACPI fan control only on supported laptop profiles. Based in part on G-Helper ACPI research."
         };
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
@@ -25,6 +25,8 @@ namespace SensorReadout.AsusRogPlugIn
         private DateTime acpiRetryUtc = DateTime.MinValue;
         private IPluginContext lastContext;
         private bool? cachedAsusDetection;
+        private bool profileLoaded;
+        private AsusMachineProfile cachedProfile;
 
         // Current manual percentages, kept so GetReadings can show the right DisplayValue for "Fan Control" rows.
         private readonly Dictionary<string, int> manualPercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -68,6 +70,7 @@ namespace SensorReadout.AsusRogPlugIn
         private const string CpuControlIdentifier = "asus/rog/control/cpu";
         private const string GpuControlIdentifier = "asus/rog/control/gpu";
         private const string MidControlIdentifier = "asus/rog/control/mid";
+        private const string SourceName = "Asus ROG Support Plug-In";
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr CreateFile(
@@ -161,8 +164,8 @@ namespace SensorReadout.AsusRogPlugIn
                 uint readId;
                 if (TryGetReadId(identifier, out readId))
                 {
-                    var after = GetFanPercent(handle, readId);
-                    Log("Debug", "Asus ROG plug-in: fan duty after write for " + identifier + "=" + after + "%.");
+                    var after = GetFanRpm(handle, readId);
+                    Log("Debug", "Asus ROG plug-in: fan tachometer after write for " + identifier + "=" + after + " RPM.");
                 }
 
                 var ok = curveResult == 1 || rangeResult == 1;
@@ -329,39 +332,50 @@ namespace SensorReadout.AsusRogPlugIn
 
         private IEnumerable<SensorReading> ReadAsusSensors(IPluginContext context)
         {
+            var profile = GetAsusMachineProfile(context);
+            var profileRows = MakeProfileRows(profile).ToList();
+
             if (DateTime.UtcNow >= acpiRetryUtc)
             {
-                var acpiRows = ReadAcpiSensors(context).ToList();
+                var acpiRows = ReadAcpiSensors(context, profile).ToList();
                 if (!IsOnlyUnavailableRow(acpiRows))
                 {
-                    return acpiRows;
+                    return profileRows.Concat(acpiRows).ToList();
                 }
             }
 
             var wmiRows = ReadAsusWmiSensors(context).ToList();
             if (wmiRows.Count > 0)
             {
-                return wmiRows;
+                return profileRows.Concat(wmiRows).ToList();
             }
 
-            return MakeUnavailableRow();
+            if (profileRows.Count > 0)
+            {
+                return profileRows;
+            }
+
+            return MakeUnavailableRow(profile);
         }
 
-        private IEnumerable<SensorReading> ReadAcpiSensors(IPluginContext context)
+        private IEnumerable<SensorReading> ReadAcpiSensors(IPluginContext context, AsusMachineProfile profile)
         {
             var handle = OpenAtkAcpi();
             if (handle == new IntPtr(-1))
             {
-                context.Log("Debug", "Asus ROG plug-in: cannot open ATKACPI (error " + Marshal.GetLastWin32Error() + "), retrying in 60 s.");
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: cannot open ATKACPI (error " + Marshal.GetLastWin32Error() + "), retrying in 60 s.");
+                }
                 acpiRetryUtc = DateTime.UtcNow.AddSeconds(60);
-                return MakeUnavailableRow();
+                return MakeUnavailableRow(profile);
             }
 
             acpiRetryUtc = DateTime.MinValue;
 
             try
             {
-                return ReadAllSensors(handle).ToList();
+                return ReadAllSensors(handle, profile).ToList();
             }
             finally
             {
@@ -369,60 +383,70 @@ namespace SensorReadout.AsusRogPlugIn
             }
         }
 
-        private IEnumerable<SensorReading> ReadAllSensors(IntPtr handle)
+        private IEnumerable<SensorReading> ReadAllSensors(IntPtr handle, AsusMachineProfile profile)
         {
             var rows = new List<SensorReading>();
+            var exposeFanControls = ShouldExposeLaptopFanControls(profile);
 
-            var cpuFan = GetFanPercent(handle, CpuFanId);
+            var cpuFan = GetFanRpm(handle, CpuFanId);
             if (cpuFan >= 0)
             {
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
                     Hardware = "Asus",
-                    Name = "CPU Fan duty cycle",
+                    Name = "CPU fan",
                     Identifier = CpuFanIdentifier,
                     Value = cpuFan,
-                    DisplayValue = cpuFan + "% duty cycle",
-                    Source = "Asus Laptop Support Plug-In",
-                    Details = MakeAcpiDetails("CPU fan", CpuFanId)
+                    DisplayValue = cpuFan + " RPM",
+                    Source = SourceName,
+                    Details = MakeAcpiDetails("CPU fan tachometer", CpuFanId)
                 });
-                rows.Add(MakeFanControlRow(CpuControlIdentifier, "CPU Fan / ASUS thermal mode"));
+                if (exposeFanControls)
+                {
+                    rows.Add(MakeFanControlRow(CpuControlIdentifier, "CPU Fan / ASUS thermal mode"));
+                }
             }
 
-            var gpuFan = GetFanPercent(handle, GpuFanId);
+            var gpuFan = GetFanRpm(handle, GpuFanId);
             if (gpuFan >= 0)
             {
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
                     Hardware = "Asus",
-                    Name = "GPU Fan duty cycle",
+                    Name = "GPU fan",
                     Identifier = GpuFanIdentifier,
                     Value = gpuFan,
-                    DisplayValue = gpuFan + "% duty cycle",
-                    Source = "Asus Laptop Support Plug-In",
-                    Details = MakeAcpiDetails("GPU fan", GpuFanId)
+                    DisplayValue = gpuFan + " RPM",
+                    Source = SourceName,
+                    Details = MakeAcpiDetails("GPU fan tachometer", GpuFanId)
                 });
-                rows.Add(MakeFanControlRow(GpuControlIdentifier, "GPU Fan / ASUS thermal mode"));
+                if (exposeFanControls)
+                {
+                    rows.Add(MakeFanControlRow(GpuControlIdentifier, "GPU Fan / ASUS thermal mode"));
+                }
             }
 
             // Mid fan is only present on some models; skip if the device ID is unsupported.
-            var midFan = GetFanPercent(handle, MidFanId);
+            var midFan = GetFanRpm(handle, MidFanId);
             if (midFan >= 0)
             {
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
                     Hardware = "Asus",
-                    Name = "Mid Fan duty cycle",
+                    Name = "Mid fan",
                     Identifier = MidFanIdentifier,
                     Value = midFan,
-                    DisplayValue = midFan + "% duty cycle",
-                    Source = "Asus Laptop Support Plug-In",
-                    Details = MakeAcpiDetails("Mid fan", MidFanId)
+                    DisplayValue = midFan + " RPM",
+                    Source = SourceName,
+                    Details = MakeAcpiDetails("Mid fan tachometer", MidFanId)
                 });
-                rows.Add(MakeFanControlRow(MidControlIdentifier, "Mid Fan / ASUS thermal mode"));
+                if (exposeFanControls)
+                {
+                    rows.Add(MakeFanControlRow(MidControlIdentifier, "Mid Fan / ASUS thermal mode"));
+                }
             }
 
             var cpuTemp = GetTemperature(handle, TempCpuId);
@@ -436,7 +460,7 @@ namespace SensorReadout.AsusRogPlugIn
                     Identifier = "asus/rog/temperature/cpu",
                     Value = cpuTemp.Value,
                     DisplayValue = cpuTemp.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
-                    Source = "Asus Laptop Support Plug-In",
+                    Source = SourceName,
                     Details = MakeAcpiDetails("CPU temperature", TempCpuId)
                 });
             }
@@ -452,13 +476,13 @@ namespace SensorReadout.AsusRogPlugIn
                     Identifier = "asus/rog/temperature/gpu",
                     Value = gpuTemp.Value,
                     DisplayValue = gpuTemp.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
-                    Source = "Asus Laptop Support Plug-In",
+                    Source = SourceName,
                     Details = MakeAcpiDetails("GPU temperature", TempGpuId)
                 });
             }
 
             if (rows.Count == 0)
-                rows.AddRange(MakeUnavailableRow());
+                rows.AddRange(MakeUnavailableRow(profile));
 
             return rows;
         }
@@ -488,9 +512,9 @@ namespace SensorReadout.AsusRogPlugIn
                         foundInstance = true;
                         details["Instance"] = SafeManagementValue(instance, "InstanceName");
 
-                        AddWmiFanRow(rows, details, instance, CpuFanId, "CPU Fan duty cycle", CpuFanIdentifier);
-                        AddWmiFanRow(rows, details, instance, GpuFanId, "GPU Fan duty cycle", GpuFanIdentifier);
-                        AddWmiFanRow(rows, details, instance, MidFanId, "Mid Fan duty cycle", MidFanIdentifier);
+                        AddWmiFanRow(rows, details, instance, CpuFanId, "CPU fan", CpuFanIdentifier);
+                        AddWmiFanRow(rows, details, instance, GpuFanId, "GPU fan", GpuFanIdentifier);
+                        AddWmiFanRow(rows, details, instance, MidFanId, "Mid fan", MidFanIdentifier);
                         AddWmiTemperatureRow(rows, details, instance, TempCpuId, "CPU", "asus/wmi/temperature/cpu");
                         AddWmiTemperatureRow(rows, details, instance, TempGpuId, "GPU", "asus/wmi/temperature/gpu");
 
@@ -505,7 +529,7 @@ namespace SensorReadout.AsusRogPlugIn
                                 Identifier = "asus/wmi/fan-level",
                                 Value = fanLevel.Value.Normalized,
                                 DisplayValue = fanLevel.Value.Normalized.ToString(CultureInfo.InvariantCulture),
-                                Source = "Asus Laptop Support Plug-In",
+                                Source = SourceName,
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });
                         }
@@ -539,7 +563,7 @@ namespace SensorReadout.AsusRogPlugIn
                     DisplayValue = details.ContainsKey("Error")
                         ? "ASUS WMI interface could not be read"
                         : "ASUS WMI interface found, but no readable fan or temperature values",
-                    Source = "Asus Laptop Support Plug-In",
+                    Source = SourceName,
                     Details = details
                 });
             }
@@ -555,7 +579,7 @@ namespace SensorReadout.AsusRogPlugIn
                 return;
             }
 
-            var fan = NormalizeFanPercent(value.Value.Raw, value.Value.Normalized);
+            var fan = NormalizeFanRpm(value.Value.Raw, value.Value.Normalized);
             if (!fan.HasValue)
             {
                 return;
@@ -568,8 +592,8 @@ namespace SensorReadout.AsusRogPlugIn
                 Name = name,
                 Identifier = identifier,
                 Value = fan.Value,
-                DisplayValue = fan.Value.ToString(CultureInfo.InvariantCulture) + "% duty cycle",
-                Source = "Asus Laptop Support Plug-In",
+                DisplayValue = fan.Value.ToString(CultureInfo.InvariantCulture) + " RPM",
+                Source = SourceName,
                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
             });
         }
@@ -596,7 +620,7 @@ namespace SensorReadout.AsusRogPlugIn
                 Identifier = identifier,
                 Value = temperature.Value,
                 DisplayValue = temperature.Value.ToString("0", CultureInfo.InvariantCulture) + " C",
-                Source = "Asus Laptop Support Plug-In",
+                Source = SourceName,
                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
             });
         }
@@ -631,14 +655,29 @@ namespace SensorReadout.AsusRogPlugIn
             }
         }
 
-        private static int? NormalizeFanPercent(uint raw, int normalized)
+        private static int? NormalizeFanRpm(uint raw, int normalized)
         {
-            if (normalized > 0 && normalized <= 100)
+            if (raw == 0)
+            {
+                return null;
+            }
+
+            if (normalized >= 0 && normalized <= 200)
+            {
+                return normalized * 100;
+            }
+
+            if (normalized > 200 && normalized <= 20000)
             {
                 return normalized;
             }
 
-            if (raw > 0 && raw <= 100)
+            if (raw <= 200)
+            {
+                return (int)raw * 100;
+            }
+
+            if (raw <= 20000)
             {
                 return (int)raw;
             }
@@ -688,7 +727,9 @@ namespace SensorReadout.AsusRogPlugIn
 
             var row = rows.First();
             return string.Equals(row.Name, "Asus ROG Plug-In", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(row.DisplayValue, "ATKACPI driver not available", StringComparison.OrdinalIgnoreCase);
+                && (string.Equals(row.Source, SourceName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.DisplayValue, "ATKACPI driver not available", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.DisplayValue, "ASUS desktop profile detected; ASUS laptop ATKACPI fan controls are not used", StringComparison.OrdinalIgnoreCase));
         }
 
         private SensorReading MakeFanControlRow(string controlIdentifier, string name)
@@ -703,7 +744,7 @@ namespace SensorReadout.AsusRogPlugIn
                 Identifier = controlIdentifier,
                 Value = isManual ? (float?)manualPercent : null,
                 DisplayValue = isManual ? FormatManualFanControlValue(manualPercent) : "automatic or firmware managed",
-                Source = "Asus Laptop Support Plug-In",
+                Source = SourceName,
                 Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     { "Interface", "ATKACPI" },
@@ -711,9 +752,352 @@ namespace SensorReadout.AsusRogPlugIn
                     { "Quiet range", "0-33% requests ASUS quiet/silent mode when thermal-mode fallback is used." },
                     { "Balanced range", "34-66% requests ASUS balanced mode when thermal-mode fallback is used." },
                     { "Performance range", "67-100% requests ASUS performance/turbo mode when thermal-mode fallback is used." },
-                    { "Note", "On some ASUS laptops, including ExpertBook/VivoBook-class firmware, the mode request is accepted but the firmware still decides the actual fan duty cycle." }
+                    { "Note", "On some ASUS laptops, including ExpertBook/VivoBook-class firmware, the mode request is accepted but the firmware still decides the actual fan speed." }
                 }
             };
+        }
+
+        private static bool ShouldExposeLaptopFanControls(AsusMachineProfile profile)
+        {
+            return profile == null || !profile.IsDesktopTower;
+        }
+
+        private AsusMachineProfile GetAsusMachineProfile(IPluginContext context)
+        {
+            if (profileLoaded)
+            {
+                return cachedProfile;
+            }
+
+            var profile = new AsusMachineProfile();
+            if (context != null && context.Machine != null)
+            {
+                profile.Manufacturer = context.Machine.Manufacturer ?? "";
+                profile.Model = context.Machine.Model ?? "";
+            }
+
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model, SystemFamily, PCSystemType, PCSystemTypeEx FROM Win32_ComputerSystem"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject system in instances)
+                    {
+                        profile.Manufacturer = FirstNonEmpty(SafeManagementValue(system, "Manufacturer"), profile.Manufacturer);
+                        profile.Model = FirstNonEmpty(SafeManagementValue(system, "Model"), profile.Model);
+                        profile.SystemFamily = SafeManagementValue(system, "SystemFamily");
+                        profile.PcSystemType = SafeManagementValue(system, "PCSystemType");
+                        profile.PcSystemTypeEx = SafeManagementValue(system, "PCSystemTypeEx");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: computer-system profile probe failed: " + ex.Message);
+                }
+            }
+
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Product, Version FROM Win32_BaseBoard"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject board in instances)
+                    {
+                        profile.BaseboardManufacturer = SafeManagementValue(board, "Manufacturer");
+                        profile.BaseboardProduct = SafeManagementValue(board, "Product");
+                        profile.BaseboardVersion = SafeManagementValue(board, "Version");
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: baseboard profile probe failed: " + ex.Message);
+                }
+            }
+
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT ChassisTypes FROM Win32_SystemEnclosure"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject enclosure in instances)
+                    {
+                        profile.ChassisTypes = FormatChassisTypes(enclosure["ChassisTypes"]);
+                        profile.HasDesktopChassis = HasDesktopChassis(enclosure["ChassisTypes"]);
+                        profile.HasLaptopChassis = HasLaptopChassis(enclosure["ChassisTypes"]);
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: enclosure profile probe failed: " + ex.Message);
+                }
+            }
+
+            PopulateAsusDeviceProfile(profile, context);
+            PopulateAsusDriverProfile(profile, context);
+            profile.IsDesktopTower = IsAsusRogDesktopTower(profile);
+
+            cachedProfile = profile;
+            profileLoaded = true;
+            return cachedProfile;
+        }
+
+        private static IEnumerable<SensorReading> MakeProfileRows(AsusMachineProfile profile)
+        {
+            if (profile == null || !profile.IsDesktopTower)
+            {
+                return Enumerable.Empty<SensorReading>();
+            }
+
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            AddProfileDetail(details, "Manufacturer", profile.Manufacturer);
+            AddProfileDetail(details, "Model", profile.Model);
+            AddProfileDetail(details, "System family", profile.SystemFamily);
+            AddProfileDetail(details, "PC system type", profile.PcSystemType);
+            AddProfileDetail(details, "PC system type extended", profile.PcSystemTypeEx);
+            AddProfileDetail(details, "Baseboard manufacturer", profile.BaseboardManufacturer);
+            AddProfileDetail(details, "Baseboard product", profile.BaseboardProduct);
+            AddProfileDetail(details, "Baseboard version", profile.BaseboardVersion);
+            AddProfileDetail(details, "Chassis types", profile.ChassisTypes);
+            AddProfileDetail(details, "ACPI fan devices", profile.AcpiFanDeviceCount.ToString(CultureInfo.InvariantCulture));
+            AddProfileDetail(details, "ASUS System Control Interface", profile.AsusSystemControlInterfacePresent ? "present" : "not detected");
+            AddProfileDetail(details, "ATK package device", profile.AtkPackageDevicePresent ? "present" : "not detected");
+            AddProfileDetail(details, "ATKWMIACPI driver", profile.AtkWmiAcpiDriverState);
+            AddProfileDetail(details, "ASUS System Analysis driver", profile.AsusSystemAnalysisDriverState);
+            AddProfileDetail(details, "PawnIO driver", profile.PawnIoInstalled ? "detected" : "not detected");
+            AddProfileDetail(details, "Fan control policy", "ASUS laptop fan-curve writes are disabled for this desktop profile. Motherboard fan controls should come from LibreHardwareMonitor/PawnIO when the board exposes them.");
+
+            var rows = new List<SensorReading>
+            {
+                new SensorReading
+                {
+                    Type = "Performance",
+                    Hardware = "Overview",
+                    Name = "ASUS ROG desktop profile",
+                    Identifier = "asus/rog/profile/desktop",
+                    DisplayValue = BuildDesktopProfileSummary(profile),
+                    Source = SourceName,
+                    Details = details
+                }
+            };
+
+            if (!profile.PawnIoInstalled)
+            {
+                rows.Add(new SensorReading
+                {
+                    Type = "Performance",
+                    Hardware = "Overview",
+                    Name = "Motherboard fan support",
+                    Identifier = "asus/rog/profile/pawnio",
+                    DisplayValue = "PawnIO driver not detected; motherboard fan RPM and fan-control rows may be missing.",
+                    Source = SourceName,
+                    Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                });
+            }
+
+            return rows;
+        }
+
+        private static string BuildDesktopProfileSummary(AsusMachineProfile profile)
+        {
+            var parts = new List<string>();
+            var model = FirstNonEmpty(profile.Model, profile.BaseboardProduct, "ASUS ROG desktop");
+            parts.Add(model);
+            if (profile.AcpiFanDeviceCount > 0)
+            {
+                parts.Add(profile.AcpiFanDeviceCount.ToString(CultureInfo.InvariantCulture) + " ACPI fan device" + (profile.AcpiFanDeviceCount == 1 ? "" : "s"));
+            }
+            if (profile.AsusSystemControlInterfacePresent)
+            {
+                parts.Add("ASUS System Control Interface present");
+            }
+            parts.Add(profile.PawnIoInstalled ? "PawnIO detected" : "PawnIO not detected");
+            return string.Join(", ", parts.ToArray());
+        }
+
+        private static void AddProfileDetail(Dictionary<string, string> details, string name, string value)
+        {
+            if (details != null && !string.IsNullOrWhiteSpace(value))
+            {
+                details[name] = value.Trim();
+            }
+        }
+
+        private static void PopulateAsusDeviceProfile(AsusMachineProfile profile, IPluginContext context)
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT Name, Manufacturer, DeviceID, Status FROM Win32_PnPEntity WHERE DeviceID LIKE 'ACPI\\\\PNP0C0B%' OR DeviceID LIKE 'ACPI\\\\ASUS%' OR Name LIKE '%ASUS%' OR Name LIKE '%ATK%'"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject device in instances)
+                    {
+                        var name = SafeManagementValue(device, "Name");
+                        var deviceId = SafeManagementValue(device, "DeviceID");
+                        if (deviceId.StartsWith(@"ACPI\PNP0C0B", StringComparison.OrdinalIgnoreCase))
+                        {
+                            profile.AcpiFanDeviceCount++;
+                        }
+                        if (Contains(name, "ASUS System Control Interface") || Contains(deviceId, "ASUS1000"))
+                        {
+                            profile.AsusSystemControlInterfacePresent = true;
+                        }
+                        if (Contains(name, "ATK Package") || Contains(deviceId, "ASUS7000"))
+                        {
+                            profile.AtkPackageDevicePresent = true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: ASUS device profile probe failed: " + ex.Message);
+                }
+            }
+        }
+
+        private static void PopulateAsusDriverProfile(AsusMachineProfile profile, IPluginContext context)
+        {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT Name, DisplayName, State FROM Win32_SystemDriver"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject driver in instances)
+                    {
+                        var name = SafeManagementValue(driver, "Name");
+                        var displayName = SafeManagementValue(driver, "DisplayName");
+                        var state = SafeManagementValue(driver, "State");
+                        if (name.Equals("ATKWMIACPIIO", StringComparison.OrdinalIgnoreCase))
+                        {
+                            profile.AtkWmiAcpiDriverState = string.IsNullOrWhiteSpace(state) ? "detected" : state;
+                        }
+                        if (name.Equals("ASUSSAIO", StringComparison.OrdinalIgnoreCase))
+                        {
+                            profile.AsusSystemAnalysisDriverState = string.IsNullOrWhiteSpace(state) ? "detected" : state;
+                        }
+                        if (Contains(name, "PawnIO") || Contains(displayName, "PawnIO"))
+                        {
+                            profile.PawnIoInstalled = true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Asus ROG plug-in: ASUS driver profile probe failed: " + ex.Message);
+                }
+            }
+        }
+
+        private static bool IsAsusRogDesktopTower(AsusMachineProfile profile)
+        {
+            if (profile == null)
+            {
+                return false;
+            }
+
+            if (profile.HasLaptopChassis && !profile.HasDesktopChassis)
+            {
+                return false;
+            }
+
+            return IsKnownRogDesktopModel(profile.Model)
+                || IsKnownRogDesktopModel(profile.BaseboardProduct)
+                || (profile.HasDesktopChassis
+                    && (Contains(profile.Manufacturer, "ASUS")
+                        || Contains(profile.BaseboardManufacturer, "ASUS")
+                        || Contains(profile.Model, "ROG")
+                        || Contains(profile.SystemFamily, "ROG")));
+        }
+
+        private static bool IsKnownRogDesktopModel(string value)
+        {
+            return Contains(value, "GL10")
+                || Contains(value, "GL12")
+                || Contains(value, "G10CE")
+                || Contains(value, "G10DK")
+                || Contains(value, "G15CK")
+                || Contains(value, "G15CE")
+                || Contains(value, "G15CF")
+                || Contains(value, "G16CHR")
+                || Contains(value, "G21")
+                || Contains(value, "G22")
+                || Contains(value, "G35CZ")
+                || Contains(value, "G35CG")
+                || Contains(value, "ROG Strix GL10")
+                || Contains(value, "ROG Strix G10")
+                || Contains(value, "ROG Strix G15");
+        }
+
+        private static string FormatChassisTypes(object value)
+        {
+            var values = value as ushort[];
+            if (values == null || values.Length == 0)
+            {
+                return "";
+            }
+
+            return string.Join(", ", values.Select(FormatChassisType).ToArray());
+        }
+
+        private static string FormatChassisType(ushort value)
+        {
+            if (value == 3) return "Desktop";
+            if (value == 4) return "Low-profile desktop";
+            if (value == 5) return "Pizza box";
+            if (value == 6) return "Mini tower";
+            if (value == 7) return "Tower";
+            if (value == 8) return "Portable";
+            if (value == 9) return "Laptop";
+            if (value == 10) return "Notebook";
+            if (value == 14) return "Sub-notebook";
+            if (value == 15) return "Space-saving";
+            if (value == 16) return "Lunch box";
+            if (value == 30) return "Tablet";
+            if (value == 31) return "Convertible";
+            if (value == 32) return "Detachable";
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static bool HasDesktopChassis(object value)
+        {
+            var values = value as ushort[];
+            return values != null && values.Any(v => v == 3 || v == 4 || v == 5 || v == 6 || v == 7 || v == 15 || v == 16);
+        }
+
+        private static bool HasLaptopChassis(object value)
+        {
+            var values = value as ushort[];
+            return values != null && values.Any(v => v == 8 || v == 9 || v == 10 || v == 14 || v == 30 || v == 31 || v == 32);
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            foreach (var value in values ?? new string[0])
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return "";
         }
 
         private static string FormatManualFanControlValue(int percent)
@@ -739,17 +1123,28 @@ namespace SensorReadout.AsusRogPlugIn
             };
         }
 
-        // Returns fan duty-cycle 1-100, or -1 if the device ID is not supported.
-        // Wraparound logic matches ghelper/app/AsusACPI.cs GetFan().
-        private static int GetFanPercent(IntPtr handle, uint deviceId)
+        // Returns fan speed in RPM, or -1 if the device ID is not supported.
+        // ASUS WMI/ATKACPI fan tachometer values are commonly reported as RPM / 100.
+        private static int GetFanRpm(IntPtr handle, uint deviceId)
         {
             int fan = DeviceGet(handle, deviceId);
             if (fan < 0)
             {
                 fan += 65536;
-                if (fan <= 0 || fan > 100) return -1;
+                if (fan <= 0) return -1;
             }
-            return fan;
+
+            if (fan >= 0 && fan <= 200)
+            {
+                return fan * 100;
+            }
+
+            if (fan > 200 && fan <= 20000)
+            {
+                return fan;
+            }
+
+            return -1;
         }
 
         // Returns temperature in degrees C, or null if the device ID is not supported.
@@ -888,8 +1283,11 @@ namespace SensorReadout.AsusRogPlugIn
                 lastContext.Log(level, message);
         }
 
-        private static IEnumerable<SensorReading> MakeUnavailableRow()
+        private static IEnumerable<SensorReading> MakeUnavailableRow(AsusMachineProfile profile)
         {
+            var display = profile != null && profile.IsDesktopTower
+                ? "ASUS desktop profile detected; ASUS laptop ATKACPI fan controls are not used"
+                : "ATKACPI driver not available";
             return new[]
             {
                 new SensorReading
@@ -897,10 +1295,32 @@ namespace SensorReadout.AsusRogPlugIn
                     Type = "Performance",
                     Hardware = "Overview",
                     Name = "Asus ROG Plug-In",
-                    DisplayValue = "ATKACPI driver not available",
-                    Source = "Asus Laptop Support Plug-In"
+                    DisplayValue = display,
+                    Source = SourceName
                 }
             };
+        }
+
+        private sealed class AsusMachineProfile
+        {
+            public string Manufacturer = "";
+            public string Model = "";
+            public string SystemFamily = "";
+            public string PcSystemType = "";
+            public string PcSystemTypeEx = "";
+            public string BaseboardManufacturer = "";
+            public string BaseboardProduct = "";
+            public string BaseboardVersion = "";
+            public string ChassisTypes = "";
+            public int AcpiFanDeviceCount;
+            public bool AsusSystemControlInterfacePresent;
+            public bool AtkPackageDevicePresent;
+            public string AtkWmiAcpiDriverState = "";
+            public string AsusSystemAnalysisDriverState = "";
+            public bool PawnIoInstalled;
+            public bool HasDesktopChassis;
+            public bool HasLaptopChassis;
+            public bool IsDesktopTower;
         }
 
         private struct WmiDstsValue

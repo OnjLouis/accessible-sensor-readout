@@ -845,16 +845,6 @@ public sealed partial class SensorReadoutForm : Form
             "    if (Test-Path -LiteralPath $zipPath) { $zipPath = Join-Path $backupRoot ($safeName + '-' + [guid]::NewGuid().ToString('N') + '.zip') }\r\n" +
             "    Compress-Archive -LiteralPath $path -DestinationPath $zipPath -Force\r\n" +
             "  }\r\n" +
-            "  function Test-FoldersDiffer($left, $right) {\r\n" +
-            "    if (-not (Test-Path -LiteralPath $left) -or -not (Test-Path -LiteralPath $right)) { return $true }\r\n" +
-            "    $leftFiles = @{}\r\n" +
-            "    Get-ChildItem -LiteralPath $left -Recurse -File -Force | ForEach-Object { $leftFiles[$_.FullName.Substring($left.Length).TrimStart('\\')] = Get-FileSha256 $_.FullName }\r\n" +
-            "    $rightFiles = @{}\r\n" +
-            "    Get-ChildItem -LiteralPath $right -Recurse -File -Force | ForEach-Object { $rightFiles[$_.FullName.Substring($right.Length).TrimStart('\\')] = Get-FileSha256 $_.FullName }\r\n" +
-            "    if ($leftFiles.Count -ne $rightFiles.Count) { return $true }\r\n" +
-            "    foreach ($key in $leftFiles.Keys) { if (-not $rightFiles.ContainsKey($key) -or -not [string]::Equals($leftFiles[$key], $rightFiles[$key], [StringComparison]::OrdinalIgnoreCase)) { return $true } }\r\n" +
-            "    return $false\r\n" +
-            "  }\r\n" +
             "  function Backup-CustomLanguages($existingLangs, $incomingLangs, $backupRoot) {\r\n" +
             "    if (-not (Test-Path -LiteralPath $existingLangs)) { return }\r\n" +
             "    $previousLanguageHashes = Read-LanguageHashManifest (Join-Path (Join-Path $target 'Data') 'BundledLanguageHashes.json')\r\n" +
@@ -882,29 +872,51 @@ public sealed partial class SensorReadoutForm : Form
             "    $existing = Join-Path $target $name\r\n" +
             "    if (Test-Path -LiteralPath $existing) {\r\n" +
             "      if ($name -eq 'Langs') { Backup-CustomLanguages $existing $incoming $backupRoot }\r\n" +
-            "      elseif (Test-FoldersDiffer $existing $incoming) { New-BackupZip $existing $backupRoot ('Previous-' + $name) }\r\n" +
             "      Remove-Item -LiteralPath $existing -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
             "    }\r\n" +
             "    Copy-Item -LiteralPath $incoming -Destination $existing -Recurse -Force\r\n" +
+            "  }\r\n" +
+            "  function Replace-PlugInsFolder($backupRoot) {\r\n" +
+            "    $incoming = Join-Path $source 'Plug-Ins'\r\n" +
+            "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
+            "    $existing = Join-Path $target 'Plug-Ins'\r\n" +
+            "    [System.IO.Directory]::CreateDirectory($existing) | Out-Null\r\n" +
+            "    $incomingNames = @{}\r\n" +
+            "    Get-ChildItem -LiteralPath $incoming -Force | ForEach-Object { $incomingNames[$_.Name] = $true }\r\n" +
+            "    foreach ($name in $incomingNames.Keys) {\r\n" +
+            "      $oldPath = Join-Path $existing $name\r\n" +
+            "      if (Test-Path -LiteralPath $oldPath) { Remove-Item -LiteralPath $oldPath -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
+            "    }\r\n" +
+            "    Get-ChildItem -LiteralPath $incoming -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $existing $_.Name) -Recurse -Force }\r\n" +
+            "  }\r\n" +
+            "  function Update-SoundsFolder() {\r\n" +
+            "    $incoming = Join-Path $source 'Sounds'\r\n" +
+            "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
+            "    $existing = Join-Path $target 'Sounds'\r\n" +
+            "    [System.IO.Directory]::CreateDirectory($existing) | Out-Null\r\n" +
+            "    Get-ChildItem -LiteralPath $incoming -File -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $existing $_.Name) -Force }\r\n" +
             "  }\r\n" +
             "  function Remove-NestedDuplicateFolders($rootFolder, $backupRoot) {\r\n" +
             "    if (-not (Test-Path -LiteralPath $rootFolder)) { return }\r\n" +
             "    Get-ChildItem -LiteralPath $rootFolder -Directory -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {\r\n" +
             "      $nested = Join-Path $_.FullName $_.Name\r\n" +
-            "      if (Test-Path -LiteralPath $nested) { New-BackupZip $nested $backupRoot ('Nested-' + $_.Name); Remove-Item -LiteralPath $nested -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
+            "      if (Test-Path -LiteralPath $nested) { Remove-Item -LiteralPath $nested -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
             "    }\r\n" +
             "  }\r\n" +
             "  $backupRoot = Join-Path (Join-Path $target 'Backups\\Updates') (Get-Date -Format 'yyyyMMdd-HHmmss')\r\n" +
             "  $legacyBackups = Join-Path $target 'Config\\Update Backups'\r\n" +
             "  if (Test-Path -LiteralPath $legacyBackups) { New-BackupZip $legacyBackups $backupRoot 'Legacy-Config-Update-Backups'; Remove-Item -LiteralPath $legacyBackups -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
             "  Remove-NestedDuplicateFolders $target $backupRoot\r\n" +
-            "  foreach ($name in @('Docs','Langs','Data','Plug-Ins')) { Replace-ShippedFolder $name $backupRoot }\r\n" +
-            "  $preservedFolders = @('Config','Logs','Reports','Backups','Update Backups','Update Temp','Docs','Langs','Data','Plug-Ins')\r\n" +
+            "  foreach ($name in @('Docs','Langs','Data')) { Replace-ShippedFolder $name $backupRoot }\r\n" +
+            "  Replace-PlugInsFolder $backupRoot\r\n" +
+            "  Update-SoundsFolder\r\n" +
+            "  $preservedFolders = @('Config','Logs','Reports','Backups','Update Backups','Update Temp','Docs','Langs','Data','Plug-Ins','Sounds')\r\n" +
             "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object {\r\n" +
             "    if ($_.PSIsContainer -and ($preservedFolders -contains $_.Name)) { return }\r\n" +
             "    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $target $_.Name) -Recurse -Force\r\n" +
             "  }\r\n" +
             "  Remove-NestedDuplicateFolders $target $backupRoot\r\n" +
+            "  if ((Test-Path -LiteralPath $backupRoot) -and -not (Get-ChildItem -LiteralPath $backupRoot -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $backupRoot -Force -ErrorAction SilentlyContinue }\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.dll') -Force -ErrorAction SilentlyContinue\r\n" +
             "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.LICENSE.txt') -Force -ErrorAction SilentlyContinue\r\n" +

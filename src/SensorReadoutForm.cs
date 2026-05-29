@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.0.4";
+    public const string AppVersion = "4.0.5";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -172,6 +172,11 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Export portable &copy...", Keys.Control | Keys.Shift | Keys.E, delegate { ExportPortableCopy(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Reports folder", Keys.Control | Keys.Shift | Keys.O, delegate { OpenReportsFolder(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Open &Logs folder", Keys.Control | Keys.Shift | Keys.L, delegate { OpenLogsFolder(); }));
+        var backupsMenu = new ToolStripMenuItem(T("ui.Update &backups", "Update &backups"));
+        backupsMenu.DropDownItems.Add(T("ui.&Open update backups folder", "&Open update backups folder"), null, delegate { OpenUpdateBackupsFolder(); });
+        backupsMenu.DropDownItems.Add(T("ui.&Delete update backups...", "&Delete update backups..."), null, delegate { DeleteUpdateBackups(); });
+        backupsMenu.DropDownOpening += delegate { UpdateBackupsMenuOpening(backupsMenu); };
+        fileMenu.DropDownItems.Add(backupsMenu);
         returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
         returnToLiveReadingsMenuItem.Visible = false;
         fileMenu.DropDownItems.Add(returnToLiveReadingsMenuItem);

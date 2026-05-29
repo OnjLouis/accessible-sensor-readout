@@ -56,6 +56,82 @@ public sealed partial class SensorReadoutForm : Form
         OpenFolder(GetLogsFolderPath(), T("ui.Open Logs folder", "Open Logs folder"));
     }
 
+    private void OpenUpdateBackupsFolder()
+    {
+        OpenFolder(GetUpdateBackupsFolderPath(), T("ui.Open update backups folder", "Open update backups folder"));
+    }
+
+    private void DeleteUpdateBackups()
+    {
+        var folder = GetUpdateBackupsFolderPath();
+        if (!System.IO.Directory.Exists(folder) || !System.IO.Directory.EnumerateFileSystemEntries(folder).Any())
+        {
+            statusLabel.Text = T("status.No update backups to delete.", "No update backups to delete.");
+            return;
+        }
+
+        var sizeText = FormatBytes(GetDirectorySize(folder));
+        var message = string.Format(
+            T("message.Delete update backups?", "Delete update backups? This will remove {0} of old update backup ZIP files. Current settings, reports, logs, sounds, languages, and plug-ins will not be deleted."),
+            sizeText);
+        if (MessageBox.Show(this, message, T("ui.Delete update backups", "Delete update backups"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            System.IO.Directory.Delete(folder, true);
+            statusLabel.Text = T("status.Update backups deleted.", "Update backups deleted.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, T("message.Could not delete update backups:", "Could not delete update backups:") + " " + ex.Message, T("ui.Delete update backups", "Delete update backups"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void UpdateBackupsMenuOpening(ToolStripMenuItem menu)
+    {
+        var hasBackups = HasUpdateBackups();
+        foreach (ToolStripItem item in menu.DropDownItems)
+        {
+            item.Enabled = hasBackups;
+        }
+    }
+
+    private static string GetUpdateBackupsFolderPath()
+    {
+        return System.IO.Path.Combine(GetBackupsFolderPath(), "Updates");
+    }
+
+    private static bool HasUpdateBackups()
+    {
+        var folder = GetUpdateBackupsFolderPath();
+        return System.IO.Directory.Exists(folder) && System.IO.Directory.EnumerateFileSystemEntries(folder).Any();
+    }
+
+    private static long GetDirectorySize(string folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || !System.IO.Directory.Exists(folder))
+        {
+            return 0;
+        }
+
+        long total = 0;
+        foreach (var file in System.IO.Directory.EnumerateFiles(folder, "*", System.IO.SearchOption.AllDirectories))
+        {
+            try
+            {
+                total += new System.IO.FileInfo(file).Length;
+            }
+            catch
+            {
+            }
+        }
+
+        return total;
+    }
+
     private void OpenFolder(string folder, string title)
     {
         try

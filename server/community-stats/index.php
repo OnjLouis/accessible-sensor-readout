@@ -133,6 +133,10 @@ $windowsArchitectures = aggregate_value($items, 'system', 'windowsArchitecture')
   <p>These are opt-in aggregate hardware and accessibility coverage stats submitted from Sensor Readout. The upload payload is allow-listed and does not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.</p>
   <p><a href="https://github.com/OnjLouis/accessible-sensor-readout/releases/latest">Download Sensor Readout</a> or visit the <a href="https://github.com/OnjLouis/accessible-sensor-readout">project page</a>.</p>
 
+  <h2>How to submit your stats</h2>
+  <p>In Sensor Readout, open <strong>Help</strong> and choose <strong>Share anonymous community stats...</strong>. Sensor Readout will generate a small privacy-safe payload and show you the exact text before anything is sent. Press <strong>Upload</strong> only if you are happy to contribute it.</p>
+  <p>Submission is optional, manual, and never automatic. You can also save the payload instead of uploading it.</p>
+
   <h2>Summary</h2>
   <table>
     <tr><th>Metric</th><th>Machines</th></tr>

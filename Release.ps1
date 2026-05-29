@@ -13,6 +13,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Important local-search rule:
+# Do not run broad recursive searches over D:\Dropbox. Many files there are
+# online-only and scanning them can force Dropbox to download large amounts of
+# data. If a broad Dropbox search is genuinely needed, use the local NAS copy at
+# Y:\Dropbox instead.
+
 $repoRoot = $PSScriptRoot
 $portable = Join-Path $repoRoot 'portable'
 $buildScript = Join-Path $repoRoot 'Build.ps1'
@@ -111,11 +117,15 @@ function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, 
 
     $englishSize = (Get-Item -LiteralPath $english).Length
     $maxManualSize = [Math]::Max(300000, [int64]($englishSize * 3))
+    $minLocalizedManualSize = [int64]($englishSize * 0.70)
     $badEncodingChars = @([char]0x00C2, [char]0x00C3, [char]0x0192)
 
     foreach ($manual in Get-ChildItem -LiteralPath $folder -Filter 'README-*.html') {
         if ($manual.Length -gt $maxManualSize) {
             Fail "$label $($manual.Name) is $($manual.Length) bytes, which is far larger than README-en.html ($englishSize bytes)."
+        }
+        if ($manual.Name -ne 'README-en.html' -and $manual.Length -lt $minLocalizedManualSize) {
+            Fail "$label $($manual.Name) is $($manual.Length) bytes, which is much smaller than README-en.html ($englishSize bytes) and likely not in manual parity."
         }
 
         $text = Get-Content -LiteralPath $manual.FullName -Raw -Encoding UTF8

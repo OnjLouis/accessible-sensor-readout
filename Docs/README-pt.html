@@ -1,291 +1,1370 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
+
 <html lang="pt">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"/>
 <title>Manual do Sensor Readout</title>
-<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;max-width:1100px;margin:2rem auto;padding:0 1rem;}code{font-family:Consolas,monospace;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:.4rem;text-align:left;vertical-align:top;}h1,h2,h3{line-height:1.2;}ul{padding-left:1.4rem;}</style>
+<style>body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;margin:2em;max-width:72em}table{border-collapse:collapse;margin:1em 0}th,td{border:1px solid #999;padding:.35em .55em;vertical-align:top}th{background:#eee}code{font-family:Consolas,monospace}pre{background:#f4f4f4;border:1px solid #ccc;padding:1em;overflow:auto}h1,h2,h3{line-height:1.2}ul{margin-top:.4em}button.copy-command{margin:.25em 0;padding:.35em .7em;cursor:pointer}</style>
+<script>function srCopyCommand(button){var text=button.getAttribute('data-command')||'';function done(){var old=button.textContent;button.textContent=button.getAttribute('data-copied')||'Copied';setTimeout(function(){button.textContent=old;},1200);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){fallback();});}else{fallback();}function fallback(){var area=document.createElement('textarea');area.value=text;area.setAttribute('readonly','');area.style.position='fixed';area.style.left='-9999px';document.body.appendChild(area);area.select();try{document.execCommand('copy');done();}finally{document.body.removeChild(area);}}}document.addEventListener('click',function(event){var button=event.target.closest&&event.target.closest('button.copy-command');if(button){srCopyCommand(button);}});</script>
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versão atual: 4.0.4.</p>
+<p>Versão atual: 4.0.5.</p>
 <h2 id="contents">Conteúdo</h2>
 <ul>
-<li><a href="#why-sensor-readout-exists">Porque existe o Sensor Readout</a></li>
-<li><a href="#what-it-does">O que faz</a></li>
-<li><a href="#prerequisites">Pré-requisitos</a></li>
-<li><a href="#official-links">Ligações oficiais</a></li>
-<li><a href="#first-run">Primeira utilização</a></li>
+<li>
+<a href="#why-sensor-readout-exists">Porque existe o Sensor Readout</a>
+</li>
+<li>
+<a href="#what-it-does">O que faz</a>
+</li>
+<li>
+<a href="#prerequisites">Pré-requisitos</a>
+</li>
+<li>
+<a href="#official-links">Links Oficiais</a>
+</li>
+<li>
+<a href="#prerequisite-installer">Instalador de pré-requisito</a>
+</li>
+<li>
+<a href="#manual-install-commands">Comandos de instalação manual</a>
+</li>
+<li>
+<a href="#first-run">Primeira execução</a>
+</li>
 <li><a href="#accessibility-setup">Configuração de acessibilidade</a></li>
-<li><a href="#keyboard-shortcuts">Atalhos de teclado</a></li>
-<li><a href="#command-line-options">Opções de linha de comandos</a></li>
-<li><a href="#preferences">Preferências</a></li>
-<li><a href="#alarms-and-sounds">Alarmes e sons</a></li>
-<li><a href="#plug-ins">Plug-ins</a></li>
-<li><a href="#reading-sensors">Leitura dos sensores</a></li>
-<li><a href="#fan-control-workflow">Fluxo de controlo de ventoinhas</a></li>
-<li><a href="#fan-curves">Curvas de ventoinha</a></li>
-<li><a href="#fan-profiles">Perfis de ventoinha</a></li>
-<li><a href="#example-setups">Exemplos de configuração</a></li>
-<li><a href="#diagnostics">Diagnósticos</a></li>
-<li><a href="#reports">Relatórios</a></li>
-<li><a href="#settings-transfer">Transferência de definições</a></li>
-<li><a href="#files">Ficheiros</a></li>
-<li><a href="#notes">Notas</a></li>
-<li><a href="#changelog">Novidades</a></li>
-<li><a href="#credits">Créditos</a></li>
-<li><a href="#license">Licença</a></li>
+<li>
+<a href="#keyboard-shortcuts">Atalhos de teclado</a>
+</li>
+<li>
+<a href="#command-line-options">Opções de linha de comando</a>
+</li>
+<li>
+<a href="#preferences">Preferências</a>
+</li>
+<li>
+<a href="#alarms-and-sounds">Alarmes e sons</a>
+</li>
+<li>
+<a href="#plug-ins">Plug-ins</a>
+</li>
+<li>
+<a href="#reading-sensors">Leitura dos sensores</a>
+</li>
+<li>
+<a href="#fan-control-workflow">Fluxo de controlo de ventoinhas</a>
+</li>
+<li>
+<a href="#fan-curves">Curvas de ventoinha</a>
+</li>
+<li>
+<a href="#fan-profiles">Perfis de ventoinha</a>
+</li>
+<li>
+<a href="#example-setups">Exemplos de configurações</a>
+</li>
+<li>
+<a href="#diagnostics">Diagnóstico</a>
+</li>
+<li>
+<a href="#reports">Relatórios</a>
+</li>
+<li>
+<a href="#settings-transfer">Transferência de configurações</a>
+</li>
+<li>
+<a href="#files">Arquivos</a>
+</li>
+<li>
+<a href="#notes">Notas</a>
+</li>
+<li>
+<a href="#changelog">Registro de alterações</a>
+</li>
+<li>
+<a href="#credits">Créditos</a>
+</li>
+<li>
+<a href="#license">Licença</a>
+</li>
 </ul>
+<p>Sensor Readout é um utilitário do Windows para leitura de sensores de hardware, verificação de dispositivos conectados, criação de relatórios de suporte e controlo de ventoinhas suportados com uma interface amigável ao leitor de tela que prioriza o teclado.</p>
+<p>Ele mostra categorias de alto nível à esquerda, leituras agrupadas por dispositivo em uma visualização em árvore à direita e comandos comuns em uma barra de menu padrão. O objetivo é tornar o acesso rápido às informações úteis do sistema, sem forçar os usuários cegos a usar ferramentas de fornecedores inacessíveis ou caixas de diálogo detalhadas do Windows.</p>
+<p>Página do projeto: <a href="https://github.com/OnjLouis/accessible-sensor-readout">https://github.com/OnjLouis/accessible-sensor-readout</a>
+</p>
+<p>Visão geral da fonte do colaborador: <a href="https://github.com/OnjLouis/accessible-sensor-readout/blob/main/SOURCE-MAP.md">FONTE-MAP.md</a>
+</p>
 <h2 id="why-sensor-readout-exists">Porque existe o Sensor Readout</h2>
-<p>Há muita informação sobre o próprio computador que costuma estar difícil de encontrar: escondida no Gestor de Dispositivos, espalhada por ferramentas antigas do Windows, bloqueada em aplicações pagas ou apresentada de forma pouco acessível. O Sensor Readout pretende juntar essa informação num só programa gratuito, portátil ou instalável, para que o utilizador não tenha de procurar em vários sítios.</p>
-<p>Este projeto nasceu da frustração com o estado da acessibilidade na parte técnica da informática em Windows. A intenção é criar uma ferramenta que uma pessoa cega ou com baixa visão possa usar sem pedir a alguém para ler a janela, interpretar ícones ou navegar em painéis visuais pouco claros.</p>
-<p>O objetivo é que técnicos de suporte, utilizadores avançados e clientes consigam descobrir mais sobre uma máquina, gerar relatórios úteis e resolver problemas com menos barreiras. O Sensor Readout tenta mostrar tudo o que consegue obter honestamente. Quando o Windows, o firmware, o controlador ou a biblioteca de sensores não expõem uma informação, a aplicação não inventa valores.</p>
-<p>Espero que descubras tanto sobre o teu computador com esta aplicação como eu descobri sobre o meu, e que fiques agradavelmente surpreendido com o que encontrares.</p>
-<p>O meu desejo é que esta aplicação se torne uma referência na sua área, e que pessoas cegas ou com baixa visão que trabalham em suporte técnico possam entregá-la aos seus clientes, pedir relatórios e resolver problemas com mais confiança.</p>
-<p>Andre Louis, criador do Sensor Readout.</p>
+<p>Todas as informações sobre o seu computador que costumavam ser difíceis de encontrar, escondidas atrás do Gerenciador de Dispositivos ou trancadas em aplicativos caros ou inacessíveis, devem ser mais fáceis de acessar.</p>
+<p>O Sensor Readout tem como objetivo trazer o máximo possível dessas informações em um aplicativo gratuito, fácil de usar, portátil ou instalável, para que você não precise procurá-las. Eu estava cansado do estado de acessibilidade no lado técnico da computação Windows, então decidi fazer algo que quisesse usar. Aparentemente, muitos outros também querem isso.</p>
+<p>Espero que você descubra tanto sobre o seu computador com este aplicativo quanto eu sobre o meu e espero que fique agradavelmente surpreso com o que encontrar.</p>
+<p>Meu desejo é que o Sensor Readout se torne o padrão ouro em sua classe: uma ferramenta que prioriza a acessibilidade que pessoas cegas e com deficiência visual em empregos de suporte técnico possam oferecer aos clientes, para que esses clientes possam gerar relatórios e obter ajuda para solucionar problemas. Eu busco a excelência e espero que você sinta isso ao usá-lo.</p>
+<p>
+<a href="https://onj.me">Andre Louis</a>, criador do Sensor Readout.</p>
 <h2 id="what-it-does">O que faz</h2>
-<p>O Sensor Readout lê sensores e informação de hardware a partir do Windows, LibreHardwareMonitor, Core Temp quando disponível, bases de dados incluídas e plug-ins opcionais. Mostra temperaturas, ventoinhas, estado SMART, rede, USB, áudio, ecrã, bateria, dispositivos, impressoras, firmware, CPU, memória, discos, volumes, detalhes de controladores e outros dados que o sistema expõe.</p>
-<p>A janela principal tem uma lista de categorias à esquerda e uma árvore de leituras à direita. As leituras principais ficam limpas e diretas. Informação mais técnica fica atrás de Detalhes, acessível com <code>Enter</code>, pelo menu de contexto ou pelo comando Detalhes quando a leitura selecionada o suporta.</p>
-<p>Também pode criar relatórios TXT e HTML, relatórios anonimizados, pacotes de suporte, comparações entre relatórios, histórico CSV de leituras, alarmes, perfis de ventoinha, curvas de ventoinha, hotkeys globais faladas e estado configurável da área de notificação.</p>
-<p>O Sensor Readout não substitui ferramentas oficiais de firmware, atualização de BIOS ou software de fabricante. Ele lê e organiza informação; quando um plug-in oferece controlo de ventoinha, essa capacidade é explicitamente apresentada e depende do hardware suportar escrita segura.</p>
+<ul>
+<li>Lê temperaturas, RPM do ventilador, integridade do armazenamento, capacidade de armazenamento, status da unidade BitLocker onde o Windows a expõe, informações do dispositivo conectado e contadores de hardware selecionados.</li>
+<li>Mostra uma categoria Desempenho/Visão geral para tempo de atividade, detalhes de BIOS, detalhes de GPU, uso de CPU, informações de modelo/núcleo/thread/cache de CPU, uso de memória, uso de arquivo de paginação e atividade de leitura/gravação de armazenamento, agrupados para que as informações relacionadas permaneçam juntas.</li>
+<li>Abre a UI principal imediatamente enquanto a primeira atualização do sensor continua em segundo plano.</li>
+<li>Mostra uma categoria de rede para status do adaptador, endereços IP, velocidade do link, taxas de envio/recebimento, tráfego total e detalhes de Wi-Fi, como SSID, intensidade do sinal, RSSI, canal, frequência, tipo de rádio e segurança onde o Windows os fornece.</li>
+<li>Mostra endereços MAC do adaptador de rede e nomes de fornecedores de OUI quando os dados OUI agrupados contêm o prefixo.</li>
+<li>Mostra uma categoria USB para dispositivos conectados, hubs, controladores, velocidade de conexão, consumo de energia onde o Windows o expõe, letras de unidade, status seguro para desconectar, detalhes MAC do adaptador de rede USB e IDs de hardware de armazenamento quando disponíveis e campos detalhados de dispositivos copiáveis.</li>
+<li>Mostra uma categoria de áudio agrupada por dispositivo/interface, com pontos de extremidade de reprodução e gravação abaixo, incluindo fornecedor, status, direção e formato padrão de canal/taxa de amostragem/profundidade de bits onde o Windows o expõe.</li>
+<li>Mostra uma categoria de exibição para adaptadores gráficos e monitores, incluindo resolução, taxa de atualização, memória do adaptador, informações de driver, fornecedor do monitor e identificadores de monitor onde o Windows os expõe.</li>
+<li>Mostra uma categoria Dispositivos com inventário PnP do Windows, incluindo dispositivos PCI/sistema, controladores de armazenamento, dispositivos de entrada, Bluetooth, impressoras, dispositivos de segurança e entradas concisas e reticuladas para USB, áudio, vídeo e hardware de rede.</li>
+<li>Coloca dispositivos com códigos de problema do Windows, falhas de driver ou status não OK em um grupo claro de Dispositivos não funcionais na parte superior de Dispositivos, mantendo-os também em seu grupo de hardware normal.</li>
+<li>Mantém a árvore principal legível enquanto coloca campos técnicos mais profundos atrás de Detalhes, incluindo identificadores PnP, dados de driver, campos WMI de CPU, registros de cache e informações de módulo de memória onde o Windows os expõe.</li>
+<li>Links de volta para a página do projeto no README, no menu Ajuda e na caixa de diálogo Sobre.</li>
+<li>Usa bibliotecas LibreHardwareMonitor agrupadas para acesso ao sensor.</li>
+<li>Usa o driver PawnIO para sensores de placa-mãe de baixo nível e controles de ventilador onde suporte de hardware está disponível.</li>
+<li>Permite rotular cabeçalhos de ventoinhas com nomes amigáveis.</li>
+<li>Oculta os cabeçalhos das ventoinhas da placa-mãe parados ou não preenchidos por padrão.</li>
+<li>Aplica porcentagens manuais de ventilador a um ventilador selecionado ou a todos os ventiladores visíveis.</li>
+<li>Retorna um ventilador ou todos os ventiladores para controle automático/padrão.</li>
+<li>Suporta curvas de ventilador simples que definem um controlo de ventoinha a partir de uma leitura de temperatura selecionada.</li>
+<li>Suporta perfis de ventilador que aplicam vários controles de ventilador ao mesmo tempo, com teclas de atalho globais opcionais e comportamento opcional de retorno para automático.</li>
+<li>Salva relatórios de sensores TXT ou HTML.</li>
+<li>Abre arquivos de relatórios salvos diretamente, incluindo relatórios TXT ou HTML enviados dentro de um arquivo ZIP.</li>
+<li>Pode executar diagnósticos com um clique no menu Ajuda ou na linha de comando, coletando relatórios TXT e HTML, um log de depuração, resumos de sensores e um exercício seguro de controlo de ventoinha em um arquivo ZIP em <code>Reports</code>.</li>
+<li>Suporta atualização automática configurável.</li>
+<li>O padrão é um intervalo de atualização de 5 segundos em novas configurações.</li>
+<li>Pode ser executado na inicialização do Windows e minimizado na área de notificação.</li>
+<li>Usos <code>Config\Shared.json</code> para preferências portáteis que devem seguir o aplicativo entre máquinas, mantendo a configuração específica do hardware em <code>Config\&lt;ComputerName&gt;.json</code>.</li>
+<li>Salva as alterações de preferência à medida que são feitas, de modo que teclas de atalho, bandeja, itens ocultos e trabalhos de configuração semelhantes sobrevivam melhor às falhas.</li>
+<li>Grava logs de diagnóstico <code>Logs</code> como <code>&lt;ComputerName&gt;.log</code> quando o registro está ativado.</li>
+<li>Pode mostrar temperaturas em Celsius, Fahrenheit, Celsius e depois Fahrenheit, ou Fahrenheit e depois Celsius.</li>
+<li>Suporta teclas de atalho globais opcionais definidas pelo usuário para mostrar/ocultar e falar o status da área de notificação.</li>
+<li>Pode falar o status da área de notificação por meio do leitor de tela ativo usando DLLs da biblioteca do leitor de tela Tolk de 64 bits.</li>
+<li>Suporta arquivos de idioma simples editáveis pelo usuário no <code>Langs</code> pasta.</li>
+<li>O registro está desativado por padrão e pode ser ativado em Preferências durante a solução de problemas.</li>
+<li>Pode mostrar leituras selecionadas na dica de ferramenta da área de notificação.</li>
+<li>Pode executar alarmes opcionais para leituras selecionadas, falando através do leitor de tela ativo e/ou reproduzindo um arquivo WAV escolhido quando um limite for atingido.</li>
+<li>Pode reproduzir sons opcionais de inicialização e desligamento do <code>Sounds</code> pasta.</li>
+<li>Suporta plug-ins de hardware opcionais do <code>Plug-ins</code> pasta para suporte extra de hardware específico da máquina. Os plug-ins instalados permanecem desativados até que você os ative em Preferências.</li>
+<li>É fornecido com plug-ins opcionais para hardware específico de laptop/fornecedor selecionado, onde interfaces úteis da comunidade ou do fornecedor estão disponíveis.</li>
+<li>Pode importar um plug-in ZIP de Preferências sem ativá-lo automaticamente.</li>
+<li>Pode mostrar a carga, o status, a capacidade, a integridade, a contagem de ciclos, a voltagem e a taxa de energia da bateria do laptop onde o Windows os expõe.</li>
+</ul>
 <h2 id="prerequisites">Pré-requisitos</h2>
-<p>O Sensor Readout é uma aplicação Windows baseada em .NET Framework. Muitas leituras funcionam sem instalação extra, mas algumas funções de baixo nível precisam de componentes adicionais ou permissões elevadas.</p>
 <ul>
-<li>Windows com .NET Framework compatível.</li>
-<li>Execução como administrador para acesso completo a sensores de motherboard e controlo de ventoinhas em muitos sistemas.</li>
-<li>PawnIO para acesso de baixo nível em hardware suportado.</li>
-<li>Core Temp opcional para temperaturas e carga de CPU quando LibreHardwareMonitor não expõe esses dados.</li>
-<li>Ferramentas de fabricante opcionais em portáteis, quando ajudam a expor dados específicos.</li>
+<li>Windows 10 ou Windows 11 de 64 bits.</li>
+<li>Microsoft .NET Framework 4.8 ou mais recente.</li>
+<li>Driver PawnIO instalado para sensores da placa-mãe e controles de ventoinha.</li>
+<li>Direitos de administrador ao ler sensores da placa-mãe ou controlar ventiladores.</li>
 </ul>
-<h2 id="official-links">Ligações oficiais</h2>
+<p>LibreHardwareMonitor não é necessário como um aplicativo em execução porque esta pasta contém os arquivos de biblioteca necessários. A instalação do aplicativo independente ainda pode ser útil para solução de problemas.</p>
+<h2 id="official-links">Links Oficiais</h2>
 <ul>
-<li>Projeto: <a href="https://github.com/OnjLouis/accessible-sensor-readout">https://github.com/OnjLouis/accessible-sensor-readout</a></li>
-<li>Versão mais recente: <a href="https://github.com/OnjLouis/accessible-sensor-readout/releases/latest">https://github.com/OnjLouis/accessible-sensor-readout/releases/latest</a></li>
-<li>Estatísticas anónimas da comunidade: <a href="https://onj.me/srstats/">https://onj.me/srstats/</a></li>
-<li>Contacto: <a href="https://onj.me/contact">https://onj.me/contact</a></li>
-<li>Donativos: <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a></li>
+<li>
+<a href="https://github.com/namazso/PawnIO">PawnIO</a>
+</li>
+<li>
+<a href="https://github.com/namazso/PawnIO.Setup/releases">Versões de configuração do PawnIO</a>
+</li>
+<li>
+<a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a>
+</li>
+<li>
+<a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases">Lançamentos do LibreHardwareMonitor</a>
+</li>
+<li>
+<a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>
+</li>
+<li>
+<a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>
+</li>
+<li>
+<a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>
+</li>
+<li>
+<a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>
+</li>
+<li>
+<a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core no NuGet</a>
+</li>
+<li>
+<a href="https://github.com/dkager/tolk">Biblioteca de leitores de tela Tolk</a>
+</li>
+<li>
+<a href="https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server">Notas de instalação do .NET Framework</a>
+</li>
 </ul>
-<h2 id="prerequisite-installer">Instalador de pré-requisitos</h2>
-<p>O ficheiro <code>Install-Prerequisites.cmd</code> inicia o instalador PowerShell de pré-requisitos. Ele tenta usar ferramentas comuns como winget ou Chocolatey quando disponíveis e pode abrir as páginas oficiais quando uma instalação automática não é adequada.</p>
-<p>O instalador de pré-requisitos é separado da aplicação principal. Não deve ser necessário executá-lo em todas as máquinas, mas pode ajudar quando faltam componentes necessários para sensores de baixo nível.</p>
-<h2 id="manual-install-commands">Comandos manuais de instalação</h2>
-<p>Se preferir instalar componentes manualmente, use as páginas oficiais dos respetivos projetos. Para Core Temp, use a página oficial do Core Temp. Para PawnIO, use a página do PawnIO.Setup. Instale apenas componentes que façam sentido para a sua máquina.</p>
-<h2 id="first-run">Primeira utilização</h2>
-<p>Ao iniciar, o Sensor Readout carrega as definições, escolhe um idioma com base no idioma do Windows quando possível, cria as pastas necessárias e começa a recolher leituras. Algumas leituras aparecem imediatamente; outras dependem de consultas mais lentas ou de hardware que demora a responder.</p>
-<p>Se a aplicação estiver configurada para iniciar minimizada, recomenda-se fortemente configurar uma hotkey global para mostrar ou ocultar a janela. Sem essa tecla, pode ser difícil voltar à janela se o ícone da área de notificação estiver escondido pelo Windows.</p>
-<p>O assistente inicial pode ajudar a definir a tecla de mostrar/ocultar e a tecla para falar o estado da área de notificação. Pode ser executado novamente no menu Ajuda.</p>
+<h2 id="prerequisite-installer">Instalador de pré-requisito</h2>
+<p>Corre <code>Install-Prerequisites.cmd</code> desta pasta primeiro. Ele chama <code>Install-Prerequisites.ps1</code>, solicita direitos de administrador, se necessário, e instala o PawnIO. Ele tenta primeiro o winget, depois o Chocolatey se já estiver instalado e, em seguida, baixa a versão oficial do PawnIO.Setup do GitHub se nenhum dos gerenciadores de pacotes estiver disponível. Quando o winget existe, ele também pode instalar o .NET Framework Runtime.</p>
+<p>
+<button class="copy-command" data-command="Install-Prerequisites.cmd" type="button">Comando copiar</button>
+</p>
+<pre>
+<code>Install-Prerequisites.cmd</code>
+</pre>
+<p>Para instalar também o aplicativo independente LibreHardwareMonitor com winget para solução de problemas, execute:</p>
+<p>
+<button class="copy-command" data-command=".\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor" type="button">Comando copiar</button>
+</p>
+<pre>
+<code>.\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor</code>
+</pre>
+<h2 id="manual-install-commands">Comandos de instalação manual</h2>
+<p>Se o instalador de pré-requisito não funcionar em seu sistema, abra o Terminal do Windows ou PowerShell como administrador e execute estes comandos:</p>
+<p>
+<button class="copy-command" data-command="winget install --id Microsoft.DotNet.Framework.Runtime -e --source winget" type="button">Copiar comando .NET</button>
+</p>
+<pre>
+<code>winget install --id Microsoft.DotNet.Framework.Runtime -e --source winget</code>
+</pre>
+<p>
+<button class="copy-command" data-command="winget install --id namazso.PawnIO -e --source winget" type="button">Copiar comando PawnIO</button>
+</p>
+<pre>
+<code>winget install --id namazso.PawnIO -e --source winget</code>
+</pre>
+<p>Ferramenta de solução de problemas opcional:</p>
+<p>
+<button class="copy-command" data-command="winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget" type="button">Copiar comando LibreHardwareMonitor</button>
+</p>
+<pre>
+<code>winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget</code>
+</pre>
+<h2 id="first-run">Primeira execução</h2>
+<p>1. Comece <code>Sensor Readout.exe</code>.</p>
+<p>2. Aceite o prompt do administrador do Windows.</p>
+<p>3. Se o PawnIO estiver faltando, o Sensor Readout oferece a execução do instalador de pré-requisito.</p>
+<p>4. Pressione <code>F5</code> para atualizar se os valores ainda estiverem carregando.</p>
+<p>5. Abra <code>Opções</code> &gt; <code>Controlos de ventoinha...</code> ou pressione <code>Ctrl+L</code> se você deseja ajustar os valores de controle do ventilador.</p>
+<p>Se faltarem ventoinhas ou controles na placa-mãe, verifique se o PawnIO está instalado e se o aplicativo foi iniciado como administrador.</p>
+<p>Você pode executar novamente o instalador de pré-requisito posteriormente em <code>Ajuda</code> &gt; <code>Install prerequisites...</code>.</p>
+<p>Para suporte, use <code>Ajuda</code> &gt; <code>Executar diagnósticos...</code>. Ele cria um ZIP de diagnóstico no <code>Reports</code> pasta, abre essa pasta e pode, opcionalmente, falar cada etapa e reproduzir sons no início e no final do teste. Para testes autônomos, <code>--diagnostics [path]</code> cria o mesmo ZIP e sai.</p>
 <h2 id="accessibility-setup">Configuração de acessibilidade</h2>
-<p>O Sensor Readout foi pensado primeiro para teclado e leitor de ecrã. A maioria dos comandos tem aceleradores de menu, atalhos ou ambos. Os botões importantes têm nomes acessíveis e as leituras selecionadas podem ser revistas sem copiar primeiro.</p>
-<ul>
-<li>Defina uma hotkey de mostrar/ocultar se usar a aplicação minimizada.</li>
-<li>Defina uma hotkey para falar o estado da área de notificação se quiser ouvir leituras sem abrir a janela.</li>
-<li>Use <code>F3</code> para procurar numa categoria ou numa vista de detalhes.</li>
-<li>Use <code>F4</code> para rever o texto da leitura selecionada numa caixa de edição só de leitura.</li>
-<li>Use <code>Ctrl+C</code> para copiar a leitura completa e <code>Ctrl+Shift+C</code> para copiar apenas o valor.</li>
-<li>Quando uma leitura tem Detalhes, o leitor de ecrã anuncia essa informação no fim do texto da linha.</li>
-</ul>
+<p>Usar <code>Ajuda</code> &gt; <code>Verificar configuração de acessibilidade...</code> após a primeira execução ou após alterar as preferências de inicialização e teclas de atalho. Ele verifica se o Sensor Readout pode alcançar a fala do leitor de tela, se a fala da área de notificação está configurada, se as pastas de relatórios e registros podem ser abertas e se uma configuração de inicialização minimizada pode deixar você sem um caminho óbvio de volta à janela principal.</p>
+<p>Se você usar <code>Iniciar minimizado na área de notificação</code>, defina uma tecla de atalho mostrar/ocultar em <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Hotkeys</code>. Sem essa chave, o Sensor Readout ainda pode ser aberto a partir do ícone da área de notificação, mas o Windows pode ocultar novos ícones da bandeja até que você os permita na área de notificação do Windows ou nas configurações da bandeja do sistema. Uma tecla de atalho mostrar/ocultar oferece aos usuários de teclado e leitores de tela uma maneira confiável de trazer de volta a janela principal.</p>
+<p>A mesma guia Hotkeys pode definir uma tecla para <code>Speak notification area status</code>. Essa chave lê as leituras da área de notificação configurada sem abrir a janela principal e geralmente é a maneira mais rápida de verificar valores importantes como memória, temperaturas, tempo de atividade, status da rede ou memória GPU.</p>
 <h2 id="keyboard-shortcuts">Atalhos de teclado</h2>
-<table><thead><tr><th>Tecla</th><th>Ação</th></tr></thead><tbody>
-<tr><td><code>Ctrl+0</code></td><td>Vai para Desempenho/Resumo.</td></tr>
-<tr><td><code>Ctrl+1</code> a <code>Ctrl+8</code></td><td>Nas Preferências, muda para Geral, Arranque e Instalação, Hotkeys, Perfis de ventoinha, Alarmes, Plug-ins, Itens ocultos ou Editor de idioma.</td></tr>
-<tr><td><code>F1</code></td><td>Abre o manual do idioma selecionado.</td></tr>
-<tr><td><code>Shift+F1</code></td><td>Procura atualizações.</td></tr>
-<tr><td><code>Alt+F1</code></td><td>Prepara um relatório de suporte/diagnóstico.</td></tr>
-<tr><td><code>F2</code></td><td>Renomeia quando a vista atual o permite.</td></tr>
-<tr><td><code>F3</code></td><td>Pesquisa leituras ou detalhes.</td></tr>
-<tr><td><code>F4</code></td><td>Mostra o texto da leitura selecionada para revisão.</td></tr>
-<tr><td><code>F5</code></td><td>Atualiza leituras e inventários.</td></tr>
-<tr><td><code>Enter</code></td><td>Abre Detalhes para a leitura selecionada, quando disponível.</td></tr>
-<tr><td><code>Esc</code></td><td>Fecha diálogos ou volta à janela anterior quando aplicável.</td></tr>
-<tr><td><code>Ctrl+C</code></td><td>Copia o texto completo da leitura selecionada.</td></tr>
-<tr><td><code>Ctrl+Shift+C</code></td><td>Copia apenas o valor da leitura selecionada.</td></tr>
-<tr><td><code>Ctrl+M</code></td><td>Nos Detalhes, copia linhas que correspondem a uma pesquisa.</td></tr>
-<tr><td><code>Ctrl+S</code></td><td>Guarda um relatório.</td></tr>
-<tr><td><code>Ctrl+I</code></td><td>Importa definições e perfis.</td></tr>
-<tr><td><code>Ctrl+E</code></td><td>Exporta definições e perfis.</td></tr>
-<tr><td><code>Ctrl+Shift+I</code></td><td>Importa um plug-in em ZIP.</td></tr>
-<tr><td><code>Ctrl+Shift+A</code></td><td>Guarda um relatório anonimizado.</td></tr>
-<tr><td><code>Ctrl+Shift+M</code></td><td>Compara relatórios.</td></tr>
-<tr><td><code>Ctrl+Shift+H</code></td><td>Adiciona ou remove a leitura atual de uma hotkey falada ou do estado da área de notificação.</td></tr>
-<tr><td><code>Ctrl+Shift+G</code></td><td>Adiciona ou remove a leitura atual do histórico CSV.</td></tr>
-</tbody></table>
-<h2 id="command-line-options">Opções de linha de comandos</h2>
-<p>As opções de linha de comandos servem para testes, suporte e automação. Algumas opções criam relatórios e fecham automaticamente. Outras controlam o arranque da aplicação.</p>
-<ul>
-<li><code>--minimized</code>: inicia minimizado na área de notificação.</li>
-<li><code>--close</code>: pede a uma instância em execução para fechar de forma normal.</li>
-<li><code>--log-level</code>: define o nível de registo.</li>
-<li><code>--save-report-txt caminho</code>: guarda um relatório TXT.</li>
-<li><code>--save-report-html caminho</code>: guarda um relatório HTML.</li>
-<li><code>--save-anonymized-report-txt caminho</code>: guarda um relatório TXT anonimizado.</li>
-<li><code>--save-anonymized-report-html caminho</code>: guarda um relatório HTML anonimizado.</li>
-<li><code>--compare-reports antes depois saida</code>: compara dois relatórios.</li>
-<li><code>--diagnostics caminho</code>: cria um ZIP de diagnóstico.</li>
-<li><code>--community-stats-json caminho</code>: gera silenciosamente o payload JSON das estatísticas anónimas da comunidade para teste local. Não faz upload.</li>
-</ul>
+<table>
+<thead>
+<tr>
+<th>Grupo de atalhos</th>
+<th>Atalho</th>
+<th>Ação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>F5</code>
+</td>
+<td>Atualize as leituras atuais.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>F3</code>
+</td>
+<td>Encontre uma leitura em todas as categorias. Digite para restringir os resultados, Tab para a lista, Enter para escolher, Esc para fechar ou Alt+L para limpar.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>F4</code>
+</td>
+<td>Revise a leitura selecionada ou o galho de árvore em uma caixa de texto somente leitura.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Enter</code> / <code>Alt+Enter</code>
+</td>
+<td>Abra Detalhes da leitura selecionada quando detalhes extras estiverem disponíveis.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+C</code>
+</td>
+<td>Copie a leitura ou galho de árvore selecionado.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+Shift+C</code>
+</td>
+<td>Copiar somente valor: copia o valor de leitura selecionado sem o nome da leitura. Em uma ramificação, copia um valor por leitura.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>F2</code>
+</td>
+<td>Renomeie a leitura do ventoinha selecionada, edite o rótulo falado selecionado em Preferências ou vá para o campo do rótulo do ventoinha em Controlos de ventoinha.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Del</code>
+</td>
+<td>Oculte a leitura ou galho de árvore selecionado.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+Shift+H</code>
+</td>
+<td>Adicione a leitura selecionada ao status da área de notificação ou a um perfil de tecla de atalho falada, remova-a novamente ou crie um perfil de tecla de atalho falada na mesma caixa de diálogo.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+Shift+G</code>
+</td>
+<td>Adicione ou remova a leitura selecionada do log CSV do histórico de leitura opcional.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+Shift+Right</code> / <code>Ctrl+Shift+Left</code>
+</td>
+<td>Expanda ou recolha a árvore de leitura completa da categoria atual.</td>
+</tr>
+<tr>
+<td>Janela principal</td>
+<td>
+<code>Ctrl+0</code> para <code>Ctrl+9</code>
+</td>
+<td>Mude diretamente para uma categoria de leitura principal.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+S</code>
+</td>
+<td>Salve um relatório.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+O</code>
+</td>
+<td>Abra um relatório de Sensor Readout salvo como uma visualização estática.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+M</code>
+</td>
+<td>Compare dois relatórios de Sensor Readout salvos.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+A</code>
+</td>
+<td>Salve um relatório anônimo para compartilhar.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+R</code>
+</td>
+<td>Retorne de um relatório estático para leituras ao vivo.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+E</code>
+</td>
+<td>Exporte configurações e perfis selecionados para um pacote de transferência.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+E</code>
+</td>
+<td>Exporte uma cópia ZIP portátil do aplicativo e das configurações atuais.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+I</code>
+</td>
+<td>Importe configurações e perfis selecionados de um pacote de transferência.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+I</code>
+</td>
+<td>Importe um plug-in ZIP.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+O</code>
+</td>
+<td>Abra a pasta Relatórios.</td>
+</tr>
+<tr>
+<td>Comandos de arquivo</td>
+<td>
+<code>Ctrl+Shift+L</code>
+</td>
+<td>Abra a pasta Logs.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Ctrl+L</code>
+</td>
+<td>Abra os controlos de ventoinha.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Ctrl+U</code>
+</td>
+<td>Abra Curvas de ventoinha.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Ctrl+,</code>
+</td>
+<td>Abra Preferências.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>F1</code>
+</td>
+<td>Abra o manual.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Shift+F1</code>
+</td>
+<td>Verifique os lançamentos do GitHub para uma versão mais recente, verifique o PawnIO e ofereça a instalação da atualização quando disponível. Se as instalações silenciosas de atualização estiverem habilitadas, uma atualização disponível será instalada sem mostrar primeiro as notas de versão.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Ctrl+F1</code>
+</td>
+<td>Abra a página do projeto.</td>
+</tr>
+<tr>
+<td>Ferramentas e ajuda</td>
+<td>
+<code>Alt+F1</code>
+</td>
+<td>Execute diagnósticos e crie um ZIP de suporte.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Esc</code>
+</td>
+<td>Feche a caixa de diálogo Controlos de ventoinha.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+L</code>
+</td>
+<td>Salve o rótulo do controlo de ventoinha selecionado.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+M</code>
+</td>
+<td>Aplique a porcentagem manual ao controle do ventilador selecionado.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+A</code>
+</td>
+<td>Retorne o controle do ventilador selecionado para automático/padrão.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+R</code>
+</td>
+<td>Retorne todos os controlos de ventoinha para automático/padrão.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+7</code>
+</td>
+<td>Defina todos os controles visíveis do ventilador para 75%.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+X</code>
+</td>
+<td>Defina todos os controles visíveis do ventilador para o máximo.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+S</code>
+</td>
+<td>Mostrar ou ocultar cabeçalhos de ventiladores interrompidos.</td>
+</tr>
+<tr>
+<td>Caixa de diálogo de controlos de ventoinha</td>
+<td>
+<code>Alt+P</code>
+</td>
+<td>Pause as atualizações automáticas.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Ctrl+1</code> para <code>Ctrl+8</code>
+</td>
+<td>Vá para Geral, Inicialização e instalação, Teclas de atalho, Perfis de ventilador, Alarmes, Plug-ins, Itens ocultos ou Editor de idioma.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>F3</code>
+</td>
+<td>Encontre uma leitura ou controlo de ventoinha antes de adicioná-lo ao status da área de notificação, a uma tecla de atalho falada ou a um perfil de ventoinha.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>F2</code>
+</td>
+<td>Vá para o campo de nome ou renomeie quando aplicável.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Enter</code>
+</td>
+<td>Vá para o campo de valor principal, quando aplicável.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Ctrl+Right</code>
+</td>
+<td>Adicione a leitura disponível selecionada à ordem da bandeja ou à tecla de atalho falada selecionada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Ctrl+Left</code>
+</td>
+<td>Remova a bandeja selecionada ou a leitura da tecla de atalho falada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Ctrl+Up</code> / <code>Ctrl+Down</code>
+</td>
+<td>Mova a bandeja selecionada ou a leitura das teclas de atalho faladas mais cedo ou mais tarde.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+I</code>
+</td>
+<td>Em Inicialização e instalação, instale neste PC.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+U</code>
+</td>
+<td>Em Inicialização e instalação, desinstale deste PC ao executar a partir da cópia instalada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+I</code>
+</td>
+<td>Em Plug-Ins, importe um plug-in ZIP.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+N</code>
+</td>
+<td>Em Hotkeys, crie um novo perfil de tecla de atalho falada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+I</code>
+</td>
+<td>Em Hotkeys, importe perfis de teclas de atalho faladas de outra configuração de máquina.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+P</code>
+</td>
+<td>Em Teclas de atalho, remova o perfil de tecla de atalho falada selecionado.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+A</code>
+</td>
+<td>Em Teclas de atalho, adicione a leitura selecionada à tecla de atalho falada selecionada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+M</code>
+</td>
+<td>Na área de notificação ou teclas de atalho, remova a leitura selecionada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+U</code> / <code>Alt+W</code>
+</td>
+<td>Mova a leitura da tecla de atalho falada selecionada para cima ou para baixo.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+R</code>
+</td>
+<td>Renomeie o rótulo falado selecionado para o status da área de notificação ou uma tecla de atalho falada.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Alt+D</code>
+</td>
+<td>Redefina o rótulo falado selecionado para o padrão.</td>
+</tr>
+<tr>
+<td>Preferências</td>
+<td>
+<code>Delete</code>
+</td>
+<td>Remova a leitura da bandeja selecionada, o perfil de teclas de atalho faladas, a leitura de teclas de atalho faladas ou o alarme, quando aplicável.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="command-line-options">Opções de linha de comando</h2>
+<p>O Sensor Readout também pode ser iniciada com algumas opções de linha de comando:</p>
+<table>
+<thead>
+<tr>
+<th>Opção</th>
+<th>Ação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>--minimized</code> ou <code>--tray</code>
+</td>
+<td>Comece minimizado na área de notificação.</td>
+</tr>
+<tr>
+<td>
+<code>--close</code>
+</td>
+<td>Feche qualquer instância do Sensor Readout em execução e saia.</td>
+</tr>
+<tr>
+<td>
+<code>--report-txt [path]</code>
+</td>
+<td>Salve um relatório de texto e saia. Se nenhum caminho for fornecido, um relatório com registro de data e hora será criado no <code>Reports</code> pasta.</td>
+</tr>
+<tr>
+<td>
+<code>--report-html [path]</code>
+</td>
+<td>Salve um relatório HTML e saia. Se nenhum caminho for fornecido, um relatório com registro de data e hora será criado no <code>Reports</code> pasta.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymized-report-txt [path]</code>
+</td>
+<td>Salve um relatório de texto anônimo e saia. Se nenhum caminho for fornecido, um relatório com registro de data e hora será criado no <code>Reports</code> pasta.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymized-report-html [path]</code>
+</td>
+<td>Salve um relatório HTML anônimo e saia. Se nenhum caminho for fornecido, um relatório com registro de data e hora será criado no <code>Reports</code> pasta.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-txt [path]</code>
+</td>
+<td>Alias para <code>--anonymized-report-txt</code>, destinado a verificações automatizadas de privacidade.</td>
+</tr>
+<tr>
+<td>
+<code>--anonymous-report-html [path]</code>
+</td>
+<td>Alias para <code>--anonymized-report-html</code>, destinado a verificações automatizadas de privacidade.</td>
+</tr>
+<tr>
+<td>
+<code>--compare-reports before after [output]</code>
+</td>
+<td>Compare dois relatórios de Sensor Readout e salve o texto de comparação. Se nenhum caminho de saída for fornecido, uma comparação com carimbo de data/hora será criada no arquivo <code>Reports</code> pasta.</td>
+</tr>
+<tr>
+<td>
+<code>--diagnostics [path]</code>
+</td>
+<td>Execute o diagnóstico, salve um ZIP e saia. Se nenhum caminho for fornecido, um ZIP com carimbo de data/hora nomeado pelo computador será criado no <code>Reports</code> pasta. Se uma pasta for fornecida, o ZIP será criado lá.</td>
+</tr>
+<tr>
+<td>
+<code>--diagnostics-quiet</code>
+</td>
+<td>Não fale o progresso do diagnóstico nem reproduza sons de diagnóstico quando usado com <code>--diagnostics</code>.</td>
+</tr>
+<tr>
+<td>
+<code>--no-diagnostics-speech</code>
+</td>
+<td>Execute diagnósticos de linha de comando sem progresso falado, mantendo os sons de diagnóstico ativados se as preferências permitirem.</td>
+</tr>
+<tr>
+<td>
+<code>--no-diagnostics-sounds</code>
+</td>
+<td>Execute diagnósticos de linha de comando sem sons de início ou conclusão, mantendo o progresso falado ativado se as preferências permitirem.</td>
+</tr>
+<tr>
+<td>
+<code>--community-stats-json [path]</code>
+</td>
+<td>Escreva a carga útil de estatísticas da comunidade anônima listada como permitida e saia. Isso não carrega.</td>
+</tr>
+<tr>
+<td>--sair\</td>
+<td>erro\</td>
+<td>normal\</td>
+<td>depurar</td>
+<td>Defina o nível de registro antes de continuar.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="preferences">Preferências</h2>
-<p>As Preferências estão em <code>Opções</code> &gt; <code>Preferências</code>. A maioria das alterações é guardada imediatamente. Fechar a janela não é um botão de guardar; é apenas a forma normal de sair do diálogo.</p>
+<p>Usar <code>Opções</code> &gt; <code>Preferências</code> ou <code>Ctrl+,</code> para configurar o Sensor Readout. A caixa de diálogo lembra a guia que você usou pela última vez durante a sessão atual. Pressione <code>Esc</code> ou o botão Fechar para sair das Preferências.</p>
 <h3>Geral (<code>Ctrl+1</code>)</h3>
-<p>Inclui idioma, separador decimal, intervalo de atualização, atualizações automáticas, sons, mensagens faladas, comportamento minimizado e opções gerais de apresentação. O idioma pode ser alterado sem reiniciar a aplicação.</p>
-<h3>Arranque e Instalação (<code>Ctrl+2</code>)</h3>
-<p>Permite instalar a aplicação neste PC, criar atalho no ambiente de trabalho, configurar arranque com o Windows, remover a instalação local e escolher se a aplicação inicia minimizada. Quando a aplicação já está instalada no local esperado, o separador mostra opções de remoção em vez de continuar a oferecer a instalação.</p>
-<h3>Hotkeys (<code>Ctrl+3</code>)</h3>
-<p>Permite configurar hotkeys globais faladas. Cada perfil pode ter várias leituras, uma tecla, nomes falados personalizados e ordem própria. As alterações podem ser testadas imediatamente. Existem predefinições para estado do sistema, rede, atividade de disco, GPU, bateria e ventoinhas/temperaturas.</p>
-<h3>Perfis de ventoinha (<code>Ctrl+4</code>)</h3>
-<p>Perfis de ventoinha aplicam várias ações de ventoinha em conjunto, incluindo voltar ao modo automático. Podem ser ligados a hotkeys e sons, quando os controlos de ventoinha são suportados pela máquina.</p>
-<h3>Alarmes (<code>Ctrl+5</code>)</h3>
-<p>Alarmes monitorizam leituras e podem falar, tocar sons ou piscar o ícone da área de notificação. Existem predefinições para bateria fraca, Wi-Fi fraco ou desligado, CPU/GPU quente, pouca memória, pouco espaço em disco, saúde de disco baixa, atividade de disco alta, uptime longo e problemas de impressora.</p>
-<h3>Plug-ins (<code>Ctrl+6</code>)</h3>
-<p>Mostra plug-ins instalados e permite ativar ou desativar plug-ins opcionais. Os plug-ins ficam desativados por predefinição. Alterações aplicam-se depois de fechar as Preferências.</p>
-<h3>Itens ocultos (<code>Ctrl+7</code>)</h3>
-<p>Permite rever leituras ocultas, restaurá-las e reativar avisos que foram escondidos com opções do tipo não mostrar novamente.</p>
-<h3>Editor de idioma (<code>Ctrl+8</code>)</h3>
-<p>Edita ficheiros de idioma instalados sem abrir um editor externo. O inglês é o idioma de referência. Entradas em falta usam o inglês como alternativa. O editor suporta <code>F3</code>, lembra a última entrada editada e permite navegação por várias letras na lista.</p>
-<h2 id="alarms-and-sounds">Alarmes e sons</h2>
-<p>Alarmes podem usar comparações acima, abaixo, igual, diferente, ligado/desligado ou texto, conforme a leitura. Cada alarme tem tempo de espera para evitar repetição excessiva. Sons WAV podem ser colocados na pasta <code>Sounds</code> e escolhidos nas Preferências.</p>
-<p>Os alarmes dependem da leitura existir. Se uma leitura só aparece numa máquina específica, um perfil importado pode precisar de ser reassociado nessa máquina.</p>
-<h2 id="plug-ins">Plug-ins</h2>
-<p>O sistema de plug-ins permite adicionar suporte específico para fabricantes sem tornar a aplicação principal mais arriscada. Os plug-ins incluídos podem procurar interfaces de portáteis Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus.</p>
-<p>Para importar um plug-in, use <code>Ficheiro</code> &gt; <code>Importar plug-in ZIP</code>. O plug-in é validado, copiado para a pasta certa e fica desativado até ser ativado manualmente.</p>
-<h2 id="reading-sensors">Leitura dos sensores</h2>
-<p>As leituras vêm de várias fontes. LibreHardwareMonitor fornece muitos sensores de CPU, GPU, motherboard, armazenamento e ventoinhas. O Windows fornece informação de dispositivos, rede, bateria, impressoras, discos, volumes, drivers, firmware e WMI. Core Temp pode fornecer CPU quando necessário. Bases de dados incluídas dão nomes de fornecedores USB e MAC/OUI.</p>
-<p>Algumas leituras são rápidas e atualizam frequentemente. Outras são cacheadas ou recolhidas em caminhos mais lentos para evitar uso excessivo de CPU e WMI. Isto é especialmente importante em portáteis lentos ou máquinas onde WMI fica caro.</p>
-<h2 id="fan-control-workflow">Fluxo de controlo de ventoinhas</h2>
-<p>Controlo de ventoinhas só aparece quando o hardware expõe controlos escrevíveis. Muitas máquinas mostram RPM mas não permitem controlo. Antes de alterar ventoinhas, confirme que a leitura corresponde à ventoinha certa e que o sistema tem refrigeração segura.</p>
-<ol>
-<li>Execute como administrador.</li>
-<li>Confirme que as ventoinhas aparecem na categoria Ventoinhas.</li>
-<li>Abra <code>Opções</code> &gt; <code>Controlos de ventoinha</code>.</li>
-<li>Ative <code>Mostrar paradas</code> se uma ventoinha controlável estiver escondida porque está em fan-stop.</li>
-<li>Teste alterações pequenas antes de criar curvas automáticas.</li>
-</ol>
-<h2 id="fan-curves">Curvas de ventoinha</h2>
-<p>Curvas ligam uma leitura de temperatura a um controlo de ventoinha. Uma curva define ponto baixo, ponto alto e ponto de emergência. O Sensor Readout aplica percentagens entre esses pontos quando a curva está ativa.</p>
-<p>Curvas são poderosas e devem ser criadas com cuidado. Se uma curva for substituída temporariamente por controlo manual ou perfil, ela volta quando a ventoinha regressa ao modo automático/predefinido.</p>
-<h2 id="fan-profiles">Perfis de ventoinha</h2>
-<p>Perfis aplicam várias ações de uma vez. Podem ser usados para voltar tudo ao automático, aplicar um modo silencioso, criar um modo de teste ou ligar uma configuração a uma hotkey. Como o suporte depende do hardware, uma configuração importada pode precisar de ajustes.</p>
-<h2 id="example-setups">Exemplos de configuração</h2>
+<p>A guia Geral controla a experiência de leitura principal.</p>
 <ul>
-<li>Hotkey de estado geral: CPU, memória usada, memória livre, uptime e GPU.</li>
-<li>Hotkey de rede: estado, IP, velocidade, receção e envio.</li>
-<li>Hotkey de disco: atividade, leitura, escrita e espaço livre dos discos importantes.</li>
-<li>Alarme de bateria: abaixo de 20% com fala e som.</li>
-<li>Alarme de Wi-Fi: desligado ou sinal baixo.</li>
-<li>Perfil de ventoinha: voltar ao automático depois de testar uma percentagem manual.</li>
+<li>Idioma: escolha um dos arquivos de idioma instalados. A interface é atualizada imediatamente após uma alteração de idioma.</li>
+<li>Atualização automática: ativa ou desativa a atualização em segundo plano.</li>
+<li>Atualizar enquanto o Sensor Readout está em foco: escolha se as leituras continuam sendo atualizadas enquanto você navega na janela principal.</li>
+<li>Intervalo de atualização: defina o intervalo de atualização normal em segundos.</li>
+<li>Mostrar status na área de notificação: mostre ou oculte o ícone da bandeja e sua dica de ferramenta.</li>
+<li>Unidade de temperatura: escolha Celsius, Fahrenheit, Celsius e depois Fahrenheit, ou Fahrenheit e depois Celsius.</li>
+<li>Separador decimal: use o idioma padrão, ponto final ou vírgula.</li>
+<li>Nível de registro: Desativado, Erro, Normal ou Depuração.</li>
+<li>Verificações de atualização: escolha se o Sensor Readout verifica as versões do GitHub na inicialização, de hora em hora, a cada 6 ou 12 horas, diariamente, semanalmente ou nunca.</li>
+<li>Itens da área de notificação: escolha até oito leituras para a dica de ferramenta da bandeja e o status falado da bandeja.</li>
 </ul>
-<h2 id="diagnostics">Diagnósticos</h2>
-<p>O relatório de diagnóstico cria um ZIP com informação útil para suporte. Inclui resumo, relatórios, logs e dados relevantes para entender que fontes contribuíram para as leituras. Não deve substituir uma revisão cuidadosa antes de partilhar dados privados.</p>
-<p>O comando de diagnóstico abre a pasta de relatórios quando termina e mostra o tempo gasto na linha de estado. Não deixa um diálogo escondido para trás quando a aplicação está minimizada.</p>
-<h2 id="reports">Relatórios</h2>
-<h3 id="saving-a-report">Guardar um relatório</h3>
-<p><code>Ctrl+S</code> guarda um relatório. HTML preserva melhor a estrutura e é normalmente a melhor escolha para partilhar. TXT é útil para leitura simples, mas alguns dados internos são quebrados em linhas para evitar linhas demasiado longas.</p>
-<h3 id="anonymous-community-stats">Estatísticas anónimas da comunidade</h3>
-<p><code>Ajuda</code> &gt; <code>Partilhar estatísticas anónimas da comunidade</code> cria um pequeno payload JSON separado dos relatórios anonimizados. A aplicação mostra exatamente o que será enviado antes do upload. Nada é enviado automaticamente.</p>
-<p>O payload não inclui nome do computador, nome de utilizador, números de série, endereços MAC ou IP, caminhos, etiquetas de unidades, IDs de dispositivo, IDs PnP, detalhes brutos, programas instalados ou linhas completas de relatório. Uma ID aleatória local é guardada no computador, e apenas o hash SHA-256 dessa ID é enviado para permitir atualizar a entrada agregada da mesma máquina.</p>
-<p>Depois de enviar, a aplicação abre a página pública de estatísticas: <a href="https://onj.me/srstats/">https://onj.me/srstats/</a>. A página também pode ser visitada sem enviar estatísticas.</p>
-<h3 id="opening-a-report">Abrir o relatório de outra pessoa</h3>
-<p>Relatórios HTML, TXT e alguns ZIPs de diagnóstico podem ser abertos no Sensor Readout. Quando um relatório está aberto, a janela indica que está em modo de relatório. Hotkeys e estado da área de notificação referem-se ao relatório carregado, não à máquina ao vivo.</p>
-<h3>Comparar relatórios</h3>
-<p>A comparação mostra leituras adicionadas, removidas, alteradas e diferenças de detalhes. É útil para comparar antes/depois de uma atualização, duas máquinas diferentes ou o mesmo computador com configurações diferentes.</p>
-<h3>Relatórios de suporte</h3>
-<p>O relatório de suporte prepara um ZIP e dá um fluxo orientado para copiar o caminho, abrir a pasta ou abrir a página de issues. Isto reduz erros ao enviar dados para análise.</p>
-<h3>Histórico de leituras</h3>
-<p>O histórico grava leituras selecionadas num CSV temporário em <code>Logs</code>. É útil para observar tendências curtas, como temperatura, carga, rede ou disco durante uma tarefa.</p>
-<h2 id="settings-transfer">Transferência de definições</h2>
-<p>Exportar definições cria um ficheiro JSON com perfis, hotkeys, alarmes e outras escolhas. Importar permite escolher que partes trazer. Leituras genéricas como CPU, memória e uptime podem funcionar diretamente; leituras ligadas a hardware específico podem precisar de nova associação.</p>
-<p>Também existe uma opção para empacotar uma cópia instalada com configuração, sons e personalizações para usar noutro local. Reveja sempre a cópia antes de a partilhar.</p>
-<h2 id="files">Ficheiros</h2>
+<p>Quando o status da área de notificação está ativado, minimizar o Sensor Readout oculta-o da barra de tarefas e da lista Alt+Tab. Abra-o novamente no ícone da área de notificação. <code>Alt+F4</code> sai do aplicativo completamente.</p>
+<p>As leituras da área de notificação são selecionadas em uma lista de leituras disponíveis e movidas para uma lista de ordem de bandeja. Uma leitura aparece em apenas uma lista por vez. Use Adicionar, Remover, Para cima e Para baixo ou <code>Ctrl+Right</code>, <code>Ctrl+Left</code>e <code>Ctrl+Up</code> / <code>Ctrl+Down</code>, para escolher exatamente quais leituras aparecem primeiro. As leituras disponíveis são listadas primeiro como dispositivo e depois como nome e categoria da leitura, como <code>Ethernet - Rx: Network</code>, então a digitação antecipada pode pular para um nome de dispositivo. O Sensor Readout usa etiquetas de bandeja encurtadas, como <code>CPU</code>, <code>GPU</code>, <code>Rx</code>e <code>Tx</code>.</p>
+<h3>Inicialização e instalação (<code>Ctrl+2</code>)</h3>
+<p>A guia Inicialização e instalação controla a instalação e o que acontece quando o Sensor Readout é iniciada e encerrada.</p>
 <ul>
-<li><code>Config</code>: definições partilhadas e específicas da máquina.</li>
-<li><code>Logs</code>: logs de execução e histórico CSV.</li>
-<li><code>Reports</code>: relatórios guardados.</li>
-<li><code>Docs</code>: manuais HTML incluídos.</li>
-<li><code>Langs</code>: ficheiros de idioma.</li>
-<li><code>Data</code>: bases de dados de fornecedores USB/MAC e hashes de idiomas incluídos.</li>
-<li><code>Plug-Ins</code>: plug-ins opcionais.</li>
-<li><code>Backups</code>: backups criados durante atualizações quando necessário.</li>
+<li>Instalar neste PC: copie a pasta portátil atual para a pasta de programas do Windows para este usuário, opcionalmente, crie um atalho na área de trabalho e habilite a inicialização do Windows, feche a cópia atual e inicie a cópia instalada.</li>
+<li>Executar na inicialização do Windows: crie ou remova uma tarefa de logon do Windows para o usuário atual. O Sensor Readout usa uma tarefa agendada para que possa iniciar de forma confiável com os direitos de administrador necessários para acesso ao hardware.</li>
+<li>Comece minimizado na área de notificação: abra diretamente na bandeja em vez de mostrar a janela principal.</li>
+<li>Fala de inicialização: escolha se o Sensor Readout fala quando é iniciado e edite a mensagem falada.</li>
+<li>Sons de inicialização e desligamento: escolha arquivos WAV no <code>Sounds</code> pasta.</li>
+<li>Feedback de diagnóstico: escolha se o diagnóstico fala o progresso e reproduz sons de início/conclusão.</li>
+</ul>
+<p>O fluxo de instalação é para pessoas que iniciaram a partir de uma pasta portátil ou sincronizada, mas desejam o Sensor Readout no local normal dos programas neste PC. Ele copia o aplicativo e as configurações existentes, relatórios, registros, arquivos de idioma, sons, dados, documentos e plug-ins. Se Executar na inicialização do Windows estiver habilitado, o Sensor Readout criará uma tarefa de logon do Windows para a cópia instalada.</p>
+<p>Quando o Sensor Readout já estiver em execução no local instalado, este botão muda para <code>Desinstalar deste PC...</code>. A desinstalação remove os arquivos e atalhos do aplicativo instalado ao sair <code>Config</code>, <code>Logs</code>e <code>Reports</code> no lugar. A mesma guia também possui uma caixa de seleção de atalho na área de trabalho, para que você possa adicionar ou remover o atalho da área de trabalho sem reinstalar.</p>
+<p>Se a inicialização estiver habilitada, o Sensor Readout também permite o comportamento de inicialização minimizada para que as leituras da bandeja configurada estejam disponíveis após o login, sem sair da janela principal em Alt+Tab.</p>
+<p>Se o Sensor Readout for reiniciada após a instalação ou atualização e a janela principal não aparecer, verifique se Iniciar minimizado para área de notificação está habilitado. O Windows também pode ocultar o ícone da bandeja até que você permita isso na área de notificação do Windows ou nas configurações da bandeja do sistema. Mostrar o ícone da bandeja de Sensor Readout permite abrir a janela principal a partir desse ícone.</p>
+<h3>Teclas de atalho (<code>Ctrl+3</code>)</h3>
+<p>A guia Teclas de atalho controla as teclas globais de fala e visibilidade. Os perfis de teclas de atalho faladas são classificados por tecla atribuída, com perfis não atribuídos após perfis atribuídos. Teclas de atalho e alarmes usam <code>Alt+P</code> para predefinições; Usos de teclas de atalho <code>Alt+R</code> para Remover perfil.</p>
+<ul>
+<li>Mostrar/ocultar tecla de atalho: alterna a janela principal de qualquer lugar.</li>
+<li>Falar tecla de atalho de status da área de notificação: fala as leituras configuradas da bandeja.</li>
+<li>Incluir nomes de dispositivos no feedback falado: escolha entre resultados mais completos, como <code>Ethernet Rx</code> e resultados mais curtos, como <code>Rx</code>.</li>
+<li>Tempo limite de cópia com toque duplo: copie a mesma saída falada para a área de transferência quando uma tecla de atalho de fala for pressionada duas vezes rapidamente.</li>
+<li>Perfis de teclas de atalho faladas: crie teclas de atalho globais extras, cada uma com seu próprio nome, combinação de teclas e lista de leitura ordenada.</li>
+<li>Etiquetas faladas: renomeie as leituras selecionadas para fala mais curta, como alterar <code>Receive rate</code> para <code>Rx</code>.</li>
+</ul>
+<p>Perfis de teclas de atalho faladas podem ser importados de outra máquina <code>Config\&lt;ComputerName&gt;.json</code>. Os perfis importados não mantêm as atribuições de chaves antigas, portanto não podem roubar chaves já usadas na máquina atual. As leituras são mantidas somente quando o Sensor Readout pode combiná-las com segurança no computador atual.</p>
+<h3>Perfis de ventoinha (<code>Ctrl+4</code>)</h3>
+<p>A guia Perfis de ventoinha cria grupos nomeados de ações de ventoinhas. O layout corresponde à guia Teclas de atalho: crie um perfil, atribua uma tecla de atalho global opcional, adicione controles de ventilador ao perfil e escolha se cada ventilador deve ser definido para uma porcentagem manual ou retornado ao controle automático/padrão.</p>
+<p>Os perfis de ventoinha podem ser alternados. Com essa opção habilitada, pressionar a tecla de atalho do perfil uma vez aplica o perfil e pressionar a mesma tecla de atalho novamente retorna esses ventiladores ao controle automático/padrão. Cada perfil pode falar uma mensagem personalizada e/ou reproduzir um som escolhido quando aplicado.</p>
+<h3>Alarmes (<code>Ctrl+5</code>)</h3>
+<p>A guia Alarmes permite monitorar leituras sem observar a janela principal.</p>
+<ul>
+<li>Escolha uma leitura.</li>
+<li>Escolha Acima ou igual, Abaixo ou igual ou Igual.</li>
+<li>Defina o limite e a unidade.</li>
+<li>Defina um tempo de espera para que alarmes repetidos não disparem com muita frequência.</li>
+<li>Escolha se o alarme fala, reproduz um som ou ambos.</li>
+</ul>
+<p>Os alarmes são melhores para valores que mudam naturalmente, como temperatura, velocidade do ventilador, carga da CPU, atividade do disco, carga da bateria ou velocidade da rede. Informações estáticas, como a versão do BIOS, geralmente não são úteis como alarme.</p>
+<h3>Plug-ins (<code>Ctrl+6</code>)</h3>
+<p>A guia Plug-Ins lista os plug-ins de hardware instalados e descreve o que cada um faz. Os plug-ins são códigos confiáveis, portanto, habilite apenas plug-ins de pessoas ou projetos em que você confia. Os arquivos ZIP do plug-in importado são copiados para o <code>Plug-ins</code> pasta, mas permanecem desativados até você mesmo ativá-los.</p>
+<h3>Itens ocultos (<code>Ctrl+7</code>)</h3>
+<p>A guia Itens ocultos restaura leituras ou grupos ocultos da janela principal. Os itens verificados estão ocultos. Desmarque uma caixa de seleção para tornar esse item visível novamente. Ele também inclui preferências de confirmação para instalações de atualização e remoção de perfil de teclas de atalho faladas, para que você possa trazer de volta esses avisos de segurança após optar por não mostrá-los novamente.</p>
+<h3>Editor de idioma (<code>Ctrl+8</code>)</h3>
+<p>A guia Editor de idioma edita os arquivos de idioma instalados sem abrir um editor de texto separado. O inglês é o principal idioma substituto. As strings traduzidas ausentes voltam para o inglês e os arquivos de idioma corrompidos são ignorados em vez de travar o aplicativo.</p>
+<h2 id="alarms-and-sounds">Alarmes e sons</h2>
+<p>Preferências &gt; Alarmes permite criar alarmes de leitura. Escolha uma leitura, defina Acima ou igual, Abaixo ou igual ou Igual e escolha o limite e o tempo de espera. Cada alarme pode falar através do leitor de tela ativo, reproduzir um arquivo WAV ou ambos.</p>
+<p>Preferências &gt; Inicialização e instalação inclui opções opcionais de som de inicialização e desligamento. Sensor Readout carrega arquivos WAV do <code>Sounds</code> pasta. Os sons agrupados usam nomes neutros, como <code>SR01.wav</code>, <code>SR02.wav</code>, e assim por diante, mas os sons adicionados pelo usuário podem usar qualquer som normal <code>.wav</code> nome do arquivo. Qualquer som na pasta pode ser selecionado em qualquer lugar que o Sensor Readout ofereça um som, incluindo alarmes, inicialização ou desligamento, diagnósticos, alertas de atualização e ações de perfil de ventilador.</p>
+<h2 id="plug-ins">Plug-ins</h2>
+<p>Preferências &gt; Plug-Ins lista os plug-ins de hardware instalados e descreve o que cada um faz. Os plug-ins são códigos confiáveis, portanto, habilite apenas plug-ins de pessoas ou projetos em que você confia.</p>
+<p>Os plug-ins instalados estão desabilitados por padrão. Importar um plug-in ZIP copia-o para o <code>Plug-ins</code> pasta, mas ainda a deixa desativada até que você verifique você mesmo.</p>
+<p>Quando um plug-in ativado inclui páginas de suporte relacionadas, esses links aparecem no menu Ajuda. Por exemplo, os plug-ins de laptop incluídos podem mostrar o Dell Command | Monitor, G-Helper, HP Support Assistant, OMEN Gaming Hub, Lenovo Vantage, Lenovo System Update, Framework BIOS e Drivers ou páginas de controle de Framework.</p>
+<p>O plug-in Framework Laptop incluído é opcional e desabilitado por padrão. Ele pode adicionar linhas de temperatura e RPM do ventilador específicas do Framework quando o Framework Control estiver instalado e em execução.</p>
+<p>Plug-ins experimentais HP, Dell Latitude, Lenovo e Asus ROG/TUF também estão incluídos para feedback opcional do testador. Eles estão desabilitados por padrão. O plug-in Lenovo é somente leitura e analisa as interfaces WMI do ventilador Lenovo, ventilador do Windows, zona térmica ACPI e WMI da Lenovo. O plug-in Asus é baseado em parte na pesquisa ACPI do G-Helper e inclui seu próprio aviso GPL em sua pasta de plug-in.</p>
+<p>Para desenvolvedores, a árvore de origem do GitHub inclui <code>Docs\Plug-In-development.md</code>.</p>
+<h2 id="reading-sensors">Leitura dos sensores</h2>
+<p>O painel de leituras é uma visualização em árvore. Escolha uma categoria na lista à esquerda e revise as leituras e detalhes dessa categoria à direita. As categorias agrupam as leituras por dispositivo ou finalidade primeiro e, em seguida, listam as leituras individuais abaixo, para que os leitores de tela não precisem anunciar um nome longo do dispositivo antes de cada valor.</p>
+<p>Use a lista da seção esquerda para mover-se entre áreas amplas. Isso altera apenas a visualização; ele não ativa, desativa ou seleciona dispositivos permanentemente.</p>
+<p>O Sensor Readout abre em Desempenho/Visão geral por padrão. Não existe uma página combinada de todas as leituras; cada leitura pertence à sua própria seção para que a navegação permaneça previsível e os nomes dos dispositivos não sejam repetidos indefinidamente.</p>
+<p>A seção Desempenho resume os contadores do sistema ativo e a atividade de armazenamento. Ele agrupa o uso da CPU com modelo de CPU, fornecedor, contagem de núcleos/threads, relógio, soquete, arquitetura, conjuntos de instruções como SSE e AVX e informações de virtualização e, em seguida, agrupa atividades de memória e armazenamento por dispositivo.</p>
+<p>O Windows relata a tradução de memória de máquina virtual de hardware como SLAT. A documentação da Intel costuma chamar a mesma classe de recurso de EPT, enquanto a documentação da AMD costuma chamá-la de NPT ou RVI. O Sensor Readout explica isso como <code>CPU hardware VM memory translation (SLAT/EPT/NPT)</code> então a leitura é menos enigmática.</p>
+<p>A seção Rede mostra cada adaptador em uma árvore comum, incluindo status, endereço IP, velocidade do link, taxas de envio e recebimento e contadores de tráfego total. Os adaptadores Wi-Fi conectados também podem mostrar o nome da rede, ponto de acesso, intensidade do sinal, RSSI em dBm, canal, frequência, tipo de rádio, velocidades de link de recepção/transmissão e detalhes de segurança onde o Windows os fornece.</p>
+<p>A seção USB mostra dispositivos conectados, hubs, controladores, velocidade de conexão, velocidade máxima onde o Windows a expõe, energia solicitada, letras de unidade, status seguro para desconectar, endereço MAC do adaptador de rede USB/fornecedor de OUI e ID de hardware de armazenamento/fornecedor de OUI quando disponível e outros detalhes copiáveis. Os dados USB dependem parcialmente do que o Windows e o driver do dispositivo expõem, portanto, alguns dispositivos podem relatar menos detalhes do que outros.</p>
+<p>A seção Áudio agrupa endpoints relacionados sob o nome do dispositivo ou interface sempre que possível e depois separa as entradas de reprodução e gravação. Ele mostra detalhes de fornecedor, status, direção e formato padrão, como canais, taxa de amostragem e profundidade de bits onde o Windows os expõe.</p>
+<p>A seção Exibir mostra adaptadores gráficos e monitores, incluindo memória do adaptador, resolução, taxa de atualização, detalhes do driver, fornecedor do monitor, código do produto, número de série e data de fabricação onde o Windows os expõe.</p>
+<p>Quando a leitura selecionada é uma porcentagem, o Sensor Readout também a expõe através da barra de progresso abaixo da árvore. Isso é útil visualmente e permite que os leitores de tela usem o feedback da barra de progresso existente sem navegar por muitos controles de progresso separados.</p>
+<p>Use o <code>Editar</code> menu, tecla Aplicativo ou clique com o botão direito em uma leitura ou grupo para copiá-lo, abra Detalhes quando disponível, renomeie uma ventoinha ou oculte-o. Itens ocultos podem ser restaurados de <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Itens ocultos</code>; os itens marcados nessa guia ficam ocultos.</p>
+<p>Usar <code>Editar</code> &gt; <code>Find reading...</code> ou <code>F3</code> para pesquisar leituras em todas as categorias. A pesquisa diminui conforme você digita. Vá para a lista de resultados, pressione Enter para ir para a leitura selecionada, pressione <code>Alt+L</code> para limpar a pesquisa ou pressione <code>Esc</code> ou Fechar para retornar à janela principal.</p>
+<h2 id="fan-control-workflow">Fluxo de controlo de ventoinhas</h2>
+<p>Abra os controlos de ventoinha em <code>Opções</code> &gt; <code>Controlos de ventoinha...</code> ou pressione <code>Ctrl+L</code>.</p>
+<p>1. Escolha um ventilador na caixa de destino de controle do ventilador.</p>
+<p>2. Opcional: digite uma etiqueta amigável e pressione <code>Alt+L</code>.</p>
+<p>3. Digite uma porcentagem de 0 a 100.</p>
+<p>4. Pressione <code>Alt+M</code> para aplicá-lo ao ventilador selecionado.</p>
+<p>5. Pressione <code>Alt+A</code> para retornar o ventilador selecionado para automático/padrão.</p>
+<p>6. Pressione <code>Alt+R</code> para retornar todos os controles visíveis do ventilador para automático/padrão.</p>
+<p>Os botões de todos os ventiladores aplicam-se apenas aos controles visíveis dos ventiladores. Os cabeçalhos da placa-mãe parados ou não preenchidos ficam ocultos, a menos que <code>Mostrar paradas</code> está habilitado.</p>
+<p>Os rótulos dos ventiladores são salvos no arquivo de configuração específico da máquina em <code>Config</code>. Os rótulos alteram apenas os nomes amigáveis ​​mostrados no Sensor Readout.</p>
+<h2 id="fan-curves">Curvas de ventoinha</h2>
+<p>Abra Curvas de ventoinha de <code>Opções</code> &gt; <code>Fan curves...</code>, pressione <code>Ctrl+U</code>ou abra-os na caixa de diálogo Controlos de ventoinha.</p>
+<p>Cada curva escolhe um controlo de ventoinha gravável e uma leitura de temperatura. O Sensor Readout define o ventilador para a porcentagem baixa na temperatura baixa, aumenta entre os pontos baixo e alto e usa a porcentagem de emergência quando a temperatura de emergência é atingida. As curvas do ventilador dependem do LibreHardwareMonitor expondo um controle gravável; se o hardware expõe apenas uma leitura de RPM do ventilador, o Sensor Readout pode lê-lo, mas não pode controlá-lo.</p>
+<h2 id="fan-profiles">Perfis de ventoinha</h2>
+<p>Preferências &gt; Perfis de ventoinha permitem criar grupos nomeados de ações de ventoinhas. O layout corresponde à guia Teclas de atalho: crie um perfil, atribua uma tecla de atalho global opcional, adicione controles de ventilador ao perfil e escolha se cada ventilador deve ser definido para uma porcentagem manual ou retornado ao controle automático/padrão.</p>
+<p>Os perfis de ventilador também podem ser marcados como alternadores. Com essa opção habilitada, pressionar a tecla de atalho do perfil uma vez aplica o perfil e pressionar a mesma tecla de atalho novamente retorna os ventiladores nesse perfil para controle automático/padrão.</p>
+<p>Cada perfil de ventoinha pode falar quando é aplicado, reproduzir um som, ambos ou nenhum. A mensagem falada pode ser personalizada e <code>{0}</code> é substituído pelo nome do perfil.</p>
+<p>Exemplos úteis:</p>
+<ul>
+<li>Todos os dias: configure as ventoinhas do gabinete para uma porcentagem fixa silenciosa e deixe a ventoinha da CPU ligada automaticamente.</li>
+<li>Jogos ou renderização: defina os controles do gabinete, da CPU e do ventilador da GPU para níveis mais altos antes de iniciar uma carga de trabalho pesada.</li>
+<li>Redefinir para automático: crie um perfil que retorne todos os controles de ventilador graváveis para controle automático/padrão.</li>
+</ul>
+<p>Os perfis de ventilador são específicos da máquina porque as teclas de controle do ventilador dependem do hardware do computador atual. Novas instalações começam com alguns perfis iniciais vazios, como uso diário, cargas de trabalho mais pesadas e redefinidas para automáticas. Adicione os ventiladores que fazem sentido na sua máquina, renomeie os perfis se necessário ou exclua os iniciadores.</p>
+<p>Se uma curva de ventilador estiver habilitada para o mesmo ventilador, o Sensor Readout pausa temporariamente essa curva enquanto uma ação ou perfil manual do ventilador controla o mesmo ventilador. Retornar o ventilador ao controle automático/padrão retoma a curva.</p>
+<h2 id="example-setups">Exemplos de configurações</h2>
+<ul>
+<li>Tecla de atalho de status rápido: crie uma tecla de atalho falada para uso da CPU, temperatura da CPU, temperatura da GPU e as taxas de rede mais importantes.</li>
+<li>Tecla de atalho de atividade de disco: crie uma tecla de atalho falada para taxas de leitura e gravação nas unidades de seu interesse e pressione-a duas vezes quando desejar que os mesmos valores sejam copiados para a área de transferência.</li>
+<li>Desktop silencioso: use uma curva de ventoinha para a ventoinha da CPU, um perfil de ventoinha silenciosa para ventoinhas do gabinete e um alarme que avisa se a temperatura da CPU ou GPU subir acima do limite escolhido.</li>
+<li>Solução de problemas de USB: abra a categoria USB, pressione Enter em um dispositivo para obter detalhes, selecione os campos úteis e copie-os para compartilhamento.</li>
+</ul>
+<h2 id="diagnostics">Diagnóstico</h2>
+<p>Usar <code>Ajuda</code> &gt; <code>Executar diagnósticos...</code> ou pressione <code>Alt+F1</code> quando você precisar coletar informações de suporte. Sensor Readout cria um arquivo ZIP em <code>Reports</code> com o nome do computador no nome do arquivo, abre a pasta quando terminar e remove a pasta de teste temporária após a criação do ZIP.</p>
+<p>O ZIP de diagnóstico contém um relatório TXT, um relatório HTML, um log de depuração, um resumo de diagnóstico e informações de tempo. A execução testa brevemente os controles graváveis ​​do ventilador em 100% e, em seguida, restaura cada ventilador ao estado anterior manual, automático/padrão ou curva do ventilador.</p>
+<p>O diagnóstico pode falar sobre o progresso e reproduzir sons de início/conclusão. Configure isso em <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Arranque e Instalação</code>. O diagnóstico de linha de comando usa as mesmas preferências, a menos que você passe <code>--diagnostics-quiet</code>, <code>--no-diagnostics-speech</code>, ou <code>--no-diagnostics-sounds</code>.</p>
+<p>Para testes autônomos, execute <code>Sensor Readout.exe --diagnostics [path]</code>. Se <code>[path]</code> é uma pasta, o ZIP de diagnóstico é criado lá. Se nenhum caminho for fornecido, o Sensor Readout cria o ZIP em <code>Reports</code>.</p>
+<h2 id="reports">Relatórios</h2>
+<p>Os relatórios são úteis em duas situações diferentes: manter um instantâneo da sua própria máquina ou enviar um instantâneo para outra pessoa para que possa inspecioná-lo no Sensor Readout.</p>
+<h3 id="saving-a-report">Salvando um relatório</h3>
+<p>Pressione <code>Ctrl+S</code> ou usar <code>Ficheiro</code> &gt; <code>Save report...</code>.</p>
+<p>A caixa de diálogo salvar oferece relatórios TXT e HTML. Os relatórios TXT agrupam valores por tipo de leitura e dispositivo, de modo que nomes longos de hardware são escritos uma vez como cabeçalhos em vez de serem repetidos em cada linha. Os relatórios HTML usam tabelas formatadas com colunas de sensor, valor e origem.</p>
+<p>O primeiro salvamento cria o <code>Reports</code> pasta se ela ainda não existir. Usar <code>Ficheiro</code> &gt; <code>Abrir pasta de relatórios</code> ou <code>Ctrl+Shift+O</code> para ir para os relatórios salvos e usar <code>Ficheiro</code> &gt; <code>Abrir pasta de logs</code> ou <code>Ctrl+Shift+L</code> quando o suporte precisar da pasta de log. Para compartilhar um relatório, envie o arquivo salvo <code>.html</code> ou <code>.txt</code> arquivo. O HTML geralmente é mais fácil de ler em um navegador, enquanto o TXT é conveniente para colar em mensagens. Se alguém precisar de um pacote de suporte mais completo, use <code>Ajuda</code> &gt; <code>Executar diagnósticos...</code> em vez disso; os diagnósticos incluem formatos de relatório, logs e um resumo em um arquivo ZIP.</p>
+<p>Usar <code>Ficheiro</code> &gt; <code>Save anonymized report...</code> ou <code>Ctrl+Shift+A</code> quando você deseja um relatório compartilhável com identificadores privados comuns mascarados. O relatório anônimo substitui o nome do computador e mascara endereços IP, endereços MAC, números de série, UUIDs, GUIDs, IDs PnP, IDs de hardware, IDs compatíveis e caminhos de localização onde o Sensor Readout os reconhece.</p>
+<h3 id="anonymous-community-stats">Estatísticas anônimas da comunidade</h3>
+<p>Usar <code>Ajuda</code> &gt; <code>Share anonymous community stats...</code> se você quiser ajudar a melhorar o hardware e os dados de cobertura de acessibilidade do Sensor Readout sem enviar um relatório. Isso é apenas uma opção explícita: o Sensor Readout cria a pequena carga JSON, mostra primeiro o texto exato e não carrega nada, a menos que você pressione <code>Upload</code>.</p>
+<p>As estatísticas da comunidade não são relatórios anônimos. Eles são uma carga listada de permissões separada contendo apenas campos de configuração agregados e amplos, como versão do aplicativo, edição/versão/compilação do Windows, fornecedor de CPU e contagens de núcleo, contagens de fornecedor de GPU, totais de memória, contagens de cobertura de categoria, IDs de plug-in habilitados, idioma selecionado, modo de instalação, configurações de atualização/atualização, contagens de teclas de atalho e áreas de notificação configuradas, nomes de leitores de tela compatíveis detectados e sinalizadores amplos de recursos de acessibilidade do Windows. A carga útil não inclui o nome do seu computador, nome de usuário, números de série, endereços MAC ou IP, caminhos, rótulos de unidades, IDs de dispositivos, IDs PnP, campos de detalhes brutos, programas instalados, uso de programas ou linhas completas de relatórios.</p>
+<p>O Sensor Readout armazena um ID de cliente anônimo local aleatório em suas configurações e envia apenas um hash SHA-256 desse ID. Isso permite que uma instalação atualize sua entrada agregada anterior sem usar identidade derivada de hardware. Excluir as configurações do aplicativo ou usar uma cópia portátil separada cria uma nova entrada anônima.</p>
+<p>Após um upload bem-sucedido, o Sensor Readout abre a página agregada pública em <a href="https://onj.me/srstats/">onj.me/srstats</a>. Você também pode visitar essa página sem enviar nada. Para testes, <code>Sensor Readout.exe --community-stats-json [path]</code> grava a mesma carga listada em um arquivo e sai sem carregá-la.</p>
+<h3 id="opening-a-report">Abrindo o relatório de outra pessoa</h3>
+<p>Pressione <code>Ctrl+O</code> ou usar <code>Ficheiro</code> &gt; <code>Open report...</code> para carregar um relatório TXT ou HTML de Sensor Readout salvo. Se alguém enviar um relatório dentro de um arquivo ZIP, abra o ZIP diretamente e o Sensor Readout usará o primeiro relatório legível dentro dele.</p>
+<p>O relatório é aberto como um instantâneo estático na categoria normal e no layout de árvore, para que você possa inspecionar a máquina de outro usuário como se fosse sua visualização atual. O modo de relatório estático não atualiza valores em tempo real, não executa alarmes nem controla hardware. É apenas um visualizador dos dados salvos no relatório.</p>
+<p>O status da área de notificação e as teclas de atalho faladas são lidas no relatório carregado enquanto um relatório está aberto. O Sensor Readout anuncia que os valores são de um relatório estático e, se uma leitura configurada não estiver presente nesse relatório, ele informa isso em vez de sugerir que os dados do sensor ao vivo ainda estão sendo carregados.</p>
+<p>Os comandos de detalhes e cópia ainda funcionam onde o relatório contém os campos relevantes. Isso é útil quando alguém envia um relatório de USB, áudio, monitor, rede, ventilador, bateria ou SMART e você deseja inspecionar linhas específicas sem ler o arquivo inteiro manualmente.</p>
+<p>Usar <code>Ficheiro</code> &gt; <code>Return to live readings</code> ou <code>Ctrl+R</code> para voltar ao computador atual. Os relatórios HTML salvos pelo Sensor Readout 2.0 ou posterior contêm um instantâneo oculto legível por máquina para a melhor experiência de importação. Os relatórios TXT incluem os mesmos dados de reabertura após uma linha de dados internos claramente identificada, agrupada em linhas curtas para que o relatório legível permaneça prático em editores de texto.</p>
+<h3>Comparando Relatórios</h3>
+<p>Usar <code>Ficheiro</code> &gt; <code>Compare reports...</code> ou <code>Ctrl+Shift+M</code> para escolher dois relatórios de Sensor Readout. A comparação mostra leituras adicionadas, leituras removidas, valores alterados e campos de detalhes alterados. Isso é útil para solucionar problemas antes e depois, verificar se a instalação de um driver alterou o estado do hardware ou comparar duas máquinas semelhantes.</p>
+<h3>Relatórios de suporte</h3>
+<p>Usar <code>Ajuda</code> &gt; <code>Prepare support report...</code> quando precisar enviar informações ao projeto ou a uma pessoa de suporte. O Sensor Readout cria o mesmo ZIP de diagnóstico que <code>Executar diagnósticos...</code>e mostra o caminho ZIP com botões para copiar o caminho, abrir a pasta que o contém ou abrir a página de problemas do GitHub.</p>
+<h3>História de leitura</h3>
+<p>Usar <code>Opções</code> &gt; <code>Enable reading history logging</code> para ativar ou desativar o log CSV de curto prazo. Selecione uma leitura e use <code>Editar</code> &gt; <code>Add to history log</code> ou <code>Ctrl+Shift+G</code> para incluí-lo. Sensor Readout grava as leituras selecionadas em <code>Logs\ReadingHistory-&lt;ComputerName&gt;-&lt;Date&gt;.csv</code> durante as atualizações normais. Isso se destina à solução de problemas temporária, em vez do monitoramento permanente em segundo plano.</p>
+<h2 id="settings-transfer">Transferência de configurações</h2>
+<p>Usar <code>Ficheiro</code> &gt; <code>Export settings and profiles...</code> ou <code>Ctrl+E</code> para criar um pacote de configurações. O Sensor Readout mostra primeiro uma lista de verificação, para que você possa escolher exatamente o que incluir. Usar <code>Ficheiro</code> &gt; <code>Import settings and profiles...</code> ou <code>Ctrl+I</code> para trazer as configurações de volta. A importação mostra o mesmo tipo de lista de verificação, limitada às seções encontradas no pacote selecionado. Leituras portáteis, como memória, CPU, tempo de atividade do sistema e muitos valores de visão geral, são correspondidas quando possível. Os itens específicos de hardware são importados com cautela: as teclas de atalho globais são deixadas em branco, as ações do perfil do ventilador não são vinculadas, as curvas do ventilador são desativadas até que um controle do ventilador seja escolhido e os alarmes são desativados para revisão.</p>
+<p>Usar <code>Ficheiro</code> &gt; <code>Export portable copy...</code> ou <code>Ctrl+Shift+E</code> quando você deseja todo o aplicativo personalizado como um ZIP. Inclui Sensor Readout, <code>Config</code>, plug-ins, arquivos de idioma, sons personalizados e outros arquivos necessários para executar a partir de outra pasta ou de outro PC. Relatórios e logs são caixas de seleção opcionais porque podem ser grandes ou privados.</p>
+<h2 id="files">Arquivos</h2>
+<p>Construção portátil:</p>
+<ul>
+<li>
+<code>Sensor Readout.exe</code>
+</li>
+</ul>
+<p>Configuração e registro criados pelo aplicativo:</p>
+<ul>
+<li>
+<code>Config\Shared.json</code>: preferências portáteis compartilhadas entre máquinas, como idioma, comportamento de atualização, unidade de temperatura, sons de inicialização/desligamento, fala de inicialização, visibilidade da área de notificação, verificações de atualização e opções globais de teclas de atalho.</li>
+<li>
+<code>Config\&lt;ComputerName&gt;.json</code>: preferências específicas da máquina, como execução na inicialização do Windows, leituras selecionadas da área de notificação, listas de leitura de teclas de atalho faladas, alarmes, leituras ocultas, rótulos de ventiladores, configurações de controlo de ventoinhas, rótulos de leitura falada personalizados, nível de registro e prompts de pré-requisitos de primeira execução.</li>
+<li>
+<code>Logs\&lt;ComputerName&gt;.log</code>: diagnósticos opcionais, ações de ventiladores, registro de teclas de atalho e mensagens de voz do leitor de tela, criadas somente quando o registro está habilitado.</li>
+<li>
+<code>Reports</code>: pasta padrão para relatórios salvos na linha de comando, na primeira caixa de diálogo de salvamento ou em <code>Ajuda</code> &gt; <code>Executar diagnósticos...</code>.</li>
+<li>
+<code>Sounds\SR01.wav</code>, <code>Sounds\SR02.wav</code>e similares: sons opcionais de alarme/inicialização/desligamento. Os usuários podem adicionar seus próprios <code>.wav</code> arquivos.</li>
+<li>
+<code>Data\usb.ids</code>: dados de pesquisa de fornecedor/produto USB agrupados.</li>
+<li>
+<code>Data\oui.csv</code>: dados de pesquisa de fornecedores MAC/OUI agrupados para adaptadores de rede.</li>
+<li>
+<code>Plug-Ins\Framework</code>: plug-in opcional Framework Laptop.</li>
+<li>
+<code>Plug-Ins\HP</code>: plug-in experimental opcional HP/OMEN/Victus.</li>
+<li>
+<code>Plug-Ins\DellLatitude</code>: plug-in experimental opcional do Dell Latitude.</li>
+<li>
+<code>Plug-Ins\AsusRog</code>: plug-in experimental opcional Asus ROG/TUF. Este plug-in inclui seu próprio aviso e texto GPL porque usa pesquisa ACPI derivada do G-Helper.</li>
+<li>Os usuários podem adicionar plug-ins de terceiros em suas próprias subpastas.</li>
+</ul>
+<p>Arquivos de idioma:</p>
+<ul>
+<li>Colocar <code>.txt</code> ou <code>.ini</code> arquivos no <code>Langs</code> pasta ao lado <code>Sensor Readout.exe</code>.</li>
+<li>Na primeira execução, o Sensor Readout escolhe um idioma incluído no idioma de exibição do Windows, quando houver um disponível; caso contrário, volta ao inglês.</li>
+<li>Usar simples <code>key=value</code> linhas. Linhas começando com <code>#</code> ou <code>;</code> são comentários.</li>
+<li>Definir <code>language.name=Display name</code> então o idioma tem um nome claro nos menus.</li>
+<li>Definir <code>manual.file=README-xx.html</code> então <code>F1</code> abre o manual correspondente para o idioma selecionado no navegador do usuário. Digite apenas um nome de arquivo, não um caminho de pasta. O Sensor Readout aparece no <code>Docs</code> pasta primeiro. Se esta entrada estiver faltando, o Sensor Readout tenta <code>&lt;language-file-name&gt;.html</code>, então volta para <code>README-en.html</code>.</li>
+<li>Definir <code>number.decimalSeparator=,</code> se o idioma deve exibir valores decimais com vírgula, como <code>1,1 TB</code>.</li>
+<li>O Sensor Readout verifica a pasta a cada 15 segundos, para que os arquivos recém-adicionados ou editados apareçam <code>Opções</code> &gt; <code>Language</code> sem reiniciar.</li>
+<li>
+<code>Langs\English.txt</code> é o arquivo de idioma principal/padrão. Copie-o ou use o botão Novo do editor de idiomas para iniciar outro idioma.</li>
+<li>O separador decimal também pode ser alterado em Preferências sem editar um arquivo de idioma.</li>
+<li>Os manuais incluídos ficam no <code>Docs</code> pasta e usar <code>README-en.html</code>, <code>README-de.html</code>, <code>README-es.html</code>, <code>README-fr.html</code>, <code>README-it.html</code>e <code>README-pt.html</code>.</li>
+</ul>
+<p>Fala opcional do leitor de tela:</p>
+<ul>
+<li>Teclas de atalho e alarmes falados usam o Tolk para conversar com o leitor de tela ativo sempre que possível.</li>
+<li>
+<code>Tolk.dll</code>, <code>SAAPI64.dll</code>, e DLLs de suporte Tolk estão agrupadas ao lado <code>Sensor Readout.exe</code> para leitor de tela e fala SAPI.</li>
+<li>Se o Tolk estiver faltando ou nenhum alvo de fala aceitar a mensagem, a ação falhará com segurança e mostrará uma mensagem de status quando a janela principal estiver visível.</li>
+<li>Quando o Sensor Readout começa minimizada na área de notificação, ela pode emitir uma mensagem de inicialização configurável por meio do leitor de tela ativo. O padrão vem de <code>speech.startupActive</code> no arquivo de idioma selecionado.</li>
+<li>Preferências inclui uma guia de editor de idioma simples para editar entradas de arquivos de idioma existentes sem abrir um editor de texto separado.</li>
 </ul>
 <h2 id="notes">Notas</h2>
-<p>Suporte de ventoinhas depende de LibreHardwareMonitor, PawnIO, chip de sensores da motherboard, firmware e permissões. GPUs e discos podem aparecer sem elevação, mas motherboard e ventoinhas frequentemente precisam de administrador.</p>
-<p>Se a temperatura ou carga de CPU estiver em falta, instalar e executar Core Temp pode ajudar. O Core Temp é opcional e usado apenas como fallback.</p>
-<p>Se controlos de ventoinha não aparecerem, abra <code>Opções</code> &gt; <code>Controlos de ventoinha</code> e ative <code>Mostrar paradas</code>. Algumas placas reportam cabeçalhos controláveis como parados ou indefinidos até começarem a rodar.</p>
-<h3>Plug-ins de marcas de portáteis</h3>
-<p>Utilizadores de Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus podem obter melhor visibilidade de ventoinhas ou temperaturas ativando o plug-in correspondente. Estes plug-ins não garantem dados em todos os modelos.</p>
-<p>Ferramentas do fabricante também podem ajudar: Dell Command | Monitor, Lenovo Vantage, Lenovo System Update, MSI Center, G-Helper, HP Support Assistant e OMEN Gaming Hub. São ferramentas externas; instale apenas o que fizer sentido para a sua máquina.</p>
-<h2 id="changelog">Novidades</h2>
-<h3>4.0.4</h3><ul><li>Adicionado: Desempenho/Resumo inclui agora um grupo Acessibilidade com o estado da saída do leitor de ecrã, leitores de ecrã suportados detectados e definições comuns de acessibilidade do Windows, como alto contraste, teclas presas, teclas de alternância, teclas de filtro, mostrar sons e descrições áudio quando o Windows as expõe.</li><li>Privacidade: as estatísticas anónimas da comunidade incluem agora edição, versão e compilação do Windows, além desses indicadores gerais de acessibilidade, mas continuam a não incluir programas instalados, utilização de programas, dados identificadores de dispositivos ou linhas completas do relatório.</li></ul><h3>4.0.3</h3><ul><li>Corrigido: o manual em português é agora um guia de utilizador completo incluído, em vez de um resumo curto, mantendo o padrão esperado para os idiomas distribuídos.</li></ul>
-<h3>4.0.2</h3><ul><li>Adicionado: idioma português e manual em português, contribuídos por Vitor Ferreira.</li></ul>
-<h3>4.0.1</h3><ul><li>Corrigido: o envio das estatísticas da comunidade usa agora explicitamente definições TLS modernas, evitando erros de canal seguro SSL/TLS em alguns sistemas.</li></ul>
-<h3>4.0.0</h3><ul><li>Adicionado: estatísticas anónimas da comunidade com pré-visualização exata do JSON e upload apenas por escolha explícita.</li><li>Privacidade: as estatísticas são separadas de relatórios anonimizados e não incluem identificadores privados, caminhos, IDs de dispositivos, programas instalados ou linhas completas de relatório.</li></ul>
-<h3>3.10.5</h3><ul><li>Corrigido: diagnósticos já não deixam um diálogo de conclusão escondido quando a aplicação está oculta.</li><li>Melhorado: atualização automática reduz atividade em segundo plano quando a aplicação está escondida e nada precisa de monitorização apertada.</li></ul>
-<h3>3.10.4</h3><ul><li>Adicionado: tamanho total, usado e livre do ficheiro de paginação, disponível para relatórios, hotkeys e área de notificação.</li></ul>
-<h3>3.10.3</h3><ul><li>Adicionado: estado BitLocker de unidades quando o Windows fornece essa informação.</li></ul>
-<h3>3.10.2</h3><ul><li>Corrigido: editor de idioma com pesquisa F3, memória da última entrada e navegação por várias letras.</li></ul>
-<h3>3.10.1</h3><ul><li>Corrigido: resumos de categoria localizam contagens de leituras e grupos.</li><li>Corrigido: mensagens italianas de atualização e instalação usam acentos corretos.</li></ul>
-<h3>3.10.0</h3><ul><li>Adicionado: assistente inicial, dicas, opção de apagar definições e suporte para espaço total/usado em hotkeys e área de notificação.</li></ul>
-<h3>3.9.2</h3><ul><li>Melhorado: maior cobertura de tradução para preferências, predefinições, perfis e descrições acessíveis.</li><li>Corrigido: unidades removíveis prontas aparecem com espaço e atividade de disco lógico.</li></ul>
-<h3>3.9.1</h3><ul><li>Corrigido: Sensor Readout já não espera indefinidamente por arranque lento do LibreHardwareMonitor.</li></ul>
-<h3>3.9.0</h3><ul><li>Adicionado: resumo de categoria, mensagens para categorias vazias, predefinições de alarmes, predefinições de hotkeys, verificação de acessibilidade e copiar correspondências em Detalhes.</li></ul>
-<h3>3.8.1</h3><ul><li>Melhorado: importar definições usa <code>Ctrl+I</code> e importar plug-in ZIP usa <code>Ctrl+Shift+I</code>.</li></ul>
-<h3>3.8.0</h3><ul><li>Corrigido: menos consultas WMI repetidas para reduzir CPU em máquinas lentas.</li><li>Corrigido: recuperação de WMI em falha específica quando elevado.</li><li>Adicionado: plug-in experimental MSI e identificação de versão em relatórios.</li></ul>
-<h3>3.7.1</h3><ul><li>Corrigido: atualizações substituem pastas incluídas limpas, evitando plug-ins duplicados e ficheiros antigos vivos.</li></ul>
-<h3>3.7.0</h3><ul><li>Corrigido: <code>F5</code> reconstrói USB e dispositivos imediatamente.</li><li>Melhorado: EXE, SDK e plug-ins têm versões de ficheiro correspondentes.</li><li>Adicionado: plug-in experimental Lenovo.</li></ul>
-<h3>3.6.2</h3><ul><li>Corrigido: botão Renomear nas Preferências e hotkeys testáveis sem fechar Preferências.</li><li>Melhorado: Detalhes de GPU, impressoras e áudio com mais dados técnicos.</li></ul>
-<h3>3.6.1</h3><ul><li>Corrigido: manuais localizados corrompidos ou enormes são bloqueados pelos checks de release.</li></ul>
-<h3>3.6.0</h3><ul><li>Adicionado: comparar relatórios, relatório anonimizado, relatório de suporte, fontes de dados, histórico de leituras e opções de linha de comandos para suporte.</li></ul>
-<h3>3.5.0</h3><ul><li>Adicionado: memória GPU do Windows e leituras de GPU em hotkeys, relatórios e alarmes.</li><li>Melhorado: atualizar vive no menu Ver e intervalo mínimo pode ser 1 segundo.</li></ul>
-<h3>3.4.0</h3><ul><li>Melhorado: Detalhes de discos/SMART, suporte Asus e adição rápida a hotkeys ou área de notificação.</li></ul>
-<h3>3.3.1</h3><ul><li>Corrigido: arranque com Windows usa tarefa de logon elevada para maior fiabilidade.</li></ul>
-<h3>3.3.0</h3><ul><li>Melhorado: grupos de Performance/Resumo, Detalhes profundos de CPU, baseboard, Windows, firmware, discos e rede.</li><li>Adicionado: copiar só valor com <code>Ctrl+Shift+C</code> e anúncio Has Details no fim da linha.</li></ul>
-<h3>3.2.1</h3><ul><li>Corrigido: opção de arranque atualiza também aprovação de Startup Apps do Windows.</li></ul>
-<h3>3.2.0</h3><ul><li>Melhorado: Performance/Resumo mais organizado e impressoras agrupadas por impressora.</li><li>Adicionado: estado de impressoras e cartuchos quando o Windows fornece.</li></ul>
-<h3>3.1.1</h3><ul><li>Corrigido: SMART volta a mostrar totais de leitura/escrita NVMe quando disponíveis.</li></ul>
-<h3>3.1.0</h3><ul><li>Adicionado: Hotkeys menu, ação rápida para adicionar leitura a hotkey, teste automatizado mais amplo e estado da área de notificação mais configurável.</li></ul>
-<h3>3.0.1</h3><ul><li>Corrigido: atualização preserva configurações, relatórios e logs sem os colocar em builds públicos.</li></ul>
-<h3>3.0.0</h3><ul><li>Adicionado: categoria Dispositivos como inventário estilo Gestor de Dispositivos, com grupos amigáveis e Detalhes ricos.</li></ul>
-<h3>2.3.0</h3><ul><li>Melhorado: fluxo de instalação/desinstalação local, atalhos, cópia portátil, relatórios ZIP e título com nome da máquina.</li></ul>
-<h3>2.2.1</h3><ul><li>Corrigido: uptime atualiza corretamente.</li></ul>
-<h3>2.2.0</h3><ul><li>Adicionado: informação Wi-Fi, uptime, pesquisa F3, revisão F4, exportação/importação de perfis e melhor documentação.</li></ul>
-<h3>2.1.0</h3><ul><li>Adicionado: instalação local a partir da aplicação, melhorias de relatórios Windows e links de apoio para plug-ins de portáteis.</li></ul>
-<h3>2.0.0</h3><ul><li>Adicionado: plug-ins, manuais multilingues, menus de relatórios/logs, diagnósticos, detalhes e melhorias de acessibilidade.</li></ul>
-<h3>1.6.2</h3><ul><li>Melhorado: correções de atualização, documentação e fluxo de release.</li></ul>
-<h3>1.6.1</h3><ul><li>Corrigido: suporte Core Temp e fechamento com <code>--close</code>.</li></ul>
-<h3>1.6.0</h3><ul><li>Adicionado: sistema de plug-ins, importação de plug-ins, plug-in Framework, documentação de desenvolvimento e relatórios melhores.</li></ul>
-<h3>1.5.2</h3><ul><li>Corrigido: Framework sem API disponível já não atrasa leituras normais.</li></ul>
-<h3>1.5.1</h3><ul><li>Adicionado: API Framework Control opcional, categoria Bateria e notas de configuração Framework.</li></ul>
-<h3>1.5.0</h3><ul><li>Adicionado: categoria USB, curvas de ventoinha, perfis de ventoinha, atualizações automáticas configuráveis, base de dados MAC/OUI e suporte Tolk.</li></ul>
-<h3>1.4.3</h3><ul><li>Alterado: definições partilhadas e específicas da máquina foram separadas.</li></ul>
-<h3>1.4.2</h3><ul><li>Corrigido: atualizações já não criam pastas aninhadas como <code>Langs\Langs</code>.</li></ul>
-<h3>1.4.1</h3><ul><li>Corrigido: captura de Ctrl+Alt e fala após cópia por duplo pressionar.</li></ul>
-<h3>1.4.0</h3><ul><li>Adicionado: alarmes de leitura, sons, hotkeys com cópia, Preferências melhoradas e divisão de código.</li></ul>
-<h3>1.3.1</h3><ul><li>Adicionado: fallback Core Temp para CPU.</li></ul>
-<h3>1.3.0</h3><ul><li>Adicionado: vários perfis de hotkey falada, nomes falados, agrupamento de fala e separador dedicado de Hotkeys.</li></ul>
-<h3>1.2.1</h3><ul><li>Corrigido: espaço livre/usado de armazenamento vem de discos lógicos Windows.</li></ul>
-<h3>1.2.0</h3><ul><li>Adicionado: interface multilingue, editor de idioma, manuais HTML, unidade de temperatura, separador decimal, hotkeys globais, mensagens NVDA, atualizações e melhorias de acessibilidade.</li></ul>
-<h3>1.1.0</h3><ul><li>Adicionado: Rede como secção, Performance no topo, startup, progresso acessível, ordenação da área de notificação e links do projeto.</li></ul>
-<h3>1.0.0</h3><ul><li>Primeira versão portátil com sensores, relatórios, leituras na área de notificação, definições por computador, itens ocultos, nomes de ventoinhas e controlo direto de ventoinhas LibreHardwareMonitor/PawnIO.</li></ul>
-<h2 id="credits">Créditos</h2>
-<p>Criado por Codex. Ideias de Andre Louis.</p>
-<p>Tradução portuguesa e manual por Vitor Ferreira.</p>
-<p>Perguntas e feedback podem ser enviados através de <code>Ajuda</code> &gt; <code>Contacto</code> na aplicação ou <a href="https://onj.me/contact">https://onj.me/contact</a>.</p>
-<p>O Sensor Readout é software gratuito. Para apoiar o trabalho do Andre, use <code>Ajuda</code> &gt; <code>Donativos</code> na aplicação ou visite <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a>.</p>
-<p>O Sensor Readout usa ou inclui componentes destes projetos:</p>
+<p>O suporte do ventilador depende do LibreHardwareMonitor, PawnIO, do chip sensor da placa-mãe e do que o BIOS expõe. Alguns sistemas podem fornecer leituras, mas não controles de ventilador graváveis.</p>
+<p>O aplicativo deve ser executado como administrador para acesso ao Super I/O da placa-mãe em muitos sistemas. As leituras da GPU e do armazenamento ainda podem aparecer sem elevação, mas os ventiladores e os controles da placa-mãe geralmente não aparecem.</p>
+<p>Se a temperatura da CPU ou as leituras de carga da CPU estiverem faltando, instalar e executar o Core Temp pode ajudar. O Sensor Readout pode ler os dados da memória compartilhada do Core Temp quando o Core Temp já está em execução. Core Temp é opcional e é usado apenas como substituto para leituras de CPU. Usar <code>Ajuda</code> &gt; <code>Install Core Temp support...</code> para abrir a página oficial do Core Temp ou iniciar a instalação com winget ou Chocolatey quando essas ferramentas estiverem disponíveis.</p>
+<p>Se os controlos de ventoinha parecerem estar faltando, abra <code>Opções</code> &gt; <code>Controlos de ventoinha...</code> e habilitar <code>Mostrar paradas</code>. Algumas placas relatam cabeçalhos controláveis ​​como parados ou indefinidos até que comecem a girar, e esta opção torna essas entradas ocultas visíveis para teste.</p>
+<h3>Plug-ins de marcas de laptop</h3>
+<p>Os usuários de laptops Framework, Dell, Lenovo, MSI, Asus, HP, OMEN e Victus podem obter melhor temperatura ou visibilidade do ventilador ativando o plug-in de hardware correspondente em <code>Opções</code> &gt; <code>Preferências</code> &gt; <code>Plug-ins</code>. Os plug-ins ficam desativados até que você os ative, e as alterações serão aplicadas após você fechar as Preferências.</p>
+<p>A guia também inclui a preferência de confirmação de instalação da atualização, para que você possa trazer o prompt de segurança de volta após optar por não mostrá-lo novamente.</p>
+<p>Os usuários da estrutura que desejam leituras de rotação do ventilador e de temperatura específicas do modelo devem primeiro atualizar o BIOS a partir de <a href="https://knowledgebase.frame.work/bios-and-drivers-downloads-rJ3PaCexh">Downloads de BIOS e drivers da estrutura</a>, instale e execute <a href="https://github.com/ozturkkl/framework-control">Controle de Estrutura</a>. Se o Framework Control mostrar controles de ventilador e temperatura em sua interface do navegador, habilite o plug-in Framework Laptop no Sensor Readout.</p>
+<p>Os plug-ins Dell, Lenovo, MSI, Asus, HP, OMEN e Victus não garantem leituras de ventiladores em todos os modelos, mas vale a pena tentar antes de enviar diagnósticos ou assumir que o laptop não expõe dados extras do sensor.</p>
+<p>Ferramentas opcionais do fornecedor também podem ajudar a expor ou verificar dados específicos do laptop. Os usuários da Dell podem tentar <a href="https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor">Comando Dell | Monitorar</a>. Os usuários da Lenovo podem tentar <a href="https://www.lenovo.com/us/en/software/vantage">Lenovo Vantagem</a> ou <a href="https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications">Atualização do sistema Lenovo</a>. Os usuários MSI podem tentar <a href="https://www.msi.com/Landing/MSI-Center">Centro MSI</a>. Os usuários da Asus podem tentar <a href="https://g-helper.com/">G-Ajudante</a>. Usuários HP, OMEN e Victus podem tentar <a href="https://support.hp.com/us-en/help/hp-support-assistant">Assistente de suporte HP</a> e <a href="https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html">Centro de jogos OMEN</a>. Essas ferramentas estão fora do Sensor Readout; use as páginas do fornecedor ou do projeto e instale apenas o que faz sentido para sua máquina.</p>
+<p>O Sensor Readout lê apenas esses caminhos de suporte opcionais, a menos que um plug-in indique o contrário; ele não atualiza o firmware nem substitui as ferramentas do próprio fabricante do laptop.</p>
+<h3>Atualizar backups</h3><p>O Sensor Readout pode criar backups de atualização ao encontrar pastas de atualização antigas ou arquivos de idioma que parecem ter sido editados pelo usuário. Esses backups residem em <code>Backups\Updates</code> para que não interfiram nas configurações ao vivo, relatórios, registros, sons, idiomas ou plug-ins. Pastas enviadas normais, como <code>Docs</code>, <code>Data</code>, e os plug-ins incluídos são substituídos de forma limpa durante as atualizações e não são armazenados em backup sempre.</p><p>Usar <code>Ficheiro</code> &gt; <code>Backups de atualização</code> para abrir a pasta de backup de atualização ou excluir backups de atualização antigos quando não precisar mais deles.</p><h2 id="changelog">Registro de alterações</h2>
+<h3>4.0.5</h3><ul><li>Melhorado: as atualizações automáticas agora evitam backups de rotina de pastas enviadas inalteradas, como Documentos, Dados, plug-ins incluídos e sons. Somente backups de atualização herdados e arquivos de idioma que parecem editados pelo usuário são mantidos.</li><li>Adicionado: Arquivo&gt; Atualizar backups permite que os usuários abram ou excluam ZIPs de backup de atualização antigos sem tocar nas configurações atuais, relatórios, registros, sons, idiomas ou plug-ins.</li><li>Melhorado: O plug-in Asus ROG incluído agora oferece detecção mais segura de prontidão para suporte de desktop/torre Asus a partir de uma solicitação de pull da comunidade, enquanto mantém o controle do ventilador do desktop somente leitura.</li></ul><h3>4.0.4</h3><ul><li>Adicionado: Desempenho/Visão geral agora inclui um grupo de acessibilidade com status de saída do leitor de tela, leitores de tela suportados detectados e configurações comuns de acessibilidade do Windows, como alto contraste, teclas de aderência, teclas de alternância, teclas de filtro, mostrar sons e descrições de áudio onde o Windows as expõe.</li><li>Privacidade: as estatísticas da comunidade anônima agora incluem a edição/versão/compilação do Windows e sinalizadores de recursos de acessibilidade ampla, mas ainda não incluem programas instalados, uso do programa, dados de identificação do dispositivo ou linhas completas do relatório.</li></ul><h3>4.0.3</h3><ul><li>Corrigido: o manual em português agora é um guia do usuário completo em vez de um breve resumo, correspondendo ao padrão esperado para os idiomas enviados.</li></ul><h3>4.0.2</h3><ul><li>Adicionado: língua portuguesa e manual em português, contribuição de Vitor Ferreira.</li></ul><h3>4.0.1</h3><ul><li>Corrigido: o upload de estatísticas da comunidade agora usa explicitamente configurações TLS modernas, evitando erros de canal seguro SSL/TLS em alguns sistemas.</li></ul><h3>4.0.0</h3><ul><li>Adicionado: Ajuda &gt; Compartilhar estatísticas anônimas da comunidade permite que os usuários optem por enviar um pequeno resumo da cobertura de hardware. O Sensor Readout mostra primeiro o JSON exato e não carrega nada, a menos que o usuário pressione Upload.</li><li>Privacidade: as estatísticas da comunidade são separadas dos relatórios anônimos e não incluem nomes de computadores, nomes de usuários, números de série, endereços MAC ou IP, caminhos, rótulos de unidades, IDs de dispositivos, IDs PnP, campos de detalhes brutos, programas instalados ou linhas completas do relatório. Um ID de cliente anônimo local aleatório é armazenado localmente e apenas seu hash SHA-256 é enviado para que uma máquina possa atualizar sua entrada agregada.</li></ul><h3>3.10.5</h3><ul><li>Corrigido: o diagnóstico não mostra mais uma caixa de diálogo de conclusão após abrir a pasta Relatórios, evitando uma caixa de diálogo oculta inacessível se o Sensor Readout estiver oculto durante a execução do diagnóstico. A linha de status agora inclui quanto tempo demorou o diagnóstico.</li><li>Melhorado: quando o Sensor Readout está oculto ou minimizada e nenhum alarme, curva do ventilador ou registro de histórico precisa de monitoramento rigoroso, a atualização automática é acelerada para reduzir o impacto em segundo plano em laptops mais lentos. Fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">edição #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Adicionado: Desempenho/Visão geral agora mostra o total do arquivo de paginação, usado e espaço livre onde o Windows o expõe. Essas leituras também podem ser usadas em teclas de atalho faladas e no status da área de notificação. Fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">edição #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Adicionado: o armazenamento agora mostra o status do BitLocker para unidades onde o Windows o expõe, com detalhes de proteção, criptografia, bloqueio, método e volume disponíveis em Detalhes.</li></ul><h3>3.10.2</h3><ul><li>Corrigido: o editor de idiomas agora suporta pesquisa F3 na guia, lembra o último arquivo e entrada que você estava editando e lida com a navegação de várias letras digitadas na lista de entradas.</li></ul><h3>3.10.1</h3><ul><li>Corrigido: as linhas de resumo da categoria agora localizam suas contagens de leitura e grupo em vez de misturar palavras em inglês com idiomas diferentes do inglês.</li><li>Corrigido: as mensagens de atualização e instalação em italiano agora usam caracteres acentuados adequados quando necessário.</li></ul>
+<h3>3.10.0</h3><ul><li>Adicionado: a ajuda agora inclui um assistente de configuração inicial para teclas de atalho mostrar/ocultar e falar na bandeja, além de um navegador de dicas e sugestões que pode aparecer opcionalmente na inicialização.</li><li>Adicionado: Preferências agora inclui um comando Excluir todas as configurações para começar do zero ou limpar uma cópia antes de compartilhá-la. Registros e relatórios são mantidos.</li><li>Corrigido: o espaço total e as leituras de espaço usado agora podem ser adicionados ao status da área de notificação e às teclas de atalho faladas. Fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">questão #7</a>.</li></ul>
+<h3>3.9.2</h3><ul><li>Melhorado: preferências agrupadas em idiomas diferentes do inglês, predefinições de alarme, predefinições de teclas de atalho, rótulos de perfil de ventilador e descrições de leitores de tela agora têm uma cobertura de tradução mais ampla.</li><li>Corrigido: unidades removíveis prontas, como cartões SD e unidades flash USB, agora aparecem com espaço de armazenamento e leituras de atividades de disco lógico disponíveis, tornando-as disponíveis para status da área de notificação, teclas de atalho faladas, relatórios e alarmes. Fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">questão #6</a>.</li></ul>
+<h3>3.9.1</h3>
 <ul>
-<li><a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a> e <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">LibreHardwareMonitor no GitHub</a>, para acesso a sensores de hardware.</li>
-<li><a href="https://github.com/namazso/PawnIO">PawnIO</a> e <a href="https://github.com/namazso/PawnIO.Setup">PawnIO.Setup</a>, para acesso de baixo nível.</li>
-<li><a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, para ficheiros de configuração.</li>
-<li><a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, usado por LibreHardwareMonitor.</li>
-<li><a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, para dados de armazenamento.</li>
-<li><a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>, para dados SPD de memória.</li>
-<li><a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core</a>, usado por dependências de LibreHardwareMonitor.</li>
-<li><a href="https://github.com/dkager/tolk">Tolk screen reader library</a>, para fala opcional por leitor de ecrã.</li>
-<li><a href="https://github.com/ozturkkl/framework-control">Framework Control</a>, usado pela API local opcional.</li>
-<li><a href="https://github.com/seerge/g-helper">G-Helper</a>, cuja investigação ACPI GPL é usada no plug-in Asus opcional.</li>
-<li><a href="http://www.linux-usb.org/usb-ids.html">usb.ids</a>, usado para nomes de fornecedores e produtos USB.</li>
-<li><a href="https://github.com/uxmansarwar/mac-address-vendor-database">MAC Address Vendor Database</a>, usado para fornecedores MAC/OUI.</li>
+<li>Corrigido: o Sensor Readout não espera mais indefinidamente pela inicialização lenta do LibreHardwareMonitor em sistemas onde a enumeração de hardware pode demorar muito. As leituras baseadas no Windows podem aparecer primeiro e as linhas de temperatura/ventilador são atualizadas quando o LibreHardwareMonitor termina.</li>
+</ul>
+<h3>3.9.0</h3><ul>
+<li>Adicionado: cada categoria principal agora começa com uma linha de resumo de categoria que fornece uma visão geral compacta de leituras, grupos, cobertura detalhada e sinais de saúde específicos da seção.</li>
+<li>Adicionado: categorias vazias agora explicam a próxima etapa mais provável, como atualizar, conectar hardware, ativar um plug-in, verificar itens ocultos ou aguardar dados mais lentos do Windows.</li>
+<li>Adicionado: a guia Alarmes agora tem predefinições práticas para leituras comuns disponíveis, como bateria fraca, Wi-Fi fraco ou desconectado, alta temperatura de CPU/GPU, avisos de integridade do disco, problemas de impressora, uso de CPU, uso de memória, tempo de atividade, memória GPU, espaço livre em disco e atividade de disco. As predefinições começam desmarcadas para que os usuários criem apenas os alarmes que escolherem.</li><li>Adicionado: a guia Teclas de atalho agora possui predefinições de teclas de atalho faladas para grupos iniciais comuns, como status do sistema, status da rede, atividade do disco, status da GPU, status da bateria e status do ventilador/temperatura. As predefinições são criadas sem teclas atribuídas para que não possam roubar atalhos existentes.</li><li>Melhorado: os perfis de teclas de atalho faladas agora são classificados por tecla atribuída, tanto teclas de atalho quanto alarmes usam <code>Alt+P</code> para predefinições e a remoção de um perfil de tecla de atalho falada solicita confirmação, a menos que você desative esse prompt.</li>
+<li>Adicionado: a ajuda agora inclui uma verificação de configuração de acessibilidade para saída do leitor de tela, fala da área de notificação, teclas mostrar/ocultar, disponibilidade de pasta de relatório/log e configuração inicial minimizada.</li>
+<li>Melhorado: os detalhes agora incluem correspondência de cópia, também disponível com <code>Ctrl+M</code>, que pesquisa a árvore detalhada e copia apenas as linhas correspondentes para facilitar o compartilhamento de suporte.</li>
+<li>Melhorado: o diagnóstico agora inclui um resumo de prontidão para suporte com fontes de dados, plug-ins, detalhes, controlo de ventoinha, dispositivos que não funcionam e contagens de categorias vazias.</li>
+</ul>
+<h3>3.8.1</h3>
+<ul>
+<li>Melhorado: <code>Ficheiro</code> &gt; <code>Import settings and profiles...</code> agora usa <code>Ctrl+I</code>, correspondência <code>Ctrl+E</code> para exportação. O importador Plug-In ZIP menos comum agora usa <code>Ctrl+Shift+I</code>.</li>
+</ul>
+<h3>3.8.0</h3>
+<ul>
+<li>Corrigido: a atualização ao vivo agora evita consultas repetidas do WMI para detalhes do adaptador de rede, totais de memória da GPU e metadados da bateria, reduzindo <code>WmiPrvSE.exe</code> Uso da CPU em sistemas de menor consumo, mantendo esses detalhes disponíveis.</li>
+<li>Corrigido: Quando elevado, o Sensor Readout agora pode fazer uma tentativa de recuperação se o WMI principal do Windows ficar preso com a falha específica "o arquivo de paginação é muito pequeno" que pode deixar USB, Dispositivos, Bateria e outras seções suportadas pelo Windows em branco.</li>
+<li>Corrigido: os plug-ins agora podem ser carregados corretamente a partir de compilações ZIP baixadas extraídas quando o Windows marca os arquivos como baixados da Internet.</li>
+<li>Adicionado: Plug-in experimental de suporte para laptop MSI para feedback opcional do testador. Ele verifica as interfaces MSI ACPI WMI, ventilador do Windows e zona térmica ACPI em busca de dados extras de ventilador, controlo de ventoinha ou temperatura onde um laptop os expõe.</li>
+<li>Melhorado: os relatórios TXT e HTML salvos agora mostram a versão do Sensor Readout próximo ao topo do relatório, facilitando a identificação das compilações de suporte.</li>
+<li>Melhorado: o status da área de notificação e as teclas de atalho faladas agora anunciam claramente quando estão lendo um relatório estático carregado, e as categorias de relatório ou leituras de teclas de atalho que estão ausentes do relatório não implicam mais que os dados ativos ainda estão sendo carregados.</li>
+</ul>
+<h3>3.7.1</h3>
+<ul>
+<li>Corrigido: as atualizações automáticas agora substituem pastas enviadas, como Plug-Ins, Docs, Langs e Data, de forma limpa, em vez de mesclar novos arquivos em pastas antigas. Isso evita plug-ins duplicados e arquivos obsoletos enviados após a atualização.</li>
+<li>Corrigido: os backups de atualização agora vão para um nível superior <code>Backups</code> pasta como arquivos ZIP, enquanto <code>Config</code>, <code>Logs</code>e <code>Reports</code> permanecem reservados para configurações ao vivo, registros e relatórios salvos.</li>
+<li>Corrigido: o carregamento de plug-ins agora ignora manifestos duplicados e verifica apenas a pasta raiz de plug-ins mais uma pasta por plug-in, evitando que cópias obsoletas aninhadas sejam carregadas duas vezes.</li>
+</ul>
+<h3>3.7.0</h3>
+<ul>
+<li>Corrigido: atualização manual com <code>F5</code> agora reconstrói o inventário de dispositivos e USB imediatamente, para que dispositivos USB recém-conectados ou desconectados possam aparecer sem reiniciar o Sensor Readout.</li>
+<li>Melhorado: O EXE, o SDK de plug-in e as DLLs de plug-in agrupadas agora carregam o arquivo de Sensor Readout e os metadados da versão do produto correspondentes, e a compilação falhará se essas versões forem desviadas.</li>
+<li>Adicionado: Plug-in experimental de suporte para laptop Lenovo para diagnóstico de testador opcional em sistemas Lenovo. Ele verifica o ventilador Lenovo WMI, o ventilador do Windows, a zona térmica ACPI e as interfaces Lenovo WMI para obter dados extras de ventilador ou temperatura somente leitura.</li>
+</ul>
+<h3>3.6.2</h3>
+<ul>
+<li>Corrigido: Preferências agora tem uma guia acessível <code>Rename...</code> botão para rótulos falados na área de notificação, com uma ordem de guias mais limpa e <code>Alt+R</code> acelerador.</li>
+<li>Corrigido: as alterações de voz nas teclas de atalho faladas e na área de notificação feitas nas Preferências podem ser testadas imediatamente antes de fechar as Preferências, incluindo teclas de atalho faladas recém-criadas e rótulos renomeados.</li>
+<li>Melhorado: os detalhes do adaptador de vídeo agora incluem campos adicionais de registro de GPU para adaptadores NVIDIA, AMD e Intel, além de dados de driver NVIDIA de <code>nvidia-smi</code> quando disponível, incluindo capacidade de computação CUDA, VBIOS, relógios, limite de energia, temperatura, IDs PCI e valores de memória.</li>
+<li>Melhorado: As linhas de impressora agora incluem detalhes mais ricos do WMI de impressora do Windows, WMI de configuração de impressora e dados de registro/driver de impressão, enquanto mantêm os blobs de registro binários curtos o suficiente para revisão do leitor de tela.</li>
+<li>Melhorado: os detalhes do dispositivo de áudio e do endpoint agora incluem campos WMI brutos do dispositivo de som do Windows e propriedades de registro do endpoint, com blobs binários resumidos em vez de expandidos.</li>
+</ul>
+<h3>3.6.1</h3>
+<ul>
+<li>Corrigido: os manuais localizados não incluem mais texto grande e corrompido e as verificações de versão agora bloqueiam versões manuais obsoletas e visíveis e codificação manual incorreta antes do empacotamento.</li>
+</ul>
+<h3>3.6.0</h3>
+<ul>
+<li>Adicionado: <code>Ficheiro</code> &gt; <code>Compare reports...</code> compara dois relatórios de leitura de sensor salvos, incluindo diferenças adicionadas, removidas, alteradas e em nível de detalhe para solução de problemas antes e depois.</li>
+<li>Adicionado: <code>Ficheiro</code> &gt; <code>Save anonymized report...</code> cria um relatório compartilhável com identificadores privados comuns mascarados antes de enviá-lo para fora de sua própria máquina.</li>
+<li>Adicionado: <code>Ajuda</code> &gt; <code>Prepare support report...</code> cria um ZIP de diagnóstico e fornece um fluxo de suporte guiado com o caminho do arquivo pronto para copiar ou anexar a um problema do GitHub.</li>
+<li>Adicionado: Desempenho/Visão geral inclui um grupo de fontes de dados que mostra quais fontes do Windows, LibreHardwareMonitor, banco de dados, plug-in e Sensor Readout contribuíram para a visualização atual.</li>
+<li>Adicionado: o registro opcional do histórico de leitura pode gravar leituras selecionadas em um registro CSV de curto prazo para solucionar problemas de tendências durante atualizações normais.</li>
+<li>Adicionado: as opções de linha de comando agora podem criar relatórios anônimos e comparar dois relatórios salvos para testes autônomos ou fluxos de trabalho de suporte com script.</li>
+<li>Melhorado: as alterações nas teclas de atalho faladas e na fala da área de notificação feitas nas Preferências agora se aplicam imediatamente, portanto, uma tecla de atalho pode ser testada antes de fechar as Preferências.</li>
+<li>Melhorado: a caixa de diálogo de atribuição de teclas de atalho e bandeja agora mostra a tecla de atalho de status da área de notificação e a contagem de leituras selecionada, correspondendo às entradas de teclas de atalho faladas.</li>
+<li>Melhorado: os downloads de atualização agora usam o mesmo rótulo de agente de usuário do Sensor Readout que as verificações de atualização.</li>
+</ul>
+<h3>3.5.0</h3>
+<ul>
+<li>Adicionado: Desempenho/Visão Geral agora pode mostrar o uso de memória GPU do Windows quando disponível, incluindo memória GPU dedicada total, usada, livre e memória GPU compartilhada usada. Essas leituras podem ser usadas no status da área de notificação, teclas de atalho faladas, relatórios e alarmes.</li>
+<li>Melhorado: a atualização agora fica no menu Exibir e o tratamento de atualização F5 é mais confiável na janela principal.</li>
+<li>Melhorado: a preferência do intervalo de atualização agora pode ser definida para até 1 segundo para usuários que desejam leituras ao vivo mais rápidas.</li>
+</ul>
+<h3>3.4.0</h3>
+<ul>
+<li>Melhorado: os detalhes do SMART e do disco agora incluem mais informações da unidade física do Windows quando disponíveis, incluindo tipo de barramento, tamanhos de setor, versão de firmware/software, IDs seriais e exclusivos, localização física, campos de slot/gabinete, uso de armazenamento, elegibilidade de pool e velocidade de eixo para unidades que relatam isso.</li>
+<li>Melhorado: O suporte para laptops Asus agora pode recorrer às leituras do sensor WMI da ASUS e ao controle da ventoinha do modo térmico ASUS em modelos que rejeitam gravações diretas da curva da ventoinha.</li>
+<li>Melhorado: <code>Ctrl+Shift+H</code> agora pode adicionar ou remover a leitura selecionada do status da área de notificação, bem como perfis de teclas de atalho faladas, e pode criar um novo perfil de teclas de atalho faladas sem abrir as Preferências primeiro.</li>
+</ul>
+<h3>3.3.1</h3>
+<ul>
+<li>Corrigido: Executar na inicialização do Windows agora usa uma tarefa de logon do Windows com privilégios mais altos em vez de um atalho da pasta de inicialização, para que as cópias instaladas possam ser iniciadas de maneira confiável, mesmo que o Sensor Readout precise de direitos de administrador para acesso ao hardware.</li>
+</ul>
+<h3>3.3.0</h3>
+<ul>
+<li>Melhorado: Desempenho/Visão Geral agora usa nomes de grupos mais claros para leituras de CPU e memória e linhas de resumo de impressoras, evitando ramificações de Sistema e Impressoras com aparência duplicada na árvore.</li>
+<li>Melhorado: os detalhes da CPU e da placa de base agora incluem campos mais profundos do Windows/SMBIOS, como associatividade de cache e política de gravação, tipo de chassi, contagens de slots de memória, slots de expansão e campos brutos do Windows, quando disponíveis.</li>
+<li>Melhorado: os detalhes do Windows e do firmware agora incluem campos adicionais de sistema operacional, registro, licenciamento, produto do sistema, BIOS, inicialização segura e TPM onde o Windows os expõe. As chaves do produto são mostradas apenas como finais mascarados para que os relatórios compartilhados não vazem as chaves completas.</li>
+<li>Melhorado: os detalhes do disco agora incluem disco físico, partição, partição oculta/sem letras e informações de volume lógico onde o Windows os expõe.</li>
+<li>Melhorado: os detalhes da rede agora incluem gateway, DNS, DHCP, IP, MTU, estatísticas do adaptador e campos brutos de adaptador/configuração do Windows, quando disponíveis.</li>
+<li>Melhorado: os detalhes agora abrem como uma árvore agrupada em vez de uma lista de duas colunas, para que os leitores de tela leiam cada campo e valor como um item, WMI bruto ou campos de registro podem ser ignorados por grupo e F3/F4 funcionam dentro de Detalhes para pesquisa e revisão de texto.</li>
+<li>Adicionado: <code>Ctrl+Shift+C</code> copia apenas o valor de leitura selecionado, sem o nome de leitura, facilitando a reutilização de números de modelo, sequências de dispositivos, UUIDs e campos semelhantes.</li>
+<li>Melhorado: usuários de leitores de tela agora ouvem "Tem detalhes" após itens da árvore que suportam o comando Detalhes, sem adicionar essa dica ao texto ou relatórios copiados.</li>
+</ul>
+<h3>3.2.1</h3>
+<ul>
+<li>Corrigido: a opção de inicialização do Windows agora atualiza o estado de aprovação dos aplicativos de inicialização do Sensor Readout, bem como o atalho da pasta de inicialização, portanto, Executar na inicialização é mais confiável em sistemas onde o Windows manteve uma entrada de aprovação obsoleta.</li>
+</ul>
+<h3>3.2.0</h3>
+<ul>
+<li>Melhorado: Desempenho/Visão Geral agora está dividido em subgrupos mais claros para Sistema, Windows, firmware e placa, gráficos, resumo da impressora, impressoras e armazenamento, em vez de uma visão geral longa e plana.</li>
+<li>Melhorado: As linhas de impressoras agora aparecem em uma subárvore de Impressoras com uma ramificação por impressora, para que os leitores de tela não ouçam mais o nome completo da impressora antes de cada campo.</li>
+<li>Adicionado: impressoras com estados de trabalho off-line, pausado, erro, interrompido ou em fila também são mostradas em um grupo de problemas de impressora quando o Windows relata um problema.</li>
+<li>Adicionado: porcentagens de suprimentos da impressora, estado off-line e contagens de trabalhos em fila podem ser usados em leituras da área de notificação, teclas de atalho faladas e alarmes quando o Windows expõe esses valores.</li>
+<li>Adicionado: O novo menu de teclas de atalho mostra a tecla configurada para status da bandeja de voz, mostrar/ocultar, perfis de teclas de atalho faladas e teclas de atalho de perfil de ventilador, e fornece o comando rápido para adicionar a leitura atual a uma tecla de atalho falada.</li>
+</ul>
+<h3>3.1.1</h3>
+<ul>
+<li>Corrigido: vida útil SMART <code>Data read</code> e <code>Data written</code> os totais são mostrados novamente quando o LibreHardwareMonitor os expõe.</li>
+<li>Melhorado: o Sensor Readout agora tenta caminhos SMART NVMe adicionais do Windows para dispositivos de armazenamento, incluindo dados de registro de integridade NVMe padrão e dados de ponte USB NVMe estilo ASMedia onde o Windows permite acesso.</li>
+<li>Adicionado: Desempenho/Visão geral agora inclui o status da impressora no Windows, configuração e porcentagens de nível de tinta ou toner quando o driver da impressora os expõe.</li>
+<li>Corrigido: <code>Alt+F4</code> agora fecha o Sensor Readout da árvore de leitura mesmo quando a linha selecionada também suporta detalhes.</li>
+<li>Adicionado: Dispositivos agora coloca os dispositivos problemáticos em um grupo claro de Dispositivos não funcionais, tornando mais fácil encontrar drivers ou falhas de hardware no estilo do Gerenciador de dispositivos com um leitor de tela.</li>
+</ul>
+<h3>3.1.0</h3>
+<ul>
+<li>Adicionado: <code>Editar</code> &gt; <code>Add/remove from spoken hotkey...</code> (<code>Ctrl+Shift+H</code>) permite adicionar a leitura selecionada a um perfil de tecla de atalho falada ou removê-la novamente, sem abrir o fluxo de trabalho completo de Preferências.</li>
+<li>Adicionado: <code>Editar</code> &gt; <code>Expand all</code> (<code>Ctrl+Shift+Right</code>) e <code>Editar</code> &gt; <code>Collapse all</code> (<code>Ctrl+Shift+Left</code>) facilitam a navegação ou redefinição de categorias grandes.</li>
+<li>Melhorado: as dicas de ferramentas da área de notificação agora podem usar textos de dicas nativos mais longos do Windows, quando disponíveis, para que mais leituras selecionadas possam ser mostradas diretamente antes de voltar para <code>...</code>. Isso fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/3">Problema nº 3 do GitHub</a>.</li>
+<li>Melhorado: Preferências inclui uma opção para mostrar o máximo de leituras possível na dica de ferramenta da área de notificação ou manter dicas de ferramentas de notificação longas para o simples <code>Sensor Readout</code> rótulo.</li>
+<li>Corrigido: Mostrar e ocultar a janela principal não colapsa mais a árvore de leitura inesperadamente.</li>
+<li>Corrigido: a instalação neste PC agora aplica a opção de inicialização selecionada do Windows durante o fluxo de instalação.</li>
+</ul>
+<h3>3.0.1</h3>
+<ul>
+<li>Corrigido: a atualização do Sensor Readout não copia mais o pacote <code>Config</code>, <code>Logs</code>, ou <code>Reports</code> pastas sobre uma instalação existente, preservando teclas de atalho, leituras de área de notificação, perfis de teclas de atalho faladas, perfis de ventiladores, alarmes, relatórios e registros durante atualizações.</li>
+</ul>
+<h3>3.0.0</h3>
+<ul>
+<li>Adicionado: <code>Devices</code> fornece um inventário de hardware do Windows no estilo Gerenciador de Dispositivos com seções agrupadas, uma árvore compacta e campos detalhados de PnP, PCI, driver, registro e recursos disponíveis em Detalhes e relatórios.</li>
+<li>Melhorado: os detalhes das linhas de CPU e memória agora incluem campos mais profundos de hardware do Windows, como identificadores de processador, propriedades de CPU WMI, registros de cache, limites de matriz de memória, informações de fabricante/peça/série do módulo, velocidades, larguras, tensões e tipo de memória onde o Windows os expõe.</li>
+<li>Melhorado: <code>Transferir e instalar</code> agora pode lembrar quando você não deseja ver a confirmação de fechar/instalar/reabrir novamente e <code>Preferências</code> &gt; <code>Itens ocultos</code> pode ativar essa confirmação novamente.</li>
+<li>Melhorado: <code>Desinstalar deste PC</code> agora oferece uma opção explícita para também excluir <code>Config</code>, <code>Logs</code>e <code>Reports</code> para uma limpeza completa.</li>
+<li>Adicionado: <code>Ficheiro</code> &gt; <code>Export portable copy...</code> (<code>Ctrl+Shift+E</code>) cria um ZIP do aplicativo personalizado para uso em outro PC, incluindo configurações e arquivos de aplicativos personalizados com relatórios e registros opcionais.</li>
+<li>Melhorado: os relatórios TXT agora mantêm os dados exatos de reabertura em um bloco rotulado e agrupado após o conteúdo legível do relatório, evitando uma linha muito longa e hostil ao leitor de tela.</li>
+<li>Adicionado: Desempenho/Visão geral agora mostra os tamanhos de cache da CPU, incluindo L1, L2 e L3, onde o Windows os reporta.</li>
+<li>Melhorado: a barra de título de um relatório aberto agora mostra o computador do relatório diretamente, como <code>Report: Example-PC</code>, em vez de repetir o título completo do relatório.</li>
+<li>Corrigido: as dicas de ferramentas da área de notificação agora usam os mesmos rótulos configurados do status da bandeja falada quando cabem e mostram um resumo claro em vez de uma lista parcial cortada quando o limite de dicas de ferramentas do Windows é atingido. Isso fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/2">Problema nº 2 do GitHub</a>.</li>
+</ul>
+<h3>2.3.0</h3>
+<ul>
+<li>Adicionado: instalações opcionais de atualização silenciosa podem baixar, instalar, fechar e reabrir sem mostrar primeiro as notas de versão. Ajuda &gt; Histórico de versões... abre as notas de versão mais recentes sob demanda.</li>
+<li>Melhorado: Inicialização e instalação agora mostram Desinstalar deste PC quando o Sensor Readout já está em execução no local instalado e pode criar um atalho na área de trabalho diretamente na mesma guia.</li>
+<li>Melhorado: Instalar neste PC agora oferece opções de atalhos de inicialização da área de trabalho e do Windows em uma caixa de diálogo antes de copiar e reabrir a cópia instalada.</li>
+<li>Melhorado: a barra de título mostra o nome atual do computador após a versão do Sensor Readout, correspondendo ao contexto extra mostrado durante a visualização de um relatório salvo.</li>
+<li>Melhorado: as atualizações automáticas preservam apenas os arquivos de idiomas alterados ou personalizados, em vez de fazer backup de toda a pasta de idiomas em cada atualização.</li>
+<li>Melhorado: <code>Ficheiro</code> &gt; <code>Open report...</code> pode abrir um arquivo ZIP que contém um relatório TXT ou HTML de Sensor Readout, para que os usuários não precisem extrair um relatório manualmente antes de visualizá-lo.</li>
+</ul>
+<h3>2.2.1</h3>
+<ul>
+<li>Corrigido: o tempo de atividade do sistema agora é atualizado continuamente com o ciclo normal de atualização do sensor, em vez de permanecer em um valor de visão geral armazenado em cache mais antigo.</li>
+</ul>
+<h3>2.2.0</h3>
+<ul>
+<li>Adicionado: <code>Editar</code> &gt; <code>Find reading...</code> (<code>F3</code>) pesquisa leituras em todas as categorias. A mesma caixa de diálogo de pesquisa F3 está disponível nas listas de leitura de Preferências ao escolher leituras de área de notificação, leituras de teclas de atalho faladas ou controles de perfil de ventoinha.</li>
+<li>Adicionado: <code>Editar</code> &gt; <code>Review text...</code> (<code>F4</code>) abre a leitura selecionada ou o galho de árvore em uma caixa de edição somente leitura, facilitando a inspeção da ortografia ou pontuação exata após a fala do leitor de tela. O comando Copiar confirma através do leitor de tela ativo após a cópia.</li>
+<li>Adicionado: <code>Ficheiro</code> &gt; <code>Export settings and profiles...</code> (<code>Ctrl+E</code>) e <code>Ficheiro</code> &gt; <code>Import settings and profiles...</code> (<code>Ctrl+Shift+I</code>) crie pacotes de transferência seletiva para preferências gerais, leituras de área de notificação, perfis de teclas de atalho faladas, perfis de ventiladores, curvas de ventiladores, alarmes, itens ocultos e opções de plug-ins. Itens específicos de hardware são importados sem atribuição, desativados ou prontos para revisão, para que possam ser vinculados com segurança ao computador atual.</li>
+<li>Adicionado: os adaptadores Wi-Fi podem mostrar o estado da conexão, SSID, ponto de acesso, porcentagem de intensidade do sinal, RSSI em dBm, canal, frequência, tipo de rádio, velocidades de link de recebimento/transmissão e detalhes de segurança quando o Windows os expõe. O estado da conexão Wi-Fi, sinal, RSSI, canal, frequência e velocidades de link também podem ser usados ​​para status da área de notificação, teclas de atalho faladas e alarmes onde os limites numéricos fazem sentido. Isso fecha <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/1">Problema nº 1 do GitHub</a>.</li>
+<li>Melhorado: o status da área de notificação pode incluir até oito leituras selecionadas, abrindo espaço para sinal Wi-Fi, tempo de atividade do sistema e outras leituras importantes junto com valores de CPU, GPU, ventilador ou rede.</li>
+<li>Melhorado: Inicialização e instalação avisam quando a inicialização minimizada está habilitada sem uma tecla de atalho mostrar/ocultar, e o manual explica como revelar o ícone da bandeja se o Windows o ocultar.</li>
+<li>Melhorado: os menus de contexto ocultam os comandos Detalhes ou Renomear indisponíveis para a leitura selecionada.</li>
+</ul>
+<h3>2.1.0</h3>
+<ul>
+<li>Adicionado: Inicialização e instalação adiciona um <code>Alt+I</code> Instale neste PC um comando que pode mover uma cópia portátil ou de pasta sincronizada para a pasta normal de programas do Windows para este usuário. Ele também pode criar um atalho na área de trabalho, manter a inicialização do Windows apontando para a cópia instalada, fechar a cópia antiga e reabrir a partir do local instalado.</li>
+<li>Adicionado: <code>Ficheiro</code> &gt; <code>Abrir pasta de relatórios</code> (<code>Ctrl+Shift+O</code>) e <code>Ficheiro</code> &gt; <code>Abrir pasta de logs</code> (<code>Ctrl+Shift+L</code>) facilitam o acesso aos relatórios e registros salvos.</li>
+<li>Adicionado: os plug-ins habilitados podem adicionar páginas de suporte relacionadas ao menu Ajuda, como páginas de utilitários de fornecedores para laptops Dell, Asus, HP, OMEN, Victus e Framework.</li>
+<li>Melhorado: as atualizações automáticas lidam com configurações incomuns de pastas temporárias do Windows de maneira mais confiável.</li>
+<li>Melhorado: os nomes padrão dos arquivos de relatórios salvos agora incluem o nome do computador, combinando diagnósticos e facilitando a classificação de relatórios de várias máquinas.</li>
+<li>Melhorado: PCs desktop com nomes vagos de modelos do Windows, como <code>System Product Name</code> mostrar informações mais claras da placa-mãe quando o Windows as fornecer.</li>
+<li>Melhorado: Desempenho/Visão geral agora inclui linhas de identidade de firmware e Windows mais claras, incluindo edição do Windows, versão, compilação, arquitetura, data de instalação com idade, tempo de inicialização, modo BIOS, inicialização segura, versão SMBIOS e versão do controlador incorporado quando o Windows os expõe.</li>
+</ul>
+<h3>2.0.0</h3>
+<ul>
+<li>Adicionado: categoria de áudio para dispositivos de som e endpoints, agrupados por dispositivo/interface com entradas de reprodução e gravação, detalhes de fornecedor/status e detalhes de formato padrão, como canais, taxa de amostragem e profundidade de bits onde o Windows os expõe.</li>
+<li>Adicionado: categoria de exibição para adaptadores gráficos e monitores, incluindo memória do adaptador, resolução, taxa de atualização, detalhes do driver, fornecedor do monitor, código do produto, número de série e data de fabricação onde o Windows os expõe.</li>
+<li>Adicionado: os detalhes de USB agora incluem dispositivos conectados, hubs, controladores, velocidade de conexão, velocidade capaz, energia solicitada, letras de unidade, status seguro para desconectar, campos de detalhes copiáveis, detalhes de MAC/OUI do adaptador de rede USB e detalhes de ID/OUI de hardware de armazenamento USB onde o Windows os expõe.</li>
+<li>Adicionado: Relatórios TXT e HTML salvos podem ser abertos em <code>Ficheiro</code> &gt; <code>Open report...</code> ou <code>Ctrl+O</code> como instantâneos estáticos na árvore normal de Sensor Readout, para que o relatório de outro usuário possa ser inspecionado sem ler o arquivo bruto manualmente. Usar <code>Ficheiro</code> &gt; <code>Return to live readings</code> ou <code>Ctrl+R</code> para retornar ao computador atual.</li>
+<li>Melhorado: Desempenho/Visão Geral agora fornece detalhes da CPU além do uso, incluindo modelo de CPU, fornecedor, núcleos, threads, relógios, soquete, arquitetura, conjuntos de instruções como SSE e AVX e rótulos de virtualização mais claros onde o Windows os expõe.</li>
+<li>Melhorado: a seção do manual Preferências agora está organizada por aba, com teclas de atalho e explicações mais claras sobre o que cada painel controla.</li>
+<li>Adicionado: <code>Ajuda</code> &gt; <code>Executar diagnósticos...</code>, <code>Alt+F1</code>e <code>--diagnostics [path]</code> crie um ZIP de suporte contendo relatórios TXT e HTML, um log de depuração, dados de tempo, um resumo de diagnóstico e um breve teste de controle do ventilador que restaura o estado anterior do ventilador posteriormente. Os nomes ZIP de diagnóstico incluem o nome do computador e os arquivos temporários de teste são removidos após a criação do ZIP.</li>
+<li>Adicionado: o diagnóstico pode indicar o progresso, diga "Concluído". quando terminar e reproduza sons de início/conclusão configuráveis ​​em Preferências. O diagnóstico de linha de comando pode ser silenciado com <code>--diagnostics-quiet</code>, <code>--no-diagnostics-speech</code>, ou <code>--no-diagnostics-sounds</code>.</li>
+<li>Adicionado: Plug-in experimental de suporte Asus ROG / TUF para feedback opcional do testador. Ele pode ler dados de temperatura e ciclo de trabalho do ventilador Asus ATKACPI, quando disponíveis, e tentar controlar o ventilador em modelos suportados. Trabalho inicial de plug-in de Jason Fayre e Claude Code; O comportamento da ACPI é baseado em parte na pesquisa do G-Helper.</li>
+<li>Corrigido: a renderização do ícone da bandeja agora retorna com segurança se o Windows/GDI+ se recusar a criar um ícone dinâmico, evitando um loop repetido de travamento/reinicialização.</li>
+</ul>
+<h3>1.6.2</h3>
+<ul>
+<li>Adicionado: se o Sensor Readout travar durante o uso normal, ele grava o log de travamento e tenta reiniciar automaticamente, parando após três reinicializações travadas em uma janela curta para evitar um loop.</li>
+<li>Adicionado: perfis de ventoinha podem desativar a confirmação falada ou usar uma mensagem falada personalizada. Usar <code>{0}</code> para incluir o nome do perfil.</li>
+<li>Adicionado: As telas de configuração do perfil do ventilador e da curva do ventilador podem mostrar controlos de ventoinha parados ou ocultos, correspondendo à caixa de diálogo Controlos de ventoinha.</li>
+<li>Adicionado: plug-in experimental do Dell Latitude Support para diagnóstico opcional do testador em sistemas Dell com Dell Command | Monitore dados WMI. Ele está desabilitado por padrão e somente leitura.</li>
+<li>Corrigido: <code>Mostrar paradas</code> na caixa de diálogo Controlos de ventoinha agora é salva imediatamente, mesmo que nenhuma configuração manual do ventilador seja alterada.</li>
+<li>Corrigido: as teclas de atalho do perfil do ventilador agora atualizam apenas as linhas de sensores ativos após alterar o estado do ventilador, evitando trabalho desnecessário de atualização SMART/USB antes que outras teclas de atalho faladas respondam.</li>
+<li>Corrigido: curvas de ventilador que são temporariamente assumidas por controles manuais de ventilador ou teclas de atalho de perfil de ventilador agora são retomadas automaticamente quando esses ventiladores retornam ao controle automático/padrão.</li>
+<li>Adicionado: os diagnósticos de falhas agora são gravados na pasta Logs mesmo quando o registro normal está desativado.</li>
+<li>Melhorado: o texto em espanhol foi aprimorado com a ajuda do Dreamburguer, incluindo sotaques e palavras mais naturais para atalhos de teclado e feedback falado.</li>
+</ul>
+<h3>1.6.1</h3>
+<ul>
+<li>Novo: perfis de ventoinha agora podem ser usados como alternadores. Pressione uma tecla de atalho de perfil de ventilador uma vez para aplicá-la e, em seguida, pressione a mesma tecla de atalho novamente para retornar esses ventiladores ao controle automático/padrão.</li>
+<li>Novo: Perfis de teclas de atalho faladas podem ser importados de outra configuração de máquina de leitura de sensor. As leituras que correspondem à máquina atual são mantidas, enquanto as leituras ausentes específicas da máquina são ignoradas.</li>
+<li>Novo: as caixas de diálogo de atualização agora mostram todas as notas de lançamento entre a versão instalada e a versão mais recente, encabeçadas pela versão atual, nova versão e intervalo de versões.</li>
+<li>Adicionado: as ações das teclas de atalho do perfil do ventoinha podem reproduzir um som escolhido quando o perfil é aplicado.</li>
+<li>Adicionado: a caixa de diálogo de atualização disponível pode reproduzir um som escolhido em Preferências.</li>
+<li>Adicionado: a fala de inicialização agora pode ser desativada com uma caixa de seleção em vez de usar uma mensagem de inicialização em branco ou espaço reservado.</li>
+<li>Adicionado: Plug-in experimental de suporte de hardware HP para diagnóstico opcional de testador em sistemas HP/OMEN/Victus. Ele está desabilitado por padrão e somente leitura.</li>
+<li>Adicionado: <code>Ajuda</code> &gt; <code>Install Core Temp support...</code> explica o substituto opcional da CPU e pode abrir o site Core Temp ou iniciar uma instalação winget/Chocolatey com a confirmação do usuário.</li>
+<li>Corrigido: fechando uma instância de leitura de sensor em execução com <code>--close</code> agora oculta primeiro o ícone da área de notificação, reduzindo ícones órventoinhaos da bandeja durante atualizações e execuções de teste.</li>
+<li>Corrigido: as notas de configuração do Framework Laptop agora afirmam que o plug-in do Framework incluído deve ser habilitado em Preferências antes que as leituras do Framework Control possam aparecer.</li>
+<li>Melhorado: a caixa de diálogo de atualização mantém Baixar e instalar como o primeiro botão quando um pacote ZIP está disponível.</li>
+</ul>
+<h3>1.6.0</h3>
+<ul>
+<li>Novo: Sistema de plug-in de hardware opcional. Os plug-ins residem no <code>Plug-ins</code> pasta, aparecem em Preferências e ficam desabilitados até que o usuário os habilite.</li>
+<li>Novo: Importação ZIP de plug-in em Preferências &gt; Plug-Ins. Os plug-ins importados são validados, copiados para a pasta correta e deixados desativados por segurança.</li>
+<li>Adicionado: o suporte ao Framework Laptop agora é fornecido como um plug-in opcional do Framework, em vez de ser integrado ao aplicativo principal.</li>
+<li>Adicionado: <code>Docs\Plug-In-development.md</code> para desenvolvedores que desejam criar plug-ins de hardware para leitura de sensor.</li>
+<li>Adicionado: o total de memória agora aparece em Desempenho/Visão geral ao lado da memória usada e da memória disponível.</li>
+<li>Adicionado: os relatórios agora têm como padrão um <code>Reports</code> pasta em vez da pasta principal do programa.</li>
+<li>Melhorado: as autoatualizações do GitHub fazem backup do existente <code>Langs</code> pasta antes de substituir os arquivos de idioma enviados, protegendo as edições de idioma do usuário.</li>
+<li>Alterado: agora o suporte de hardware específico do OEM pode ser adicionado por meio de plug-ins, mantendo o aplicativo principal menor e mais seguro de manter.</li>
+</ul>
+<h3>1.5.2</h3>
+<ul>
+<li>Corrigido: os sistemas Framework Laptop sem Framework Control instalados ou em execução não aguardam mais os repetidos tempos limite da API local antes que as leituras normais apareçam.</li>
+<li>Corrigido: as leituras normais do LibreHardwareMonitor, Windows e Core Temp permanecem disponíveis em sistemas Framework mesmo quando a API Framework Control opcional está indisponível.</li>
+</ul>
+<h3>1.5.1</h3>
+<ul>
+<li>Adicionado: suporte opcional à API Framework Control somente leitura. Quando o Framework Control está instalado e em execução, o Sensor Readout pode mostrar a temperatura do Framework Laptop e as leituras de RPM do ventilador.</li>
+<li>Adicionado: seção de bateria para carga, status, capacidade, integridade, contagem de ciclos, voltagem e taxa de energia do laptop quando o Windows expõe esses valores.</li>
+<li>Adicionado: notas de configuração do Framework Laptop no manual, incluindo orientações de atualização do BIOS e o link do projeto Framework Control.</li>
+<li>Corrigido: em uma nova máquina ainda sem configuração específica da máquina, as configurações portáteis/compartilhadas copiadas não permitem mais silenciosamente o registro de inicialização do Windows de outro computador.</li>
+</ul>
+<h3>1.5.0</h3>
+<ul>
+<li>Novo: categoria USB para dispositivos, hubs e controladores conectados, com linhas de árvore concisas, campos de detalhes copiáveis, incluídos <code>Data\usb.ids</code> pesquisa de fornecedor/produto e informações extras, como velocidade de conexão, velocidade capaz, energia solicitada em mA, porta, letras de unidade, status seguro para desconectar, endereço MAC do adaptador de rede USB/fornecedor de OUI e ID de hardware de armazenamento/fornecedor de OUI quando disponível, VID/PID, chave de driver, serviço e IDs de dispositivo do Windows onde o Windows os expõe.</li>
+<li>Novo: As curvas do ventilador podem vincular um controle gravável do ventilador a uma leitura de temperatura com pontos baixos, altos e de emergência.</li>
+<li>Novo: Os perfis de ventilador podem aplicar vários controles de ventilador ao mesmo tempo, incluindo controle automático/padrão, e podem ser acionados por teclas de atalho globais opcionais. Novas configurações incluem perfis iniciais vazios que os usuários podem preencher com as suas próprias ventoinhas.</li>
+<li>Adicionado: <code>Ctrl+U</code> abre Fan Curves diretamente de qualquer lugar no aplicativo principal.</li>
+<li>Corrigido: Fan Curves agora usa nomes de ventoinhas amigáveis e segue a mesma filtragem de ventilador oculta ou interrompida que os Fan Controls.</li>
+<li>Melhorado: listas de leitura visíveis adiam brevemente os redesenhos de atualização enquanto os menus ou a navegação em árvore estão ativos, reduzindo paralisações de foco durante atualizações em segundo plano.</li>
+<li>Melhorado: Preferências agora tem uma seção Geral &gt; Atualizações onde as verificações automáticas de atualização do GitHub podem ser definidas para inicialização, de hora em hora, de 6 em 6 horas, de 12 em 12 horas, diariamente, semanalmente ou nunca.</li>
+<li>Novo: os adaptadores de rede mostram o endereço MAC e o fornecedor do OUI quando o banco de dados OUI incluído contém o prefixo do adaptador.</li>
+<li>Adicionado: <code>Data\oui.csv</code> é empacotado como um arquivo de dados separado licenciado pelo MIT para pesquisa de fornecedor MAC.</li>
+<li>Alterado: a saída falada usa a biblioteca de leitores de tela Tolk, abrindo o suporte de fala além de um leitor de tela e permitindo fallback SAPI quando disponível.</li>
+<li>Corrigido: iniciar o Sensor Readout enquanto ele já está em execução fecha a instância existente e inicia a nova de forma limpa, enquanto a geração de relatórios de linha de comando ainda pode ser executada ao lado do aplicativo ativo.</li>
+<li>Melhorado: os relatórios TXT e HTML incluem detalhes de USB e outros detalhes de linha, tornando os relatórios mais úteis ao diagnosticar suporte de hardware.</li>
+<li>Alterado: o SMART agora se concentra na integridade, status, temperatura, desgaste, erros e horas, enquanto as taxas e atividades de leitura/gravação de disco em tempo real usam contadores de desempenho do Windows.</li>
+</ul>
+<h3>1.4.3</h3>
+<ul>
+<li>Alterado: Preferências portáteis como idioma, configurações de atualização, unidade de temperatura, sons de inicialização/desligamento, fala de inicialização, verificações de atualização e teclas de atalho globais agora estão disponíveis <code>Config\Shared.json</code> para que eles possam acompanhar o aplicativo entre máquinas.</li>
+<li>Alterado: configurações específicas de hardware, como leituras de bandeja selecionadas, listas de leitura de teclas de atalho faladas, alarmes, leituras ocultas, rótulos de ventiladores, controles de ventiladores, rótulos de leitura falada personalizados, nível de registro e registro de inicialização do Windows permanecem em <code>Config\&lt;ComputerName&gt;.json</code>. As preferências compartilhadas não são mais duplicadas no arquivo específico da máquina. Teclas de navegação inseguras, como Shift+Tab, são rejeitadas ao atribuir teclas de atalho globais.</li>
+</ul>
+<h3>1.4.2</h3>
+<ul>
+<li>Corrigido: as instalações de atualização automática agora mesclam o conteúdo das pastas em pastas existentes em vez de criar pastas aninhadas, como <code>Langs\Langs</code>, <code>Docs\Docs</code>, ou <code>Sounds\Sounds</code>.</li>
+<li>Corrigido: o Sensor Readout repara instalações já afetadas por pastas de atualização aninhadas na inicialização, movendo os arquivos mais recentes de volta para os locais corretos.</li>
+<li>Melhorado: o instalador de pré-requisito agora volta do winget para o Chocolatey e, em seguida, para o download oficial do PawnIO.Setup GitHub quando o winget não está disponível.</li>
+</ul>
+<h3>1.4.1</h3>
+<ul>
+<li>Corrigido: as combinações Ctrl+Alt agora podem ser capturadas corretamente ao atribuir teclas de atalho globais em Preferências.</li>
+<li>Adicionado: ações de cópia com toque duplo agora falam “Copiado para a área de transferência”. através do leitor de tela ativo após o texto ser copiado.</li>
+</ul>
+<h3>1.4.0</h3>
+<ul>
+<li>Novo: Os alarmes de leitura podem monitorar valores numéricos do sensor e notificar com voz do leitor de tela, sons WAV opcionais, resfriamento por alarme e um ícone piscante na área de notificação.</li>
+<li>Novo: Os limites de alarme reconhecem a unidade. Os alarmes de temperatura podem usar C ou F, os alarmes de ventilador usam RPM, os alarmes de taxa podem usar B/s, KB/s, MB/s ou GB/s e as leituras de estilo de tamanho podem usar unidades de bytes quando aplicável.</li>
+<li>Novidade: Os sons de inicialização e desligamento podem ser escolhidos na pasta Sons, com visualização ao escolher um som.</li>
+<li>Novo: as teclas de atalho de fala podem copiar sua saída falada para a área de transferência com um gesto opcional de toque duplo.</li>
+<li>Novo: Preferências agora suporta Excluir para remover itens selecionados, Ctrl+1 a Ctrl+6 para saltar entre guias, F2 para campos de nome/edição e Enter para o campo de valor principal quando aplicável.</li>
+<li>Alterado: o código-fonte foi dividido em arquivos focados para inicialização, modelos, preferências, formulário principal e interoperabilidade de leitor de tela/nativo, tornando a manutenção futura mais segura.</li>
+<li>Adicionado: opções de linha de comando para iniciar minimizado, fechar uma instância em execução, definir o nível de registro e salvar relatórios TXT ou HTML.</li>
+<li>Corrigido: as notas de versão disponíveis para atualização agora exibem claramente as linhas do registo de alterações do GitHub em vez de executar itens do Markdown juntos.</li>
+</ul>
+<h3>1.3.1</h3>
+<ul>
+<li>Adicionado: substituto opcional de memória compartilhada do Core Temp para temperaturas da CPU e carga da CPU quando o Core Temp já está em execução.</li>
+<li>Corrigido: sistemas onde o LibreHardwareMonitor não expõe nenhuma temperatura da CPU agora ainda podem mostrar leituras da CPU se o Core Temp suportar o processador.</li>
+<li>Adicionado: Orientação para usuários com leituras de CPU ausentes: instale e execute Core Temp em https://www.alcpu.com/CoreTemp/ para que o Sensor Readout possa usar seus dados de memória compartilhada. O controle do ventilador ainda depende do LibreHardwareMonitor, PawnIO e do hardware que expõe controles graváveis ​​do ventilador.</li>
+</ul>
+<h3>1.3.0</h3>
+<ul>
+<li>Novo: Crie vários perfis de teclas de atalho faladas, cada um com sua própria combinação de teclas e conjunto ordenado de leituras.</li>
+<li>Novo: As leituras selecionadas da bandeja e das teclas de atalho faladas mostram uma visualização da fala, e as leituras das teclas de atalho faladas podem ser renomeadas para fala mais curta.</li>
+<li>Novo: o feedback falado pode omitir nomes de dispositivos para uma saída mais curta do leitor de tela, como <code>Rx 688.4 KB/s; Tx 14.4 MB/s</code>.</li>
+<li>Melhorado: rótulos falados repetidos são agrupados para saída concisa, por exemplo <code>CPU: 15.0%; 45.1 C</code>.</li>
+<li>Melhorado: os controles de teclas de atalho e de fala agora vivem juntos em uma guia dedicada de teclas de atalho.</li>
+<li>Melhorado: as preferências reabrem na guia usada pela última vez durante a sessão atual.</li>
+<li>Melhorado: as opções de inicialização agora ficam juntas em uma guia Inicialização dedicada.</li>
+<li>Novo: as verificações de atualização de inicialização podem ser desativadas em Preferências.</li>
+<li>Melhorado: as preferências agora protegem a entrada de texto simples para que a digitação de nomes de perfis não acione aceleradores de UI não relacionados.</li>
+<li>Melhorado: a leitura de listas de seleção em Preferências oferece suporte à pesquisa de vários caracteres em buffer, portanto, digitar mais de uma letra pode encontrar entradas como Ethernet Rx.</li>
+<li>Novo: as leituras do ventilador podem mostrar a porcentagem de controle correspondente ao lado do RPM, e essas porcentagens alimentam o medidor de progresso da leitura selecionada para feedback do leitor de tela.</li>
+<li>Melhorado: as configurações manuais do ventilador salvas são restauradas em segundo plano na inicialização, enquanto as configurações automáticas/padrão salvas do ventilador não retardam mais a inicialização.</li>
+<li>Corrigido: os botões de diálogo disponíveis para atualização agora incluem aceleradores de teclado.</li>
+<li>Alterado: as pastas enviadas agora usam maiúsculas e minúsculas consistentes: <code>Config</code>, <code>Logs</code>, <code>Langs</code>e <code>Docs</code>, enquanto a pesquisa de pasta permanece sem distinção entre maiúsculas e minúsculas para instalações existentes.</li>
+</ul>
+<h3>1.2.1</h3>
+<ul>
+<li>Corrigido: as leituras de espaço livre/usado de armazenamento agora vêm de unidades lógicas do Windows, evitando valores de espaço LibreHardwareMonitor incompatíveis em alguns SSDs.</li>
+<li>Melhorado: o medidor de progresso da leitura selecionada agora funciona para qualquer leitura percentual válida, incluindo memória disponível, memória usada, espaço livre na unidade, espaço usado na unidade, uso da CPU, porcentagens de atividade e porcentagens localizadas de vírgula-decimal.</li>
+</ul>
+<h3>1.2.0</h3>
+<ul>
+<li>Novo: suporte a interface multilíngue com arquivos em inglês, alemão, espanhol, francês e italiano.</li>
+<li>Novo: Editor de idioma em Preferências para editar texto traduzido, criar novos arquivos de idioma a partir do inglês e alterar a mensagem de inicialização do NVDA.</li>
+<li>Novidade: manuais HTML no <code>docs</code> pasta, com <code>F1</code> abrindo o manual para o idioma selecionado.</li>
+<li>Novo: Controle da unidade de temperatura para Celsius ou Fahrenheit.</li>
+<li>Novo: controle do separador decimal com opções de idioma padrão, ponto e vírgula.</li>
+<li>Novo: teclas de atalho globais opcionais para mostrar/ocultar e falar o status atual da área de notificação.</li>
+<li>Novo: Fala de inicialização configurável do NVDA para inicialização minimizada.</li>
+<li>Novo: página de desempenho/visão geral com detalhes de visão geral de tempo de atividade, BIOS, sistema, armazenamento e GPU.</li>
+<li>Adicionados: arquivos NVDA Controller Client de 64 bits para fala NVDA opcional da pasta portátil.</li>
+<li>Adicionado: <code>Opções</code> &gt; <code>Speak tray status now</code>.</li>
+<li>Adicionados: Links Ajuda &gt; Contato e Ajuda &gt; Doar. O Sensor Readout permanece livre.</li>
+<li>Adicionado: Ajuda&gt; Verificar atualizações exibe notas de versão do GitHub, verifica silenciosamente na inicialização e pode instalar um ZIP portátil para download.</li>
+<li>Corrigido: Preferências tem um botão Fechar em todas as guias e Escape fecha a caixa de diálogo.</li>
+<li>Corrigido: a troca de idioma atualiza as Preferências, a janela principal, os rótulos de leitura, os rótulos comuns do leitor de tela e os valores da caixa de combinação sem exigir reinicialização.</li>
+<li>Corrigido: as verificações de atualização do GitHub usam TLS 1.2 para compatibilidade com os requisitos HTTPS atuais do GitHub.</li>
+<li>Corrigido: as seleções ausentes da área de notificação são preservadas durante a inicialização e atualizações.</li>
+<li>Corrigido: os contadores de dados SMART da Samsung são convertidos corretamente para que os totais de leitura/gravação sejam exibidos como valores legíveis de GB/TB.</li>
+<li>Corrigido: os controlos de ventoinha da GPU expostos pelo LibreHardwareMonitor permanecem visíveis mesmo quando a GPU está no modo de parada do ventilador.</li>
+<li>Corrigido: os controlos de ventoinha atualizam o estado do ventilador selecionado após ações manuais, automáticas e de todos os ventiladores sem fechar a caixa de diálogo.</li>
+<li>Melhorado: a inicialização exibe a janela principal enquanto a atualização do sensor continua em segundo plano.</li>
+<li>Melhorado: o relatório de memória do adaptador GPU usa o valor de registro de exibição de 64 bits do Windows.</li>
+<li>Melhorado: leituras percentuais selecionadas expõem eventos de alteração de valor de progresso para leitores de tela.</li>
+<li>Melhorado: a operação minimizada ou oculta mantém o status da bandeja atualizado e reduz o trabalho visível de reconstrução da interface do usuário.</li>
+<li>Melhorado: a barra de ferramentas da janela principal está mais limpa, com botões duplicados de Atualizar e Salvar relatório removidos em favor do menu e dos atalhos de teclado.</li>
+<li>Alterado: Preferências salva edições imediatamente para teclas de atalho, seleções de bandeja, itens ocultos, opções de inicialização e opções de idioma.</li>
+<li>Alterado: as configurações por computador permanecem <code>Config</code>, os registros ficam em <code>Logs</code>e arquivos JSON/log antigos de nível superior são migrados automaticamente.</li>
+<li>Alterado: O registro inclui diagnósticos para teclas de atalho e fala do NVDA.</li>
+</ul>
+<h3>1.1.0</h3>
+<ul>
+<li>Removida a seção Visão geral combinada para reduzir a navegação duplicada em árvore.</li>
+<li>Adicionada Rede como uma seção de primeira classe.</li>
+<li>Performance movida para o topo da lista de seções e para <code>Ctrl+0</code>.</li>
+<li>Desempenho agrupado em sistema e armazenamento.</li>
+<li>Reformulação da descrição de acessibilidade da lista de seções para que fique mais claro que a lista altera apenas as visualizações.</li>
+<li>Adicionadas preferências de inicialização e inicialização do Windows.</li>
+<li>Adicionado feedback de progresso de leitura selecionada para leituras percentuais.</li>
+<li>Adicionada seleção ordenada de leitura da área de notificação e rótulos de dicas de notificação mais curtos.</li>
+<li>Adicionado movimento do teclado para leituras da área de notificação em Preferências.</li>
+<li>Adicionados links de páginas do projeto para o README, menu Ajuda e caixa de diálogo Sobre.</li>
+<li>Adicionada Ajuda &gt; Verificar atualizações, apoiada por versões do GitHub.</li>
+<li>Alterado Sobre para uma caixa de diálogo amigável ao teclado com um botão de página do Projeto.</li>
+<li>DLLs não utilizadas removidas do pacote portátil.</li>
+<li>Atribuição expandida de componentes agrupados em README e Sobre.</li>
+</ul>
+<h3>1.0.0</h3>
+<ul>
+<li>Versão portátil inicial com leitura de sensores, exportação de relatórios, leituras de bandeja, configurações por computador, leituras ocultas, rótulos de ventiladores e controle direto de ventiladores LibreHardwareMonitor/PawnIO.</li>
+</ul>
+<h2 id="credits">Créditos</h2>
+<p>Criado por Codex. Ideias de André Louis.</p>
+<p>Perguntas e comentários podem ser enviados através <code>Ajuda</code> &gt; <code>Contact</code> no aplicativo ou <a href="https://onj.me/contact">https://onj.me/contact</a>.</p>
+<p>O Sensor Readout é um software gratuito. Se você quiser apoiar o trabalho do André, use <code>Ajuda</code> &gt; <code>Donate</code> no aplicativo ou visite <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a>.</p>
+<p>Sensor Readout usa ou agrupa componentes destes projetos:</p>
+<ul>
+<li>
+<a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a> e <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">LibreHardwareMonitor no GitHub</a>, para acesso ao sensor de hardware.</li>
+<li>
+<a href="https://github.com/namazso/PawnIO">PawnIO</a> e <a href="https://github.com/namazso/PawnIO.Setup">PawnIO.Setup</a>, para acesso de baixo nível ao sensor da placa-mãe, quando compatível.</li>
+<li>
+<a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, para manipulação de arquivos de configuração.</li>
+<li>
+<a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, usado pelo LibreHardwareMonitor para acesso a dispositivos HID.</li>
+<li>
+<a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, usado pelo LibreHardwareMonitor para armazenamento de dados.</li>
+<li>
+<a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>, usado pelo LibreHardwareMonitor para dados SPD de memória.</li>
+<li>
+<a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core</a>, usado pelas dependências do LibreHardwareMonitor.</li>
+<li>
+<a href="https://github.com/dkager/tolk">Biblioteca de leitores de tela Tolk</a>, usado para saída de voz do leitor de tela opcional.</li>
+<li>
+<a href="https://github.com/ozturkkl/framework-control">Controle de Estrutura</a>, usado por meio de sua API local opcional quando presente em sistemas Framework Laptop.</li>
+<li>
+<a href="https://github.com/seerge/g-helper">G-Ajudante</a>, cuja pesquisa Asus ACPI licenciada pela GPL é usada no plug-in experimental opcional Asus ROG/TUF.</li>
+<li>
+<a href="http://www.linux-usb.org/usb-ids.html">usb.ids</a>, usado sob sua opção de licença BSD para nomes de fornecedores e produtos USB.</li>
+<li>
+<a href="https://github.com/uxmansarwar/mac-address-vendor-database">Banco de dados de fornecedores de endereços MAC</a>, usado sob a licença MIT para pesquisa de fornecedor MAC/OUI.</li>
 <li>Microsoft .NET Framework e bibliotecas de suporte.</li>
 </ul>
 <h2 id="license">Licença</h2>
-<p>A aplicação principal Sensor Readout usa a licença MIT. Consulte <code>LICENSE.txt</code>.</p>
-<p>Alguns plug-ins ou ficheiros de dados incluídos têm licenças e avisos próprios. Em particular, <code>Plug-Ins\AsusRog</code> contém trabalho ACPI derivado do G-Helper e inclui o respetivo aviso GPL e texto GPL nessa pasta.</p>
+<p>O aplicativo principal do Sensor Readout está licenciado sob a licença MIT. Veja <code>LICENSE.txt</code>.</p>
+<p>Alguns plug-ins ou arquivos de dados opcionais incluídos têm suas próprias licenças e avisos. Em particular, <code>Plug-Ins\AsusRog</code> contém trabalho ACPI derivado do G-Helper e vem com seu próprio aviso GPL e texto GPL nessa pasta.</p>
 </body>
 </html>

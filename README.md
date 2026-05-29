@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.0.4.
+Current version: 4.0.5.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -343,7 +343,7 @@ When an enabled plug-in includes related support pages, those links appear in th
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus Laptop Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research and includes its own GPL notice in its plug-in folder.
+Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus ROG Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -484,6 +484,12 @@ Use `File` > `Compare reports...` or `Ctrl+Shift+M` to choose two Sensor Readout
 
 Use `Help` > `Prepare support report...` when you need to send information to the project or a support person. Sensor Readout creates the same diagnostic ZIP as `Run diagnostics...`, then shows the ZIP path with buttons to copy the path, open the containing folder, or open the GitHub issue page.
 
+### Update Backups
+
+Sensor Readout may create update backups when it finds old update folders or language files that look user-edited. These backups live under `Backups\Updates` so they do not interfere with live settings, reports, logs, sounds, languages, or plug-ins. Normal shipped folders such as `Docs`, `Data`, and bundled plug-ins are replaced cleanly during updates and are not backed up every time.
+
+Use `File` > `Update backups` to open the update backup folder or delete old update backups when you no longer need them.
+
 ### Reading History
 
 Use `Options` > `Enable reading history logging` to turn short-term CSV logging on or off. Select a reading and use `Edit` > `Add to history log` or `Ctrl+Shift+G` to include it. Sensor Readout writes the selected readings to `Logs\ReadingHistory-<ComputerName>-<Date>.csv` during normal refreshes. This is intended for temporary troubleshooting rather than permanent background monitoring.
@@ -516,7 +522,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\Framework`: optional Framework Laptop plug-in.
 - `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
-- `Plug-Ins\AsusRog`: experimental optional Asus laptop plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
+- `Plug-Ins\AsusRog`: experimental optional Asus ROG plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
 - Users can add third-party plug-ins in their own subfolders.
@@ -572,6 +578,12 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.0.5
+
+- Improved: Automatic updates now avoid routine backups of unchanged shipped folders such as Docs, Data, bundled Plug-Ins, and Sounds. Only legacy update backups and language files that appear user-edited are kept.
+- Added: `File` > `Update backups` lets users open or delete old update backup ZIPs without touching current settings, reports, logs, sounds, languages, or plug-ins.
+- Improved: The bundled Asus ROG plug-in now rolls in safer Asus desktop/tower support-readiness detection from a community pull request, while keeping desktop fan control read-only.
 
 ### 4.0.4
 
@@ -805,7 +817,7 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 - Improved: The Preferences manual section is now organized by tab, with shortcut keys and clearer explanations of what each pane controls.
 - Added: `Help` > `Run diagnostics...`, `Alt+F1`, and `--diagnostics [path]` create a support ZIP containing TXT and HTML reports, a debug log, timing data, a diagnostic summary, and a short fan-control test that restores the previous fan state afterward. Diagnostic ZIP names include the computer name, and temporary staging files are removed after the ZIP is created.
 - Added: Diagnostics can speak progress, say "Complete." when finished, and play configurable start/completion sounds from Preferences. Command-line diagnostics can be silenced with `--diagnostics-quiet`, `--no-diagnostics-speech`, or `--no-diagnostics-sounds`.
-- Added: Experimental Asus Laptop Support plug-in for opt-in tester feedback. It can read Asus ATKACPI temperature and fan duty-cycle data where available, and attempts fan control on supported models. Initial plug-in work by Jason Fayre and Claude Code; ACPI behavior is based in part on G-Helper research.
+- Added: Experimental Asus ROG Support plug-in for opt-in tester feedback. It can read Asus ATKACPI temperature and fan data where available, and attempts fan control on supported models. Initial plug-in work by Jason Fayre and Claude Code; ACPI behavior is based in part on G-Helper research.
 - Fixed: Tray icon rendering now falls back safely if Windows/GDI+ refuses to create a dynamic icon, preventing a repeated crash/restart loop.
 
 ### 1.6.2
@@ -999,7 +1011,7 @@ Sensor Readout uses or bundles components from these projects:
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
 - [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
-- [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus laptop plug-in.
+- [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus ROG plug-in.
 - [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.
 - [MAC Address Vendor Database](https://github.com/uxmansarwar/mac-address-vendor-database), used under the MIT License for MAC/OUI vendor lookup.
 - Microsoft .NET Framework and support libraries.
