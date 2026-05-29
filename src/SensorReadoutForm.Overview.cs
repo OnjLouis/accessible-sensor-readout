@@ -122,7 +122,7 @@ public sealed partial class SensorReadoutForm : Form
 
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, DriverVersion, DriverDate, PNPDeviceID FROM Win32_VideoController"))
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, DriverVersion, DriverDate, PNPDeviceID, ConfigManagerErrorCode, Status FROM Win32_VideoController"))
             {
                 foreach (ManagementObject gpu in searcher.Get())
                 {
@@ -132,7 +132,14 @@ public sealed partial class SensorReadoutForm : Form
                         name = "Display adapter";
                     }
 
-                    AddOverviewTextRow(rows, name + " adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"])), "Windows");
+                    var adapterRam = FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"]));
+                    var adapterProblem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
+                    if (!string.IsNullOrWhiteSpace(adapterProblem))
+                    {
+                        adapterRam = FirstNonEmpty(adapterRam, "Unknown") + " (" + adapterProblem + "; may be unreliable)";
+                    }
+
+                    AddOverviewTextRow(rows, name + " adapter RAM", adapterRam, "Windows");
                     AddOverviewTextRow(rows, name + " driver version", Convert.ToString(gpu["DriverVersion"]), "Windows WMI");
                     AddOverviewTextRow(rows, name + " driver date", FormatWmiDate(gpu["DriverDate"]), "Windows WMI");
 

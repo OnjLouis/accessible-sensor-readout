@@ -24,6 +24,18 @@ function count_if(array $items, string $section, string $key): int {
     return $count;
 }
 
+function count_flag_overlap(array $items, string $sectionA, string $keyA, bool $valueA, string $sectionB, string $keyB, bool $valueB): int {
+    $count = 0;
+    foreach ($items as $item) {
+        $a = !empty($item[$sectionA][$keyA]);
+        $b = !empty($item[$sectionB][$keyB]);
+        if ($a === $valueA && $b === $valueB) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
 function sum_key(array $items, string $section, string $key): int {
     $total = 0;
     foreach ($items as $item) {
@@ -32,12 +44,46 @@ function sum_key(array $items, string $section, string $key): int {
     return $total;
 }
 
-function aggregate_value(array $items, string $section, string $key): array {
+function normalize_architecture_value(string $value): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $compact = preg_replace('/-+/', '-', $compact);
+
+    if (in_array($compact, ['64-bit', 'x64', 'amd64', 'x86-64'], true)) {
+        return '64-bit';
+    }
+
+    if (in_array($compact, ['32-bit', 'x86', 'i386', 'i686'], true)) {
+        return '32-bit';
+    }
+
+    if (in_array($compact, ['arm64', 'aarch64'], true)) {
+        return 'ARM64';
+    }
+
+    if ($compact === 'arm') {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
+function normalize_size_value(string $value): string {
+    $clean = trim($value);
+    return preg_replace_callback('/\b(\d+),(\d+)\s*([KMGTPE]?i?B)\b/i', function ($matches) {
+        return $matches[1] . '.' . $matches[2] . ' ' . strtoupper($matches[3]);
+    }, $clean);
+}
+
+function aggregate_value(array $items, string $section, string $key, ?callable $normalizer = null): array {
     $result = [];
     foreach ($items as $item) {
         $value = trim((string)($item[$section][$key] ?? ''));
         if ($value === '') {
             continue;
+        }
+        if ($normalizer !== null) {
+            $value = $normalizer($value);
         }
         if (!isset($result[$value])) {
             $result[$value] = 0;
@@ -63,6 +109,33 @@ function aggregate_map(array $items, string $section, string $key): array {
         }
     }
     arsort($result, SORT_NUMERIC);
+    return $result;
+}
+
+function aggregate_windows_system_value(array $items, string $key): array {
+    $result = [];
+    foreach ($items as $item) {
+        $value = trim((string)($item['system'][$key] ?? ''));
+        $build = trim((string)($item['system']['windowsBuild'] ?? ''));
+
+        if ($key === 'windowsVersion' && $build === '' && preg_match('/^6\./', $value) === 1) {
+            $value = '';
+        }
+
+        if ($key === 'windowsArchitecture' && $value !== '') {
+            $value = normalize_architecture_value($value);
+        }
+
+        if ($value === '') {
+            $value = 'Unknown (older submission)';
+        }
+
+        if (!isset($result[$value])) {
+            $result[$value] = 0;
+        }
+        $result[$value]++;
+    }
+    arsort($result);
     return $result;
 }
 
@@ -104,14 +177,14 @@ $cpuVendors = aggregate_value($items, 'hardwareSummary', 'cpuVendor');
 $cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture');
 $cpuTypes = aggregate_value($items, 'hardwareSummary', 'cpuProcessorType');
 $gpuVendors = aggregate_map($items, 'hardwareSummary', 'gpuVendorCounts');
-$memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal');
-$gpuMemoryTotals = aggregate_value($items, 'hardwareSummary', 'dedicatedGpuMemoryTotal');
+$memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal', 'normalize_size_value');
+$gpuMemoryTotals = aggregate_value($items, 'hardwareSummary', 'dedicatedGpuMemoryTotal', 'normalize_size_value');
 $languages = aggregate_value($items, 'system', 'language');
 $installModes = aggregate_value($items, 'system', 'installMode');
-$windowsEditions = aggregate_value($items, 'system', 'windowsCaption');
-$windowsVersions = aggregate_value($items, 'system', 'windowsVersion');
-$windowsBuilds = aggregate_value($items, 'system', 'windowsBuild');
-$windowsArchitectures = aggregate_value($items, 'system', 'windowsArchitecture');
+$windowsEditions = aggregate_windows_system_value($items, 'windowsCaption');
+$windowsVersions = aggregate_windows_system_value($items, 'windowsVersion');
+$windowsBuilds = aggregate_windows_system_value($items, 'windowsBuild');
+$windowsArchitectures = aggregate_windows_system_value($items, 'windowsArchitecture');
 ?>
 <!doctype html>
 <html lang="en">
@@ -148,6 +221,15 @@ $windowsArchitectures = aggregate_value($items, 'system', 'windowsArchitecture')
     <tr><td>With BitLocker status</td><td><?= count_if($items, 'availability', 'hasBitLockerStatus') ?></td></tr>
     <tr><td>With printer rows</td><td><?= count_if($items, 'availability', 'hasPrinterRows') ?></td></tr>
     <tr><td>With device issues</td><td><?= count_if($items, 'availability', 'hasNonWorkingDevices') ?></td></tr>
+  </table>
+
+  <h2>Fans and device issues overlap</h2>
+  <table>
+    <tr><th>Group</th><th>Machines</th></tr>
+    <tr><td>Fans and device issues</td><td><?= count_flag_overlap($items, 'availability', 'hasFans', true, 'availability', 'hasNonWorkingDevices', true) ?></td></tr>
+    <tr><td>Fans only</td><td><?= count_flag_overlap($items, 'availability', 'hasFans', true, 'availability', 'hasNonWorkingDevices', false) ?></td></tr>
+    <tr><td>Device issues only</td><td><?= count_flag_overlap($items, 'availability', 'hasFans', false, 'availability', 'hasNonWorkingDevices', true) ?></td></tr>
+    <tr><td>Neither</td><td><?= count_flag_overlap($items, 'availability', 'hasFans', false, 'availability', 'hasNonWorkingDevices', false) ?></td></tr>
   </table>
 
   <h2>Accessibility setup</h2>

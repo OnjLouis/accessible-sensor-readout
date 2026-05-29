@@ -88,6 +88,37 @@ function safe_count_map($value): array {
     return $result;
 }
 
+function normalize_architecture_value(string $value): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $compact = preg_replace('/-+/', '-', $compact);
+
+    if (in_array($compact, ['64-bit', 'x64', 'amd64', 'x86-64'], true)) {
+        return '64-bit';
+    }
+
+    if (in_array($compact, ['32-bit', 'x86', 'i386', 'i686'], true)) {
+        return '32-bit';
+    }
+
+    if (in_array($compact, ['arm64', 'aarch64'], true)) {
+        return 'ARM64';
+    }
+
+    if ($compact === 'arm') {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
+function normalize_size_value(string $value): string {
+    $clean = trim($value);
+    return preg_replace_callback('/\b(\d+),(\d+)\s*([KMGTPE]?i?B)\b/i', function ($matches) {
+        return $matches[1] . '.' . $matches[2] . ' ' . strtoupper($matches[3]);
+    }, $clean);
+}
+
 function rate_limit_response(string $message, int $retryAfterSeconds): void {
     http_response_code(429);
     header('Retry-After: ' . max(1, $retryAfterSeconds));
@@ -199,6 +230,12 @@ $accessibility = is_array($payload['accessibility'] ?? null) ? $payload['accessi
 $configuration = is_array($payload['configuration'] ?? null) ? $payload['configuration'] : [];
 $coverage = is_array($payload['coverage'] ?? null) ? $payload['coverage'] : [];
 
+$windowsVersion = safe_string($system['windowsVersion'] ?? '', 60);
+$windowsBuild = safe_string($system['windowsBuild'] ?? '', 40);
+if ($windowsBuild === '' && preg_match('/^6\./', $windowsVersion) === 1) {
+    $windowsVersion = '';
+}
+
 $clean = [
     'schemaVersion' => safe_int($payload['schemaVersion'] ?? 0, 1, 100),
     'appVersion' => safe_string($payload['appVersion'] ?? '', 40),
@@ -207,9 +244,9 @@ $clean = [
     'anonymousClientIdHash' => $clientHash,
     'system' => [
         'windowsCaption' => safe_string($system['windowsCaption'] ?? '', 120),
-        'windowsVersion' => safe_string($system['windowsVersion'] ?? '', 60),
-        'windowsBuild' => safe_string($system['windowsBuild'] ?? '', 40),
-        'windowsArchitecture' => safe_string($system['windowsArchitecture'] ?? '', 40),
+        'windowsVersion' => $windowsVersion,
+        'windowsBuild' => $windowsBuild,
+        'windowsArchitecture' => normalize_architecture_value(safe_string($system['windowsArchitecture'] ?? '', 40)),
         'is64BitOperatingSystem' => safe_bool($system['is64BitOperatingSystem'] ?? false),
         'is64BitProcess' => safe_bool($system['is64BitProcess'] ?? false),
         'logicalProcessorCount' => safe_int($system['logicalProcessorCount'] ?? 0, 0, 1024),
@@ -249,9 +286,9 @@ $clean = [
         'cpuCoreCount' => safe_int($hardware['cpuCoreCount'] ?? 0, 0, 1024),
         'cpuThreadCount' => safe_int($hardware['cpuThreadCount'] ?? 0, 0, 1024),
         'gpuVendorCounts' => safe_count_map($hardware['gpuVendorCounts'] ?? []),
-        'memoryTotal' => safe_string($hardware['memoryTotal'] ?? '', 40),
+        'memoryTotal' => normalize_size_value(safe_string($hardware['memoryTotal'] ?? '', 40)),
         'pagingFileTotal' => safe_string($hardware['pagingFileTotal'] ?? '', 40),
-        'dedicatedGpuMemoryTotal' => safe_string($hardware['dedicatedGpuMemoryTotal'] ?? '', 40),
+        'dedicatedGpuMemoryTotal' => normalize_size_value(safe_string($hardware['dedicatedGpuMemoryTotal'] ?? '', 40)),
         'smartDeviceCount' => safe_int($hardware['smartDeviceCount'] ?? 0, 0, 1000),
         'networkAdapterGroupCount' => safe_int($hardware['networkAdapterGroupCount'] ?? 0, 0, 1000),
         'usbGroupCount' => safe_int($hardware['usbGroupCount'] ?? 0, 0, 1000),

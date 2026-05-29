@@ -180,6 +180,22 @@ if (Test-Path $langTarget) {
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataTarget 'BundledLanguageHashes.json') -Encoding UTF8
 }
 
+if (Test-Path $plugInOutputRoot) {
+    New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
+    $plugInHashes = [ordered]@{}
+    foreach ($plugInFile in Get-ChildItem -LiteralPath $plugInOutputRoot -Recurse -File | Sort-Object FullName) {
+        $relative = $plugInFile.FullName.Substring($plugInOutputRoot.Length).TrimStart('\')
+        $plugInHashes[$relative] = (Get-FileHash -LiteralPath $plugInFile.FullName -Algorithm SHA256).Hash
+    }
+
+    $manifest = [ordered]@{
+        Version = 1
+        UpdatedUtc = [DateTime]::UtcNow.ToString('o')
+        Files = $plugInHashes
+    }
+    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataTarget 'BundledPlugInHashes.json') -Encoding UTF8
+}
+
 foreach ($preservedFolderName in @('Config', 'Logs', 'Reports')) {
     $preservedFolder = Join-Path $portable $preservedFolderName
     if (Test-Path -LiteralPath $preservedFolder) {

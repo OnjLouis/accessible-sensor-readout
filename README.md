@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.0.5.
+Current version: 4.0.6.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -579,6 +579,11 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 4.0.6
+
+- Improved: Bundled plug-ins are now verified during updates so shipped plug-in folders are replaced cleanly, while user-modified bundled plug-in files are backed up outside the live Plug-Ins folder.
+- Improved: Display and GPU memory rows now warn when Windows reports a graphics adapter device problem that may make reported memory values unreliable.
+- Fixed: German language files and manuals now use proper umlauts instead of ASCII substitutions, and damaged accent characters in bundled Spanish, French, and Italian text were repaired.
 ### 4.0.5
 
 - Improved: Automatic updates now avoid routine backups of unchanged shipped folders such as Docs, Data, bundled Plug-Ins, and Sounds. Only legacy update backups and language files that appear user-edited are kept.

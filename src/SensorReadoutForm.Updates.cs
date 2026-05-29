@@ -820,6 +820,25 @@ public sealed partial class SensorReadoutForm : Form
             "  }\r\n" +
             "  return $map\r\n" +
             "}\r\n" +
+            "function Read-PlugInHashManifest($path) {\r\n" +
+            "  $map = @{}\r\n" +
+            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $map }\r\n" +
+            "  try {\r\n" +
+            "    $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json\r\n" +
+            "    if ($manifest -and $manifest.Files) { $manifest.Files.PSObject.Properties | ForEach-Object { $map[$_.Name] = [string]$_.Value } }\r\n" +
+            "  } catch {}\r\n" +
+            "  return $map\r\n" +
+            "}\r\n" +
+            "function Get-PlugInHashMap($plugInRoot) {\r\n" +
+            "  $map = @{}\r\n" +
+            "  if (Test-Path -LiteralPath $plugInRoot) {\r\n" +
+            "    Get-ChildItem -LiteralPath $plugInRoot -Recurse -File | ForEach-Object {\r\n" +
+            "      $relative = $_.FullName.Substring($plugInRoot.Length).TrimStart('\\')\r\n" +
+            "      $map[$relative] = Get-FileSha256 $_.FullName\r\n" +
+            "    }\r\n" +
+            "  }\r\n" +
+            "  return $map\r\n" +
+            "}\r\n" +
             "try {\r\n" +
             "  if ([string]::IsNullOrWhiteSpace($tempBase)) { throw 'No updater temporary folder was provided.' }\r\n" +
             "  [System.IO.Directory]::CreateDirectory($tempBase) | Out-Null\r\n" +
@@ -876,11 +895,37 @@ public sealed partial class SensorReadoutForm : Form
             "    }\r\n" +
             "    Copy-Item -LiteralPath $incoming -Destination $existing -Recurse -Force\r\n" +
             "  }\r\n" +
+            "  function Backup-CustomPlugInFiles($existingPlugIns, $incomingPlugIns, $backupRoot) {\r\n" +
+            "    if (-not (Test-Path -LiteralPath $existingPlugIns)) { return }\r\n" +
+            "    $previousPlugInHashes = Read-PlugInHashManifest (Join-Path (Join-Path $target 'Data') 'BundledPlugInHashes.json')\r\n" +
+            "    $incomingPlugInHashes = Read-PlugInHashManifest (Join-Path (Join-Path $source 'Data') 'BundledPlugInHashes.json')\r\n" +
+            "    if ($incomingPlugInHashes.Count -eq 0) { $incomingPlugInHashes = Get-PlugInHashMap $incomingPlugIns }\r\n" +
+            "    $customRoot = Join-Path $root 'custom-plug-ins'\r\n" +
+            "    $incomingTopNames = @{}\r\n" +
+            "    if (Test-Path -LiteralPath $incomingPlugIns) { Get-ChildItem -LiteralPath $incomingPlugIns -Force | ForEach-Object { $incomingTopNames[$_.Name] = $true } }\r\n" +
+            "    Get-ChildItem -LiteralPath $existingPlugIns -Recurse -File | ForEach-Object {\r\n" +
+            "      $relative = $_.FullName.Substring($existingPlugIns.Length).TrimStart('\\')\r\n" +
+            "      $topName = ($relative -split '\\\\', 2)[0]\r\n" +
+            "      if (-not $incomingTopNames.ContainsKey($topName)) { return }\r\n" +
+            "      $currentHash = Get-FileSha256 $_.FullName\r\n" +
+            "      $previousHash = if ($previousPlugInHashes.ContainsKey($relative)) { $previousPlugInHashes[$relative] } else { '' }\r\n" +
+            "      $incomingHash = if ($incomingPlugInHashes.ContainsKey($relative)) { $incomingPlugInHashes[$relative] } else { '' }\r\n" +
+            "      $matchesPreviousBundle = (-not [string]::IsNullOrWhiteSpace($previousHash)) -and [string]::Equals($currentHash, $previousHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
+            "      $matchesIncomingBundle = (-not [string]::IsNullOrWhiteSpace($incomingHash)) -and [string]::Equals($currentHash, $incomingHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
+            "      if (-not $matchesPreviousBundle -and -not $matchesIncomingBundle) {\r\n" +
+            "        $destination = Join-Path $customRoot $relative\r\n" +
+            "        [System.IO.Directory]::CreateDirectory((Split-Path -Parent $destination)) | Out-Null\r\n" +
+            "        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force\r\n" +
+            "      }\r\n" +
+            "    }\r\n" +
+            "    if (Test-Path -LiteralPath $customRoot) { New-BackupZip $customRoot $backupRoot 'Custom-Bundled-Plug-Ins' }\r\n" +
+            "  }\r\n" +
             "  function Replace-PlugInsFolder($backupRoot) {\r\n" +
             "    $incoming = Join-Path $source 'Plug-Ins'\r\n" +
             "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
             "    $existing = Join-Path $target 'Plug-Ins'\r\n" +
             "    [System.IO.Directory]::CreateDirectory($existing) | Out-Null\r\n" +
+            "    Backup-CustomPlugInFiles $existing $incoming $backupRoot\r\n" +
             "    $incomingNames = @{}\r\n" +
             "    Get-ChildItem -LiteralPath $incoming -Force | ForEach-Object { $incomingNames[$_.Name] = $true }\r\n" +
             "    foreach ($name in $incomingNames.Keys) {\r\n" +

@@ -171,7 +171,27 @@ public sealed partial class SensorReadoutForm : Form
         if (!string.IsNullOrWhiteSpace(resolution)) parts.Add(resolution);
         var ram = FormatBytes(GetGpuAdapterMemoryBytes(Convert.ToString(gpu["Name"]), gpu["AdapterRAM"]));
         if (!string.IsNullOrWhiteSpace(ram)) parts.Add(ram);
+        var problem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
+        if (!string.IsNullOrWhiteSpace(problem)) parts.Add(problem);
         return parts.Count == 0 ? "Display adapter" : string.Join(", ", parts.ToArray());
+    }
+
+    private static string FormatDisplayAdapterProblem(object configManagerErrorCode, string status)
+    {
+        int errorCode;
+        if (TryConvertToInt32(configManagerErrorCode, out errorCode) && errorCode != 0)
+        {
+            return "device problem " + errorCode;
+        }
+
+        if (!string.IsNullOrWhiteSpace(status)
+            && !status.Equals("OK", StringComparison.OrdinalIgnoreCase)
+            && !status.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return "status " + status.Trim();
+        }
+
+        return "";
     }
 
     private static string BuildMonitorSummary(string manufacturer, string product)

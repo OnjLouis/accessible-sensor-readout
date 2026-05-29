@@ -108,9 +108,57 @@ public sealed partial class SensorReadoutForm : Form
     private static IEnumerable<SensorRow> GetGpuPerformanceRows()
     {
         var rows = new List<SensorRow>();
+        AddGpuMemoryStatusRows(rows);
         AddGpuMemoryRows(rows);
         AddGpuEngineRows(rows);
         return rows;
+    }
+
+    private static void AddGpuMemoryStatusRows(List<SensorRow> rows)
+    {
+        if (rows == null)
+        {
+            return;
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, ConfigManagerErrorCode, Status FROM Win32_VideoController"))
+            {
+                foreach (ManagementObject gpu in searcher.Get())
+                {
+                    var name = FirstNonEmpty(Convert.ToString(gpu["Name"]), "Display adapter");
+                    var problem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
+                    if (string.IsNullOrWhiteSpace(problem))
+                    {
+                        continue;
+                    }
+
+                    var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "Adapter", name },
+                        { "Reported adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"])) },
+                        { "Config manager error code", Convert.ToString(gpu["ConfigManagerErrorCode"]) },
+                        { "Status", Convert.ToString(gpu["Status"]) },
+                        { "Note", "Windows reports a display adapter problem, so GPU memory totals and free memory may be unreliable until the driver/device issue is resolved." }
+                    };
+
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Performance",
+                        Hardware = "GPU memory",
+                        Name = "GPU memory status",
+                        Identifier = "gpu|memory|status|" + name,
+                        DisplayValue = name + " reports " + problem + "; memory totals may be unreliable",
+                        Source = "Windows display",
+                        Details = details
+                    });
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static void AddGpuMemoryRows(List<SensorRow> rows)
