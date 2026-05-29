@@ -1086,13 +1086,15 @@ public sealed partial class SensorReadoutForm : Form
         AddOverviewGroup(parent, rowList, "overview|firmware-board", T("group.Firmware and board", "Firmware and board"), IsOverviewFirmwareBoardRow);
         AddOverviewGroup(parent, rowList, "overview|graphics", T("group.Graphics", "Graphics"), IsOverviewGraphicsRow);
         AddOverviewGroup(parent, rowList, "overview|printer-summary", T("group.Printer summary", "Printer summary"), IsOverviewPrinterSummaryRow);
+        AddOverviewGroup(parent, rowList, "overview|accessibility", T("group.Accessibility", "Accessibility"), IsOverviewAccessibilityRow);
 
         var grouped = new HashSet<SensorRow>(rowList.Where(r =>
             IsOverviewSystemRow(r) ||
             IsOverviewWindowsRow(r) ||
             IsOverviewFirmwareBoardRow(r) ||
             IsOverviewGraphicsRow(r) ||
-            IsOverviewPrinterSummaryRow(r)));
+            IsOverviewPrinterSummaryRow(r) ||
+            IsOverviewAccessibilityRow(r)));
         var otherRows = rowList.Where(r => !grouped.Contains(r)).ToList();
         if (otherRows.Count > 0)
         {
@@ -1152,6 +1154,19 @@ public sealed partial class SensorReadoutForm : Form
         var name = CleanSensorName(row == null ? "" : row.Name);
         return name.Equals("Printer count", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Default printer", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOverviewAccessibilityRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.Equals("Screen reader output", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Detected screen readers", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("High contrast", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Sticky Keys", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Toggle Keys", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Filter Keys", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Show sounds", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Audio descriptions", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddTemperatureGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)

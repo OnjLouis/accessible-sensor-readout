@@ -32,8 +32,28 @@ internal static class NativeMethods
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool Shell_NotifyIcon(uint dwMessage, ref NotifyIconData lpData);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref HighContrast pvParam, uint fWinIni);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref StickyKeys pvParam, uint fWinIni);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref ToggleKeys pvParam, uint fWinIni);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref FilterKeys pvParam, uint fWinIni);
+
     public const uint NimModify = 0x00000001;
     public const uint NifTip = 0x00000004;
+    public const uint SpiGetHighContrast = 0x0042;
+    public const uint SpiGetStickyKeys = 0x003A;
+    public const uint SpiGetToggleKeys = 0x0034;
+    public const uint SpiGetFilterKeys = 0x0032;
+    public const uint HcfHighContrastOn = 0x00000001;
+    public const uint SkfStickyKeysOn = 0x00000001;
+    public const uint TkfToggleKeysOn = 0x00000001;
+    public const uint FkfFilterKeysOn = 0x00000001;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct NotifyIconData
@@ -77,6 +97,59 @@ internal static class NativeMethods
         public static MemoryStatusEx Create()
         {
             return new MemoryStatusEx { dwLength = (uint)Marshal.SizeOf(typeof(MemoryStatusEx)) };
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct HighContrast
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public IntPtr lpszDefaultScheme;
+
+        public static HighContrast Create()
+        {
+            return new HighContrast { cbSize = (uint)Marshal.SizeOf(typeof(HighContrast)) };
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StickyKeys
+    {
+        public uint cbSize;
+        public uint dwFlags;
+
+        public static StickyKeys Create()
+        {
+            return new StickyKeys { cbSize = (uint)Marshal.SizeOf(typeof(StickyKeys)) };
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ToggleKeys
+    {
+        public uint cbSize;
+        public uint dwFlags;
+
+        public static ToggleKeys Create()
+        {
+            return new ToggleKeys { cbSize = (uint)Marshal.SizeOf(typeof(ToggleKeys)) };
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FilterKeys
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public uint iWaitMSec;
+        public uint iDelayMSec;
+        public uint iRepeatMSec;
+        public uint iBounceMSec;
+
+        public static FilterKeys Create()
+        {
+            return new FilterKeys { cbSize = (uint)Marshal.SizeOf(typeof(FilterKeys)) };
         }
     }
 }

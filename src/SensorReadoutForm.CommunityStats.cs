@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -34,7 +35,7 @@ public sealed partial class SensorReadoutForm : Form
         SetLatestRows(CollectCommunityStatsRows());
         var payload = BuildCommunityStatsPayload();
         var json = JsonConvert.SerializeObject(payload, Formatting.Indented);
-        var intro = T("message.Community stats preview intro", "Review the exact anonymous community stats payload below. Sensor Readout will only upload this small allow-listed payload if you press Upload. It does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, or full report rows.");
+        var intro = T("message.Community stats preview intro", "Review the exact anonymous community stats payload below. Sensor Readout will only upload this small allow-listed payload if you press Upload. It does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.");
 
         using (var dialog = new Form())
         {
@@ -240,15 +241,18 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
 
         var payload = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var windowsInfo = GetCommunityStatsWindowsInfo();
         payload["schemaVersion"] = 2;
         payload["appVersion"] = AppVersion;
         payload["generatedUtc"] = DateTime.UtcNow.ToString("o");
         payload["anonymousClientIdHash"] = Sha256Hex(settings.CommunityStatsClientId);
-        payload["privacy"] = "Allow-listed aggregate community stats only. No computer name, username, serials, MAC/IP, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, or full report rows.";
+        payload["privacy"] = "Allow-listed aggregate community stats only. No computer name, username, serials, MAC/IP, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.";
         payload["system"] = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            { "windowsVersion", Environment.OSVersion.Version.ToString() },
-            { "platform", Environment.OSVersion.Platform.ToString() },
+            { "windowsCaption", windowsInfo.Caption },
+            { "windowsVersion", windowsInfo.Version },
+            { "windowsBuild", windowsInfo.Build },
+            { "windowsArchitecture", windowsInfo.Architecture },
             { "is64BitOperatingSystem", Environment.Is64BitOperatingSystem },
             { "is64BitProcess", Environment.Is64BitProcess },
             { "logicalProcessorCount", Environment.ProcessorCount },
@@ -305,6 +309,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             { "screenReaderOutputAvailable", ScreenReaderOutput.IsAvailable },
             { "detectedScreenReaders", DetectScreenReaders() },
+            { "highContrastEnabled", CommunityStatsAccessibilityFlag(TryGetHighContrastEnabled) },
+            { "stickyKeysEnabled", CommunityStatsAccessibilityFlag(TryGetStickyKeysEnabled) },
+            { "toggleKeysEnabled", CommunityStatsAccessibilityFlag(TryGetToggleKeysEnabled) },
+            { "filterKeysEnabled", CommunityStatsAccessibilityFlag(TryGetFilterKeysEnabled) },
+            { "showSoundsEnabled", CommunityStatsRegistryOnOff(@"Control Panel\Accessibility\ShowSounds", "On") },
+            { "audioDescriptionsEnabled", CommunityStatsRegistryOnOff(@"Control Panel\Accessibility\AudioDescription", "On") },
             { "startupSpeechEnabled", settings.StartupSpeechEnabled },
             { "showHideHotKeyConfigured", !string.IsNullOrWhiteSpace(settings.ShowHideHotKey) },
             { "speakTrayHotKeyConfigured", !string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey) },
@@ -356,6 +366,54 @@ public sealed partial class SensorReadoutForm : Form
 
         settings.CommunityStatsClientId = Convert.ToBase64String(bytes);
         SaveSettings(settings);
+    }
+
+    private sealed class CommunityStatsWindowsInfo
+    {
+        public string Caption = "";
+        public string Version = "";
+        public string Build = "";
+        public string Architecture = "";
+    }
+
+    private static CommunityStatsWindowsInfo GetCommunityStatsWindowsInfo()
+    {
+        var info = new CommunityStatsWindowsInfo();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem"))
+            {
+                foreach (ManagementObject os in searcher.Get())
+                {
+                    info.Caption = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["Caption"])));
+                    info.Version = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["Version"])));
+                    info.Build = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["BuildNumber"])));
+                    info.Architecture = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["OSArchitecture"])));
+                    return info;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        info.Version = SafeCommunityStatsValue(Environment.OSVersion.Version.ToString());
+        info.Architecture = Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit";
+        return info;
+    }
+
+    private delegate bool TryGetCommunityStatsBoolean(out bool enabled);
+
+    private static object CommunityStatsAccessibilityFlag(TryGetCommunityStatsBoolean getter)
+    {
+        bool enabled;
+        return getter != null && getter(out enabled) ? (object)enabled : null;
+    }
+
+    private static object CommunityStatsRegistryOnOff(string subKey, string valueName)
+    {
+        bool enabled;
+        return TryGetRegistryOnOff(subKey, valueName, out enabled) ? (object)enabled : null;
     }
 
     private static IEnumerable<string> SplitSourceList(string value)

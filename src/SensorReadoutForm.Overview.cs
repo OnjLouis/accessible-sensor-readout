@@ -151,8 +151,260 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddPrinterOverviewRows(rows);
+        AddAccessibilityOverviewRows(rows);
 
         return rows;
+    }
+
+    private static void AddAccessibilityOverviewRows(List<SensorRow> rows)
+    {
+        if (rows == null)
+        {
+            return;
+        }
+
+        var details = GetAccessibilityDetails();
+        var detectedScreenReaders = DetectScreenReaders();
+        AddOverviewTextRow(rows, "Screen reader output", ScreenReaderOutput.IsAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"), "Sensor Readout", details);
+        AddOverviewTextRow(rows, "Detected screen readers", detectedScreenReaders.Count == 0 ? T("ui.None detected", "None detected") : string.Join(", ", detectedScreenReaders.ToArray()), "Windows processes", details);
+
+        bool enabled;
+        if (TryGetHighContrastEnabled(out enabled))
+        {
+            AddOverviewTextRow(rows, "High contrast", FormatAccessibilityOnOff(enabled), "Windows accessibility", details);
+        }
+
+        if (TryGetStickyKeysEnabled(out enabled))
+        {
+            AddOverviewTextRow(rows, "Sticky Keys", FormatAccessibilityOnOff(enabled), "Windows accessibility", details);
+        }
+
+        if (TryGetToggleKeysEnabled(out enabled))
+        {
+            AddOverviewTextRow(rows, "Toggle Keys", FormatAccessibilityOnOff(enabled), "Windows accessibility", details);
+        }
+
+        if (TryGetFilterKeysEnabled(out enabled))
+        {
+            AddOverviewTextRow(rows, "Filter Keys", FormatAccessibilityOnOff(enabled), "Windows accessibility", details);
+        }
+
+        if (TryGetRegistryOnOff(@"Control Panel\Accessibility\ShowSounds", "On", out enabled))
+        {
+            AddOverviewTextRow(rows, "Show sounds", FormatAccessibilityOnOff(enabled), "Windows accessibility registry", details);
+        }
+
+        if (TryGetRegistryOnOff(@"Control Panel\Accessibility\AudioDescription", "On", out enabled))
+        {
+            AddOverviewTextRow(rows, "Audio descriptions", FormatAccessibilityOnOff(enabled), "Windows accessibility registry", details);
+        }
+    }
+
+    private static Dictionary<string, string> GetAccessibilityDetails()
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(details, "Screen reader output available", ScreenReaderOutput.IsAvailable ? "Yes" : "No");
+        var detectedScreenReaders = DetectScreenReaders();
+        AddDetail(details, "Detected screen readers", detectedScreenReaders.Count == 0 ? "None detected" : string.Join(", ", detectedScreenReaders.ToArray()));
+
+        uint flags;
+        if (TryGetHighContrastFlags(out flags))
+        {
+            AddDetail(details, "High contrast flags", flags.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (TryGetStickyKeysFlags(out flags))
+        {
+            AddDetail(details, "Sticky Keys flags", flags.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (TryGetToggleKeysFlags(out flags))
+        {
+            AddDetail(details, "Toggle Keys flags", flags.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (TryGetFilterKeysFlags(out flags))
+        {
+            AddDetail(details, "Filter Keys flags", flags.ToString(CultureInfo.InvariantCulture));
+        }
+
+        AddRegistryDetail(details, "Show sounds registry value", @"Control Panel\Accessibility\ShowSounds", "On");
+        AddRegistryDetail(details, "Audio descriptions registry value", @"Control Panel\Accessibility\AudioDescription", "On");
+        return details;
+    }
+
+    private static string FormatAccessibilityOnOff(bool enabled)
+    {
+        return enabled ? T("ui.On", "On") : T("ui.Off", "Off");
+    }
+
+    private static bool TryGetHighContrastEnabled(out bool enabled)
+    {
+        uint flags;
+        if (TryGetHighContrastFlags(out flags))
+        {
+            enabled = (flags & NativeMethods.HcfHighContrastOn) != 0;
+            return true;
+        }
+
+        enabled = false;
+        return false;
+    }
+
+    private static bool TryGetStickyKeysEnabled(out bool enabled)
+    {
+        uint flags;
+        if (TryGetStickyKeysFlags(out flags))
+        {
+            enabled = (flags & NativeMethods.SkfStickyKeysOn) != 0;
+            return true;
+        }
+
+        enabled = false;
+        return false;
+    }
+
+    private static bool TryGetToggleKeysEnabled(out bool enabled)
+    {
+        uint flags;
+        if (TryGetToggleKeysFlags(out flags))
+        {
+            enabled = (flags & NativeMethods.TkfToggleKeysOn) != 0;
+            return true;
+        }
+
+        enabled = false;
+        return false;
+    }
+
+    private static bool TryGetFilterKeysEnabled(out bool enabled)
+    {
+        uint flags;
+        if (TryGetFilterKeysFlags(out flags))
+        {
+            enabled = (flags & NativeMethods.FkfFilterKeysOn) != 0;
+            return true;
+        }
+
+        enabled = false;
+        return false;
+    }
+
+    private static bool TryGetHighContrastFlags(out uint flags)
+    {
+        flags = 0;
+        try
+        {
+            var data = NativeMethods.HighContrast.Create();
+            if (NativeMethods.SystemParametersInfo(NativeMethods.SpiGetHighContrast, data.cbSize, ref data, 0))
+            {
+                flags = data.dwFlags;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool TryGetStickyKeysFlags(out uint flags)
+    {
+        flags = 0;
+        try
+        {
+            var data = NativeMethods.StickyKeys.Create();
+            if (NativeMethods.SystemParametersInfo(NativeMethods.SpiGetStickyKeys, data.cbSize, ref data, 0))
+            {
+                flags = data.dwFlags;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool TryGetToggleKeysFlags(out uint flags)
+    {
+        flags = 0;
+        try
+        {
+            var data = NativeMethods.ToggleKeys.Create();
+            if (NativeMethods.SystemParametersInfo(NativeMethods.SpiGetToggleKeys, data.cbSize, ref data, 0))
+            {
+                flags = data.dwFlags;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool TryGetFilterKeysFlags(out uint flags)
+    {
+        flags = 0;
+        try
+        {
+            var data = NativeMethods.FilterKeys.Create();
+            if (NativeMethods.SystemParametersInfo(NativeMethods.SpiGetFilterKeys, data.cbSize, ref data, 0))
+            {
+                flags = data.dwFlags;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool TryGetRegistryOnOff(string subKey, string valueName, out bool enabled)
+    {
+        enabled = false;
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(subKey))
+            {
+                var value = key == null ? null : key.GetValue(valueName);
+                int number;
+                if (TryConvertToInt32(value, out number))
+                {
+                    enabled = number != 0;
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static void AddRegistryDetail(Dictionary<string, string> details, string label, string subKey, string valueName)
+    {
+        try
+        {
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(subKey))
+            {
+                var value = key == null ? null : key.GetValue(valueName);
+                if (value != null)
+                {
+                    AddDetail(details, label, Convert.ToString(value, CultureInfo.InvariantCulture));
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static IEnumerable<SensorRow> GetSystemUptimeRows()

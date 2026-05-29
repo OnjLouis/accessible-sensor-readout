@@ -108,6 +108,10 @@ $memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal');
 $gpuMemoryTotals = aggregate_value($items, 'hardwareSummary', 'dedicatedGpuMemoryTotal');
 $languages = aggregate_value($items, 'system', 'language');
 $installModes = aggregate_value($items, 'system', 'installMode');
+$windowsEditions = aggregate_value($items, 'system', 'windowsCaption');
+$windowsVersions = aggregate_value($items, 'system', 'windowsVersion');
+$windowsBuilds = aggregate_value($items, 'system', 'windowsBuild');
+$windowsArchitectures = aggregate_value($items, 'system', 'windowsArchitecture');
 ?>
 <!doctype html>
 <html lang="en">
@@ -126,7 +130,7 @@ $installModes = aggregate_value($items, 'system', 'installMode');
 </head>
 <body>
   <h1>Sensor Readout Community Stats</h1>
-  <p>These are opt-in aggregate hardware and accessibility coverage stats submitted from Sensor Readout. The upload payload is allow-listed and does not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, or full report rows.</p>
+  <p>These are opt-in aggregate hardware and accessibility coverage stats submitted from Sensor Readout. The upload payload is allow-listed and does not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.</p>
   <p><a href="https://github.com/OnjLouis/accessible-sensor-readout/releases/latest">Download Sensor Readout</a> or visit the <a href="https://github.com/OnjLouis/accessible-sensor-readout">project page</a>.</p>
 
   <h2>Summary</h2>
@@ -146,6 +150,12 @@ $installModes = aggregate_value($items, 'system', 'installMode');
   <table>
     <tr><th>Metric</th><th>Machines</th></tr>
     <tr><td>Screen-reader output available</td><td><?= count_if($items, 'accessibility', 'screenReaderOutputAvailable') ?></td></tr>
+    <tr><td>High contrast enabled</td><td><?= count_if($items, 'accessibility', 'highContrastEnabled') ?></td></tr>
+    <tr><td>Sticky Keys enabled</td><td><?= count_if($items, 'accessibility', 'stickyKeysEnabled') ?></td></tr>
+    <tr><td>Toggle Keys enabled</td><td><?= count_if($items, 'accessibility', 'toggleKeysEnabled') ?></td></tr>
+    <tr><td>Filter Keys enabled</td><td><?= count_if($items, 'accessibility', 'filterKeysEnabled') ?></td></tr>
+    <tr><td>Show sounds enabled</td><td><?= count_if($items, 'accessibility', 'showSoundsEnabled') ?></td></tr>
+    <tr><td>Audio descriptions enabled</td><td><?= count_if($items, 'accessibility', 'audioDescriptionsEnabled') ?></td></tr>
     <tr><td>Show/hide hotkey configured</td><td><?= count_if($items, 'accessibility', 'showHideHotKeyConfigured') ?></td></tr>
     <tr><td>Speak tray status hotkey configured</td><td><?= count_if($items, 'accessibility', 'speakTrayHotKeyConfigured') ?></td></tr>
     <tr><td>Notification area status enabled</td><td><?= count_if($items, 'accessibility', 'trayStatusEnabled') ?></td></tr>
@@ -156,6 +166,10 @@ $installModes = aggregate_value($items, 'system', 'installMode');
 
   <div class="grid">
     <div><?php render_table('Detected screen readers', 'Screen reader', 'Machines', $screenReaders); ?></div>
+    <div><?php render_table('Windows editions', 'Edition', 'Machines', $windowsEditions); ?></div>
+    <div><?php render_table('Windows versions', 'Version', 'Machines', $windowsVersions); ?></div>
+    <div><?php render_table('Windows builds', 'Build', 'Machines', $windowsBuilds); ?></div>
+    <div><?php render_table('Windows architecture', 'Architecture', 'Machines', $windowsArchitectures); ?></div>
     <div><?php render_table('CPU vendors', 'Vendor', 'Machines', $cpuVendors); ?></div>
     <div><?php render_table('CPU architecture', 'Architecture', 'Machines', $cpuArchitectures); ?></div>
     <div><?php render_table('CPU processor types', 'Type', 'Machines', $cpuTypes); ?></div>
