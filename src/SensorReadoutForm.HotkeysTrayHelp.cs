@@ -611,7 +611,7 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add("Run initial set&up wizard...", null, delegate { ShowInitialSetupWizard(false); });
         helpMenu.DropDownItems.Add("&Hints and tips...", null, delegate { ShowTipsDialog(false); });
         helpMenu.DropDownItems.Add("Check accessibilit&y setup...", null, delegate { ShowAccessibilitySetupCheck(); });
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run &diagnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run dia&gnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
         helpMenu.DropDownItems.Add("Prepare support &report...", null, delegate { PrepareSupportReport(); });
         helpMenu.DropDownItems.Add(T("ui.Share a&nonymous community stats...", "Share a&nonymous community stats..."), null, delegate { ShowCommunityStatsDialog(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.0.7.
+Current version: 4.0.8.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -578,6 +578,9 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.0.8
+- Fixed: Help > Run diagnostics now uses Alt+G so it no longer shares Alt+D with Donate.
 
 ### 4.0.7
 - Fixed: CPU and GPU temperatures, motherboard fan readings, fan hotkeys, and reports now load correctly again after 4.0.6 could prevent low-level hardware sensors from opening.
