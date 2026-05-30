@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.0.8";
+    public const string AppVersion = "4.1.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -21,6 +21,9 @@ public sealed partial class SensorReadoutForm : Form
     private const int SpokenHotKeyBaseId = 2100;
     private const int FanProfileHotKeyBaseId = 2200;
     private const int WmHotKey = 0x0312;
+    public const string ReadingTreeExpansionExpanded = "Expanded";
+    public const string ReadingTreeExpansionCollapsed = "Collapsed";
+    public const string ReadingTreeExpansionRemember = "Remember";
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editRenameMenuItem;
@@ -80,6 +83,8 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime lastDetailsAvailabilityAnnouncementUtc = DateTime.MinValue;
     private string pendingDetailsAvailabilityAnnouncementKey = "";
     private bool readingTreeExpansionInitialized;
+    private bool suppressReadingTreeExpansionTracking;
+    private string lastAppliedReadingTreeExpansionMode = "";
     private bool automaticUpdateCheckStartedThisRun;
     private string currentTrayStatusText = "Sensor Readout";
     private readonly Dictionary<int, SpokenHotKeySetting> registeredSpokenHotKeys = new Dictionary<int, SpokenHotKeySetting>();
@@ -497,6 +502,9 @@ public sealed partial class SensorReadoutForm : Form
             UpdateSelectedTreeCommandVisibility();
             AnnounceSelectedReadingDetailsAvailability();
         };
+        readingTree.AfterExpand += delegate { TrackReadingTreeExpansionAction(true); };
+        readingTree.AfterCollapse += delegate { TrackReadingTreeExpansionAction(false); };
+        lastAppliedReadingTreeExpansionMode = settings.ReadingTreeExpansionMode;
 
         selectedMeterValueLabel = new Label
         {

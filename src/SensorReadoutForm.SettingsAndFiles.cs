@@ -74,6 +74,23 @@ public sealed partial class SensorReadoutForm : Form
         return string.Join("+", parts.ToArray());
     }
 
+    public static string NormalizeReadingTreeExpansionMode(string mode)
+    {
+        if (string.Equals(mode, ReadingTreeExpansionCollapsed, StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadingTreeExpansionCollapsed;
+        }
+
+        if (string.Equals(mode, ReadingTreeExpansionRemember, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(mode, "Last", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(mode, "LastState", StringComparison.OrdinalIgnoreCase))
+        {
+            return ReadingTreeExpansionRemember;
+        }
+
+        return ReadingTreeExpansionExpanded;
+    }
+
     private static GlobalHotKey ParseHotKey(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -353,6 +370,8 @@ public sealed partial class SensorReadoutForm : Form
             AutoRefreshEnabled = value.AutoRefreshEnabled,
             RefreshWhileFocused = value.RefreshWhileFocused,
             RefreshIntervalSeconds = value.RefreshIntervalSeconds,
+            ReadingTreeExpansionMode = value.ReadingTreeExpansionMode,
+            ReadingTreeLastExpanded = value.ReadingTreeLastExpanded,
             TemperatureUnit = value.TemperatureUnit,
             DecimalSeparator = value.DecimalSeparator,
             LanguageFile = value.LanguageFile,
@@ -447,6 +466,8 @@ public sealed partial class SensorReadoutForm : Form
         target.AutoRefreshEnabled = shared.AutoRefreshEnabled;
         target.RefreshWhileFocused = shared.RefreshWhileFocused;
         target.RefreshIntervalSeconds = shared.RefreshIntervalSeconds;
+        target.ReadingTreeExpansionMode = shared.ReadingTreeExpansionMode;
+        target.ReadingTreeLastExpanded = shared.ReadingTreeLastExpanded;
         target.TemperatureUnit = shared.TemperatureUnit;
         target.DecimalSeparator = shared.DecimalSeparator;
         target.LanguageFile = shared.LanguageFile;
@@ -487,6 +508,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds <= 0 ? 5 : value.RefreshIntervalSeconds));
+        value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator
@@ -571,6 +593,7 @@ public sealed partial class SensorReadoutForm : Form
         value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
         value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds));
+        value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator

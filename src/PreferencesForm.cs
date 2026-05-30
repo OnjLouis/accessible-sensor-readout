@@ -15,6 +15,9 @@ public sealed partial class PreferencesForm : Form
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;
     private readonly CheckBox trayTooltipPartialReadingsCheckBox;
+    private readonly RadioButton readingTreeExpandRadio;
+    private readonly RadioButton readingTreeCollapseRadio;
+    private readonly RadioButton readingTreeRememberRadio;
     private readonly CheckBox runAtStartupCheckBox;
     private readonly CheckBox desktopShortcutCheckBox;
     private readonly CheckBox startMinimizedCheckBox;
@@ -109,6 +112,15 @@ public sealed partial class PreferencesForm : Form
     public bool RefreshWhileFocused { get { return refreshWhileFocusedCheckBox.Checked; } }
     public bool TrayStatusEnabled { get { return trayStatusCheckBox.Checked; } }
     public bool TrayTooltipShowsPartialReadings { get { return trayTooltipPartialReadingsCheckBox == null || trayTooltipPartialReadingsCheckBox.Checked; } }
+    public string ReadingTreeExpansionMode
+    {
+        get
+        {
+            if (readingTreeCollapseRadio != null && readingTreeCollapseRadio.Checked) return SensorReadoutForm.ReadingTreeExpansionCollapsed;
+            if (readingTreeRememberRadio != null && readingTreeRememberRadio.Checked) return SensorReadoutForm.ReadingTreeExpansionRemember;
+            return SensorReadoutForm.ReadingTreeExpansionExpanded;
+        }
+    }
     public bool RunAtStartup { get { return runAtStartupCheckBox.Checked; } }
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
@@ -261,9 +273,10 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 15,
+            RowCount = 16,
             Padding = new Padding(10)
         };
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -318,6 +331,51 @@ public sealed partial class PreferencesForm : Form
             trayTooltipPartialReadingsCheckBox.Enabled = trayStatusCheckBox.Checked;
         };
         trayTooltipPartialReadingsCheckBox.Enabled = trayStatusCheckBox.Checked;
+
+        var readingTreeExpansionGroup = new GroupBox
+        {
+            Text = "Reading tree expansion",
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            AccessibleName = "Reading tree expansion"
+        };
+        var readingTreeExpansionPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(8, 2, 8, 6)
+        };
+        readingTreeExpandRadio = new RadioButton
+        {
+            Text = "Expand when switching categories",
+            AutoSize = true,
+            AccessibleName = "Expand when switching categories",
+            AccessibleDescription = "Reading trees open expanded when you switch categories."
+        };
+        readingTreeCollapseRadio = new RadioButton
+        {
+            Text = "Keep collapsed when switching categories",
+            AutoSize = true,
+            AccessibleName = "Keep collapsed when switching categories",
+            AccessibleDescription = "Reading trees show only their top-level items when you switch categories."
+        };
+        readingTreeRememberRadio = new RadioButton
+        {
+            Text = "Remember my last expand or collapse action",
+            AutoSize = true,
+            AccessibleName = "Remember my last expand or collapse action",
+            AccessibleDescription = "When you switch categories, Sensor Readout follows your most recent expand or collapse action."
+        };
+        var expansionMode = SensorReadoutForm.NormalizeReadingTreeExpansionMode(settings.ReadingTreeExpansionMode);
+        readingTreeExpandRadio.Checked = string.Equals(expansionMode, SensorReadoutForm.ReadingTreeExpansionExpanded, StringComparison.OrdinalIgnoreCase);
+        readingTreeCollapseRadio.Checked = string.Equals(expansionMode, SensorReadoutForm.ReadingTreeExpansionCollapsed, StringComparison.OrdinalIgnoreCase);
+        readingTreeRememberRadio.Checked = string.Equals(expansionMode, SensorReadoutForm.ReadingTreeExpansionRemember, StringComparison.OrdinalIgnoreCase);
+        readingTreeExpansionPanel.Controls.Add(readingTreeExpandRadio);
+        readingTreeExpansionPanel.Controls.Add(readingTreeCollapseRadio);
+        readingTreeExpansionPanel.Controls.Add(readingTreeRememberRadio);
+        readingTreeExpansionGroup.Controls.Add(readingTreeExpansionPanel);
 
         runAtStartupCheckBox = new CheckBox
         {
@@ -1089,15 +1147,16 @@ public sealed partial class PreferencesForm : Form
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 3);
         main.Controls.Add(trayStatusCheckBox, 0, 4);
         main.Controls.Add(trayTooltipPartialReadingsCheckBox, 0, 5);
-        main.Controls.Add(intervalPanel, 0, 6);
-        main.Controls.Add(temperaturePanel, 0, 7);
-        main.Controls.Add(decimalSeparatorPanel, 0, 8);
-        main.Controls.Add(updatesPanel, 0, 9);
-        main.Controls.Add(diagnosticsPanel, 0, 10);
-        main.Controls.Add(loggingPanel, 0, 11);
-        main.Controls.Add(trayLabel, 0, 12);
-        main.Controls.Add(BuildTraySelectionPanel(), 0, 13);
-        main.Controls.Add(traySelectionStatusLabel, 0, 14);
+        main.Controls.Add(readingTreeExpansionGroup, 0, 6);
+        main.Controls.Add(intervalPanel, 0, 7);
+        main.Controls.Add(temperaturePanel, 0, 8);
+        main.Controls.Add(decimalSeparatorPanel, 0, 9);
+        main.Controls.Add(updatesPanel, 0, 10);
+        main.Controls.Add(diagnosticsPanel, 0, 11);
+        main.Controls.Add(loggingPanel, 0, 12);
+        main.Controls.Add(trayLabel, 0, 13);
+        main.Controls.Add(BuildTraySelectionPanel(), 0, 14);
+        main.Controls.Add(traySelectionStatusLabel, 0, 15);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
@@ -1214,6 +1273,9 @@ public sealed partial class PreferencesForm : Form
         refreshWhileFocusedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayStatusCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayTooltipPartialReadingsCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        readingTreeExpandRadio.CheckedChanged += delegate { SaveLivePreferences(); };
+        readingTreeCollapseRadio.CheckedChanged += delegate { SaveLivePreferences(); };
+        readingTreeRememberRadio.CheckedChanged += delegate { SaveLivePreferences(); };
         runAtStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         desktopShortcutCheckBox.CheckedChanged += ApplyDesktopShortcutPreferenceHandler;
         startMinimizedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };

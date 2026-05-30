@@ -40,6 +40,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
+            form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
@@ -102,11 +103,15 @@ public sealed partial class SensorReadoutForm : Form
         settings.ShowHideHotKey = "Ctrl+Alt+F12";
         settings.SpeakTrayHotKey = "Ctrl+Alt+F11";
         settings.CommunityStatsClientId = "self-test-client-id";
+        settings.ReadingTreeExpansionMode = ReadingTreeExpansionRemember;
+        settings.ReadingTreeLastExpanded = false;
         SaveSettings(settings);
         var reloaded = LoadSettings();
         Require(string.Equals(reloaded.ShowHideHotKey, "Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase), "Show/hide hotkey did not round-trip.");
         Require(string.Equals(reloaded.SpeakTrayHotKey, "Ctrl+Alt+F11", StringComparison.OrdinalIgnoreCase), "Speak tray hotkey did not round-trip.");
         Require(string.Equals(reloaded.CommunityStatsClientId, "self-test-client-id", StringComparison.Ordinal), "Community stats client ID did not round-trip.");
+        Require(string.Equals(reloaded.ReadingTreeExpansionMode, ReadingTreeExpansionRemember, StringComparison.OrdinalIgnoreCase), "Reading tree expansion mode did not round-trip.");
+        Require(!reloaded.ReadingTreeLastExpanded, "Reading tree last expanded state did not round-trip.");
         var transferPackage = BuildSettingsTransferPackage(new HashSet<string>(new[] { TransferTray }, StringComparer.OrdinalIgnoreCase));
         Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.CommunityStatsClientId), "Settings transfer exported the local community stats client ID.");
     }
@@ -161,6 +166,36 @@ public sealed partial class SensorReadoutForm : Form
         RestoreReadingExpansionAfterShow();
         var after = CountExpandedNodes(readingTree.Nodes);
         Require(after == before, "Expanded node count changed after restore. Before=" + before + ", after=" + after + ".");
+    }
+
+    private void SelfTestReadingTreeExpansionPreference()
+    {
+        EnsureSelfTestRows();
+        settings.ReadingTreeExpansionMode = ReadingTreeExpansionCollapsed;
+        settings.ReadingTreeLastExpanded = true;
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) == 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Collapsed reading tree preference expanded nodes.");
+
+        settings.ReadingTreeExpansionMode = ReadingTreeExpansionExpanded;
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) > 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Expanded reading tree preference did not expand nodes.");
+
+        settings.ReadingTreeExpansionMode = ReadingTreeExpansionRemember;
+        settings.ReadingTreeLastExpanded = false;
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) == 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Remember reading tree preference ignored collapsed state.");
+
+        settings.ReadingTreeLastExpanded = true;
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) > 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Remember reading tree preference ignored expanded state.");
     }
 
     private void SelfTestTrayStatusText()
@@ -521,6 +556,15 @@ public sealed partial class SensorReadoutForm : Form
         {
             SelfTestSensorCollection();
         }
+    }
+
+    private void ResetReadingTreeExpansionForSelfTest()
+    {
+        readingTreeExpansionInitialized = false;
+        lastReadingTreeSignature = "";
+        lastReadingTreeShapeSignature = "";
+        lastReadingTreeFilterKey = "";
+        lastAppliedReadingTreeExpansionMode = "";
     }
 
     private static int CountTreeNodes(TreeNodeCollection nodes)

@@ -86,12 +86,26 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        var expansionMode = NormalizeReadingTreeExpansionMode(settings == null ? "" : settings.ReadingTreeExpansionMode);
+        if (!string.IsNullOrWhiteSpace(lastAppliedReadingTreeExpansionMode) &&
+            !string.Equals(lastAppliedReadingTreeExpansionMode, expansionMode, StringComparison.OrdinalIgnoreCase))
+        {
+            readingTreeExpansionInitialized = false;
+            lastReadingTreeShapeSignature = "";
+            lastAppliedReadingTreeExpansionMode = expansionMode;
+        }
+        else if (string.IsNullOrWhiteSpace(lastAppliedReadingTreeExpansionMode))
+        {
+            lastAppliedReadingTreeExpansionMode = expansionMode;
+        }
+
         var selectedKey = readingTree.SelectedNode == null ? "" : readingTree.SelectedNode.Name;
         var filter = deviceList.SelectedItem as DeviceFilter;
         var filterKey = filter == null ? "" : filter.Key ?? "";
         var wasPlaceholderOnly = readingTree.Nodes.Count == 1 && string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal);
-        var expandAll = !readingTreeExpansionInitialized || !string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) || wasPlaceholderOnly;
-        var expandedKeys = expandAll ? new HashSet<string>() : GetExpandedNodeKeys(readingTree.Nodes);
+        var resetExpansion = !readingTreeExpansionInitialized || !string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) || wasPlaceholderOnly;
+        var expandAll = resetExpansion && ShouldExpandReadingTreeOnReset();
+        var expandedKeys = resetExpansion ? new HashSet<string>() : GetExpandedNodeKeys(readingTree.Nodes);
         var rows = ApplyFilter(latestRows, filter)
             .OrderBy(r => TypeSortIndex(r.Type))
             .ThenBy(r => ShortHardwareName(r.Hardware))
@@ -108,10 +122,16 @@ public sealed partial class SensorReadoutForm : Form
         if (string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) &&
             string.Equals(lastReadingTreeSignature, signature, StringComparison.Ordinal))
         {
+            if (resetExpansion)
+            {
+                ApplyReadingTreeExpansion(readingTree.Nodes, expandedKeys, expandAll);
+                lastReadingTreeFilterKey = filterKey;
+                readingTreeExpansionInitialized = true;
+            }
             return;
         }
 
-        if (string.Equals(lastReadingTreeShapeSignature, shapeSignature, StringComparison.Ordinal))
+        if (!resetExpansion && string.Equals(lastReadingTreeShapeSignature, shapeSignature, StringComparison.Ordinal))
         {
             UpdateTreeNodes(readingTree.Nodes, BuildTreeItemMap(items));
             lastReadingTreeSignature = signature;
@@ -128,7 +148,7 @@ public sealed partial class SensorReadoutForm : Form
                 readingTree.Nodes.Add(CreateTreeNode(item));
             }
 
-            ApplyExpandedNodeKeys(readingTree.Nodes, expandedKeys, expandAll);
+            ApplyReadingTreeExpansion(readingTree.Nodes, expandedKeys, expandAll);
             var selectedNode = FindTreeNode(readingTree.Nodes, selectedKey);
             if (selectedNode == null && !string.IsNullOrWhiteSpace(preferredFallbackKey))
             {
@@ -551,6 +571,51 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private bool ShouldExpandReadingTreeOnReset()
+    {
+        var mode = NormalizeReadingTreeExpansionMode(settings == null ? "" : settings.ReadingTreeExpansionMode);
+        if (string.Equals(mode, ReadingTreeExpansionCollapsed, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(mode, ReadingTreeExpansionRemember, StringComparison.OrdinalIgnoreCase))
+        {
+            return settings == null || settings.ReadingTreeLastExpanded;
+        }
+
+        return true;
+    }
+
+    private void ApplyReadingTreeExpansion(TreeNodeCollection nodes, HashSet<string> expandedKeys, bool expandAll)
+    {
+        suppressReadingTreeExpansionTracking = true;
+        try
+        {
+            ApplyExpandedNodeKeys(nodes, expandedKeys, expandAll);
+        }
+        finally
+        {
+            suppressReadingTreeExpansionTracking = false;
+        }
+    }
+
+    private void TrackReadingTreeExpansionAction(bool expanded)
+    {
+        if (suppressReadingTreeExpansionTracking || settings == null)
+        {
+            return;
+        }
+
+        if (settings.ReadingTreeLastExpanded == expanded)
+        {
+            return;
+        }
+
+        settings.ReadingTreeLastExpanded = expanded;
+        SaveSettings(settings);
+    }
+
     private void CaptureReadingExpansionBeforeHide()
     {
         hiddenReadingExpandedKeys = readingTree == null
@@ -568,7 +633,7 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.BeginUpdate();
         try
         {
-            ApplyExpandedNodeKeys(readingTree.Nodes, hiddenReadingExpandedKeys, false);
+            ApplyReadingTreeExpansion(readingTree.Nodes, hiddenReadingExpandedKeys, false);
             if (readingTree.SelectedNode != null)
             {
                 readingTree.SelectedNode.EnsureVisible();
@@ -590,12 +655,15 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.BeginUpdate();
         try
         {
+            suppressReadingTreeExpansionTracking = true;
             readingTree.ExpandAll();
         }
         finally
         {
+            suppressReadingTreeExpansionTracking = false;
             readingTree.EndUpdate();
         }
+        TrackReadingTreeExpansionAction(true);
         readingTreeExpansionInitialized = true;
         statusLabel.Text = T("status.Expanded all readings.", "Expanded all readings.");
         readingTree.Focus();
@@ -611,6 +679,7 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.BeginUpdate();
         try
         {
+            suppressReadingTreeExpansionTracking = true;
             readingTree.CollapseAll();
             if (readingTree.SelectedNode != null)
             {
@@ -619,8 +688,10 @@ public sealed partial class SensorReadoutForm : Form
         }
         finally
         {
+            suppressReadingTreeExpansionTracking = false;
             readingTree.EndUpdate();
         }
+        TrackReadingTreeExpansionAction(false);
         readingTreeExpansionInitialized = true;
         statusLabel.Text = T("status.Collapsed all readings.", "Collapsed all readings.");
         readingTree.Focus();

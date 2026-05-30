@@ -144,6 +144,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        var previousReadingTreeExpansionMode = lastAppliedReadingTreeExpansionMode;
         ApplyPreferencesFromDialog(dialog, false, false);
         autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
         refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
@@ -155,6 +156,10 @@ public sealed partial class SensorReadoutForm : Form
         BuildHotkeysMenu();
         UpdateTrayStatus();
         ApplyTimerSettings();
+        if (!string.Equals(previousReadingTreeExpansionMode, settings.ReadingTreeExpansionMode, StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateReadingList();
+        }
     }
 
     private void ApplyPreferencesFromDialog(PreferencesForm dialog, bool updateStartupShortcut, bool refreshAfterSave)
@@ -174,6 +179,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
         settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
         settings.TrayTooltipShowsPartialReadings = dialog.TrayTooltipShowsPartialReadings;
+        settings.ReadingTreeExpansionMode = dialog.ReadingTreeExpansionMode;
         settings.ShowTipsOnStartup = dialog.ShowTipsOnStartup;
         settings.RunAtStartup = dialog.RunAtStartup;
         settings.StartMinimizedToTray = dialog.StartMinimizedToTray;

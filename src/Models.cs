@@ -39,6 +39,8 @@ public sealed class AppSettings
     public bool AutoRefreshEnabled = true;
     public bool RefreshWhileFocused = true;
     public int RefreshIntervalSeconds = 5;
+    public string ReadingTreeExpansionMode = "Expanded";
+    public bool ReadingTreeLastExpanded = true;
     public string TemperatureUnit = "C";
     public string DecimalSeparator = "";
     public string LanguageFile = "";
@@ -94,6 +96,8 @@ public sealed class SharedAppSettings
     public bool AutoRefreshEnabled = true;
     public bool RefreshWhileFocused = true;
     public int RefreshIntervalSeconds = 5;
+    public string ReadingTreeExpansionMode = "Expanded";
+    public bool ReadingTreeLastExpanded = true;
     public string TemperatureUnit = "C";
     public string DecimalSeparator = "";
     public string LanguageFile = "";

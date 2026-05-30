@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.0.8.
+Current version: 4.1.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -250,6 +250,7 @@ The General tab controls the main reading experience.
 - Refresh interval: set the normal refresh interval in seconds.
 - Show status in notification area: show or hide the tray icon and its tooltip.
 - Show as many readings as possible in notification area tooltip: use the longer Windows tooltip text where available; turn this off if you prefer long tray tooltips to show only `Sensor Readout`.
+- Reading tree expansion: choose whether categories open expanded, open collapsed, or follow your most recent expand/collapse action when switching categories.
 - Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
@@ -579,7 +580,8 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
-### 4.0.8
+### 4.1.0
+- Added: General preferences now let you choose whether reading trees open expanded, open collapsed, or remember your last expand/collapse action when switching categories.
 - Fixed: Help > Run diagnostics now uses Alt+G so it no longer shares Alt+D with Donate.
 
 ### 4.0.7
