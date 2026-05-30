@@ -3,7 +3,7 @@
   "name": "Lenovo Laptop Support (experimental)",
   "version": "0.2.0",
   "author": "Sensor Readout",
-  "description": "Experimental, opt-in Lenovo laptop probe. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery WMI (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state), IdeaPad Lenovo_BatteryInformation (manufacturer ID, hardware ID, manufacture date), and reports presence of Lenovo vendor WMI interfaces.",
+  "description": "Experimental, opt-in Lenovo laptop probe. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery WMI (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state, design capacity, chemistry, manufacturer), IdeaPad Lenovo_BatteryInformation (manufacturer ID, hardware ID, manufacture date), thermal throttle reasons and passive limits, system thermal state, storage health/temperature/wear for NVMe and SATA drives, and reports presence of Lenovo vendor WMI interfaces.",
   "assembly": "LenovoThinkPadPlugIn.dll",
   "type": "SensorReadout.LenovoThinkPadPlugIn.LenovoThinkPadPlugIn",
   "helpLinks": [

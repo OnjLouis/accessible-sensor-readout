@@ -16,7 +16,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             Name = "Lenovo Laptop Support (experimental)",
             Version = "0.2.0",
             Author = "Sensor Readout",
-            Description = "Experimental read-only probe for Lenovo laptops. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery health (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state), IdeaPad Lenovo_BatteryInformation (manufacturer, hardware ID, manufacture date), and reports presence of Lenovo vendor WMI interfaces."
+            Description = "Experimental read-only probe for Lenovo laptops. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery health (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state, design capacity, chemistry, manufacturer), IdeaPad Lenovo_BatteryInformation (manufacturer, hardware ID, manufacture date), thermal throttle reasons and passive limits, system thermal state, storage health/temperature/wear for NVMe and SATA drives, and reports presence of Lenovo vendor WMI interfaces."
         };
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
@@ -90,6 +90,9 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             rows.AddRange(ReadPowerState(context, details));
             rows.AddRange(ReadLenovoBatteryInformation(context, details));
             rows.AddRange(ReadLenovoVendorPresence(context, details));
+            rows.AddRange(ReadThermalThrottling(context, details));
+            rows.AddRange(ReadSystemThermalState(context, details));
+            rows.AddRange(ReadStorageHealth(context, details));
 
             var candidateClasses = DiscoverCandidateClasses(context).ToList();
             details["Candidate WMI classes found"] = candidateClasses.Count == 0
@@ -420,9 +423,18 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             var cycles = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             var fullCharge = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var designByTag = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             ReadSimpleBatteryClass(context, summaryDetails, "BatteryCycleCount", new[] { "CycleCount" }, cycles);
             ReadSimpleBatteryClass(context, summaryDetails, "BatteryFullChargedCapacity", new[] { "FullChargedCapacity" }, fullCharge);
-            var designByTag = ReadDesignCapacities(context, summaryDetails);
+            // Prefer BatteryStaticData (ACPI _BIX) and emit its richer rows; fall back to Win32_PortableBattery.
+            rows.AddRange(ReadAcpiBatteryStaticData(context, summaryDetails, designByTag));
+            if (designByTag.Count == 0)
+            {
+                foreach (var pair in ReadDesignCapacities(context, summaryDetails))
+                {
+                    designByTag[pair.Key] = pair.Value;
+                }
+            }
 
             foreach (var pair in cycles)
             {
@@ -577,6 +589,555 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             }
 
             return result;
+        }
+
+        private static IEnumerable<SensorReading> ReadAcpiBatteryStaticData(IPluginContext context, Dictionary<string, string> summaryDetails, Dictionary<string, double> designByTag)
+        {
+            var rows = new List<SensorReading>();
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM BatteryStaticData"))
+                using (var instances = searcher.Get())
+                {
+                    var count = 0;
+                    foreach (ManagementObject instance in instances)
+                    {
+                        count++;
+                        var details = ReadDetails(instance);
+                        details["Namespace"] = @"root\wmi";
+                        details["WMI class"] = "BatteryStaticData";
+
+                        var tag = FirstValue(details, "Tag", "InstanceName");
+                        if (string.IsNullOrWhiteSpace(tag))
+                        {
+                            tag = count.ToString(CultureInfo.InvariantCulture);
+                        }
+
+                        var idPrefix = "acpi/battery/" + tag + "/";
+
+                        var design = FirstNumber(details, "DesignedCapacity");
+                        if (design.HasValue && design.Value > 0 && design.Value < 1000000)
+                        {
+                            designByTag[tag] = design.Value;
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Battery",
+                                Hardware = "ACPI battery",
+                                Name = "Design capacity",
+                                Identifier = StableIdentifier(idPrefix + "design-capacity-mwh"),
+                                Value = (float)design.Value,
+                                DisplayValue = FormatNumber(design.Value) + " mWh",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var maker = FirstValue(details, "ManufactureName");
+                        if (!string.IsNullOrWhiteSpace(maker))
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Battery",
+                                Hardware = "ACPI battery",
+                                Name = "Battery manufacturer",
+                                Identifier = StableIdentifier(idPrefix + "manufacturer"),
+                                DisplayValue = maker,
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var deviceName = FirstValue(details, "DeviceName");
+                        if (!string.IsNullOrWhiteSpace(deviceName))
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Battery",
+                                Hardware = "ACPI battery",
+                                Name = "Battery device name",
+                                Identifier = StableIdentifier(idPrefix + "device-name"),
+                                DisplayValue = deviceName,
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var chemistry = FirstNumber(details, "Chemistry");
+                        if (chemistry.HasValue && chemistry.Value > 0)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Battery",
+                                Hardware = "ACPI battery",
+                                Name = "Battery chemistry",
+                                Identifier = StableIdentifier(idPrefix + "chemistry"),
+                                DisplayValue = DescribeBatteryChemistry((long)chemistry.Value),
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+                    }
+
+                    summaryDetails["BatteryStaticData instances"] = count.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["BatteryStaticData error"] = ex.Message;
+                if (context != null)
+                {
+                    context.Log("Debug", "Battery WMI probe failed for root\\wmi\\BatteryStaticData: " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string DescribeBatteryChemistry(long code)
+        {
+            // BatteryStaticData.Chemistry on Windows comes back two different ways depending on firmware:
+            // small integers map to the SMBIOS enum, larger integers are a packed little-endian ASCII string
+            // (e.g. 0x504C69 = "LiP" = lithium polymer, 0x4E4F494C = "LION" = lithium ion).
+            if (code >= 1 && code <= 8)
+            {
+                switch ((int)code)
+                {
+                    case 1: return "Other";
+                    case 2: return "Unknown";
+                    case 3: return "Lead Acid";
+                    case 4: return "Nickel Cadmium";
+                    case 5: return "Nickel Metal Hydride";
+                    case 6: return "Lithium-ion";
+                    case 7: return "Zinc air";
+                    case 8: return "Lithium Polymer";
+                }
+            }
+
+            var ascii = TryDecodePackedAscii((uint)(code & 0xFFFFFFFF));
+            if (!string.IsNullOrEmpty(ascii))
+            {
+                switch (ascii.ToUpperInvariant())
+                {
+                    case "LION": return "Lithium-ion";
+                    case "LIP":
+                    case "LIPO": return "Lithium Polymer";
+                    case "LIFE":
+                    case "LFP":  return "Lithium iron phosphate";
+                    case "NIMH": return "Nickel Metal Hydride";
+                    case "PBAC": return "Lead Acid";
+                    case "NICD": return "Nickel Cadmium";
+                    default: return ascii;
+                }
+            }
+
+            return "Chemistry code " + code.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string TryDecodePackedAscii(uint value)
+        {
+            var chars = new char[4];
+            var length = 0;
+            for (var i = 0; i < 4; i++)
+            {
+                var b = (byte)((value >> (i * 8)) & 0xFF);
+                if (b == 0)
+                {
+                    break;
+                }
+                if (b < 0x20 || b > 0x7E)
+                {
+                    return null;
+                }
+                chars[length++] = (char)b;
+            }
+            return length == 0 ? null : new string(chars, 0, length);
+        }
+
+        private static IEnumerable<SensorReading> ReadThermalThrottling(IPluginContext context, Dictionary<string, string> summaryDetails)
+        {
+            var rows = new List<SensorReading>();
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT Name, PercentPassiveLimit, ThrottleReasons, HighPrecisionTemperature FROM Win32_PerfFormattedData_Counters_ThermalZoneInformation"))
+                using (var instances = searcher.Get())
+                {
+                    var count = 0;
+                    foreach (ManagementObject instance in instances)
+                    {
+                        count++;
+                        var details = ReadDetails(instance);
+                        details["Namespace"] = @"root\cimv2";
+                        details["WMI class"] = "Win32_PerfFormattedData_Counters_ThermalZoneInformation";
+
+                        var zone = FirstValue(details, "Name");
+                        if (string.IsNullOrWhiteSpace(zone))
+                        {
+                            zone = "zone-" + count.ToString(CultureInfo.InvariantCulture);
+                        }
+
+                        var passive = FirstNumber(details, "PercentPassiveLimit");
+                        var reasons = FirstNumber(details, "ThrottleReasons");
+
+                        if (passive.HasValue)
+                        {
+                            // Percent of max passive throttle headroom. 100 = no passive throttling; lower values = thermally limited.
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Thermal",
+                                Name = "Passive throttle headroom",
+                                Identifier = StableIdentifier("thermal/" + zone + "/passive-limit-percent"),
+                                Value = (float)passive.Value,
+                                DisplayValue = FormatNumber(passive.Value) + "%",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        if (reasons.HasValue)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Thermal",
+                                Name = "Throttle reasons",
+                                Identifier = StableIdentifier("thermal/" + zone + "/throttle-reasons"),
+                                Value = (float)reasons.Value,
+                                DisplayValue = DescribeThrottleReasons((int)reasons.Value),
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+                    }
+
+                    summaryDetails["ThermalZoneInformation counter instances"] = count.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["ThermalZoneInformation counter error"] = ex.Message;
+                if (context != null)
+                {
+                    context.Log("Debug", "Thermal counter probe failed: " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string DescribeThrottleReasons(int bitmap)
+        {
+            if (bitmap == 0)
+            {
+                return "None";
+            }
+
+            // ACPI / Windows thermal throttle reason bits. Names below come from documented Windows thermal docs.
+            var bits = new List<string>();
+            if ((bitmap & 0x1) != 0) { bits.Add("Thermal"); }
+            if ((bitmap & 0x2) != 0) { bits.Add("Power budget"); }
+            if ((bitmap & 0x4) != 0) { bits.Add("Display reduction"); }
+            if ((bitmap & 0x8) != 0) { bits.Add("Processor"); }
+            if ((bitmap & 0x10) != 0) { bits.Add("Memory"); }
+            if ((bitmap & 0x20) != 0) { bits.Add("Storage"); }
+            if (bits.Count == 0)
+            {
+                bits.Add("0x" + bitmap.ToString("X", CultureInfo.InvariantCulture));
+            }
+
+            return string.Join(", ", bits.ToArray());
+        }
+
+        private static IEnumerable<SensorReading> ReadSystemThermalState(IPluginContext context, Dictionary<string, string> summaryDetails)
+        {
+            var rows = new List<SensorReading>();
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT ThermalState FROM Win32_ComputerSystem"))
+                using (var instances = searcher.Get())
+                {
+                    foreach (ManagementObject instance in instances)
+                    {
+                        var details = ReadDetails(instance);
+                        var state = FirstNumber(details, "ThermalState");
+                        if (!state.HasValue)
+                        {
+                            continue;
+                        }
+
+                        rows.Add(new SensorReading
+                        {
+                            Type = "Performance",
+                            Hardware = "Thermal",
+                            Name = "System thermal state",
+                            Identifier = "thermal-system-state",
+                            Value = (float)state.Value,
+                            DisplayValue = DescribeThermalState((int)state.Value),
+                            Source = "Lenovo Laptop Support Plug-In",
+                            Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            {
+                                { "Namespace", @"root\cimv2" },
+                                { "WMI class", "Win32_ComputerSystem" }
+                            }
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["Win32_ComputerSystem ThermalState error"] = ex.Message;
+                if (context != null)
+                {
+                    context.Log("Debug", "ThermalState probe failed: " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string DescribeThermalState(int code)
+        {
+            // SMBIOS / CIM thermal state codes.
+            switch (code)
+            {
+                case 1: return "Other";
+                case 2: return "Unknown";
+                case 3: return "Safe";
+                case 4: return "Warning";
+                case 5: return "Critical";
+                case 6: return "Non-recoverable";
+                default: return "Code " + code.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static IEnumerable<SensorReading> ReadStorageHealth(IPluginContext context, Dictionary<string, string> summaryDetails)
+        {
+            var rows = new List<SensorReading>();
+            const string storageNamespace = @"ROOT\Microsoft\Windows\Storage";
+            try
+            {
+                // SELECT * is required so the disk object carries its full key path (ObjectId) — GetRelated needs it to traverse the storage reliability association.
+                using (var searcher = new ManagementObjectSearcher(storageNamespace, "SELECT * FROM MSFT_PhysicalDisk"))
+                using (var instances = searcher.Get())
+                {
+                    var count = 0;
+                    foreach (ManagementObject disk in instances)
+                    {
+                        count++;
+                        var details = ReadDetails(disk);
+                        details["Namespace"] = storageNamespace;
+                        details["WMI class"] = "MSFT_PhysicalDisk";
+
+                        var friendly = FirstValue(details, "FriendlyName");
+                        if (string.IsNullOrWhiteSpace(friendly))
+                        {
+                            friendly = "Disk " + count.ToString(CultureInfo.InvariantCulture);
+                        }
+
+                        var diskSlug = StableIdentifier(friendly);
+                        var idPrefix = "storage/" + diskSlug + "/";
+
+                        var health = FirstNumber(details, "HealthStatus");
+                        if (health.HasValue)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Storage",
+                                Name = friendly + " health",
+                                Identifier = StableIdentifier(idPrefix + "health"),
+                                Value = (float)health.Value,
+                                DisplayValue = DescribeDiskHealth((int)health.Value),
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var opStatus = FirstValue(details, "OperationalStatus");
+                        if (!string.IsNullOrWhiteSpace(opStatus))
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Storage",
+                                Name = friendly + " operational status",
+                                Identifier = StableIdentifier(idPrefix + "operational-status"),
+                                DisplayValue = DescribeOperationalStatus(opStatus),
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        // Reliability counter is reached through the disk's association set rather than direct query.
+                        rows.AddRange(ReadDiskReliabilityCounter(context, summaryDetails, disk, friendly, idPrefix));
+                    }
+
+                    summaryDetails["MSFT_PhysicalDisk instances"] = count.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["MSFT_PhysicalDisk error"] = ex.Message;
+                if (context != null)
+                {
+                    context.Log("Debug", "Storage probe failed for " + storageNamespace + " MSFT_PhysicalDisk: " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static IEnumerable<SensorReading> ReadDiskReliabilityCounter(IPluginContext context, Dictionary<string, string> summaryDetails, ManagementObject disk, string friendly, string idPrefix)
+        {
+            var rows = new List<SensorReading>();
+            try
+            {
+                using (var related = disk.GetRelated("MSFT_StorageReliabilityCounter"))
+                {
+                    foreach (ManagementObject counter in related)
+                    {
+                        var details = ReadDetails(counter);
+                        details["Namespace"] = @"ROOT\Microsoft\Windows\Storage";
+                        details["WMI class"] = "MSFT_StorageReliabilityCounter";
+
+                        var temp = FirstNumber(details, "Temperature");
+                        if (temp.HasValue && temp.Value > 0 && temp.Value < 150)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Temperature",
+                                Hardware = "Storage",
+                                Name = friendly + " temperature",
+                                Identifier = StableIdentifier(idPrefix + "temperature-c"),
+                                Value = (float)temp.Value,
+                                DisplayValue = FormatNumber(temp.Value) + " C",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var maxTemp = FirstNumber(details, "TemperatureMax");
+                        if (maxTemp.HasValue && maxTemp.Value > 0 && maxTemp.Value < 150)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Temperature",
+                                Hardware = "Storage",
+                                Name = friendly + " max-rated temperature",
+                                Identifier = StableIdentifier(idPrefix + "temperature-max-c"),
+                                Value = (float)maxTemp.Value,
+                                DisplayValue = FormatNumber(maxTemp.Value) + " C",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var wear = FirstNumber(details, "Wear");
+                        if (wear.HasValue && wear.Value >= 0 && wear.Value <= 100)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Storage",
+                                Name = friendly + " wear",
+                                Identifier = StableIdentifier(idPrefix + "wear-percent"),
+                                Value = (float)wear.Value,
+                                DisplayValue = FormatNumber(wear.Value) + "%",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+
+                        var hours = FirstNumber(details, "PowerOnHours");
+                        if (hours.HasValue && hours.Value > 0)
+                        {
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Storage",
+                                Name = friendly + " power-on hours",
+                                Identifier = StableIdentifier(idPrefix + "power-on-hours"),
+                                Value = (float)hours.Value,
+                                DisplayValue = FormatNumber(hours.Value) + " h",
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (context != null)
+                {
+                    context.Log("Debug", "Storage reliability probe failed for " + friendly + ": " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string DescribeDiskHealth(int code)
+        {
+            switch (code)
+            {
+                case 0: return "Healthy";
+                case 1: return "Warning";
+                case 2: return "Unhealthy";
+                case 5: return "Unknown";
+                default: return "Code " + code.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static string DescribeOperationalStatus(string raw)
+        {
+            // CIM operational status codes from CIM_ManagedSystemElement. Comma-separated when multiple are active.
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return "Unknown";
+            }
+
+            var parts = raw.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var labels = new List<string>();
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                int code;
+                if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out code))
+                {
+                    labels.Add(DescribeOperationalStatusCode(code));
+                }
+                else
+                {
+                    labels.Add(trimmed);
+                }
+            }
+
+            return string.Join(", ", labels.ToArray());
+        }
+
+        private static string DescribeOperationalStatusCode(int code)
+        {
+            switch (code)
+            {
+                case 0: return "Unknown";
+                case 1: return "Other";
+                case 2: return "OK";
+                case 3: return "Degraded";
+                case 4: return "Stressed";
+                case 5: return "Predictive Failure";
+                case 8: return "Starting";
+                case 9: return "Stopping";
+                case 10: return "Stopped";
+                case 11: return "In Service";
+                case 12: return "No Contact";
+                case 13: return "Lost Communication";
+                case 14: return "Aborted";
+                case 15: return "Dormant";
+                case 16: return "Supporting Entity in Error";
+                case 17: return "Completed";
+                default: return "Code " + code.ToString(CultureInfo.InvariantCulture);
+            }
         }
 
         private static IEnumerable<SensorReading> ReadAcpiBatteryStatus(IPluginContext context, Dictionary<string, string> summaryDetails)
