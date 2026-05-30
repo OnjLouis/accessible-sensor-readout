@@ -186,6 +186,10 @@ $cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture'
 $cpuTypes = aggregate_value($items, 'hardwareSummary', 'cpuProcessorType');
 $gpuVendors = aggregate_map($items, 'hardwareSummary', 'gpuVendorCounts');
 $memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal', 'normalize_size_value');
+$connectedDiskTotals = aggregate_value($items, 'hardwareSummary', 'connectedDiskTotal', 'normalize_size_value');
+$connectedDiskUsed = aggregate_value($items, 'hardwareSummary', 'connectedDiskUsed', 'normalize_size_value');
+$connectedDiskFree = aggregate_value($items, 'hardwareSummary', 'connectedDiskFree', 'normalize_size_value');
+$connectedDiskCounts = aggregate_value($items, 'hardwareSummary', 'connectedDiskCount');
 $gpuMemoryTotals = aggregate_value($items, 'hardwareSummary', 'dedicatedGpuMemoryTotal', 'normalize_size_value');
 $languages = aggregate_value($items, 'system', 'language');
 $installModes = aggregate_value($items, 'system', 'installMode');
@@ -225,6 +229,7 @@ $windowsArchitectures = aggregate_windows_system_value($items, 'windowsArchitect
     <tr><td>With temperatures</td><td><?= count_if($items, 'availability', 'hasTemperatures') ?></td></tr>
     <tr><td>With fans</td><td><?= count_if($items, 'availability', 'hasFans') ?></td></tr>
     <tr><td>With SMART</td><td><?= count_if($items, 'availability', 'hasSmart') ?></td></tr>
+    <tr><td>With connected disk totals</td><td><?= count_if($items, 'availability', 'hasConnectedDiskTotals') ?></td></tr>
     <tr><td>With GPU memory</td><td><?= count_if($items, 'availability', 'hasGpuMemory') ?></td></tr>
     <tr><td>With BitLocker status</td><td><?= count_if($items, 'availability', 'hasBitLockerStatus') ?></td></tr>
     <tr><td>With printer rows</td><td><?= count_if($items, 'availability', 'hasPrinterRows') ?></td></tr>
@@ -269,6 +274,10 @@ $windowsArchitectures = aggregate_windows_system_value($items, 'windowsArchitect
     <div><?php render_table('CPU processor types', 'Type', 'Machines', $cpuTypes); ?></div>
     <div><?php render_table('GPU vendors', 'Vendor', 'Display rows', $gpuVendors); ?></div>
     <div><?php render_table('Memory totals', 'Memory', 'Machines', $memoryTotals); ?></div>
+    <div><?php render_table('Connected disk totals', 'Storage', 'Machines', $connectedDiskTotals); ?></div>
+    <div><?php render_table('Connected disk used', 'Storage', 'Machines', $connectedDiskUsed); ?></div>
+    <div><?php render_table('Connected disk free', 'Storage', 'Machines', $connectedDiskFree); ?></div>
+    <div><?php render_table('Connected disk counts', 'Drives', 'Machines', $connectedDiskCounts); ?></div>
     <div><?php render_table('Dedicated GPU memory totals', 'Memory', 'Machines', $gpuMemoryTotals); ?></div>
     <div><?php render_table('Languages', 'Language', 'Machines', $languages); ?></div>
     <div><?php render_table('Install mode', 'Mode', 'Machines', $installModes); ?></div>

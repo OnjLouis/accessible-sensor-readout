@@ -246,7 +246,7 @@ public sealed partial class SensorReadoutForm : Form
         payload["appVersion"] = AppVersion;
         payload["generatedUtc"] = DateTime.UtcNow.ToString("o");
         payload["anonymousClientIdHash"] = Sha256Hex(settings.CommunityStatsClientId);
-        payload["privacy"] = "Allow-listed aggregate community stats only. No computer name, username, serials, MAC/IP, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.";
+        payload["privacy"] = "Allow-listed aggregate community stats only. No computer name, username, serials, MAC/IP, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, per-drive rows, or full report rows.";
         payload["system"] = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
             { "windowsCaption", windowsInfo.Caption },
@@ -281,6 +281,7 @@ public sealed partial class SensorReadoutForm : Form
             { "hasBattery", rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)) },
             { "hasDevices", rows.Any(r => string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase)) },
             { "hasGpuMemory", rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && CleanSensorName(r.Name).IndexOf("GPU memory", StringComparison.OrdinalIgnoreCase) >= 0) },
+            { "hasConnectedDiskTotals", !string.IsNullOrWhiteSpace(FindDisplayValue(rows, "Performance", "Connected disks total space")) },
             { "hasBitLockerStatus", rows.Any(r => string.Equals(r.Type, "SMART", StringComparison.OrdinalIgnoreCase) && CleanSensorName(r.Name).Equals("BitLocker status", StringComparison.OrdinalIgnoreCase)) },
             { "hasPrinterRows", rows.Any(IsPrinterCommunityStatsRow) },
             { "hasNonWorkingDevices", rows.Any(r => string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase) && string.Equals(r.Hardware ?? "", "Non-working devices", StringComparison.OrdinalIgnoreCase)) },
@@ -297,6 +298,10 @@ public sealed partial class SensorReadoutForm : Form
             { "gpuVendorCounts", GpuVendorCounts(rows) },
             { "memoryTotal", SafeCommunityStatsValue(FindDisplayValue(rows, "Performance", "Memory total")) },
             { "pagingFileTotal", SafeCommunityStatsValue(FindDisplayValue(rows, "Performance", "Paging file total")) },
+            { "connectedDiskTotal", SafeCommunityStatsValue(FindDisplayValue(rows, "Performance", "Connected disks total space")) },
+            { "connectedDiskUsed", SafeCommunityStatsSizeWithoutPercent(FindDisplayValue(rows, "Performance", "Connected disks used space")) },
+            { "connectedDiskFree", SafeCommunityStatsSizeWithoutPercent(FindDisplayValue(rows, "Performance", "Connected disks free space")) },
+            { "connectedDiskCount", SafeCommunityStatsInt(FindDetailValue(rows, "Performance", "Included drives"), 0, 1000) },
             { "dedicatedGpuMemoryTotal", SafeCommunityStatsValue(FindDisplayValue(rows, "Performance", "Dedicated GPU memory total")) },
             { "smartDeviceCount", CountDistinctHardware(rows, "SMART") },
             { "networkAdapterGroupCount", CountDistinctHardware(rows, "Network") },
@@ -487,6 +492,22 @@ public sealed partial class SensorReadoutForm : Form
         return value.Length <= 40 && IsSafeCommunityStatsToken(value.Replace("(", "").Replace(")", "").Replace("%", "").Replace(".", "").Replace(" ", ""))
             ? value
             : "";
+    }
+
+    private static string SafeCommunityStatsSizeWithoutPercent(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        var index = value.IndexOf('(');
+        if (index >= 0)
+        {
+            value = value.Substring(0, index);
+        }
+
+        return SafeCommunityStatsValue(value.Trim());
     }
 
     private static int SafeCommunityStatsInt(string value, int min, int max)

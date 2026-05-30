@@ -93,6 +93,7 @@ public sealed partial class SensorReadoutForm : Form
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
+                    AddPhysicalAndVirtualMemoryRows(rows, totalKb * 1024.0, usedKb * 1024.0, freeKb * 1024.0);
                     AddPagingFileRows(rows);
                     break;
                 }
@@ -779,6 +780,7 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedBytes), Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows" });
+            AddPhysicalAndVirtualMemoryRows(rows, totalBytes, usedBytes, freeBytes);
             AddPagingFileRows(rows);
             return true;
         }
@@ -833,6 +835,74 @@ public sealed partial class SensorReadoutForm : Form
             DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
             Source = "Windows WMI",
             Details = details
+        });
+    }
+
+    private static void AddPhysicalAndVirtualMemoryRows(List<SensorRow> rows, double physicalTotalBytes, double physicalUsedBytes, double physicalFreeBytes)
+    {
+        if (rows == null || physicalTotalBytes <= 0)
+        {
+            return;
+        }
+
+        var paging = GetPagingFileSummary();
+        if (paging == null || paging.TotalBytes <= 0)
+        {
+            return;
+        }
+
+        var pagingUsedBytes = Math.Max(0, Math.Min(paging.UsedBytes, paging.TotalBytes));
+        var pagingFreeBytes = Math.Max(0, paging.TotalBytes - pagingUsedBytes);
+        var combinedTotalBytes = physicalTotalBytes + paging.TotalBytes;
+        if (combinedTotalBytes <= 0)
+        {
+            return;
+        }
+
+        var combinedUsedBytes = Math.Max(0, physicalUsedBytes) + pagingUsedBytes;
+        var combinedFreeBytes = Math.Max(0, physicalFreeBytes) + pagingFreeBytes;
+        var combinedUsedPercent = combinedUsedBytes / combinedTotalBytes * 100.0;
+        var combinedFreePercent = combinedFreeBytes / combinedTotalBytes * 100.0;
+        var details = CloneDetails(paging.Details);
+        AddDetail(details, "Physical memory total", FormatBytes(physicalTotalBytes));
+        AddDetail(details, "Physical memory used", FormatBytes(physicalUsedBytes));
+        AddDetail(details, "Physical memory free", FormatBytes(physicalFreeBytes));
+        AddDetail(details, "Paging file total", FormatBytes(paging.TotalBytes));
+        AddDetail(details, "Paging file used", FormatBytes(pagingUsedBytes));
+        AddDetail(details, "Paging file free", FormatBytes(pagingFreeBytes));
+        AddDetail(details, "Calculation", "Physical memory plus Windows paging file totals");
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Physical + virtual memory total",
+            Identifier = "memory|physical-virtual|total",
+            DisplayValue = FormatBytes(combinedTotalBytes),
+            Source = "Windows",
+            Details = CloneDetails(details)
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Physical + virtual memory used",
+            Identifier = "memory|physical-virtual|used",
+            Value = (float)combinedUsedPercent,
+            DisplayValue = FormatBytes(combinedUsedBytes) + " (" + FormatNumber(Math.Round(combinedUsedPercent, 1), "0.0") + "%)",
+            Source = "Windows",
+            Details = CloneDetails(details)
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = "Physical + virtual memory free",
+            Identifier = "memory|physical-virtual|free",
+            Value = (float)combinedFreePercent,
+            DisplayValue = FormatBytes(combinedFreeBytes) + " (" + FormatNumber(Math.Round(combinedFreePercent, 1), "0.0") + "%)",
+            Source = "Windows",
+            Details = CloneDetails(details)
         });
     }
 

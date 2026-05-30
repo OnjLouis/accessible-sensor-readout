@@ -996,9 +996,31 @@ public sealed partial class SensorReadoutForm : Form
         if (storageRows.Count > 0)
         {
             var storageItem = new ReadingTreeItem { Key = "performance|storage", Text = T("group.Storage", "Storage") };
-            AddHardwareGroups(storageItem, storageRows);
+            AddStorageHardwareGroups(storageItem, storageRows);
             parent.Children.Add(storageItem);
         }
+    }
+
+    private static void AddStorageHardwareGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        foreach (var hardwareGroup in rows
+            .GroupBy(r => ShortHardwareName(r.Hardware))
+            .OrderBy(g => StorageHardwareSortIndex(g.Key))
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var hardwareItem = new ReadingTreeItem
+            {
+                Key = "hardware|" + parent.Key + "|" + hardwareGroup.Key,
+                Text = hardwareGroup.Key
+            };
+            AddReadingRows(hardwareItem, hardwareGroup);
+            parent.Children.Add(hardwareItem);
+        }
+    }
+
+    private static int StorageHardwareSortIndex(string hardware)
+    {
+        return string.Equals(hardware, "Connected disks", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
     }
 
     private static bool IsDataSourceSummaryRow(SensorRow row)
@@ -1976,6 +1998,9 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("BIOS date", StringComparison.OrdinalIgnoreCase)) return 5;
         if (clean.Equals("Health", StringComparison.OrdinalIgnoreCase)) return 0;
         if (clean.Equals("Temperature", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("Physical + virtual memory total", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("Physical + virtual memory used", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("Physical + virtual memory free", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("Memory total", StringComparison.OrdinalIgnoreCase)) return 3;
         if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 5;
@@ -1983,13 +2008,16 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Paging file total", StringComparison.OrdinalIgnoreCase)) return 7;
         if (clean.Equals("Paging file used", StringComparison.OrdinalIgnoreCase)) return 8;
         if (clean.Equals("Paging file free", StringComparison.OrdinalIgnoreCase)) return 9;
-        if (clean.Equals("Data read", StringComparison.OrdinalIgnoreCase)) return 10;
-        if (clean.Equals("Data written", StringComparison.OrdinalIgnoreCase)) return 11;
-        if (clean.Equals("Read rate", StringComparison.OrdinalIgnoreCase)) return 12;
-        if (clean.Equals("Write rate", StringComparison.OrdinalIgnoreCase)) return 13;
-        if (clean.Equals("Read activity", StringComparison.OrdinalIgnoreCase)) return 14;
-        if (clean.Equals("Write activity", StringComparison.OrdinalIgnoreCase)) return 15;
-        if (clean.Equals("Total activity", StringComparison.OrdinalIgnoreCase)) return 16;
+        if (clean.Equals("Data read", StringComparison.OrdinalIgnoreCase)) return 13;
+        if (clean.Equals("Data written", StringComparison.OrdinalIgnoreCase)) return 14;
+        if (clean.Equals("Read rate", StringComparison.OrdinalIgnoreCase)) return 15;
+        if (clean.Equals("Write rate", StringComparison.OrdinalIgnoreCase)) return 16;
+        if (clean.Equals("Read activity", StringComparison.OrdinalIgnoreCase)) return 17;
+        if (clean.Equals("Write activity", StringComparison.OrdinalIgnoreCase)) return 18;
+        if (clean.Equals("Total activity", StringComparison.OrdinalIgnoreCase)) return 19;
+        if (clean.Equals("Connected disks total space", StringComparison.OrdinalIgnoreCase)) return 20;
+        if (clean.Equals("Connected disks used space", StringComparison.OrdinalIgnoreCase)) return 21;
+        if (clean.Equals("Connected disks free space", StringComparison.OrdinalIgnoreCase)) return 22;
         if (clean.Equals("Total space", StringComparison.OrdinalIgnoreCase)) return 20;
         if (clean.Equals("Used space", StringComparison.OrdinalIgnoreCase)) return 21;
         if (clean.Equals("Space used", StringComparison.OrdinalIgnoreCase)) return 21;

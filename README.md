@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.1.0.
+Current version: 4.1.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -25,7 +25,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
-- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, accessibility status, and storage read/write activity, grouped so related information stays together.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, connected-disk totals, accessibility status, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
@@ -459,7 +459,7 @@ Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a share
 
 Use `Help` > `Share anonymous community stats...` if you want to help improve Sensor Readout's hardware and accessibility coverage data without sending a report. This is explicit opt-in only: Sensor Readout builds the small JSON payload, shows you the exact text first, and uploads nothing unless you press `Upload`.
 
-Community stats are not anonymized reports. They are a separate allow-listed payload containing only aggregate and broad setup fields, such as app version, Windows edition/version/build, CPU vendor and core counts, GPU vendor counts, memory totals, category coverage counts, enabled plug-in IDs, selected language, install mode, refresh/update settings, configured hotkey and notification-area counts, detected supported screen reader names, and broad Windows accessibility feature flags. The payload does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, program usage, or full report rows.
+Community stats are not anonymized reports. They are a separate allow-listed payload containing only aggregate and broad setup fields, such as app version, Windows edition/version/build, CPU vendor and core counts, GPU vendor counts, memory totals, connected-disk count and total/used/free space, category coverage counts, enabled plug-in IDs, selected language, install mode, refresh/update settings, configured hotkey and notification-area counts, detected supported screen reader names, and broad Windows accessibility feature flags. The payload does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, program usage, per-drive rows, or full report rows.
 
 Sensor Readout stores a random local anonymous client ID in its settings and sends only a SHA-256 hash of that ID. This lets one installation update its previous aggregate entry without using hardware-derived identity. Deleting the app settings or using a separate portable copy creates a new anonymous entry.
 
@@ -579,6 +579,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.1.1
+- Added: Performance/Overview now includes physical + virtual memory totals, plus total, used, and free space across all connected disks. These readings can also be used in spoken hotkeys and notification area status. Closes [issue #11](https://github.com/OnjLouis/accessible-sensor-readout/issues/11) and [issue #12](https://github.com/OnjLouis/accessible-sensor-readout/issues/12).
+- Privacy: Anonymous community stats can now include connected-disk count and total/used/free space as aggregate storage metrics, without drive letters, labels, models, serials, paths, or per-drive rows.
 
 ### 4.1.0
 - Added: General preferences now let you choose whether reading trees open expanded, open collapsed, or remember your last expand/collapse action when switching categories.

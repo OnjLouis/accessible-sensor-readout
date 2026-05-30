@@ -568,13 +568,13 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             var logicalDetails = GetLogicalDiskDetailsByRoot();
-            foreach (var drive in System.IO.DriveInfo.GetDrives())
-            {
-                if (!ShouldIncludeLogicalDiskDrive(drive) || drive.TotalSize <= 0)
-                {
-                    continue;
-                }
+            var includedDrives = System.IO.DriveInfo.GetDrives()
+                .Where(drive => ShouldIncludeLogicalDiskDrive(drive) && drive.TotalSize > 0)
+                .ToList();
+            AddConnectedDiskTotalRows(rows, includedDrives);
 
+            foreach (var drive in includedDrives)
+            {
                 var freeBytes = Math.Max(0, drive.AvailableFreeSpace);
                 var usedBytes = Math.Max(0, drive.TotalSize - freeBytes);
                 var usedPercent = usedBytes / (double)drive.TotalSize * 100.0;
@@ -639,6 +639,81 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static void AddConnectedDiskTotalRows(List<SensorRow> rows, IReadOnlyCollection<System.IO.DriveInfo> drives)
+    {
+        if (rows == null || drives == null || drives.Count == 0)
+        {
+            return;
+        }
+
+        double totalBytes = 0;
+        double freeBytes = 0;
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Included drives", drives.Count.ToString(CultureInfo.InvariantCulture) },
+            { "Source", "Windows logical disks" }
+        };
+
+        foreach (var drive in drives)
+        {
+            if (drive == null || drive.TotalSize <= 0)
+            {
+                continue;
+            }
+
+            var driveFreeBytes = Math.Max(0, drive.AvailableFreeSpace);
+            var driveUsedBytes = Math.Max(0, drive.TotalSize - driveFreeBytes);
+            totalBytes += drive.TotalSize;
+            freeBytes += driveFreeBytes;
+            var label = GetLogicalDiskHardwareName(drive);
+            AddDetail(details, label + " total", FormatBytes(drive.TotalSize));
+            AddDetail(details, label + " used", FormatBytes(driveUsedBytes));
+            AddDetail(details, label + " free", FormatBytes(driveFreeBytes));
+        }
+
+        if (totalBytes <= 0)
+        {
+            return;
+        }
+
+        var usedBytes = Math.Max(0, totalBytes - freeBytes);
+        var usedPercent = usedBytes / totalBytes * 100.0;
+        var freePercent = freeBytes / totalBytes * 100.0;
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Connected disks",
+            Name = "Connected disks total space",
+            Identifier = "logicaldisk|connected|total",
+            DisplayValue = FormatBytes(totalBytes),
+            Source = "Windows Logical Disk",
+            Details = CloneDetails(details)
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Connected disks",
+            Name = "Connected disks used space",
+            Identifier = "logicaldisk|connected|used",
+            Value = (float)usedPercent,
+            DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+            Source = "Windows Logical Disk",
+            Details = CloneDetails(details)
+        });
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Connected disks",
+            Name = "Connected disks free space",
+            Identifier = "logicaldisk|connected|free",
+            Value = (float)freePercent,
+            DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+            Source = "Windows Logical Disk",
+            Details = CloneDetails(details)
+        });
     }
 
     private static string GetLogicalDiskHardwareName(System.IO.DriveInfo drive)
