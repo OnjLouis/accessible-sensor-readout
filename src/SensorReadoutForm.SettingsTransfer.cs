@@ -262,6 +262,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Name = string.IsNullOrWhiteSpace(profile.Name) ? "Imported spoken hotkey" : profile.Name.Trim(),
                     HotKey = "",
+                    SkipUnavailableReadings = profile.SkipUnavailableReadings,
                     ReadingKeys = resolved
                 });
             }

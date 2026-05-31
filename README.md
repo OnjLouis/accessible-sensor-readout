@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.1.1.
+Current version: 4.1.2.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -288,12 +288,15 @@ The Hotkeys tab controls global speech and visibility keys. Spoken hotkey profil
 - Show/hide hotkey: toggle the main window from anywhere.
 - Speak notification area status hotkey: speak the configured tray readings.
 - Include device names in spoken feedback: choose between fuller output such as `Ethernet Rx` and shorter output such as `Rx`.
+- Skip unavailable readings when speaking notification area status: omit configured tray readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.
 - Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
 - Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
 - Spoken hotkey presets: create starter profiles with useful reading groups. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
 
 Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
+
+Each spoken hotkey profile also has `Skip unavailable readings for this hotkey`, so one profile can stay strict while another profile only announces active readings such as connected drives or adapters that are currently up.
 
 ### Fan Profiles (`Ctrl+4`)
 
@@ -344,7 +347,7 @@ When an enabled plug-in includes related support pages, those links appear in th
 
 The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
 
-Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus ROG Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI thermal-zone, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
+Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus ROG Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -579,6 +582,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.1.2
+- Added: Notification-area speech and individual spoken hotkey profiles can now skip unavailable readings, so disconnected adapters, missing removable drives, inactive cellular connections, and similar optional readings do not clutter spoken output unless you want them included.
+- Improved: The Lenovo Laptop plug-in now reports more read-only Lenovo laptop data where Windows exposes it, including ACPI fan presence, ACPI battery health/status/runtime, IdeaPad battery information, thermal throttle state, storage health/temperature/wear, Lenovo thermal-driver presence, and Lenovo WMI diagnostics. Thanks to serrebidev for the detailed Lenovo contribution.
 
 ### 4.1.1
 - Added: Performance/Overview now includes physical + virtual memory totals, plus total, used, and free space across all connected disks. These readings can also be used in spoken hotkeys and notification area status. Closes [issue #11](https://github.com/OnjLouis/accessible-sensor-readout/issues/11) and [issue #12](https://github.com/OnjLouis/accessible-sensor-readout/issues/12).

@@ -186,7 +186,8 @@ public sealed partial class SensorReadoutForm : Form
     private void SpeakSpokenHotKey(SpokenHotKeySetting profile)
     {
         var rows = GetSpokenHotKeyRows(profile);
-        var text = BuildSpeechStatusText(rows);
+        var skipUnavailable = profile != null && profile.SkipUnavailableReadings;
+        var text = BuildSpeechStatusText(rows, skipUnavailable);
         var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
         SpeakTextWithScreenReader(text, description);
     }
@@ -319,7 +320,8 @@ public sealed partial class SensorReadoutForm : Form
         var stopwatch = Stopwatch.StartNew();
         var rows = GetSpokenHotKeyRows(profile);
         var rowResolveMs = stopwatch.ElapsedMilliseconds;
-        var text = BuildSpeechStatusText(rows);
+        var skipUnavailable = profile != null && profile.SkipUnavailableReadings;
+        var text = BuildSpeechStatusText(rows, skipUnavailable);
         var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
         LogMessage("Debug", "Spoken hotkey " + description + " resolved " + rows.Count + " row(s) and built text in " + rowResolveMs + " ms.");
         if (ShouldCopyFromDoublePress(id))
@@ -811,7 +813,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private string BuildCurrentSpeechStatusText()
     {
-        return BuildSpeechStatusText(GetTrayStatusRows());
+        return BuildSpeechStatusText(GetTrayStatusRows(settings.TraySpeechSkipsUnavailableReadings), settings.TraySpeechSkipsUnavailableReadings);
     }
 
     private string StaticReportSpeechPrefix()
@@ -833,6 +835,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> GetTrayStatusRows()
     {
+        return GetTrayStatusRows(false);
+    }
+
+    private List<SensorRow> GetTrayStatusRows(bool skipUnavailable)
+    {
         var selectedKeys = settings.TrayItemKeys ?? new List<string>();
         var hasConfiguredKeys = selectedKeys.Any(k => !string.IsNullOrWhiteSpace(k));
         var selectedRows = selectedKeys
@@ -840,6 +847,15 @@ public sealed partial class SensorReadoutForm : Form
             .Where(r => r != null)
             .Take(MaxTrayStatusReadings)
             .ToList();
+
+        if (skipUnavailable)
+        {
+            selectedRows = FilterUnavailableAnnouncementRows(selectedRows);
+            if (hasConfiguredKeys)
+            {
+                return selectedRows;
+            }
+        }
 
         if (reportViewMode && hasConfiguredKeys)
         {
@@ -861,6 +877,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> GetSpokenHotKeyRows(SpokenHotKeySetting profile)
     {
+        return GetSpokenHotKeyRows(profile, profile != null && profile.SkipUnavailableReadings);
+    }
+
+    private List<SensorRow> GetSpokenHotKeyRows(SpokenHotKeySetting profile, bool skipUnavailable)
+    {
         var selectedKeys = profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
         var rows = new List<SensorRow>();
         foreach (var key in selectedKeys)
@@ -875,7 +896,7 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(row);
         }
 
-        return rows;
+        return skipUnavailable ? FilterUnavailableAnnouncementRows(rows) : rows;
     }
 
     private SensorRow FindTrayRowByKey(string key)
@@ -1193,8 +1214,18 @@ public sealed partial class SensorReadoutForm : Form
 
     private string BuildSpeechStatusText(List<SensorRow> selectedRows)
     {
+        return BuildSpeechStatusText(selectedRows, false);
+    }
+
+    private string BuildSpeechStatusText(List<SensorRow> selectedRows, bool skippedUnavailable)
+    {
         if (selectedRows == null || selectedRows.Count == 0)
         {
+            if (skippedUnavailable)
+            {
+                return T("speech.noActiveReadings", "No active readings to announce.");
+            }
+
             return reportViewMode
                 ? StaticReportMissingReadingsMessage()
                 : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
@@ -1205,6 +1236,96 @@ public sealed partial class SensorReadoutForm : Form
             ? string.Join("; ", items.ToArray())
             : CompactRepeatedSpeechLabels(items);
         return reportViewMode ? StaticReportSpeechPrefix() + text : text;
+    }
+
+    private List<SensorRow> FilterUnavailableAnnouncementRows(List<SensorRow> rows)
+    {
+        if (rows == null || rows.Count == 0)
+        {
+            return new List<SensorRow>();
+        }
+
+        return rows.Where(r => !IsUnavailableAnnouncementRow(r)).ToList();
+    }
+
+    private bool IsUnavailableAnnouncementRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return true;
+        }
+
+        if (IsInactiveStatusRow(row))
+        {
+            return true;
+        }
+
+        return latestRows.Any(candidate =>
+            candidate != null &&
+            !object.ReferenceEquals(candidate, row) &&
+            string.Equals(candidate.Type ?? "", row.Type ?? "", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(candidate.Hardware ?? "", row.Hardware ?? "", StringComparison.OrdinalIgnoreCase) &&
+            IsInactiveStatusRow(candidate));
+    }
+
+    private static bool IsInactiveStatusRow(SensorRow row)
+    {
+        if (row == null)
+        {
+            return true;
+        }
+
+        var name = CleanSensorName(row.Name).ToLowerInvariant();
+        if (!IsStatusLikeReadingName(name))
+        {
+            return false;
+        }
+
+        return IsInactiveStatusText(row.DisplayValue) || IsInactiveStatusText(FormatValue(row));
+    }
+
+    private static bool IsStatusLikeReadingName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        return name.Contains("status") ||
+            name.Contains("state") ||
+            name.Contains("connected") ||
+            name.Contains("connection") ||
+            name.Contains("media");
+    }
+
+    private static bool IsInactiveStatusText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = text.Trim().ToLowerInvariant();
+        return normalized == "down" ||
+            normalized == "offline" ||
+            normalized == "disabled" ||
+            normalized == "unavailable" ||
+            normalized == "not available" ||
+            normalized == "not connected" ||
+            normalized == "disconnected" ||
+            normalized == "not present" ||
+            normalized == "not ready" ||
+            normalized == "missing" ||
+            normalized == "no media" ||
+            normalized.StartsWith("down ", StringComparison.Ordinal) ||
+            normalized.StartsWith("offline ", StringComparison.Ordinal) ||
+            normalized.StartsWith("disabled ", StringComparison.Ordinal) ||
+            normalized.StartsWith("unavailable ", StringComparison.Ordinal) ||
+            normalized.StartsWith("disconnected ", StringComparison.Ordinal) ||
+            normalized.StartsWith("not connected ", StringComparison.Ordinal) ||
+            normalized.StartsWith("not present ", StringComparison.Ordinal) ||
+            normalized.StartsWith("not ready ", StringComparison.Ordinal) ||
+            normalized.StartsWith("no media ", StringComparison.Ordinal);
     }
 
     private static string ShortSpeechReadingText(SensorRow row, bool includeHardwareName, Dictionary<string, string> speechLabels)

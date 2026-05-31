@@ -519,6 +519,7 @@ public sealed partial class PreferencesForm : Form
         liveSettings.SpeechIncludesDeviceNames = SpeechIncludesDeviceNames;
         liveSettings.TrayStatusEnabled = TrayStatusEnabled;
         liveSettings.TrayTooltipShowsPartialReadings = TrayTooltipShowsPartialReadings;
+        liveSettings.TraySpeechSkipsUnavailableReadings = TraySpeechSkipsUnavailableReadings;
         liveSettings.ReadingTreeExpansionMode = ReadingTreeExpansionMode;
         liveSettings.RunAtStartup = RunAtStartup;
         liveSettings.StartMinimizedToTray = StartMinimizedToTray;

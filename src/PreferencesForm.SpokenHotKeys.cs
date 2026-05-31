@@ -508,12 +508,13 @@ public sealed partial class PreferencesForm : Form
                         continue;
                     }
 
-                    var profile = new SpokenHotKeySetting
-                    {
-                        Name = UniqueSpokenHotKeyName(imported.Name),
-                        HotKey = "",
-                        ReadingKeys = resolvedKeys
-                    };
+        var profile = new SpokenHotKeySetting
+        {
+            Name = UniqueSpokenHotKeyName(imported.Name),
+            HotKey = "",
+            SkipUnavailableReadings = imported.SkipUnavailableReadings,
+            ReadingKeys = resolvedKeys
+        };
                     spokenHotKeys.Add(profile);
                     added++;
                 }
@@ -609,10 +610,12 @@ public sealed partial class PreferencesForm : Form
             var enabled = profile != null;
             spokenHotKeyNameBox.Enabled = enabled;
             spokenHotKeyBox.Enabled = enabled;
+            spokenHotKeySkipUnavailableCheckBox.Enabled = enabled;
             spokenAvailableList.Enabled = enabled;
             spokenSelectedList.Enabled = enabled;
             spokenHotKeyNameBox.Text = profile == null ? "" : profile.Name ?? "";
             spokenHotKeyBox.Text = profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
+            spokenHotKeySkipUnavailableCheckBox.Checked = profile != null && profile.SkipUnavailableReadings;
             PopulateSpokenReadingLists(profile);
         }
         finally
@@ -687,6 +690,7 @@ public sealed partial class PreferencesForm : Form
 
         profile.Name = spokenHotKeyNameBox.Text.Trim();
         profile.HotKey = SensorReadoutForm.NormalizeHotKeyText(spokenHotKeyBox.Text);
+        profile.SkipUnavailableReadings = spokenHotKeySkipUnavailableCheckBox.Checked;
         RefreshSelectedSpokenHotKeyListItem();
         SaveLivePreferences();
     }

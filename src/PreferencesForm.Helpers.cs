@@ -23,6 +23,7 @@ public sealed partial class PreferencesForm : Form
             {
                 Name = p.Name ?? "",
                 HotKey = SensorReadoutForm.NormalizeHotKeyText(p.HotKey),
+                SkipUnavailableReadings = p.SkipUnavailableReadings,
                 ReadingKeys = (p.ReadingKeys ?? new List<string>())
                     .Where(k => !string.IsNullOrWhiteSpace(k))
                     .Distinct(StringComparer.OrdinalIgnoreCase)

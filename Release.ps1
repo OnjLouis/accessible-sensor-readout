@@ -6,6 +6,7 @@ param(
     [switch]$SkipVendorDataUpdate,
     [switch]$RunPostPublishUpdateSmoke,
     [switch]$KeepSmokeFolder,
+    [int[]]$ReviewedOpenIssue = @(),
     [string]$Version = "",
     [string]$PreviousVersion = "",
     [string]$SmokeRoot = "D:\projects\Codex\sensor-readout\release-smoke"
@@ -235,16 +236,26 @@ function Assert-GitHubActivityChecked([string]$releaseVersion) {
         $issues = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/issues?state=open&per_page=100" -Headers $headers
         $realIssues = @($issues | Where-Object { -not $_.pull_request })
         $closedByThisRelease = Get-ChangelogClosedIssueNumbers $releaseVersion
-        $blockingIssues = @($realIssues | Where-Object { [int]$_.number -notin $closedByThisRelease })
+        $reviewedIssueNumbers = @($ReviewedOpenIssue | ForEach-Object { [int]$_ })
+        $blockingIssues = @($realIssues | Where-Object { [int]$_.number -notin $closedByThisRelease -and [int]$_.number -notin $reviewedIssueNumbers })
         if ($blockingIssues.Count -gt 0) {
             $summary = ($blockingIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
             Fail "Open GitHub issues need review before release: $summary"
         }
-        if ($realIssues.Count -gt 0) {
-            $summary = ($realIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
+        $coveredIssues = @($realIssues | Where-Object { [int]$_.number -in $closedByThisRelease })
+        if ($coveredIssues.Count -gt 0) {
+            $summary = ($coveredIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
             Info "Open GitHub issues are covered by this release changelog: $summary"
-        } else {
+        }
+        $reviewedIssues = @($realIssues | Where-Object { [int]$_.number -in $reviewedIssueNumbers -and [int]$_.number -notin $closedByThisRelease })
+        if ($reviewedIssues.Count -gt 0) {
+            $summary = ($reviewedIssues | ForEach-Object { "#$($_.number) $($_.title)" }) -join '; '
+            Info "Open GitHub issues were reviewed and intentionally left open: $summary"
+        }
+        if ($realIssues.Count -eq 0) {
             Info "No open GitHub issues."
+        } else {
+            Info "No unreviewed open GitHub issues."
         }
 
         $pulls = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/pulls?state=open&per_page=100" -Headers $headers | Where-Object { $_ -and $_.number })
@@ -319,6 +330,13 @@ function Assert-LanguageParity {
         'ui.Show as many &readings as possible in notification area tooltip',
         'a11y.Show as many readings as possible in notification area tooltip',
         'a11y.When checked, a long notification area tooltip shows as many configured readings as Windows allows, followed by three dots. When unchecked, long tooltips only show Sensor Readout.',
+        'ui.S&kip unavailable readings when speaking notification area status',
+        'a11y.Skip unavailable notification area readings',
+        'a11y.When checked, the speak tray status hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.',
+        'ui.S&kip unavailable readings for this hotkey',
+        'a11y.Skip unavailable readings for this spoken hotkey',
+        'a11y.When checked, this spoken hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.',
+        'speech.noActiveReadings',
         'a11y.Choose how often Sensor Readout checks GitHub releases. Automatic checks are silent unless a newer version is available.',
         'a11y.When checked, diagnostic runs speak each step and say Complete when finished.',
         'a11y.When checked, diagnostic runs play a sound at the start and when complete.',

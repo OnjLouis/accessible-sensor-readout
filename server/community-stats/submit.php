@@ -127,6 +127,32 @@ function normalize_size_value(string $value): string {
     }, $clean);
 }
 
+function normalize_cpu_processor_type_value(string $value, string $architecture): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $architecture = normalize_architecture_value($architecture);
+
+    if (($clean === '' || in_array($compact, ['1', 'other', 'unknown'], true)) &&
+        in_array($architecture, ['ARM', 'ARM64'], true)) {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
+function normalize_cpu_vendor_value(string $value, string $architecture): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $architecture = normalize_architecture_value($architecture);
+
+    if (($clean === '' || in_array($compact, ['other', 'unknown'], true)) &&
+        in_array($architecture, ['ARM', 'ARM64'], true)) {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
 function rate_limit_response(string $message, int $retryAfterSeconds): void {
     http_response_code(429);
     header('Retry-After: ' . max(1, $retryAfterSeconds));
@@ -243,6 +269,9 @@ $windowsBuild = safe_string($system['windowsBuild'] ?? '', 40);
 if ($windowsBuild === '' && preg_match('/^6\./', $windowsVersion) === 1) {
     $windowsVersion = '';
 }
+$cpuArchitecture = normalize_architecture_value(safe_string($hardware['cpuArchitecture'] ?? '', 40));
+$cpuVendor = normalize_cpu_vendor_value(safe_string($hardware['cpuVendor'] ?? '', 40), $cpuArchitecture);
+$cpuProcessorType = normalize_cpu_processor_type_value(safe_string($hardware['cpuProcessorType'] ?? '', 40), $cpuArchitecture);
 
 $clean = [
     'schemaVersion' => safe_int($payload['schemaVersion'] ?? 0, 1, 100),
@@ -289,9 +318,9 @@ $clean = [
         'enabledPlugIns' => safe_string_list($availability['enabledPlugIns'] ?? []),
     ],
     'hardwareSummary' => [
-        'cpuVendor' => safe_string($hardware['cpuVendor'] ?? '', 40),
-        'cpuArchitecture' => normalize_architecture_value(safe_string($hardware['cpuArchitecture'] ?? '', 40)),
-        'cpuProcessorType' => safe_string($hardware['cpuProcessorType'] ?? '', 40),
+        'cpuVendor' => $cpuVendor,
+        'cpuArchitecture' => $cpuArchitecture,
+        'cpuProcessorType' => $cpuProcessorType,
         'cpuCoreCount' => safe_int($hardware['cpuCoreCount'] ?? 0, 0, 1024),
         'cpuThreadCount' => safe_int($hardware['cpuThreadCount'] ?? 0, 0, 1024),
         'gpuVendorCounts' => safe_count_map($hardware['gpuVendorCounts'] ?? []),

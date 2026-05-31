@@ -15,6 +15,7 @@ public sealed partial class PreferencesForm : Form
     private readonly CheckBox refreshWhileFocusedCheckBox;
     private readonly CheckBox trayStatusCheckBox;
     private readonly CheckBox trayTooltipPartialReadingsCheckBox;
+    private readonly CheckBox traySpeechSkipsUnavailableReadingsCheckBox;
     private readonly RadioButton readingTreeExpandRadio;
     private readonly RadioButton readingTreeCollapseRadio;
     private readonly RadioButton readingTreeRememberRadio;
@@ -53,6 +54,7 @@ public sealed partial class PreferencesForm : Form
     private readonly ListBox spokenHotKeyList;
     private readonly TextBox spokenHotKeyNameBox;
     private readonly TextBox spokenHotKeyBox;
+    private readonly CheckBox spokenHotKeySkipUnavailableCheckBox;
     private readonly ListBox spokenAvailableList;
     private readonly ListBox spokenSelectedList;
     private readonly Label spokenSelectionStatusLabel;
@@ -112,6 +114,7 @@ public sealed partial class PreferencesForm : Form
     public bool RefreshWhileFocused { get { return refreshWhileFocusedCheckBox.Checked; } }
     public bool TrayStatusEnabled { get { return trayStatusCheckBox.Checked; } }
     public bool TrayTooltipShowsPartialReadings { get { return trayTooltipPartialReadingsCheckBox == null || trayTooltipPartialReadingsCheckBox.Checked; } }
+    public bool TraySpeechSkipsUnavailableReadings { get { return traySpeechSkipsUnavailableReadingsCheckBox != null && traySpeechSkipsUnavailableReadingsCheckBox.Checked; } }
     public string ReadingTreeExpansionMode
     {
         get
@@ -273,9 +276,10 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 16,
+            RowCount = 17,
             Padding = new Padding(10)
         };
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -690,6 +694,14 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = "Include device names in spoken feedback",
             AccessibleDescription = "When checked, spoken status includes device names such as WiFi or CPU before each selected reading."
         };
+        traySpeechSkipsUnavailableReadingsCheckBox = new CheckBox
+        {
+            Text = "S&kip unavailable readings when speaking notification area status",
+            Checked = settings.TraySpeechSkipsUnavailableReadings,
+            AutoSize = true,
+            AccessibleName = "Skip unavailable notification area readings",
+            AccessibleDescription = "When checked, the speak tray status hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group."
+        };
 
         var loggingPanel = new FlowLayoutPanel
         {
@@ -800,6 +812,13 @@ public sealed partial class PreferencesForm : Form
             AccessibleDescription = "Friendly name for this spoken hotkey."
         };
         spokenHotKeyBox = CreateHotKeyBox("", "Spoken hotkey key combination");
+        spokenHotKeySkipUnavailableCheckBox = new CheckBox
+        {
+            Text = "S&kip unavailable readings for this hotkey",
+            AutoSize = true,
+            AccessibleName = "Skip unavailable readings for this spoken hotkey",
+            AccessibleDescription = "When checked, this spoken hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group."
+        };
         spokenAvailableList = new ListBox
         {
             Dock = DockStyle.Fill,
@@ -933,6 +952,7 @@ public sealed partial class PreferencesForm : Form
         spokenHotKeyList.SelectedIndexChanged += delegate { LoadSelectedSpokenHotKey(); };
         spokenHotKeyNameBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
         spokenHotKeyBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
+        spokenHotKeySkipUnavailableCheckBox.CheckedChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };
         fanProfileList.SelectedIndexChanged += delegate { LoadSelectedFanProfile(); };
         fanProfileNameBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
         fanProfileHotKeyBox.TextChanged += delegate { SaveSelectedFanProfileHeader(); };
@@ -1156,7 +1176,8 @@ public sealed partial class PreferencesForm : Form
         main.Controls.Add(loggingPanel, 0, 12);
         main.Controls.Add(trayLabel, 0, 13);
         main.Controls.Add(BuildTraySelectionPanel(), 0, 14);
-        main.Controls.Add(traySelectionStatusLabel, 0, 15);
+        main.Controls.Add(traySpeechSkipsUnavailableReadingsCheckBox, 0, 15);
+        main.Controls.Add(traySelectionStatusLabel, 0, 16);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
@@ -1273,6 +1294,7 @@ public sealed partial class PreferencesForm : Form
         refreshWhileFocusedCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayStatusCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         trayTooltipPartialReadingsCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        traySpeechSkipsUnavailableReadingsCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         readingTreeExpandRadio.CheckedChanged += delegate { SaveLivePreferences(); };
         readingTreeCollapseRadio.CheckedChanged += delegate { SaveLivePreferences(); };
         readingTreeRememberRadio.CheckedChanged += delegate { SaveLivePreferences(); };

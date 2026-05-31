@@ -384,6 +384,7 @@ public sealed partial class SensorReadoutForm : Form
             SpeechIncludesDeviceNames = value.SpeechIncludesDeviceNames,
             TrayStatusEnabled = value.TrayStatusEnabled,
             TrayTooltipShowsPartialReadings = value.TrayTooltipShowsPartialReadings,
+            TraySpeechSkipsUnavailableReadings = value.TraySpeechSkipsUnavailableReadings,
             StartMinimizedToTray = value.StartMinimizedToTray,
             CheckForUpdatesAtStartup = value.CheckForUpdatesAtStartup,
             UpdateCheckFrequency = value.UpdateCheckFrequency,
@@ -419,6 +420,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Name = p == null ? "" : p.Name ?? "",
                     HotKey = p == null ? "" : p.HotKey ?? "",
+                    SkipUnavailableReadings = p != null && p.SkipUnavailableReadings,
                     ReadingKeys = p == null ? new List<string>() : new List<string>(p.ReadingKeys ?? new List<string>())
                 })
                 .ToList(),
@@ -480,6 +482,7 @@ public sealed partial class SensorReadoutForm : Form
         target.SpeechIncludesDeviceNames = shared.SpeechIncludesDeviceNames;
         target.TrayStatusEnabled = shared.TrayStatusEnabled;
         target.TrayTooltipShowsPartialReadings = shared.TrayTooltipShowsPartialReadings;
+        target.TraySpeechSkipsUnavailableReadings = shared.TraySpeechSkipsUnavailableReadings;
         target.StartMinimizedToTray = shared.StartMinimizedToTray;
         target.CheckForUpdatesAtStartup = shared.CheckForUpdatesAtStartup;
         target.UpdateCheckFrequency = shared.UpdateCheckFrequency;
@@ -544,6 +547,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Name = p.Name ?? "",
                 HotKey = NormalizeHotKeyText(p.HotKey),
+                SkipUnavailableReadings = p.SkipUnavailableReadings,
                 ReadingKeys = (p.ReadingKeys ?? new List<string>())
                     .Where(k => !string.IsNullOrWhiteSpace(k))
                     .Distinct(StringComparer.OrdinalIgnoreCase)

@@ -221,6 +221,32 @@ public sealed partial class SensorReadoutForm : Form
         UpdateTrayStatus();
         Require(!string.IsNullOrWhiteSpace(trayIcon.Text), "Tray tooltip is empty in fallback mode.");
         Require(trayIcon.Text.Length <= WinFormsTrayTooltipTextLimit, "Fallback tray tooltip exceeds Windows Forms limit.");
+
+        var previousTrayKeys = settings.TrayItemKeys == null ? new List<string>() : new List<string>(settings.TrayItemKeys);
+        var previousSkipUnavailable = settings.TraySpeechSkipsUnavailableReadings;
+        var inactiveHardware = "Self-test cellular";
+        var inactiveStatus = new SensorRow { Type = "Network", Hardware = inactiveHardware, Name = "Status", Identifier = "self-test-cellular-status", DisplayValue = "Down", Source = "Self-test" };
+        var inactiveRate = new SensorRow { Type = "Network", Hardware = inactiveHardware, Name = "Receive rate", Identifier = "self-test-cellular-rx", DisplayValue = "42 KB/s", Source = "Self-test" };
+        latestRows.Add(inactiveStatus);
+        latestRows.Add(inactiveRate);
+        latestRowsBySettingsKey[RowSettingsKey(inactiveStatus)] = inactiveStatus;
+        latestRowsBySettingsKey[RowSettingsKey(inactiveRate)] = inactiveRate;
+        settings.TrayItemKeys = new List<string> { RowSettingsKey(inactiveRate) };
+        settings.TraySpeechSkipsUnavailableReadings = false;
+        Require(BuildCurrentSpeechStatusText().IndexOf("42", StringComparison.OrdinalIgnoreCase) >= 0, "Inactive row was skipped when notification-area skipping was disabled.");
+        settings.TraySpeechSkipsUnavailableReadings = true;
+        Require(string.Equals(BuildCurrentSpeechStatusText(), T("speech.noActiveReadings", "No active readings to announce."), StringComparison.Ordinal), "Inactive row was not skipped when notification-area skipping was enabled.");
+
+        var profile = new SpokenHotKeySetting
+        {
+            Name = "Self-test conditional announcements",
+            HotKey = "Ctrl+Alt+F8",
+            SkipUnavailableReadings = true,
+            ReadingKeys = new List<string> { RowSettingsKey(inactiveRate) }
+        };
+        Require(string.Equals(BuildSpeechStatusText(GetSpokenHotKeyRows(profile), profile.SkipUnavailableReadings), T("speech.noActiveReadings", "No active readings to announce."), StringComparison.Ordinal), "Inactive row was not skipped for spoken hotkey profile.");
+        settings.TrayItemKeys = previousTrayKeys;
+        settings.TraySpeechSkipsUnavailableReadings = previousSkipUnavailable;
     }
 
     private void SelfTestHotkeysMenu()

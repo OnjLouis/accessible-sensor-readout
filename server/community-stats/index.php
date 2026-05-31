@@ -83,6 +83,32 @@ function normalize_size_value(string $value): string {
     }, $clean);
 }
 
+function normalize_cpu_processor_type_value(string $value, string $architecture): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $architecture = normalize_architecture_value($architecture);
+
+    if (($clean === '' || in_array($compact, ['1', 'other', 'unknown'], true)) &&
+        in_array($architecture, ['ARM', 'ARM64'], true)) {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
+function normalize_cpu_vendor_value(string $value, string $architecture): string {
+    $clean = trim($value);
+    $compact = strtolower(str_replace([' ', '_'], '-', $clean));
+    $architecture = normalize_architecture_value($architecture);
+
+    if (($clean === '' || in_array($compact, ['other', 'unknown'], true)) &&
+        in_array($architecture, ['ARM', 'ARM64'], true)) {
+        return 'ARM';
+    }
+
+    return $clean;
+}
+
 function aggregate_value(array $items, string $section, string $key, ?callable $normalizer = null): array {
     $result = [];
     foreach ($items as $item) {
@@ -92,6 +118,46 @@ function aggregate_value(array $items, string $section, string $key, ?callable $
         }
         if ($normalizer !== null) {
             $value = $normalizer($value);
+        }
+        if (!isset($result[$value])) {
+            $result[$value] = 0;
+        }
+        $result[$value]++;
+    }
+    arsort($result, SORT_NUMERIC);
+    return $result;
+}
+
+function aggregate_cpu_vendors(array $items): array {
+    $result = [];
+    foreach ($items as $item) {
+        $summary = is_array($item['hardwareSummary'] ?? null) ? $item['hardwareSummary'] : [];
+        $value = normalize_cpu_vendor_value(
+            (string)($summary['cpuVendor'] ?? ''),
+            (string)($summary['cpuArchitecture'] ?? '')
+        );
+        if ($value === '') {
+            continue;
+        }
+        if (!isset($result[$value])) {
+            $result[$value] = 0;
+        }
+        $result[$value]++;
+    }
+    arsort($result, SORT_NUMERIC);
+    return $result;
+}
+
+function aggregate_cpu_processor_types(array $items): array {
+    $result = [];
+    foreach ($items as $item) {
+        $summary = is_array($item['hardwareSummary'] ?? null) ? $item['hardwareSummary'] : [];
+        $value = normalize_cpu_processor_type_value(
+            (string)($summary['cpuProcessorType'] ?? ''),
+            (string)($summary['cpuArchitecture'] ?? '')
+        );
+        if ($value === '') {
+            continue;
         }
         if (!isset($result[$value])) {
             $result[$value] = 0;
@@ -181,9 +247,9 @@ function render_table(string $heading, string $firstColumn, string $secondColumn
 $machineCount = count($items);
 $plugins = aggregate_list($items, 'availability', 'enabledPlugIns');
 $screenReaders = aggregate_list($items, 'accessibility', 'detectedScreenReaders');
-$cpuVendors = aggregate_value($items, 'hardwareSummary', 'cpuVendor');
+$cpuVendors = aggregate_cpu_vendors($items);
 $cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture', 'normalize_architecture_value');
-$cpuTypes = aggregate_value($items, 'hardwareSummary', 'cpuProcessorType');
+$cpuTypes = aggregate_cpu_processor_types($items);
 $gpuVendors = aggregate_map($items, 'hardwareSummary', 'gpuVendorCounts');
 $memoryTotals = aggregate_value($items, 'hardwareSummary', 'memoryTotal', 'normalize_size_value');
 $connectedDiskTotals = aggregate_value($items, 'hardwareSummary', 'connectedDiskTotal', 'normalize_size_value');

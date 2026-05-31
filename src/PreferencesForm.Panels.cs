@@ -111,7 +111,8 @@ public sealed partial class PreferencesForm : Form
         profileButtons.Controls.Add(removeProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);
 
-        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7 };
+        editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -137,9 +138,10 @@ public sealed partial class PreferencesForm : Form
 
         editor.Controls.Add(namePanel, 0, 0);
         editor.Controls.Add(keyPanel, 0, 1);
-        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", "Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder."), AutoSize = true, Dock = DockStyle.Fill }, 0, 2);
-        editor.Controls.Add(BuildSpokenSelectionPanel(), 0, 3);
-        editor.Controls.Add(spokenSelectionStatusLabel, 0, 4);
+        editor.Controls.Add(spokenHotKeySkipUnavailableCheckBox, 0, 2);
+        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", "Choose the readings spoken by this hotkey. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder."), AutoSize = true, Dock = DockStyle.Fill }, 0, 3);
+        editor.Controls.Add(BuildSpokenSelectionPanel(), 0, 4);
+        editor.Controls.Add(spokenSelectionStatusLabel, 0, 5);
 
         layout.Controls.Add(profilePanel, 0, 0);
         layout.Controls.Add(editor, 1, 0);
