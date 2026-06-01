@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -38,6 +39,7 @@ public sealed partial class SensorReadoutForm : Form
             form.LogMessage("Debug", "Self-test started. Output folder: " + outputFolder);
             form.RunSelfTestStep(results, "Settings save and reload", delegate { form.SelfTestSettingsRoundTrip(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
+            form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
             form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
@@ -123,6 +125,15 @@ public sealed partial class SensorReadoutForm : Form
         SetLatestRows(rows);
         Require(rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase)), "Performance rows missing.");
         Require(rows.Any(r => !string.IsNullOrWhiteSpace(r.Name)), "Collected rows have no names.");
+    }
+
+    private void SelfTestWifiBssListBounds()
+    {
+        var itemSize = Marshal.SizeOf(typeof(WlanBssEntry));
+        Require(itemSize > 0, "WLAN BSS entry marshal size was not positive.");
+        Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2, itemSize) == 2, "WLAN BSS list count did not use dwNumberOfItems.");
+        Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2000, itemSize) == 2, "WLAN BSS list count was not capped by buffer size.");
+        Require(SafeWlanBssEntryCount(4, 1, itemSize) == 0, "WLAN BSS list accepted a header smaller than the entry offset.");
     }
 
     private void SelfTestCategoryNavigation()

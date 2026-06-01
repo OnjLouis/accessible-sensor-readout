@@ -152,9 +152,9 @@ public sealed partial class SensorReadoutForm
                 return;
             }
 
-            var count = Marshal.ReadInt32(bssList, 0);
-            var itemOffset = 8;
             var itemSize = Marshal.SizeOf(typeof(WlanBssEntry));
+            var count = SafeWlanBssEntryCount(Marshal.ReadInt32(bssList, 0), Marshal.ReadInt32(bssList, 4), itemSize);
+            const int itemOffset = 8;
             for (var i = 0; i < count; i++)
             {
                 var itemPtr = IntPtr.Add(bssList, itemOffset + (i * itemSize));
@@ -196,6 +196,23 @@ public sealed partial class SensorReadoutForm
                 WlanFreeMemory(bssList);
             }
         }
+    }
+
+    private static int SafeWlanBssEntryCount(int totalSize, int reportedCount, int itemSize)
+    {
+        const int itemOffset = 8;
+        if (totalSize < itemOffset || reportedCount <= 0 || itemSize <= 0)
+        {
+            return 0;
+        }
+
+        var maxItemsBySize = (totalSize - itemOffset) / itemSize;
+        if (maxItemsBySize <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(reportedCount, maxItemsBySize);
     }
 
     private static IEnumerable<SensorRow> BuildWifiRows(string hardware, WifiInterfaceInfo wifi)
