@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.1.2.
+Current version: 4.2.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -43,7 +43,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Supports simple fan curves that set a fan control from a selected temperature reading.
 - Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
-- Opens saved report files directly, including TXT or HTML reports sent inside a ZIP file.
+- Opens saved HTML reports directly, including HTML reports sent inside a diagnostics ZIP file.
 - Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.
 - Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.
 - Adds a Category summary row at the top of each main section, giving a quick count of readings, groups, rows with Details, and section-specific health signals where useful.
@@ -452,7 +452,7 @@ The save dialog offers:
 - TXT report.
 - HTML report.
 
-TXT reports group values by reading type and device, so long hardware names are written once as headings instead of being repeated on every line. HTML reports use formatted tables with sensor, value, and source columns.
+TXT reports are a simplified reading and sharing format. They use clear `#` section headings for each category, keep the main reading tree separate from the longer Details data, and include a Sensor Readout download link near the top. HTML reports use formatted tables with sensor, value, and source columns.
 
 The first save creates the `Reports` folder if it does not already exist. Use `File` > `Open Reports folder` or `Ctrl+Shift+O` to jump to saved reports, and use `File` > `Open Logs folder` or `Ctrl+Shift+L` when support needs the log folder. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
 
@@ -470,7 +470,7 @@ After a successful upload, Sensor Readout opens the public aggregate page at [on
 
 ### Opening Someone Else's Report
 
-Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout TXT or HTML report. If someone sends a report inside a ZIP file, open the ZIP directly and Sensor Readout will use the first readable report inside it.
+Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout HTML report. If someone sends a diagnostics ZIP file, open the ZIP directly and Sensor Readout will use the first readable HTML report inside it.
 
 The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.
 
@@ -478,7 +478,7 @@ Notification-area status and spoken hotkeys read from the loaded report while a 
 
 Details and copy commands still work where the report contains the relevant fields. This is useful when someone sends a USB, audio, display, network, fan, battery, or SMART report and you want to inspect specific rows without reading the whole file manually.
 
-Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. HTML reports saved by Sensor Readout 2.0 or later contain a hidden machine-readable snapshot for the best import experience. TXT reports include the same reopen data after a clearly labelled internal-data line, wrapped into short lines so the readable report stays practical in text editors.
+Use `File` > `Return to live readings` or `Ctrl+R` to go back to the current computer. HTML reports saved by Sensor Readout 2.0 or later contain a hidden machine-readable snapshot for the best import experience. TXT reports are human-readable only and are not imported back into Sensor Readout.
 
 ### Comparing Reports
 
@@ -582,6 +582,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.2.0
+- Added: Battery now includes Windows power-meter rows where supported, including live current power from `Win32_PowerMeter` and rated output power from `Win32_PowerSupply` when Windows exposes those values. This can help laptop users check charger or power-supply wattage where the hardware reports it.
+- Improved: TXT reports are now easier to read in text editors, with clear category headings, a separate Details section, a Sensor Readout download link, and a smaller reading-focused layout. Use HTML reports or diagnostics ZIPs when you want to reopen a saved report inside Sensor Readout.
 
 ### 4.1.2
 - Added: Notification-area speech and individual spoken hotkey profiles can now skip unavailable readings, so disconnected adapters, missing removable drives, inactive cellular connections, and similar optional readings do not clutter spoken output unless you want them included.

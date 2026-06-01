@@ -15,7 +15,7 @@ public sealed partial class SensorReadoutForm : Form
         using (var dialog = new OpenFileDialog())
         {
             dialog.Title = T("ui.Choose reports to compare", "Choose reports to compare");
-            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.txt;*.zip)|*.html;*.htm;*.txt;*.zip|All files (*.*)|*.*";
+            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.zip)|*.html;*.htm;*.zip|All files (*.*)|*.*";
             dialog.InitialDirectory = GetReportsFolderPath();
             dialog.CheckFileExists = true;
             dialog.Multiselect = true;

@@ -109,7 +109,111 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        rows.AddRange(GetWindowsPowerMeterRows());
         rows.AddRange(GetDeviceBatteryRows());
+        return rows;
+    }
+
+    private static List<SensorRow> GetWindowsPowerMeterRows()
+    {
+        var rows = new List<SensorRow>();
+        rows.AddRange(ReadWindowsPowerMeters());
+        rows.AddRange(ReadWindowsPowerSupplies());
+        return rows;
+    }
+
+    private static List<SensorRow> ReadWindowsPowerMeters()
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher(@"root\cimv2\power", "SELECT * FROM Win32_PowerMeter"))
+            {
+                var index = 0;
+                foreach (ManagementObject meter in searcher.Get())
+                {
+                    var details = ReadManagementObjectDetails(meter);
+                    details["Namespace"] = @"root\cimv2\power";
+                    details["WMI class"] = "Win32_PowerMeter";
+
+                    var reading = ToNullableDouble(GetDictionaryValue(details, "CurrentReading"));
+                    if (!reading.HasValue)
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    var baseUnits = ToNullableInt(GetDictionaryValue(details, "BaseUnits"));
+                    var unitModifier = ToNullableInt(GetDictionaryValue(details, "UnitModifier"));
+                    var watts = ApplyUnitModifier(reading.Value, unitModifier);
+                    var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "ElementName"), GetDictionaryValue(details, "DeviceID"), "Power meter " + (index + 1));
+                    var display = IsWattBaseUnit(baseUnits)
+                        ? FormatNumber(Math.Round(watts, 2), "0.00") + " W"
+                        : FormatNumber(Math.Round(watts, 2), "0.00") + " raw";
+
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Battery",
+                        Hardware = name,
+                        Name = IsWattBaseUnit(baseUnits) ? "Current power" : "Power meter reading",
+                        Identifier = "power-meter/" + StableDeviceIdentifier(GetDictionaryValue(details, "DeviceID"), name) + "/current-power",
+                        Value = (float)watts,
+                        DisplayValue = display,
+                        Source = "Windows Power Meter",
+                        Details = details
+                    });
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static List<SensorRow> ReadWindowsPowerSupplies()
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher(@"root\cimv2\power", "SELECT * FROM Win32_PowerSupply"))
+            {
+                var index = 0;
+                foreach (ManagementObject supply in searcher.Get())
+                {
+                    var details = ReadManagementObjectDetails(supply);
+                    details["Namespace"] = @"root\cimv2\power";
+                    details["WMI class"] = "Win32_PowerSupply";
+
+                    var outputPower = ToNullableDouble(GetDictionaryValue(details, "TotalOutputPower"));
+                    if (!outputPower.HasValue || outputPower.Value <= 0)
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "ElementName"), GetDictionaryValue(details, "DeviceID"), "Power supply " + (index + 1));
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Battery",
+                        Hardware = name,
+                        Name = "Rated output power",
+                        Identifier = "power-supply/" + StableDeviceIdentifier(GetDictionaryValue(details, "DeviceID"), name) + "/rated-output-power",
+                        Value = (float)outputPower.Value,
+                        DisplayValue = FormatNumber(Math.Round(outputPower.Value, 2), "0.00") + " W",
+                        Source = "Windows Power Supply",
+                        Details = details
+                    });
+                    index++;
+                }
+            }
+        }
+        catch
+        {
+        }
+
         return rows;
     }
 
@@ -313,6 +417,67 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return string.IsNullOrWhiteSpace(value) ? "device" : value;
+    }
+
+    private static Dictionary<string, string> ReadManagementObjectDetails(ManagementObject item)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (item == null)
+        {
+            return details;
+        }
+
+        foreach (PropertyData property in item.Properties)
+        {
+            if (property == null || property.Value == null)
+            {
+                continue;
+            }
+
+            details[property.Name] = FormatWmiObjectValue(property.Value);
+        }
+
+        return details;
+    }
+
+    private static string FormatWmiObjectValue(object value)
+    {
+        var array = value as Array;
+        if (array != null)
+        {
+            var values = new List<string>();
+            foreach (var item in array)
+            {
+                values.Add(Convert.ToString(item, System.Globalization.CultureInfo.InvariantCulture) ?? "");
+            }
+
+            return string.Join(", ", values.ToArray());
+        }
+
+        return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+    }
+
+    private static double? ToNullableDouble(string text)
+    {
+        double value;
+        return double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value) ? value : (double?)null;
+    }
+
+    private static int? ToNullableInt(string text)
+    {
+        int value;
+        return int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value) ? value : (int?)null;
+    }
+
+    private static double ApplyUnitModifier(double value, int? unitModifier)
+    {
+        return unitModifier.HasValue ? value * Math.Pow(10, unitModifier.Value) : value;
+    }
+
+    private static bool IsWattBaseUnit(int? baseUnits)
+    {
+        // CIM_NumericSensor BaseUnits value 7 is Watts.
+        return baseUnits.HasValue && baseUnits.Value == 7;
     }
 
     private static double? GetBatteryPercent(NativeBatteryInfo battery, WmiBatteryInfo wmi)

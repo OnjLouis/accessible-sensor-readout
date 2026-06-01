@@ -385,7 +385,9 @@ public sealed partial class SensorReadoutForm : Form
         var htmlText = File.ReadAllText(html);
         Require(txtText.Contains("Sensor Readout"), "TXT report does not look like a Sensor Readout report.");
         Require(htmlText.Contains("Sensor Readout"), "HTML report does not look like a Sensor Readout report.");
-        Require(txtText.Contains("[SensorReadoutReportData]"), "TXT report missing wrapped internal report data.");
+        Require(!txtText.Contains("[SensorReadoutReportData]"), "TXT report should be human-readable and should not contain wrapped internal report data.");
+        Require(txtText.Contains("# "), "TXT report missing section headings.");
+        Require(txtText.Contains("Download Sensor Readout:"), "TXT report missing Sensor Readout download link.");
         Require(!Regex.IsMatch(txtText, @"(?im)^[ \t]*Printer[ \t]+[^\r\n]+[ \t]+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
             "TXT report contains verbose printer prefixes instead of the grouped printer tree.");
     }

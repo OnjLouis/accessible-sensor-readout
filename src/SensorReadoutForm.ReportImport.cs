@@ -40,7 +40,7 @@ public sealed partial class SensorReadoutForm : Form
         using (var dialog = new OpenFileDialog())
         {
             dialog.Title = T("ui.Open Sensor Readout report", "Open Sensor Readout report");
-            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.txt;*.zip)|*.html;*.htm;*.txt;*.zip|All files (*.*)|*.*";
+            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.zip)|*.html;*.htm;*.zip|All files (*.*)|*.*";
             dialog.InitialDirectory = GetReportsFolderPath();
             dialog.CheckFileExists = true;
             dialog.Multiselect = false;
@@ -281,6 +281,11 @@ public sealed partial class SensorReadoutForm : Form
             return ReadReportSnapshotFromZip(path);
         }
 
+        if (!IsHtmlReportPath(path))
+        {
+            return null;
+        }
+
         var text = File.ReadAllText(path);
         return ReadReportSnapshotText(text, path);
     }
@@ -293,7 +298,7 @@ public sealed partial class SensorReadoutForm : Form
             return snapshot;
         }
 
-        return IsHtmlReportPath(path) ? ReadLegacyHtmlReport(text, path) : ReadLegacyTextReport(text, path);
+        return IsHtmlReportPath(path) ? ReadLegacyHtmlReport(text, path) : null;
     }
 
     private ReportSnapshot ReadReportSnapshotFromZip(string path)
@@ -407,8 +412,7 @@ public sealed partial class SensorReadoutForm : Form
 
         var extension = Path.GetExtension(entry.Name) ?? "";
         return extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
+            || extension.Equals(".htm", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int ReportArchiveEntryPriority(string path)
@@ -419,7 +423,7 @@ public sealed partial class SensorReadoutForm : Form
             return 0;
         }
 
-        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+        return 2;
     }
 
     private ReportSnapshot ReadLegacyTextReport(string text, string path)
