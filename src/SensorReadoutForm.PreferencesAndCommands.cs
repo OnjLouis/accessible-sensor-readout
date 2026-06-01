@@ -1179,6 +1179,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Name = UniqueSpokenHotKeyNameFromSettings(nameBox.Text),
                     HotKey = hotKey,
+                    SkipUnavailableReadings = true,
                     ReadingKeys = new List<string>()
                 };
             }

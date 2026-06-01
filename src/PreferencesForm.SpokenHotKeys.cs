@@ -26,6 +26,7 @@ public sealed partial class PreferencesForm : Form
         {
             Name = "New spoken hotkey",
             HotKey = "",
+            SkipUnavailableReadings = true,
             ReadingKeys = new List<string>()
         };
         spokenHotKeys.Add(profile);
@@ -143,6 +144,7 @@ public sealed partial class PreferencesForm : Form
         {
             Name = UniqueSpokenHotKeyName(preset.Name),
             HotKey = "",
+            SkipUnavailableReadings = true,
             ReadingKeys = preset.ReadingKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
         spokenHotKeys.Add(profile);

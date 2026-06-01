@@ -395,7 +395,7 @@ public sealed partial class SensorReadoutForm : Form
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT Name, DeviceID, PNPClass, Manufacturer, Service FROM Win32_PnPEntity WHERE ConfigManagerErrorCode = 0"))
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, DeviceID, PNPClass, Manufacturer, Service, Status, Present, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode = 0"))
             {
                 foreach (ManagementObject device in searcher.Get())
                 {
@@ -409,9 +409,21 @@ public sealed partial class SensorReadoutForm : Form
                         continue;
                     }
 
+                    ManagementBaseObject[] properties;
+                    if (!TryGetDeviceProperties(device, out properties))
+                    {
+                        continue;
+                    }
+
+                    string connectionStatus;
+                    if (!IsConnectedDeviceBattery(device, properties, out connectionStatus))
+                    {
+                        continue;
+                    }
+
                     int percent;
                     string propertyKey;
-                    if (!TryGetDeviceBatteryPercent(device, out percent, out propertyKey))
+                    if (!TryGetDeviceBatteryPercent(properties, out percent, out propertyKey))
                     {
                         continue;
                     }
@@ -428,6 +440,9 @@ public sealed partial class SensorReadoutForm : Form
                     if (!string.IsNullOrWhiteSpace(pnpClass)) details["Class"] = pnpClass;
                     if (!string.IsNullOrWhiteSpace(manufacturer)) details["Manufacturer"] = manufacturer;
                     if (!string.IsNullOrWhiteSpace(service)) details["Service"] = service;
+                    if (!string.IsNullOrWhiteSpace(connectionStatus)) details["Connection"] = connectionStatus;
+                    if (device["Present"] != null) details["Present"] = FormatWmiObjectValue(device["Present"]);
+                    if (device["Status"] != null) details["Status"] = FormatWmiObjectValue(device["Status"]);
                     details["Windows property"] = propertyKey;
 
                     rows.Add(new SensorRow
@@ -464,10 +479,9 @@ public sealed partial class SensorReadoutForm : Form
             combined.Contains("logitech");
     }
 
-    private static bool TryGetDeviceBatteryPercent(ManagementObject device, out int percent, out string propertyKey)
+    private static bool TryGetDeviceProperties(ManagementObject device, out ManagementBaseObject[] properties)
     {
-        percent = -1;
-        propertyKey = "";
+        properties = null;
         try
         {
             var outParams = device.InvokeMethod("GetDeviceProperties", null, null);
@@ -476,28 +490,108 @@ public sealed partial class SensorReadoutForm : Form
                 return false;
             }
 
-            var properties = outParams["deviceProperties"] as ManagementBaseObject[];
-            if (properties == null)
+            properties = outParams["deviceProperties"] as ManagementBaseObject[];
+            return properties != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsConnectedDeviceBattery(ManagementObject device, ManagementBaseObject[] properties, out string status)
+    {
+        status = "";
+        bool connected;
+        if (TryGetBooleanDeviceProperty(properties, IsDeviceConnectedPropertyKey, out connected))
+        {
+            status = connected ? "Connected" : "Not connected";
+            return connected;
+        }
+
+        bool present;
+        if (TryGetBooleanDeviceProperty(properties, IsDevicePresentPropertyKey, out present))
+        {
+            status = present ? "Present" : "Not present";
+            return present;
+        }
+
+        if (TryReadBoolean(device == null ? null : device["Present"], out present))
+        {
+            status = present ? "Present" : "Not present";
+            if (!present)
             {
                 return false;
             }
+        }
 
-            foreach (var property in properties)
+        var wmiStatus = Convert.ToString(device == null ? null : device["Status"]) ?? "";
+        if (!string.IsNullOrWhiteSpace(wmiStatus))
+        {
+            if (IsInactiveStatusText(wmiStatus))
             {
-                var key = Convert.ToString(property["KeyName"]) ?? "";
-                if (!IsBatteryLifePropertyKey(key))
-                {
-                    continue;
-                }
+                status = wmiStatus;
+                return false;
+            }
 
-                var value = property["Data"];
-                int parsed;
-                if (TryParseDeviceBatteryPercent(value, out parsed))
-                {
-                    percent = parsed;
-                    propertyKey = key;
-                    return true;
-                }
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                status = wmiStatus;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetBooleanDeviceProperty(ManagementBaseObject[] properties, Func<string, bool> keyPredicate, out bool value)
+    {
+        value = false;
+        if (properties == null || keyPredicate == null)
+        {
+            return false;
+        }
+
+        foreach (var property in properties)
+        {
+            var key = Convert.ToString(property["KeyName"]) ?? "";
+            if (!keyPredicate(key))
+            {
+                continue;
+            }
+
+            return TryReadBoolean(property["Data"], out value);
+        }
+
+        return false;
+    }
+
+    private static bool TryReadBoolean(object data, out bool value)
+    {
+        value = false;
+        if (data == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (data is bool)
+            {
+                value = (bool)data;
+                return true;
+            }
+
+            var text = Convert.ToString(data);
+            if (bool.TryParse(text, out value))
+            {
+                return true;
+            }
+
+            int numeric;
+            if (int.TryParse(text, out numeric))
+            {
+                value = numeric != 0;
+                return true;
             }
         }
         catch
@@ -505,6 +599,59 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return false;
+    }
+
+    private static bool TryGetDeviceBatteryPercent(ManagementBaseObject[] properties, out int percent, out string propertyKey)
+    {
+        percent = -1;
+        propertyKey = "";
+        if (properties == null)
+        {
+            return false;
+        }
+
+        foreach (var property in properties)
+        {
+            var key = Convert.ToString(property["KeyName"]) ?? "";
+            if (!IsBatteryLifePropertyKey(key))
+            {
+                continue;
+            }
+
+            var value = property["Data"];
+            int parsed;
+            if (TryParseDeviceBatteryPercent(value, out parsed))
+            {
+                percent = parsed;
+                propertyKey = key;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsDeviceConnectedPropertyKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        return key.Equals("System.Devices.Connected", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("System.Devices.IsConnected", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("{83DA6326-97A6-4088-9453-A1923F573B29} 15", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDevicePresentPropertyKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        return key.Equals("DEVPKEY_Device_IsPresent", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("System.Devices.IsPresent", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsBatteryLifePropertyKey(string key)

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.3.0.
+Current version: 4.3.1.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -582,6 +582,9 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.3.1
+- Fixed: Device battery readings now ignore stale Bluetooth/HID battery levels when Windows reports that the device is not currently connected, so conditional spoken hotkeys and notification-area status do not announce old battery values for disconnected keyboards, headphones, mice, or similar devices.
 
 ### 4.3.0
 - Added: Performance/Overview now includes PCIe and expansion slot information where Windows exposes it, including physical slot usage and PCIe current/maximum link width and speed for supported PCI devices.

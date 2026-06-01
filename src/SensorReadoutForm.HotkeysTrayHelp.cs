@@ -1221,14 +1221,17 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (selectedRows == null || selectedRows.Count == 0)
         {
+            if (reportViewMode)
+            {
+                return StaticReportMissingReadingsMessage();
+            }
+
             if (skippedUnavailable)
             {
                 return T("speech.noActiveReadings", "No active readings to announce.");
             }
 
-            return reportViewMode
-                ? StaticReportMissingReadingsMessage()
-                : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
+            return T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
         }
 
         var items = selectedRows.Select(r => ShortSpeechReadingText(r, settings.SpeechIncludesDeviceNames, settings.ReadingSpeechLabels)).ToList();

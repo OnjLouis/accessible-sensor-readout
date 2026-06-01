@@ -53,7 +53,7 @@ public sealed class AppSettings
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
     public bool TrayTooltipShowsPartialReadings = true;
-    public bool TraySpeechSkipsUnavailableReadings = false;
+    public bool TraySpeechSkipsUnavailableReadings = true;
     public bool RunAtStartup = false;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
@@ -111,7 +111,7 @@ public sealed class SharedAppSettings
     public bool SpeechIncludesDeviceNames = true;
     public bool TrayStatusEnabled = true;
     public bool TrayTooltipShowsPartialReadings = true;
-    public bool TraySpeechSkipsUnavailableReadings = false;
+    public bool TraySpeechSkipsUnavailableReadings = true;
     public bool StartMinimizedToTray = false;
     public bool CheckForUpdatesAtStartup = true;
     public string UpdateCheckFrequency = "Startup";
@@ -259,7 +259,7 @@ public sealed class SpokenHotKeySetting
 {
     public string Name = "";
     public string HotKey = "";
-    public bool SkipUnavailableReadings = false;
+    public bool SkipUnavailableReadings = true;
     public List<string> ReadingKeys = new List<string>();
 
     public override string ToString()
