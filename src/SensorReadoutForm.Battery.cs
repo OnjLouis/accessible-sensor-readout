@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -62,6 +63,7 @@ public sealed partial class SensorReadoutForm : Form
                 });
             }
 
+            rows.AddRange(GetBatteryTimeRows(battery, wmi, hardware, i, "Battery", hardware, details));
             AddBatteryCapacityRows(rows, battery, hardware, i, details);
             if (battery.CycleCount > 0)
             {
@@ -112,6 +114,157 @@ public sealed partial class SensorReadoutForm : Form
         rows.AddRange(GetWindowsPowerMeterRows());
         rows.AddRange(GetDeviceBatteryRows());
         return rows;
+    }
+
+    private static IEnumerable<SensorRow> GetBatteryOverviewRows()
+    {
+        var rows = new List<SensorRow>();
+        var batteries = GetNativeBatteryInfo();
+        var wmiInfo = ReadWmiBatteryInfo();
+        for (var i = 0; i < batteries.Count; i++)
+        {
+            var battery = batteries[i];
+            WmiBatteryInfo wmi;
+            if (!wmiInfo.TryGetValue(i, out wmi))
+            {
+                wmi = null;
+            }
+
+            var details = BuildBatteryDetails(battery, wmi, i);
+            var hardware = string.IsNullOrWhiteSpace(battery.Name) ? "Battery " + (i + 1) : battery.Name;
+            rows.AddRange(GetBatteryTimeRows(battery, wmi, "Overview", i, "Performance", hardware, details)
+                .Select(r =>
+                {
+                    r.Name = r.Name.StartsWith("Battery ", StringComparison.OrdinalIgnoreCase)
+                        ? r.Name
+                        : "Battery " + char.ToLowerInvariant(r.Name[0]) + r.Name.Substring(1);
+                    return r;
+                }));
+        }
+
+        return rows;
+    }
+
+    private static IEnumerable<SensorRow> GetBatteryTimeRows(NativeBatteryInfo battery, WmiBatteryInfo wmi, string hardware, int index, string type, string detailName, Dictionary<string, string> details)
+    {
+        var rows = new List<SensorRow>();
+        TimeSpan time;
+        string source;
+        if (TryGetBatteryChargeTimeRemaining(battery, out time, out source))
+        {
+            rows.Add(CreateBatteryTimeRow(type, hardware, detailName, index, "Charge time remaining", "charge-time-remaining", time, source, details));
+        }
+
+        if (TryGetBatteryDischargeTimeRemaining(battery, wmi, out time, out source))
+        {
+            rows.Add(CreateBatteryTimeRow(type, hardware, detailName, index, "Discharge time remaining", "discharge-time-remaining", time, source, details));
+        }
+
+        return rows;
+    }
+
+    private static SensorRow CreateBatteryTimeRow(string type, string hardware, string detailName, int index, string name, string id, TimeSpan time, string source, Dictionary<string, string> details)
+    {
+        var rowDetails = CloneDetails(details);
+        AddDetail(rowDetails, "Battery time source", source);
+        AddDetail(rowDetails, "Battery time note", "Remaining time is shown only when Windows or the battery driver exposes enough live rate/runtime data.");
+        if (!string.IsNullOrWhiteSpace(detailName) && !string.Equals(detailName, hardware, StringComparison.OrdinalIgnoreCase))
+        {
+            AddDetail(rowDetails, "Battery", detailName);
+        }
+
+        return new SensorRow
+        {
+            Type = type,
+            Hardware = hardware,
+            Name = name,
+            Identifier = "battery/" + index + "/" + id,
+            Value = (float)Math.Round(time.TotalMinutes, 1),
+            DisplayValue = FormatBatteryTimeSpan(time),
+            Source = source,
+            Details = rowDetails
+        };
+    }
+
+    private static bool TryGetBatteryChargeTimeRemaining(NativeBatteryInfo battery, out TimeSpan time, out string source)
+    {
+        time = TimeSpan.Zero;
+        source = "";
+        if (battery == null ||
+            !battery.PowerState.HasFlag(BatteryPowerState.Charging) ||
+            battery.RateMilliwatts <= 0 ||
+            battery.FullChargeCapacity <= 0 ||
+            battery.CurrentCapacity < 0 ||
+            battery.FullChargeCapacity <= battery.CurrentCapacity)
+        {
+            return false;
+        }
+
+        var hours = (battery.FullChargeCapacity - battery.CurrentCapacity) / (double)battery.RateMilliwatts;
+        if (!IsPlausibleBatteryHours(hours))
+        {
+            return false;
+        }
+
+        time = TimeSpan.FromHours(hours);
+        source = "Windows Battery";
+        return true;
+    }
+
+    private static bool TryGetBatteryDischargeTimeRemaining(NativeBatteryInfo battery, WmiBatteryInfo wmi, out TimeSpan time, out string source)
+    {
+        time = TimeSpan.Zero;
+        source = "";
+        if (battery != null &&
+            battery.PowerState.HasFlag(BatteryPowerState.Discharging) &&
+            battery.RateMilliwatts < 0 &&
+            battery.CurrentCapacity > 0)
+        {
+            var hours = battery.CurrentCapacity / Math.Abs((double)battery.RateMilliwatts);
+            if (IsPlausibleBatteryHours(hours))
+            {
+                time = TimeSpan.FromHours(hours);
+                source = "Windows Battery";
+                return true;
+            }
+        }
+
+        if (wmi != null && wmi.EstimatedRunTimeMinutes > 0 && wmi.EstimatedRunTimeMinutes < 1440 * 14)
+        {
+            time = TimeSpan.FromMinutes(wmi.EstimatedRunTimeMinutes);
+            source = "Windows WMI";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPlausibleBatteryHours(double hours)
+    {
+        return !double.IsNaN(hours) && !double.IsInfinity(hours) && hours > 0 && hours < 24 * 14;
+    }
+
+    private static string FormatBatteryTimeSpan(TimeSpan time)
+    {
+        if (time < TimeSpan.Zero)
+        {
+            time = TimeSpan.Zero;
+        }
+
+        var totalMinutes = Math.Max(1, (int)Math.Round(time.TotalMinutes));
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+        if (hours > 0 && minutes > 0)
+        {
+            return hours + (hours == 1 ? " hour, " : " hours, ") + minutes + (minutes == 1 ? " minute" : " minutes");
+        }
+
+        if (hours > 0)
+        {
+            return hours + (hours == 1 ? " hour" : " hours");
+        }
+
+        return minutes + (minutes == 1 ? " minute" : " minutes");
     }
 
     private static List<SensorRow> GetWindowsPowerMeterRows()
@@ -519,6 +672,7 @@ public sealed partial class SensorReadoutForm : Form
         if (wmi != null)
         {
             AddDetail(details, "WMI estimated charge remaining", wmi.EstimatedChargeRemaining >= 0 ? wmi.EstimatedChargeRemaining + "%" : "");
+            AddDetail(details, "WMI estimated runtime", wmi.EstimatedRunTimeMinutes > 0 ? FormatBatteryTimeSpan(TimeSpan.FromMinutes(wmi.EstimatedRunTimeMinutes)) : "");
             AddDetail(details, "WMI battery status", DecodeWmiBatteryStatus(wmi.BatteryStatus));
             AddDetail(details, "WMI status", wmi.Status);
             if (wmi.RawDetails != null)
@@ -858,6 +1012,17 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        var result = ReadWmiBatteryInfo();
+        lock (wmiBatteryInfoLock)
+        {
+            cachedWmiBatteryInfo = CloneWmiBatteryInfo(result);
+            wmiBatteryInfoLastReadUtc = DateTime.UtcNow;
+            return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+        }
+    }
+
+    private static Dictionary<int, WmiBatteryInfo> ReadWmiBatteryInfo()
+    {
         var result = new Dictionary<int, WmiBatteryInfo>();
         try
         {
@@ -871,6 +1036,7 @@ public sealed partial class SensorReadoutForm : Form
                     result[index] = new WmiBatteryInfo
                     {
                         EstimatedChargeRemaining = ToInt(battery["EstimatedChargeRemaining"], -1),
+                        EstimatedRunTimeMinutes = ToInt(battery["EstimatedRunTime"], -1),
                         BatteryStatus = ToInt(battery["BatteryStatus"], 0),
                         Status = Convert.ToString(battery["Status"]) ?? "",
                         RawDetails = rawDetails
@@ -883,12 +1049,7 @@ public sealed partial class SensorReadoutForm : Form
         {
         }
 
-        lock (wmiBatteryInfoLock)
-        {
-            cachedWmiBatteryInfo = CloneWmiBatteryInfo(result);
-            wmiBatteryInfoLastReadUtc = DateTime.UtcNow;
-            return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
-        }
+        return result;
     }
 
     private static Dictionary<int, WmiBatteryInfo> CloneWmiBatteryInfo(Dictionary<int, WmiBatteryInfo> source)
@@ -905,6 +1066,7 @@ public sealed partial class SensorReadoutForm : Form
             result[item.Key] = new WmiBatteryInfo
             {
                 EstimatedChargeRemaining = value.EstimatedChargeRemaining,
+                EstimatedRunTimeMinutes = value.EstimatedRunTimeMinutes,
                 BatteryStatus = value.BatteryStatus,
                 Status = value.Status,
                 RawDetails = CloneDetails(value.RawDetails)
@@ -1057,6 +1219,7 @@ public sealed partial class SensorReadoutForm : Form
     private sealed class WmiBatteryInfo
     {
         public int EstimatedChargeRemaining = -1;
+        public int EstimatedRunTimeMinutes = -1;
         public int BatteryStatus;
         public string Status;
         public Dictionary<string, string> RawDetails;

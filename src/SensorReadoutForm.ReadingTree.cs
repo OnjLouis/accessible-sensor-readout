@@ -140,6 +140,8 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         readingTree.BeginUpdate();
+        var previousSuppressExpansionTracking = suppressReadingTreeExpansionTracking;
+        suppressReadingTreeExpansionTracking = true;
         try
         {
             readingTree.Nodes.Clear();
@@ -173,6 +175,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         finally
         {
+            suppressReadingTreeExpansionTracking = previousSuppressExpansionTracking;
             readingTree.EndUpdate();
         }
     }
@@ -589,6 +592,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ApplyReadingTreeExpansion(TreeNodeCollection nodes, HashSet<string> expandedKeys, bool expandAll)
     {
+        var previousSuppressExpansionTracking = suppressReadingTreeExpansionTracking;
         suppressReadingTreeExpansionTracking = true;
         try
         {
@@ -596,7 +600,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         finally
         {
-            suppressReadingTreeExpansionTracking = false;
+            suppressReadingTreeExpansionTracking = previousSuppressExpansionTracking;
         }
     }
 
@@ -990,8 +994,18 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(printerItem);
         }
 
+        var pciRows = rows
+            .Where(IsPciExpansionPerformanceRow)
+            .ToList();
+        if (pciRows.Count > 0)
+        {
+            var pciItem = new ReadingTreeItem { Key = "performance|pcie-expansion", Text = T("group.PCIe and expansion slots", "PCIe and expansion slots") };
+            AddReadingRows(pciItem, pciRows);
+            parent.Children.Add(pciItem);
+        }
+
         var storageRows = rows
-            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsDataSourceSummaryRow(r) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r))
+            .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsDataSourceSummaryRow(r) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r) && !IsPciExpansionPerformanceRow(r))
             .ToList();
         if (storageRows.Count > 0)
         {
@@ -1179,6 +1193,7 @@ public sealed partial class SensorReadoutForm : Form
         AddOverviewGroup(parent, rowList, "overview|firmware-board", T("group.Firmware and board", "Firmware and board"), IsOverviewFirmwareBoardRow);
         AddOverviewGroup(parent, rowList, "overview|graphics", T("group.Graphics", "Graphics"), IsOverviewGraphicsRow);
         AddOverviewGroup(parent, rowList, "overview|printer-summary", T("group.Printer summary", "Printer summary"), IsOverviewPrinterSummaryRow);
+        AddOverviewGroup(parent, rowList, "overview|battery", T("type.Battery", "Battery"), IsOverviewBatteryRow);
         AddOverviewGroup(parent, rowList, "overview|accessibility", T("group.Accessibility", "Accessibility"), IsOverviewAccessibilityRow);
 
         var grouped = new HashSet<SensorRow>(rowList.Where(r =>
@@ -1187,6 +1202,7 @@ public sealed partial class SensorReadoutForm : Form
             IsOverviewFirmwareBoardRow(r) ||
             IsOverviewGraphicsRow(r) ||
             IsOverviewPrinterSummaryRow(r) ||
+            IsOverviewBatteryRow(r) ||
             IsOverviewAccessibilityRow(r)));
         var otherRows = rowList.Where(r => !grouped.Contains(r)).ToList();
         if (otherRows.Count > 0)
@@ -1236,8 +1252,17 @@ public sealed partial class SensorReadoutForm : Form
     {
         var name = CleanSensorName(row == null ? "" : row.Name);
         return name.IndexOf("adapter RAM", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.EndsWith(" BIOS", StringComparison.OrdinalIgnoreCase) ||
+            (name.EndsWith(" vendor", StringComparison.OrdinalIgnoreCase) &&
+                !name.StartsWith("BIOS ", StringComparison.OrdinalIgnoreCase)) ||
+            (name.EndsWith(" processor", StringComparison.OrdinalIgnoreCase) &&
+                !name.StartsWith("BIOS ", StringComparison.OrdinalIgnoreCase)) ||
+            (name.EndsWith(" BIOS", StringComparison.OrdinalIgnoreCase) &&
+                !name.StartsWith("BIOS ", StringComparison.OrdinalIgnoreCase)) ||
             name.IndexOf("graphics BIOS", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.EndsWith(" compute capability", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(" max graphics clock", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(" max memory clock", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(" power limit", StringComparison.OrdinalIgnoreCase) ||
             name.IndexOf("driver date", StringComparison.OrdinalIgnoreCase) >= 0 ||
             name.IndexOf("driver version", StringComparison.OrdinalIgnoreCase) >= 0;
     }
@@ -1247,6 +1272,12 @@ public sealed partial class SensorReadoutForm : Form
         var name = CleanSensorName(row == null ? "" : row.Name);
         return name.Equals("Printer count", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Default printer", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOverviewBatteryRow(SensorRow row)
+    {
+        var name = CleanSensorName(row == null ? "" : row.Name);
+        return name.StartsWith("Battery ", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsOverviewAccessibilityRow(SensorRow row)
@@ -1260,6 +1291,11 @@ public sealed partial class SensorReadoutForm : Form
             name.Equals("Filter Keys", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Show sounds", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Audio descriptions", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPciExpansionPerformanceRow(SensorRow row)
+    {
+        return row != null && string.Equals(ShortHardwareName(row.Hardware), "PCIe and expansion slots", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddTemperatureGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
@@ -2005,9 +2041,21 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Memory used", StringComparison.OrdinalIgnoreCase)) return 4;
         if (clean.Equals("Memory used size", StringComparison.OrdinalIgnoreCase)) return 5;
         if (clean.Equals("Memory available", StringComparison.OrdinalIgnoreCase)) return 6;
-        if (clean.Equals("Paging file total", StringComparison.OrdinalIgnoreCase)) return 7;
-        if (clean.Equals("Paging file used", StringComparison.OrdinalIgnoreCase)) return 8;
-        if (clean.Equals("Paging file free", StringComparison.OrdinalIgnoreCase)) return 9;
+        if (clean.Equals("Memory slots", StringComparison.OrdinalIgnoreCase)) return 7;
+        if (clean.Equals("Memory module count", StringComparison.OrdinalIgnoreCase)) return 8;
+        if (clean.Equals("Memory module layout", StringComparison.OrdinalIgnoreCase)) return 9;
+        if (clean.Equals("Memory type", StringComparison.OrdinalIgnoreCase)) return 10;
+        if (clean.Equals("Memory form factor", StringComparison.OrdinalIgnoreCase)) return 11;
+        if (clean.Equals("Memory rated speed", StringComparison.OrdinalIgnoreCase)) return 12;
+        if (clean.Equals("Memory configured speed", StringComparison.OrdinalIgnoreCase)) return 13;
+        if (clean.Equals("Memory manufacturers", StringComparison.OrdinalIgnoreCase)) return 14;
+        if (clean.Equals("Memory part numbers", StringComparison.OrdinalIgnoreCase)) return 15;
+        if (clean.Equals("Memory populated slots", StringComparison.OrdinalIgnoreCase)) return 16;
+        if (clean.Equals("Paging file total", StringComparison.OrdinalIgnoreCase)) return 17;
+        if (clean.Equals("Paging file used", StringComparison.OrdinalIgnoreCase)) return 18;
+        if (clean.Equals("Paging file free", StringComparison.OrdinalIgnoreCase)) return 19;
+        if (clean.Equals("Expansion slots", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("Data read", StringComparison.OrdinalIgnoreCase)) return 13;
         if (clean.Equals("Data written", StringComparison.OrdinalIgnoreCase)) return 14;
         if (clean.Equals("Read rate", StringComparison.OrdinalIgnoreCase)) return 15;

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.2.0.
+Current version: 4.3.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -25,7 +25,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 ## What It Does
 
 - Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
-- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, connected-disk totals, accessibility status, and storage read/write activity, grouped so related information stays together.
+- Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, PCIe/expansion-slot information, connected-disk totals, accessibility status, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
@@ -48,7 +48,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.
 - Adds a Category summary row at the top of each main section, giving a quick count of readings, groups, rows with Details, and section-specific health signals where useful.
 - Gives clearer empty-section guidance when a category has no visible readings, so users know whether to refresh, enable a plug-in, connect hardware, or check hidden items.
-- Keeps the main tree readable while putting deeper technical fields behind Details, including PnP identifiers, driver data, CPU WMI fields, cache records, and memory module information where Windows exposes them.
+- Keeps the main tree readable while putting deeper technical fields behind Details, including PnP identifiers, driver data, CPU WMI fields, cache records, memory module information, and PCIe link/slot details where Windows exposes them.
 - Lets Details users copy only matching lines from a detailed tree, useful when a support person asks for a specific driver, ID, or firmware field.
 - Exports a portable copy ZIP of the current app, including settings, Plug-Ins, language files, custom sounds, and optional reports or logs.
 - Can run one-click diagnostics from the Help menu or command line, collecting TXT and HTML reports, a debug log, sensor summaries, and a safe fan-control exercise into a ZIP file in `Reports`.
@@ -74,7 +74,7 @@ My wish is that Sensor Readout becomes the gold standard in its class: an access
 - Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for laptop-specific sensor support.
 - Ships with optional plug-ins for selected laptop/vendor-specific hardware where useful community or vendor interfaces are available.
 - Can import a plug-in ZIP from Preferences without automatically enabling it.
-- Can show laptop battery charge, status, capacity, health, cycle count, voltage, and power rate where Windows exposes them.
+- Can show laptop battery charge, status, capacity, health, cycle count, voltage, power rate, and charge/discharge remaining time where Windows exposes enough battery data.
 
 ## Prerequisites
 
@@ -582,6 +582,14 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.3.0
+- Added: Performance/Overview now includes PCIe and expansion slot information where Windows exposes it, including physical slot usage and PCIe current/maximum link width and speed for supported PCI devices.
+- Added: Performance/Overview now shows GPU usage where Windows performance counters expose it, and the GPU spoken hotkey preset includes GPU usage when available.
+- Improved: Performance/Overview now exposes more GPU, memory module, and uptime detail, including GPU clocks and compute capability where available, memory module layout/speed/slot summaries, and system uptime with seconds.
+- Fixed: The reading tree's "remember my last expand or collapse action" preference now keeps your chosen expanded or collapsed view after refreshes and tree rebuilds.
+- Added: Battery charge or discharge remaining time now appears in Battery and Performance/Overview when Windows exposes enough live battery data. These readings can also be used in notification area status and spoken hotkeys. Closes [issue #15](https://github.com/OnjLouis/accessible-sensor-readout/issues/15).
+- Fixed: System BIOS vendor is no longer grouped under Graphics.
 
 ### 4.2.0
 - Added: Battery now includes Windows power-meter rows where supported, including live current power from `Win32_PowerMeter` and rated output power from `Win32_PowerSupply` when Windows exposes those values. This can help laptop users check charger or power-supply wattage where the hardware reports it.

@@ -271,7 +271,8 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Performance", "Read activity", null),
             FindPresetRow("Performance", "Write activity", null),
             FindPresetRow("Performance", "Free space", null));
-        AddSpokenPresetIfAny(presets, "GPU status", "GPU temperature and memory where available.",
+        AddSpokenPresetIfAny(presets, "GPU status", "GPU usage, temperature, and memory where available.",
+            FindPresetRow("Performance", "GPU usage", "GPU"),
             FindPresetTemperatureRow("gpu"),
             FindPresetRow("Performance", "Dedicated GPU memory used", "GPU memory"),
             FindPresetRow("Performance", "Dedicated GPU memory free", "GPU memory"),

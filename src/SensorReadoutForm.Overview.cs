@@ -122,9 +122,11 @@ public sealed partial class SensorReadoutForm : Form
 
         try
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, DriverVersion, DriverDate, PNPDeviceID, ConfigManagerErrorCode, Status FROM Win32_VideoController"))
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
             {
-                foreach (ManagementObject gpu in searcher.Get())
+                var gpuList = searcher.Get().Cast<ManagementObject>().ToList();
+                var includeGpuNameInRows = gpuList.Count > 1;
+                foreach (ManagementObject gpu in gpuList)
                 {
                     var name = Convert.ToString(gpu["Name"]);
                     if (string.IsNullOrWhiteSpace(name))
@@ -132,6 +134,9 @@ public sealed partial class SensorReadoutForm : Form
                         name = "Display adapter";
                     }
 
+                    var rowPrefix = includeGpuNameInRows ? name : "GPU";
+                    var pnpDeviceId = Convert.ToString(gpu["PNPDeviceID"]);
+                    var details = BuildGpuOverviewDetails(gpu, name, pnpDeviceId);
                     var adapterRam = FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"]));
                     var adapterProblem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
                     if (!string.IsNullOrWhiteSpace(adapterProblem))
@@ -139,16 +144,22 @@ public sealed partial class SensorReadoutForm : Form
                         adapterRam = FirstNonEmpty(adapterRam, "Unknown") + " (" + adapterProblem + "; may be unreliable)";
                     }
 
-                    AddOverviewTextRow(rows, name + " adapter RAM", adapterRam, "Windows");
-                    AddOverviewTextRow(rows, name + " driver version", Convert.ToString(gpu["DriverVersion"]), "Windows WMI");
-                    AddOverviewTextRow(rows, name + " driver date", FormatWmiDate(gpu["DriverDate"]), "Windows WMI");
+                    AddOverviewTextRow(rows, rowPrefix + " vendor", CleanWmiText(Convert.ToString(gpu["AdapterCompatibility"])), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " processor", CleanWmiText(Convert.ToString(gpu["VideoProcessor"])), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " adapter RAM", adapterRam, "Windows", details);
+                    AddOverviewTextRow(rows, rowPrefix + " driver version", Convert.ToString(gpu["DriverVersion"]), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " driver date", FormatWmiDate(gpu["DriverDate"]), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " compute capability", GetDictionaryValue(details, "NVIDIA CUDA compute capability"), "NVIDIA SMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " max graphics clock", GetDictionaryValue(details, "NVIDIA max graphics clock"), "NVIDIA SMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " max memory clock", GetDictionaryValue(details, "NVIDIA max memory clock"), "NVIDIA SMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " power limit", GetDictionaryValue(details, "NVIDIA power limit"), "NVIDIA SMI", details);
 
                     string gpuBios;
                     string gpuBiosDate;
-                    if (TryGetGpuBiosInfo(name, Convert.ToString(gpu["PNPDeviceID"]), out gpuBios, out gpuBiosDate))
+                    if (TryGetGpuBiosInfo(name, pnpDeviceId, out gpuBios, out gpuBiosDate))
                     {
-                        AddOverviewTextRow(rows, name + " BIOS", gpuBios, "Windows registry");
-                        AddOverviewTextRow(rows, name + " BIOS date", gpuBiosDate, "Windows registry");
+                        AddOverviewTextRow(rows, rowPrefix + " BIOS", gpuBios, "Windows registry", details);
+                        AddOverviewTextRow(rows, rowPrefix + " BIOS date", gpuBiosDate, "Windows registry", details);
                     }
                 }
             }
@@ -158,9 +169,40 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddPrinterOverviewRows(rows);
+        rows.AddRange(GetBatteryOverviewRows());
         AddAccessibilityOverviewRows(rows);
 
         return rows;
+    }
+
+    private static Dictionary<string, string> BuildGpuOverviewDetails(ManagementObject gpu, string name, string pnpDeviceId)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (gpu == null)
+        {
+            return details;
+        }
+
+        AddDetail(details, "Name", name);
+        AddDetail(details, "Vendor", Convert.ToString(gpu["AdapterCompatibility"]));
+        AddDetail(details, "Processor", Convert.ToString(gpu["VideoProcessor"]));
+        AddDetail(details, "Adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"])));
+        AddDetail(details, "Driver version", Convert.ToString(gpu["DriverVersion"]));
+        AddDetail(details, "Driver date", FormatWmiDate(gpu["DriverDate"]));
+        AddDetail(details, "Status", Convert.ToString(gpu["Status"]));
+        AddDetail(details, "Device ID", pnpDeviceId);
+        AddDetail(details, "Video architecture", Convert.ToString(gpu["VideoArchitecture"]));
+        AddDetail(details, "Video memory type", Convert.ToString(gpu["VideoMemoryType"]));
+        AddDetail(details, "Adapter DAC type", Convert.ToString(gpu["AdapterDACType"]));
+        AddDetail(details, "Current scan mode", Convert.ToString(gpu["CurrentScanMode"]));
+        AddDetail(details, "Availability", Convert.ToString(gpu["Availability"]));
+        AddDetail(details, "Config manager error code", Convert.ToString(gpu["ConfigManagerErrorCode"]));
+        AddPciDetails(details, pnpDeviceId);
+        AddDeviceRegistryDetails(details, pnpDeviceId);
+        AddGpuDisplayRegistryDetails(details, name);
+        AddNvidiaSmiDetails(details, name, pnpDeviceId);
+        AddRawWmiDetails(details, "Display adapter WMI", gpu);
+        return details;
     }
 
     private static void AddAccessibilityOverviewRows(List<SensorRow> rows)
@@ -481,7 +523,12 @@ public sealed partial class SensorReadoutForm : Form
             parts.Add(uptime.Hours + " hour" + (uptime.Hours == 1 ? "" : "s"));
         }
 
-        parts.Add(uptime.Minutes + " minute" + (uptime.Minutes == 1 ? "" : "s"));
+        if (uptime.Minutes > 0 || parts.Count > 0)
+        {
+            parts.Add(uptime.Minutes + " minute" + (uptime.Minutes == 1 ? "" : "s"));
+        }
+
+        parts.Add(uptime.Seconds + " second" + (uptime.Seconds == 1 ? "" : "s"));
         return string.Join(", ", parts.ToArray());
     }
 

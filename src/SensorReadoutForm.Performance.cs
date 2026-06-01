@@ -323,6 +323,9 @@ public sealed partial class SensorReadoutForm : Form
 
             var category = new PerformanceCounterCategory(categoryName);
             var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            double? peakUsage = null;
+            string peakInstance = "";
+            var sampledInstances = 0;
             foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
             {
                 var engineType = ExtractGpuEngineType(instance);
@@ -332,7 +335,19 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 double value;
-                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value) || value <= 0)
+                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value))
+                {
+                    continue;
+                }
+
+                sampledInstances++;
+                if (!peakUsage.HasValue || value > peakUsage.Value)
+                {
+                    peakUsage = value;
+                    peakInstance = instance;
+                }
+
+                if (value <= 0)
                 {
                     continue;
                 }
@@ -343,6 +358,28 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     values[engineType] = value;
                 }
+            }
+
+            if (peakUsage.HasValue)
+            {
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = "GPU",
+                    Name = "GPU usage",
+                    Identifier = "gpu|usage",
+                    Value = (float)peakUsage.Value,
+                    DisplayValue = FormatNumber(Math.Round(peakUsage.Value, 1), "0.0") + "%",
+                    Source = "Windows GPU performance counters",
+                    Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "Counter set", categoryName },
+                        { "Counter", counterName },
+                        { "Aggregation", "Highest GPU engine utilization across all adapters" },
+                        { "Sampled engine instances", sampledInstances.ToString(CultureInfo.InvariantCulture) },
+                        { "Peak engine instance", peakInstance }
+                    }
+                });
             }
 
             foreach (var pair in values.OrderBy(p => GpuEngineSortIndex(p.Key)).ThenBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
@@ -496,6 +533,122 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static IEnumerable<SensorRow> GetMemoryDetailRows()
+    {
+        var rows = new List<SensorRow>();
+        var details = GetMemoryHardwareDetails();
+        try
+        {
+            var modules = new List<MemoryModuleSummary>();
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
+            {
+                foreach (ManagementObject module in searcher.Get())
+                {
+                    modules.Add(new MemoryModuleSummary
+                    {
+                        Capacity = FormatBytes(GetWmiPropertyValue(module, "Capacity")),
+                        Manufacturer = GetWmiPropertyText(module, "Manufacturer"),
+                        PartNumber = GetWmiPropertyText(module, "PartNumber"),
+                        FormFactor = FormatMemoryFormFactor(GetWmiPropertyValue(module, "FormFactor")),
+                        MemoryType = FirstNonEmpty(FormatSmbiosMemoryType(GetWmiPropertyValue(module, "SMBIOSMemoryType")), FormatMemoryType(GetWmiPropertyValue(module, "MemoryType"))),
+                        Speed = FormatMegahertz(GetWmiPropertyValue(module, "Speed")),
+                        ConfiguredSpeed = FormatMegahertz(GetWmiPropertyValue(module, "ConfiguredClockSpeed")),
+                        Locator = FirstNonEmpty(GetWmiPropertyText(module, "DeviceLocator"), GetWmiPropertyText(module, "BankLabel"))
+                    });
+                }
+            }
+
+            if (modules.Count > 0)
+            {
+                AddMemoryDetailRow(rows, "Memory module count", modules.Count.ToString(CultureInfo.InvariantCulture), details);
+                AddMemoryDetailRow(rows, "Memory module layout", MemoryModuleLayout(modules), details);
+                AddMemoryDetailRow(rows, "Memory manufacturers", DistinctJoined(modules.Select(m => m.Manufacturer)), details);
+                AddMemoryDetailRow(rows, "Memory part numbers", DistinctJoined(modules.Select(m => m.PartNumber)), details);
+                AddMemoryDetailRow(rows, "Memory type", DistinctJoined(modules.Select(m => m.MemoryType)), details);
+                AddMemoryDetailRow(rows, "Memory form factor", DistinctJoined(modules.Select(m => m.FormFactor)), details);
+                AddMemoryDetailRow(rows, "Memory rated speed", DistinctJoined(modules.Select(m => m.Speed)), details);
+                AddMemoryDetailRow(rows, "Memory configured speed", DistinctJoined(modules.Select(m => m.ConfiguredSpeed)), details);
+                AddMemoryDetailRow(rows, "Memory populated slots", DistinctJoined(modules.Select(m => m.Locator)), details);
+            }
+
+            var totalSlots = 0;
+            using (var searcher = new ManagementObjectSearcher("SELECT MemoryDevices FROM Win32_PhysicalMemoryArray"))
+            {
+                foreach (ManagementObject array in searcher.Get())
+                {
+                    int slots;
+                    if (int.TryParse(Convert.ToString(GetWmiPropertyValue(array, "MemoryDevices")), out slots) && slots > 0)
+                    {
+                        totalSlots += slots;
+                    }
+                }
+            }
+
+            if (totalSlots > 0)
+            {
+                var used = modules.Count > 0 ? modules.Count + " of " + totalSlots : totalSlots.ToString(CultureInfo.InvariantCulture);
+                AddMemoryDetailRow(rows, "Memory slots", used, details);
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static void AddMemoryDetailRow(List<SensorRow> rows, string name, string value, Dictionary<string, string> details)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Memory",
+            Name = name,
+            DisplayValue = value.Trim(),
+            Source = "Windows WMI",
+            Details = CloneDetails(details)
+        });
+    }
+
+    private static string MemoryModuleLayout(IEnumerable<MemoryModuleSummary> modules)
+    {
+        var groups = (modules ?? Enumerable.Empty<MemoryModuleSummary>())
+            .Where(m => !string.IsNullOrWhiteSpace(m.Capacity))
+            .GroupBy(m => m.Capacity, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Count() + " x " + g.Key)
+            .ToArray();
+        return groups.Length == 0 ? "" : string.Join(", ", groups);
+    }
+
+    private static string DistinctJoined(IEnumerable<string> values)
+    {
+        var distinct = (values ?? Enumerable.Empty<string>())
+            .Select(v => (v ?? "").Trim())
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return distinct.Length == 0 ? "" : string.Join(", ", distinct);
+    }
+
+    private sealed class MemoryModuleSummary
+    {
+        public string Capacity;
+        public string Manufacturer;
+        public string PartNumber;
+        public string FormFactor;
+        public string MemoryType;
+        public string Speed;
+        public string ConfiguredSpeed;
+        public string Locator;
     }
 
     private static void AddCpuCacheRows(List<SensorRow> rows)

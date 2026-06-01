@@ -196,6 +196,30 @@ public sealed partial class SensorReadoutForm : Form
         SelectCategoryByKey("type|Performance");
         UpdateReadingList();
         Require(CountExpandedNodes(readingTree.Nodes) > 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Remember reading tree preference ignored expanded state.");
+
+        settings.ReadingTreeExpansionMode = ReadingTreeExpansionRemember;
+        settings.ReadingTreeLastExpanded = false;
+        SaveSettings(settings);
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        ExpandAllReadings();
+        Require(settings.ReadingTreeLastExpanded, "Expand all did not update remembered expanded state.");
+        var reloadedAfterExpand = LoadSettings();
+        Require(reloadedAfterExpand.ReadingTreeLastExpanded, "Expand all did not persist remembered expanded state.");
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) > 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Remember reading tree preference did not restore explicit expand all choice.");
+
+        CollapseAllReadings();
+        Require(!settings.ReadingTreeLastExpanded, "Collapse all did not update remembered collapsed state.");
+        var reloadedAfterCollapse = LoadSettings();
+        Require(!reloadedAfterCollapse.ReadingTreeLastExpanded, "Collapse all did not persist remembered collapsed state.");
+        ResetReadingTreeExpansionForSelfTest();
+        SelectCategoryByKey("type|Performance");
+        UpdateReadingList();
+        Require(CountExpandedNodes(readingTree.Nodes) == 0 || CountTreeNodes(readingTree.Nodes) <= 1, "Remember reading tree preference did not restore explicit collapse all choice.");
     }
 
     private void SelfTestTrayStatusText()

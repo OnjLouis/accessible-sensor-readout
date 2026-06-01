@@ -441,6 +441,8 @@ public sealed partial class SensorReadoutForm : Form
             .Concat(GetDisplayRows())
             .Concat(GetDeviceInventoryRows())
             .Concat(GetCpuDetailRows())
+            .Concat(GetMemoryDetailRows())
+            .Concat(GetPciExpansionRows())
             .Concat(GetOverviewRows())
             .ToList();
 
