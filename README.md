@@ -10,6 +10,8 @@ Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://gi
 
 Contributor source overview: [SOURCE-MAP.md](SOURCE-MAP.md)
 
+Public community stats: [https://onj.me/srstats/](https://onj.me/srstats/)
+
 ## Why Sensor Readout Exists
 
 All that information about your own computer that used to be hard to find, hidden behind Device Manager or locked away in expensive or inaccessible apps, should be easier to reach.
@@ -21,6 +23,14 @@ I hope you discover just as much about your computer with this app as I have abo
 My wish is that Sensor Readout becomes the gold standard in its class: an accessibility-first tool that blind and visually impaired people in tech support jobs can give to clients, so those clients can generate reports and get help troubleshooting issues. I strive for excellence, and I hope you feel that when you use it.
 
 [Andre Louis](https://onj.me), creator of Sensor Readout.
+
+## Community Stats
+
+Sensor Readout has an opt-in anonymous community stats page at [onj.me/srstats](https://onj.me/srstats/). It shows broad aggregate coverage, such as Windows versions, CPU and GPU vendors, memory and storage totals, category coverage, enabled plug-ins, selected languages, and how many submitted systems expose temperatures, fans, battery data, device issues, or other useful readings.
+
+It also includes broad accessibility aggregates, including detected supported screen readers and common Windows accessibility settings such as High Contrast, Toggle Keys, Sticky Keys, Filter Keys, Show Sounds, and audio descriptions. This can help the project, users, and screen-reader vendors understand which tools and accessibility features are showing up in real-world systems without collecting identifying report data.
+
+Submitting stats is explicit opt-in from inside Sensor Readout. The app shows the exact small JSON payload before upload, and it does not send computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows.
 
 ## What It Does
 
