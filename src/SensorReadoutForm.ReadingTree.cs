@@ -57,21 +57,51 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static IEnumerable<DeviceFilter> BuildFilters(List<SensorRow> rows)
+    private IEnumerable<DeviceFilter> BuildFilters(List<SensorRow> rows)
     {
-        yield return new DeviceFilter { Key = "type|Performance", DisplayName = T("type.Performance", "Performance/Overview"), Type = "Performance" };
-        yield return new DeviceFilter { Key = "type|Temperature", DisplayName = T("type.Temperature", "Temperatures"), Type = "Temperature" };
-        yield return new DeviceFilter { Key = "type|Fan", DisplayName = T("type.Fan", "Fans"), Type = "Fan" };
-        yield return new DeviceFilter { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" };
-        yield return new DeviceFilter { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" };
-        yield return new DeviceFilter { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" };
-        yield return new DeviceFilter { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" };
-        yield return new DeviceFilter { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" };
-        yield return new DeviceFilter { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" };
-        if (rows != null && rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
+        var hidden = new HashSet<string>(settings == null ? new List<string>() : settings.HiddenCategoryKeys ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+        var available = DefaultCategoryChoices()
+            .Where(c => !string.Equals(c.Type, "Battery", StringComparison.OrdinalIgnoreCase) || rows != null && rows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
+            .ToDictionary(c => c.Key, c => c, StringComparer.OrdinalIgnoreCase);
+        var order = settings == null || settings.CategoryOrderKeys == null || settings.CategoryOrderKeys.Count == 0
+            ? DefaultCategoryChoices().Select(c => c.Key).ToList()
+            : settings.CategoryOrderKeys.Concat(DefaultCategoryChoices().Select(c => c.Key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var yielded = false;
+        foreach (var key in order)
         {
-            yield return new DeviceFilter { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" };
+            CategoryChoice choice;
+            if (!available.TryGetValue(key, out choice) || hidden.Contains(key))
+            {
+                continue;
+            }
+
+            yielded = true;
+            yield return new DeviceFilter { Key = choice.Key, DisplayName = DisplayTypeName(choice.Type), Type = choice.Type };
         }
+
+        if (!yielded && available.ContainsKey("type|Performance"))
+        {
+            yield return new DeviceFilter { Key = "type|Performance", DisplayName = DisplayTypeName("Performance"), Type = "Performance" };
+        }
+    }
+
+    public static List<CategoryChoice> DefaultCategoryChoices()
+    {
+        return new List<CategoryChoice>
+        {
+            new CategoryChoice { Key = "type|Performance", DisplayName = T("type.Performance", "Performance/Overview"), Type = "Performance" },
+            new CategoryChoice { Key = "type|Temperature", DisplayName = T("type.Temperature", "Temperatures"), Type = "Temperature" },
+            new CategoryChoice { Key = "type|Fan", DisplayName = T("type.Fan", "Fans"), Type = "Fan" },
+            new CategoryChoice { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" },
+            new CategoryChoice { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" },
+            new CategoryChoice { Key = "type|Bluetooth", DisplayName = T("type.Bluetooth", "Bluetooth"), Type = "Bluetooth" },
+            new CategoryChoice { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" },
+            new CategoryChoice { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" },
+            new CategoryChoice { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" },
+            new CategoryChoice { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" },
+            new CategoryChoice { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" }
+        };
     }
 
     private void UpdateReadingList()
@@ -793,6 +823,10 @@ public sealed partial class SensorReadoutForm : Form
         if (type.Equals("Network", StringComparison.OrdinalIgnoreCase))
         {
             return T("message.noNetworkReadingsYet", "No network readings are visible yet. Check that Windows exposes an active network adapter; Wi-Fi details require a Wi-Fi adapter and Windows WLAN data.");
+        }
+        if (type.Equals("Bluetooth", StringComparison.OrdinalIgnoreCase))
+        {
+            return T("message.noBluetoothReadingsYet", "No Bluetooth readings are visible yet. Check that Windows exposes a Bluetooth radio or paired Bluetooth devices.");
         }
         if (type.Equals("USB", StringComparison.OrdinalIgnoreCase))
         {
@@ -1925,24 +1959,29 @@ public sealed partial class SensorReadoutForm : Form
             return 5;
         }
 
-        if (type == "USB")
+        if (type == "Bluetooth")
         {
             return 6;
         }
 
-        if (type == "Audio")
+        if (type == "USB")
         {
             return 7;
         }
 
-        if (type == "Display")
+        if (type == "Audio")
         {
             return 8;
         }
 
-        if (type == "Devices")
+        if (type == "Display")
         {
             return 9;
+        }
+
+        if (type == "Devices")
+        {
+            return 10;
         }
 
         if (type == "Battery")
@@ -1950,7 +1989,7 @@ public sealed partial class SensorReadoutForm : Form
             return 4;
         }
 
-        return 10;
+        return 11;
     }
 
     public static string DisplayTypeName(string type)
@@ -1978,6 +2017,11 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Network")
         {
             return T("type.Network", "Network");
+        }
+
+        if (type == "Bluetooth")
+        {
+            return T("type.Bluetooth", "Bluetooth");
         }
 
         if (type == "Battery")
@@ -2089,6 +2133,18 @@ public sealed partial class SensorReadoutForm : Form
         if (clean.Equals("Wi-Fi security", StringComparison.OrdinalIgnoreCase)) return 45;
         if (clean.Equals("Wi-Fi authentication", StringComparison.OrdinalIgnoreCase)) return 46;
         if (clean.Equals("Wi-Fi cipher", StringComparison.OrdinalIgnoreCase)) return 47;
+        if (clean.Equals("Connected", StringComparison.OrdinalIgnoreCase)) return 48;
+        if (clean.Equals("Paired", StringComparison.OrdinalIgnoreCase)) return 49;
+        if (clean.Equals("Remembered", StringComparison.OrdinalIgnoreCase)) return 50;
+        if (clean.Equals("Adapter address", StringComparison.OrdinalIgnoreCase)) return 51;
+        if (clean.Equals("Adapter type", StringComparison.OrdinalIgnoreCase)) return 52;
+        if (clean.Equals("Adapter services", StringComparison.OrdinalIgnoreCase)) return 53;
+        if (clean.Equals("Adapter manufacturer", StringComparison.OrdinalIgnoreCase)) return 54;
+        if (clean.Equals("Device address", StringComparison.OrdinalIgnoreCase)) return 55;
+        if (clean.Equals("Device type", StringComparison.OrdinalIgnoreCase)) return 56;
+        if (clean.Equals("Device services", StringComparison.OrdinalIgnoreCase)) return 57;
+        if (clean.Equals("Last seen", StringComparison.OrdinalIgnoreCase)) return 58;
+        if (clean.Equals("Last used", StringComparison.OrdinalIgnoreCase)) return 59;
         if (clean.Equals("Device", StringComparison.OrdinalIgnoreCase)) return 60;
         return 100;
     }

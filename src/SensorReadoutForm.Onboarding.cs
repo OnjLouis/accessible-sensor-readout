@@ -95,7 +95,7 @@ public sealed partial class SensorReadoutForm : Form
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
             var closeButton = CreateCloseButton();
-            closeButton.Text = T("ui.Close", "Close");
+            closeButton.Text = T("ui.Close", "&Close");
             var prefsButton = new Button { Text = T("ui.Open &Preferences", "Open &Preferences"), AutoSize = true };
             prefsButton.TabIndex = 4;
             closeButton.TabIndex = 5;

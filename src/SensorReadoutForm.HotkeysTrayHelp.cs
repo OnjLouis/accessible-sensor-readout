@@ -160,6 +160,19 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ToggleShowHide()
     {
+        var blockMessage = ShowHideBlockedMessage();
+        if (!string.IsNullOrWhiteSpace(blockMessage))
+        {
+            if (IsMinimizedOrHidden())
+            {
+                RestoreFromTray();
+            }
+
+            statusLabel.Text = blockMessage;
+            SpeakTextWithScreenReader(blockMessage, "show/hide hotkey");
+            return;
+        }
+
         if (Visible && WindowState != FormWindowState.Minimized && ShowInTaskbar)
         {
             LogMessage("Normal", "Hiding Sensor Readout from global hotkey.");
@@ -176,6 +189,31 @@ public sealed partial class SensorReadoutForm : Form
 
         LogMessage("Normal", "Showing Sensor Readout from global hotkey.");
         RestoreFromTray();
+    }
+
+    private string ShowHideBlockedMessage()
+    {
+        if (openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
+        {
+            return T("speech.showHideBlockedPreferences", "Preferences is open. Close Preferences before hiding Sensor Readout.");
+        }
+
+        if (diagnosticsRunning)
+        {
+            return T("speech.showHideBlockedDiagnostics", "Diagnostics or support report generation is running. Please wait before hiding Sensor Readout.");
+        }
+
+        if (communityStatsDialogActive)
+        {
+            return T("speech.showHideBlockedCommunityStats", "Community stats is preparing or waiting for review. Please finish or close it before hiding Sensor Readout.");
+        }
+
+        if (OwnedForms.Any(form => form != null && !form.IsDisposed && form.Visible))
+        {
+            return T("speech.showHideBlockedDialog", "A Sensor Readout dialog is open. Close the dialog before hiding Sensor Readout.");
+        }
+
+        return "";
     }
 
     private void SpeakTrayStatus()
@@ -509,6 +547,29 @@ public sealed partial class SensorReadoutForm : Form
         return !Visible || WindowState == FormWindowState.Minimized || !ShowInTaskbar;
     }
 
+    private void BringToFrontForUserPrompt()
+    {
+        if (IsMinimizedOrHidden())
+        {
+            RestoreFromTray();
+        }
+        else
+        {
+            ShowInTaskbar = true;
+            Show();
+            if (WindowState == FormWindowState.Minimized)
+            {
+                WindowState = FormWindowState.Normal;
+            }
+        }
+
+        var wasTopMost = TopMost;
+        TopMost = true;
+        BringToFront();
+        Activate();
+        TopMost = wasTopMost;
+    }
+
     private void ShowManual()
     {
         var manualPath = ResolveManualPath(ManualFileName());
@@ -736,7 +797,8 @@ public sealed partial class SensorReadoutForm : Form
                     "Project page:" + Environment.NewLine +
                     ProjectUrl + Environment.NewLine + Environment.NewLine +
                     "Created by Codex." + Environment.NewLine +
-                    "Ideas by Andre Louis." + Environment.NewLine + Environment.NewLine +
+                    "Ideas by Andre Louis." + Environment.NewLine +
+                    "A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better." + Environment.NewLine + Environment.NewLine +
                     "Bundled and referenced components:" + Environment.NewLine +
                     "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries."
             };
@@ -748,7 +810,7 @@ public sealed partial class SensorReadoutForm : Form
                 FlowDirection = FlowDirection.RightToLeft
             };
             var okButton = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
-            var projectButton = new Button { Text = "Project page", AutoSize = true, AccessibleName = "Open project page" };
+            var projectButton = new Button { Text = "&Project page", AutoSize = true, AccessibleName = "Open project page" };
             projectButton.Click += delegate { OpenProjectPage(); };
             buttons.Controls.Add(okButton);
             buttons.Controls.Add(projectButton);

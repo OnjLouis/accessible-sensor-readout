@@ -183,6 +183,8 @@ public sealed partial class SensorReadoutForm : Form
         if (!categories.Contains(TransferHiddenItems))
         {
             machine.HiddenReadingKeys = new List<string>();
+            machine.HiddenCategoryKeys = new List<string>();
+            machine.CategoryOrderKeys = new List<string>();
         }
         else
         {
@@ -340,6 +342,7 @@ public sealed partial class SensorReadoutForm : Form
                     ThresholdUnit = alarm.ThresholdUnit ?? "",
                     Enabled = false,
                     Speak = alarm.Speak,
+                    SpokenMessage = alarm.SpokenMessage ?? "",
                     SoundFile = Path.GetFileName(alarm.SoundFile ?? ""),
                     CooldownSeconds = Math.Max(0, Math.Min(86400, alarm.CooldownSeconds))
                 });
@@ -352,7 +355,9 @@ public sealed partial class SensorReadoutForm : Form
         if (categories.Contains(TransferHiddenItems))
         {
             settings.HiddenReadingKeys = ResolveImportedHiddenKeys(machine.HiddenReadingKeys);
-            lines.Add(L("message.Imported hidden item keys:", "Imported hidden item keys:") + " " + settings.HiddenReadingKeys.Count + ".");
+            settings.CategoryOrderKeys = NormalizeImportedCategoryKeys(machine.CategoryOrderKeys, true);
+            settings.HiddenCategoryKeys = NormalizeImportedCategoryKeys(machine.HiddenCategoryKeys, false);
+            lines.Add(L("message.Imported hidden item keys:", "Imported hidden item keys:") + " " + (settings.HiddenReadingKeys.Count + settings.HiddenCategoryKeys.Count) + ".");
         }
 
         if (categories.Contains(TransferPlugIns))
@@ -445,7 +450,7 @@ public sealed partial class SensorReadoutForm : Form
         if (machine != null && machine.FanProfiles != null && machine.FanProfiles.Count > 0) result.Add(TransferFanProfiles);
         if (machine != null && machine.FanCurves != null && machine.FanCurves.Count > 0) result.Add(TransferFanCurves);
         if (machine != null && machine.Alarms != null && machine.Alarms.Count > 0) result.Add(TransferAlarms);
-        if (machine != null && machine.HiddenReadingKeys != null && machine.HiddenReadingKeys.Count > 0) result.Add(TransferHiddenItems);
+        if (machine != null && ((machine.HiddenReadingKeys != null && machine.HiddenReadingKeys.Count > 0) || (machine.HiddenCategoryKeys != null && machine.HiddenCategoryKeys.Count > 0) || HasCustomCategoryOrder(machine.CategoryOrderKeys))) result.Add(TransferHiddenItems);
         if (machine != null && machine.PlugInsEnabled != null && machine.PlugInsEnabled.Count > 0) result.Add(TransferPlugIns);
         return result.ToArray();
     }
@@ -486,11 +491,6 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var key in keys ?? new List<string>())
         {
             var resolved = ResolveImportedReadingKey(key);
-            if (string.IsNullOrWhiteSpace(resolved) && !string.IsNullOrWhiteSpace(key) && key.StartsWith("type|", StringComparison.OrdinalIgnoreCase))
-            {
-                resolved = key;
-            }
-
             if (!string.IsNullOrWhiteSpace(resolved) && !result.Contains(resolved, StringComparer.OrdinalIgnoreCase))
             {
                 result.Add(resolved);
@@ -498,6 +498,53 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return result;
+    }
+
+    private static List<string> NormalizeImportedCategoryKeys(IEnumerable<string> keys, bool appendMissing)
+    {
+        var known = DefaultCategoryChoices().Select(c => c.Key).ToList();
+        var result = new List<string>();
+        foreach (var key in keys ?? new List<string>())
+        {
+            var trimmed = (key ?? "").Trim();
+            if (known.Contains(trimmed, StringComparer.OrdinalIgnoreCase) && !result.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+            {
+                result.Add(trimmed);
+            }
+        }
+
+        if (appendMissing)
+        {
+            foreach (var key in known)
+            {
+                if (!result.Contains(key, StringComparer.OrdinalIgnoreCase))
+                {
+                    result.Add(key);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static bool HasCustomCategoryOrder(IEnumerable<string> keys)
+    {
+        var imported = NormalizeImportedCategoryKeys(keys, true);
+        var defaults = DefaultCategoryChoices().Select(c => c.Key).ToList();
+        if (imported.Count != defaults.Count)
+        {
+            return true;
+        }
+
+        for (var i = 0; i < imported.Count; i++)
+        {
+            if (!string.Equals(imported[i], defaults[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private string ResolveImportedReadingKey(string key)

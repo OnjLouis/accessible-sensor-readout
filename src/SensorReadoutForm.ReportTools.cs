@@ -303,6 +303,11 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        if (reportViewMode)
+        {
+            ReturnToLiveReadings();
+        }
+
         diagnosticsRunning = true;
         statusLabel.Text = T("status.Preparing support report...", "Preparing support report...");
         Task.Factory.StartNew(delegate { return SaveDiagnosticsToZip("", null, null); })
@@ -324,6 +329,7 @@ public sealed partial class SensorReadoutForm : Form
     private void ShowSupportReportDialog(string zipPath)
     {
         var message = T("message.Support report ready", "Support report ready. Attach this ZIP file when you open an issue or contact support:") + Environment.NewLine + zipPath;
+        BringToFrontForUserPrompt();
         using (var dialog = new Form())
         {
             dialog.Text = T("ui.Prepare support report", "Prepare support report");

@@ -163,13 +163,16 @@ public sealed partial class PreferencesForm : Form
         loadingPreferences = true;
         try
         {
-            spokenHotKeyList.BeginUpdate();
-            try
-            {
-                spokenHotKeyList.Items.Clear();
-                foreach (var profile in SortedSpokenHotKeyProfiles())
+                spokenHotKeyList.BeginUpdate();
+                try
                 {
-                    spokenHotKeyList.Items.Add(profile);
+                    spokenHotKeyList.Items.Clear();
+                    spokenHotKeyList.Items.Add(new NotificationAreaStatusProfileChoice(
+                        () => SpeakTrayHotKey,
+                        () => liveSettings == null || liveSettings.TrayItemKeys == null ? 0 : liveSettings.TrayItemKeys.Count));
+                    foreach (var profile in SortedSpokenHotKeyProfiles())
+                    {
+                        spokenHotKeyList.Items.Add(profile);
                 }
 
                 if (selectedProfile != null && spokenHotKeyList.Items.Contains(selectedProfile))
@@ -360,6 +363,13 @@ public sealed partial class PreferencesForm : Form
 
     private void RemoveSelectedSpokenHotKeyProfile()
     {
+        if (IsNotificationAreaStatusSelected())
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.Notification area status cannot be removed.", "Notification area status cannot be removed."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
         var profile = SelectedSpokenHotKey();
         if (profile == null)
         {
@@ -598,6 +608,11 @@ public sealed partial class PreferencesForm : Form
         return spokenHotKeyList == null ? null : spokenHotKeyList.SelectedItem as SpokenHotKeySetting;
     }
 
+    private bool IsNotificationAreaStatusSelected()
+    {
+        return spokenHotKeyList != null && spokenHotKeyList.SelectedItem as NotificationAreaStatusProfileChoice != null;
+    }
+
     private void LoadSelectedSpokenHotKey()
     {
         UpdateSpokenHotKeyEditor();
@@ -610,16 +625,26 @@ public sealed partial class PreferencesForm : Form
         try
         {
             var profile = SelectedSpokenHotKey();
-            var enabled = profile != null;
-            spokenHotKeyNameBox.Enabled = enabled;
+            var traySelected = IsNotificationAreaStatusSelected();
+            var enabled = profile != null || traySelected;
+            spokenHotKeyNameBox.Enabled = profile != null;
             spokenHotKeyBox.Enabled = enabled;
             spokenHotKeySkipUnavailableCheckBox.Enabled = enabled;
             spokenAvailableList.Enabled = enabled;
             spokenSelectedList.Enabled = enabled;
-            spokenHotKeyNameBox.Text = profile == null ? "" : profile.Name ?? "";
-            spokenHotKeyBox.Text = profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
-            spokenHotKeySkipUnavailableCheckBox.Checked = profile != null && profile.SkipUnavailableReadings;
-            PopulateSpokenReadingLists(profile);
+            if (removeSpokenHotKeyProfileButton != null)
+            {
+                removeSpokenHotKeyProfileButton.Enabled = profile != null;
+            }
+            spokenHotKeyNameBox.Text = traySelected
+                ? SensorReadoutForm.L("ui.Notification area status", "Notification area status")
+                : profile == null ? "" : profile.Name ?? "";
+            spokenHotKeyBox.Text = traySelected ? SpeakTrayHotKey : profile == null ? "" : SensorReadoutForm.NormalizeHotKeyText(profile.HotKey);
+            spokenHotKeySkipUnavailableCheckBox.Text = traySelected
+                ? SensorReadoutForm.L("ui.S&kip unavailable readings when speaking notification area status", "S&kip unavailable readings when speaking notification area status")
+                : SensorReadoutForm.L("ui.Skip unavailable readings for this hotkey", "Skip unavailable readings for this hotkey");
+            spokenHotKeySkipUnavailableCheckBox.Checked = traySelected ? TraySpeechSkipsUnavailableReadings : profile != null && profile.SkipUnavailableReadings;
+            PopulateSpokenReadingLists(profile, traySelected);
         }
         finally
         {
@@ -629,13 +654,15 @@ public sealed partial class PreferencesForm : Form
         UpdateSpokenSelectionStatus();
     }
 
-    private void PopulateSpokenReadingLists(SpokenHotKeySetting profile)
+    private void PopulateSpokenReadingLists(SpokenHotKeySetting profile, bool traySelected)
     {
         var selectedAvailableKey = SelectedTrayChoiceKey(spokenAvailableList);
         var selectedSpokenKey = SelectedTrayChoiceKey(spokenSelectedList);
         spokenAvailableList.Items.Clear();
         spokenSelectedList.Items.Clear();
-        var selectedKeys = profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
+        var selectedKeys = traySelected
+            ? new List<string>(liveSettings.TrayItemKeys ?? new List<string>())
+            : profile == null || profile.ReadingKeys == null ? new List<string>() : profile.ReadingKeys;
         var choices = rows
             .Select(r => new TrayItemChoice(r, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames))
             .OrderBy(i => i.Hardware)
@@ -686,6 +713,14 @@ public sealed partial class PreferencesForm : Form
         }
 
         var profile = SelectedSpokenHotKey();
+        if (IsNotificationAreaStatusSelected())
+        {
+            speakTrayHotKeyBox.Text = SensorReadoutForm.NormalizeHotKeyText(spokenHotKeyBox.Text);
+            traySpeechSkipsUnavailableReadingsCheckBox.Checked = spokenHotKeySkipUnavailableCheckBox.Checked;
+            SaveLivePreferences();
+            return;
+        }
+
         if (profile == null)
         {
             return;
@@ -712,9 +747,17 @@ public sealed partial class PreferencesForm : Form
     {
         var profile = SelectedSpokenHotKey();
         var item = spokenAvailableList.SelectedItem as TrayItemChoice;
-        if (profile == null || item == null)
+        var traySelected = IsNotificationAreaStatusSelected();
+        if ((!traySelected && profile == null) || item == null)
         {
-            UpdateSpokenSelectionStatus("Select a spoken hotkey and an available reading first.");
+            UpdateSpokenSelectionStatus("Select a hotkey profile and an available reading first.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        if (traySelected && spokenSelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings)
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.Tray reading limit reached.", "The notification area can show up to eight readings."));
             System.Media.SystemSounds.Beep.Play();
             return;
         }
@@ -729,7 +772,7 @@ public sealed partial class PreferencesForm : Form
             spokenAvailableList.SelectedIndex = Math.Max(0, Math.Min(index, spokenAvailableList.Items.Count - 1));
         }
         SaveSelectedSpokenReadingKeys();
-        UpdateSpokenSelectionStatus("Added " + item + " to spoken hotkey.");
+        UpdateSpokenSelectionStatus(traySelected ? "Added " + item + " to notification area status." : "Added " + item + " to spoken hotkey.");
     }
 
     private void RemoveSelectedSpokenChoice()
@@ -737,7 +780,7 @@ public sealed partial class PreferencesForm : Form
         var item = spokenSelectedList.SelectedItem as TrayItemChoice;
         if (item == null)
         {
-            UpdateSpokenSelectionStatus("Select a spoken reading first.");
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.Select a spoken reading first.", "Select a spoken reading first."));
             System.Media.SystemSounds.Beep.Play();
             return;
         }
@@ -752,7 +795,7 @@ public sealed partial class PreferencesForm : Form
         }
         spokenAvailableList.SelectedItem = item;
         SaveSelectedSpokenReadingKeys();
-        UpdateSpokenSelectionStatus("Removed " + item + " from spoken hotkey.");
+        UpdateSpokenSelectionStatus(IsNotificationAreaStatusSelected() ? "Removed " + item + " from notification area status." : "Removed " + item + " from spoken hotkey.");
     }
 
     private void MoveSelectedSpokenChoice(int direction)
@@ -861,6 +904,18 @@ public sealed partial class PreferencesForm : Form
 
     private void SaveSelectedSpokenReadingKeys()
     {
+        if (IsNotificationAreaStatusSelected())
+        {
+            liveSettings.TrayItemKeys = spokenSelectedList.Items
+                .Cast<TrayItemChoice>()
+                .Take(SensorReadoutForm.MaxTrayStatusReadings)
+                .Select(i => i.Key)
+                .Where(i => !string.IsNullOrWhiteSpace(i))
+                .ToList();
+            SaveLivePreferences();
+            return;
+        }
+
         var profile = SelectedSpokenHotKey();
         if (profile == null)
         {
@@ -908,8 +963,16 @@ public sealed partial class PreferencesForm : Form
     {
         if (e.KeyCode == Keys.F2)
         {
-            spokenHotKeyNameBox.Focus();
-            spokenHotKeyNameBox.SelectAll();
+            if (IsNotificationAreaStatusSelected())
+            {
+                spokenHotKeyBox.Focus();
+                spokenHotKeyBox.SelectAll();
+            }
+            else
+            {
+                spokenHotKeyNameBox.Focus();
+                spokenHotKeyNameBox.SelectAll();
+            }
             e.Handled = true;
             e.SuppressKeyPress = true;
         }
@@ -930,7 +993,25 @@ public sealed partial class PreferencesForm : Form
 
     private void SpokenSelectedListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.KeyCode == Keys.F2)
+        if (e.Control && e.KeyCode == Keys.C)
+        {
+            CopySelectedSpokenChoice(false);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.X)
+        {
+            CopySelectedSpokenChoice(true);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.V)
+        {
+            PasteSpokenChoices();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.F2)
         {
             RenameSelectedSpokenChoice();
             e.Handled = true;
@@ -962,8 +1043,131 @@ public sealed partial class PreferencesForm : Form
         }
     }
 
+    private void CopySelectedSpokenChoice(bool cut)
+    {
+        var item = spokenSelectedList == null ? null : spokenSelectedList.SelectedItem as TrayItemChoice;
+        if (item == null || string.IsNullOrWhiteSpace(item.Key))
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.Select a spoken reading first.", "Select a spoken reading first."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        spokenReadingClipboardKeys.Clear();
+        spokenReadingClipboardKeys.Add(item.Key);
+        if (cut)
+        {
+            RemoveSelectedSpokenChoice();
+            UpdateSpokenSelectionStatus(string.Format(SensorReadoutForm.L("status.Cut reading.", "Cut {0}."), item));
+        }
+        else
+        {
+            UpdateSpokenSelectionStatus(string.Format(SensorReadoutForm.L("status.Copied reading.", "Copied {0}."), item));
+        }
+    }
+
+    private void PasteSpokenChoices()
+    {
+        var profile = SelectedSpokenHotKey();
+        var traySelected = IsNotificationAreaStatusSelected();
+        if (profile == null && !traySelected)
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.Select a spoken hotkey first.", "Select a spoken hotkey first."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        if (spokenReadingClipboardKeys.Count == 0)
+        {
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("status.No copied readings.", "No copied readings."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var added = 0;
+        TrayItemChoice lastAdded = null;
+        foreach (var key in spokenReadingClipboardKeys)
+        {
+            if (string.IsNullOrWhiteSpace(key) || ContainsTrayChoice(spokenSelectedList, key))
+            {
+                continue;
+            }
+
+            if (traySelected && spokenSelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings)
+            {
+                break;
+            }
+
+            var item = TakeTrayChoiceByKey(spokenAvailableList, key);
+            if (item == null)
+            {
+                var row = RowForKey(key);
+                item = row == null
+                    ? TrayItemChoice.Unresolved(key, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames)
+                    : new TrayItemChoice(row, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames);
+            }
+
+            item.ShowSpeechPreview = true;
+            spokenSelectedList.Items.Add(item);
+            lastAdded = item;
+            added++;
+        }
+
+        if (added == 0)
+        {
+            var message = traySelected && spokenSelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings
+                ? SensorReadoutForm.L("status.Tray reading limit reached.", "The notification area can show up to eight readings.")
+                : SensorReadoutForm.L("status.Copied readings are already in this spoken hotkey.", "Copied readings are already in this spoken hotkey.");
+            UpdateSpokenSelectionStatus(message);
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        if (lastAdded != null)
+        {
+            spokenSelectedList.SelectedItem = lastAdded;
+        }
+
+        SaveSelectedSpokenReadingKeys();
+        var format = traySelected
+            ? added == 1
+                ? SensorReadoutForm.L("status.Pasted one reading into tray.", "Pasted {0} reading into notification area status.")
+                : SensorReadoutForm.L("status.Pasted readings into tray.", "Pasted {0} readings into notification area status.")
+            : added == 1
+                ? SensorReadoutForm.L("status.Pasted one reading into spoken hotkey.", "Pasted {0} reading into spoken hotkey.")
+                : SensorReadoutForm.L("status.Pasted readings into spoken hotkey.", "Pasted {0} readings into spoken hotkey.");
+        UpdateSpokenSelectionStatus(string.Format(format, added));
+    }
+
+    private static TrayItemChoice TakeTrayChoiceByKey(ListBox list, string key)
+    {
+        if (list == null || string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        for (var i = 0; i < list.Items.Count; i++)
+        {
+            var choice = list.Items[i] as TrayItemChoice;
+            if (choice != null && string.Equals(choice.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                list.Items.RemoveAt(i);
+                return choice;
+            }
+        }
+
+        return null;
+    }
+
     private void UpdateSpokenSelectionStatus()
     {
+        if (IsNotificationAreaStatusSelected())
+        {
+            var trayCount = spokenSelectedList == null ? 0 : spokenSelectedList.Items.Count;
+            UpdateSpokenSelectionStatus(SensorReadoutForm.L("ui.Tray order has", "Tray order has") + " " + trayCount + " " + SensorReadoutForm.L("ui.of 8 readings.", "of 8 readings."));
+            return;
+        }
+
         var profile = SelectedSpokenHotKey();
         if (profile == null)
         {

@@ -425,6 +425,8 @@ public sealed partial class SensorReadoutForm : Form
                 })
                 .ToList(),
             HiddenReadingKeys = new List<string>(value.HiddenReadingKeys ?? new List<string>()),
+            CategoryOrderKeys = new List<string>(value.CategoryOrderKeys ?? new List<string>()),
+            HiddenCategoryKeys = new List<string>(value.HiddenCategoryKeys ?? new List<string>()),
             FanLabels = new Dictionary<string, string>(value.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase),
             FanControlSettings = (value.FanControlSettings ?? new Dictionary<string, FanControlSetting>())
                 .Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.Value != null)
@@ -451,6 +453,7 @@ public sealed partial class SensorReadoutForm : Form
                     ThresholdUnit = a == null ? "" : a.ThresholdUnit ?? "",
                     Enabled = a == null || a.Enabled,
                     Speak = a == null || a.Speak,
+                    SpokenMessage = a == null ? "" : a.SpokenMessage ?? "",
                     SoundFile = a == null ? "" : a.SoundFile ?? "",
                     CooldownSeconds = a == null ? 60 : a.CooldownSeconds
                 })
@@ -556,6 +559,8 @@ public sealed partial class SensorReadoutForm : Form
             .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || p.ReadingKeys.Count > 0)
             .ToList();
         value.HiddenReadingKeys = value.HiddenReadingKeys ?? new List<string>();
+        value.CategoryOrderKeys = NormalizeCategoryKeyList(value.CategoryOrderKeys, true);
+        value.HiddenCategoryKeys = NormalizeCategoryKeyList(value.HiddenCategoryKeys, false);
         value.FanLabels = new Dictionary<string, string>(value.FanLabels ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         value.FanControlSettings = new Dictionary<string, FanControlSetting>(value.FanControlSettings ?? new Dictionary<string, FanControlSetting>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.Value != null)
@@ -586,6 +591,7 @@ public sealed partial class SensorReadoutForm : Form
                 ThresholdUnit = a.ThresholdUnit ?? "",
                 Enabled = a.Enabled,
                 Speak = a.Speak,
+                SpokenMessage = a.SpokenMessage ?? "",
                 SoundFile = System.IO.Path.GetFileName(a.SoundFile ?? ""),
                 CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds))
             })
@@ -663,6 +669,35 @@ public sealed partial class SensorReadoutForm : Form
         {
             value.TrayStatusEnabled = true;
         }
+    }
+
+    private static List<string> NormalizeCategoryKeyList(IEnumerable<string> keys, bool keepKnownOrderOnly)
+    {
+        var known = new HashSet<string>(DefaultCategoryChoices().Select(c => c.Key), StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var key in keys ?? new List<string>())
+        {
+            var trimmed = (key ?? "").Trim();
+            if (!known.Contains(trimmed) || result.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            result.Add(trimmed);
+        }
+
+        if (keepKnownOrderOnly)
+        {
+            foreach (var choice in DefaultCategoryChoices())
+            {
+                if (!result.Contains(choice.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    result.Add(choice.Key);
+                }
+            }
+        }
+
+        return result;
     }
 
     private static List<FanCurveSetting> CloneFanCurves(IEnumerable<FanCurveSetting> curves)

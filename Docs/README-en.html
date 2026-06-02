@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 4.3.2.</p>
+<p>Current version: 4.4.0.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li>
@@ -18,10 +18,13 @@
 <a href="#what-it-does">What It Does</a>
 </li>
 <li>
-<a href="#prerequisites">Prerequisites</a>
+<a href="#system-requirements">System Requirements</a>
 </li>
 <li>
 <a href="#official-links">Official Links</a>
+</li>
+<li>
+<a href="#getting-started">Getting Started</a>
 </li>
 <li>
 <a href="#prerequisite-installer">Prerequisite Installer</a>
@@ -29,9 +32,7 @@
 <li>
 <a href="#manual-install-commands">Manual Install Commands</a>
 </li>
-<li>
-<a href="#first-run">First Run</a>
-</li>
+
 <li><a href="#accessibility-setup">Accessibility Setup</a></li>
 <li>
 <a href="#keyboard-shortcuts">Keyboard Shortcuts</a>
@@ -106,7 +107,7 @@
 <li>Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.</li>
 <li>Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, PCIe and expansion-slot information, connected-disk totals, and storage read/write activity, grouped so related information stays together.</li>
 <li>Opens the main UI immediately while the first sensor refresh continues in the background.</li>
-<li>Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as SSID, signal strength, RSSI, channel, frequency, radio type, and security where Windows provides them.</li>
+<li>Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as SSID, signal strength, RSSI, channel, frequency, radio type, and security where Windows provides them.</li><li>Shows a Bluetooth category for Windows-exposed Bluetooth radios and paired or connected devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available.</li>
 <li>Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.</li>
 <li>Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.</li>
 <li>Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.</li>
@@ -144,7 +145,7 @@
 <li>Can import a plug-in ZIP from Preferences without automatically enabling it.</li>
 <li>Can show laptop battery charge, status, capacity, health, cycle count, voltage, power rate, and charge/discharge remaining time where Windows exposes enough battery data.</li>
 </ul>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="system-requirements">System Requirements</h2>
 <ul>
 <li>Windows 10 or Windows 11, 64-bit.</li>
 <li>Microsoft .NET Framework 4.8 or newer.</li>
@@ -188,8 +189,19 @@
 <a href="https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server">.NET Framework install notes</a>
 </li>
 </ul>
+<h2 id="getting-started">Getting Started</h2>
+<p>1. Start <code>Sensor Readout.exe</code>.</p>
+<p>2. Accept the Windows administrator prompt.</p>
+<p>3. If the initial setup dialog appears, set a show/hide hotkey and a speak notification-area status hotkey if you want quick access from anywhere.</p>
+<p>4. Choose a category on the left. <code>Performance/Overview</code> is a good first stop for uptime, Windows, CPU, memory, GPU, storage, printer, accessibility, and data-source summaries.</p>
+<p>5. Use <code>F3</code> to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use <code>F4</code> to review the exact text, or <code>Enter</code> to open Details when available.</p>
+<p>6. Press <code>Ctrl+Shift+H</code> on a useful reading to add it to notification-area status or a spoken hotkey profile.</p>
+<p>7. Press <code>F5</code> to refresh if values are still loading.</p>
+<p>If PawnIO is missing, Sensor Readout may offer to run the prerequisite installer. You can rerun it later from <code>Help</code> &gt; <code>Install prerequisites...</code>.</p>
+<p>Fan controls are optional and depend on supported hardware. Open <code>Options</code> &gt; <code>Fan controls...</code> or press <code>Ctrl+L</code> only if you specifically want to inspect or adjust writable fan controls. If motherboard fans or controls are missing, check that PawnIO is installed and that the app was started as administrator.</p>
+<p>For support, use <code>Help</code> &gt; <code>Run diagnostics...</code>. It creates a diagnostic ZIP in the <code>Reports</code> folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, <code>--diagnostics [path]</code> creates the same ZIP and exits.</p>
 <h2 id="prerequisite-installer">Prerequisite Installer</h2>
-<p>Run <code>Install-Prerequisites.cmd</code> from this folder first. It calls <code>Install-Prerequisites.ps1</code>, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.</p>
+<p>Most users can start <code>Sensor Readout.exe</code> directly. If a required component is missing, Sensor Readout will offer to run the prerequisite installer. <code>Install-Prerequisites.cmd</code> is mainly for manual setup or troubleshooting; it calls <code>Install-Prerequisites.ps1</code>, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.</p>
 <p>
 <button type="button" class="copy-command" data-command="Install-Prerequisites.cmd">Copy command</button>
 </p>
@@ -224,18 +236,9 @@
 <pre>
 <code>winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget</code>
 </pre>
-<h2 id="first-run">First Run</h2>
-<p>1. Start <code>Sensor Readout.exe</code>.</p>
-<p>2. Accept the Windows administrator prompt.</p>
-<p>3. If PawnIO is missing, Sensor Readout offers to run the prerequisite installer.</p>
-<p>4. Press <code>F5</code> to refresh if values are still loading.</p>
-<p>5. Open <code>Options</code> &gt; <code>Fan controls...</code> or press <code>Ctrl+L</code> if you want to adjust fan control values.</p>
-<p>If motherboard fans or controls are missing, check that PawnIO is installed and that the app was started as administrator.</p>
-<p>You can rerun the prerequisite installer later from <code>Help</code> &gt; <code>Install prerequisites...</code>.</p>
-<p>For support, use <code>Help</code> &gt; <code>Run diagnostics...</code>. It creates a diagnostic ZIP in the <code>Reports</code> folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, <code>--diagnostics [path]</code> creates the same ZIP and exits.</p>
 <h2 id="accessibility-setup">Accessibility Setup</h2>
 <p>Use <code>Help</code> &gt; <code>Check accessibility setup...</code> after first run or after changing startup and hotkey preferences. It checks whether Sensor Readout can reach screen reader speech, whether notification-area speech is configured, whether report and log folders can be opened, and whether a minimized startup setup could leave you without an obvious way back to the main window.</p>
-<p>If you use <code>Start minimized to notification area</code>, set a show/hide hotkey in <code>Options</code> &gt; <code>Preferences</code> &gt; <code>Hotkeys</code>. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.</p>
+<p>If you use <code>Start minimized to notification area</code>, set a show/hide hotkey in <code>Options</code> &gt; <code>Preferences</code> &gt; <code>General</code>. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.</p>
 <p>The same Hotkeys tab can set a key for <code>Speak notification area status</code>. That key reads the configured notification-area readings without opening the main window, and it is often the fastest way to check important values such as memory, temperatures, uptime, network status, or GPU memory.</p>
 <h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
 <table>
@@ -329,7 +332,28 @@
 <td>
 <code>Ctrl+0</code> to <code>Ctrl+9</code>
 </td>
-<td>Switch directly to a main reading category.</td>
+<td>Switch directly to the first ten visible reading categories in your configured category order.</td>
+</tr>
+<tr>
+<td>Main window</td>
+<td>
+<code>Ctrl+Shift+0</code> to <code>Ctrl+Shift+9</code>
+</td>
+<td>Switch directly to categories 10 through 19 when your visible category list is longer than ten items.</td>
+</tr>
+<tr>
+<td>Main window</td>
+<td>
+<code>Ctrl+Z</code>
+</td>
+<td>Undo the last reading or category hide action.</td>
+</tr>
+<tr>
+<td>Main window</td>
+<td>
+<code>Ctrl+Y</code>
+</td>
+<td>Redo the last hide action after undoing it.</td>
 </tr>
 <tr>
 <td>File commands</td>
@@ -523,9 +547,9 @@
 <tr>
 <td>Preferences</td>
 <td>
-<code>Ctrl+1</code> to <code>Ctrl+8</code>
+<code>Ctrl+1</code> to <code>Ctrl+9</code>
 </td>
-<td>Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor.</td>
+<td>Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Categories, Hidden items, or Language editor.</td>
 </tr>
 <tr>
 <td>Preferences</td>
@@ -553,14 +577,14 @@
 <td>
 <code>Ctrl+Right</code>
 </td>
-<td>Add the selected available reading to the tray order or selected spoken hotkey.</td>
+<td>Add the selected available reading to notification area status or the selected spoken hotkey profile.</td>
 </tr>
 <tr>
 <td>Preferences</td>
 <td>
 <code>Ctrl+Left</code>
 </td>
-<td>Remove the selected tray or spoken-hotkey reading.</td>
+<td>Remove the selected notification-area or spoken-hotkey reading.</td>
 </tr>
 <tr>
 <td>Preferences</td>
@@ -609,21 +633,21 @@
 <td>
 <code>Alt+P</code>
 </td>
-<td>In Hotkeys, remove the selected spoken hotkey profile.</td>
+<td>In Hotkeys, remove the selected spoken hotkey profile. Notification area status is permanent and cannot be removed.</td>
 </tr>
 <tr>
 <td>Preferences</td>
 <td>
 <code>Alt+A</code>
 </td>
-<td>In Hotkeys, add the selected reading to the selected spoken hotkey.</td>
+<td>In Hotkeys, add the selected reading to notification area status or the selected spoken hotkey profile.</td>
 </tr>
 <tr>
 <td>Preferences</td>
 <td>
 <code>Alt+M</code>
 </td>
-<td>In Notification area or Hotkeys, remove the selected reading.</td>
+<td>In Hotkeys, remove the selected reading from notification area status or the selected spoken hotkey profile.</td>
 </tr>
 <tr>
 <td>Preferences</td>
@@ -651,7 +675,7 @@
 <td>
 <code>Delete</code>
 </td>
-<td>Remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable.</td>
+<td>Remove the selected notification-area reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable.</td>
 </tr>
 </tbody>
 </table>
@@ -791,10 +815,10 @@
 <p>If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.</p>
 <p>If Sensor Readout restarts after install or update and the main window does not appear, check whether Start minimized to notification area is enabled. Windows may also hide the tray icon until you allow it in Windows notification area or system tray settings. Showing the Sensor Readout tray icon lets you open the main window from that icon.</p>
 <h3>Hotkeys (<code>Ctrl+3</code>)</h3>
-<p>The Hotkeys tab controls global speech and visibility keys. Spoken hotkey profiles are sorted by assigned key, with unassigned profiles after assigned profiles. Hotkeys and Alarms both use <code>Alt+P</code> for Presets; Hotkeys uses <code>Alt+R</code> for Remove profile.</p>
+<p>The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Spoken hotkey profiles are sorted by assigned key, with unassigned profiles after assigned profiles. Hotkeys and Alarms both use <code>Alt+P</code> for Presets; Hotkeys uses <code>Alt+V</code> for Remove profile.</p>
 <ul>
 <li>Show/hide hotkey: toggle the main window from anywhere.</li>
-<li>Speak notification area status hotkey: speak the configured tray readings.</li>
+<li>Notification area status: choose the readings used by the tray tooltip and the speak-tray hotkey. This is a permanent profile, so it stays available even if you remove every extra spoken hotkey profile.</li><li>Speak notification area status hotkey: speak the configured notification-area readings.</li>
 <li>Include device names in spoken feedback: choose between fuller output such as <code>Ethernet Rx</code> and shorter output such as <code>Rx</code>.</li>
 <li>Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.</li>
 <li>Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.</li>
@@ -811,17 +835,19 @@
 <li>Choose Above or equal, Below or equal, or Equal.</li>
 <li>Set the threshold and unit.</li>
 <li>Set a cooldown so repeated alarms do not fire too often.</li>
-<li>Choose whether the alarm speaks, plays a sound, or both.</li>
+<li>Choose whether the alarm speaks, plays a sound, or both. If you want speech text that differs from the alarm name and reading value, enter a custom spoken message.</li>
 </ul>
 <p>Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.</p>
 <h3>Plug-Ins (<code>Ctrl+6</code>)</h3>
 <p>The Plug-Ins tab lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust. Imported plug-in ZIP files are copied into the <code>Plug-Ins</code> folder but stay disabled until you enable them yourself.</p>
-<h3>Hidden Items (<code>Ctrl+7</code>)</h3>
-<p>The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.</p>
-<h3>Language Editor (<code>Ctrl+8</code>)</h3>
+<h3>Categories (<code>Ctrl+7</code>)</h3>
+<p>The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press <code>Delete</code> to hide a category, and use Up, Down, <code>Ctrl+Up</code>, <code>Ctrl+Down</code>, or mouse drag-and-drop to change the order. The main-window shortcuts follow this same order: <code>Ctrl+0</code> through <code>Ctrl+9</code> select the first ten visible categories, and <code>Ctrl+Shift+0</code> through <code>Ctrl+Shift+9</code> select categories 10 through 19.</p>
+<h3>Hidden Items (<code>Ctrl+8</code>)</h3>
+<p>The Hidden items tab restores readings, groups, or categories hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.</p>
+<h3>Language Editor (<code>Ctrl+9</code>)</h3>
 <p>The Language editor tab edits installed language files without opening a separate text editor. English is the primary fallback language. Missing translated strings fall back to English, and corrupt language files are skipped rather than crashing the app.</p>
 <h2 id="alarms-and-sounds">Alarms And Sounds</h2>
-<p>Preferences &gt; Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.</p>
+<p>Preferences &gt; Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both. The spoken message field is optional; leave it blank to speak the alarm name, reading, and current value automatically.</p>
 <p>Preferences &gt; Startup and Install includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the <code>Sounds</code> folder. The bundled sounds use neutral names such as <code>SR01.wav</code>, <code>SR02.wav</code>, and so on, but user-added sounds can use any normal <code>.wav</code> file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.</p>
 <h2 id="plug-ins">Plug-Ins</h2>
 <p>Preferences &gt; Plug-Ins lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust.</p>
@@ -836,7 +862,7 @@
 <p>Sensor Readout opens on Performance/Overview by default. There is no combined all-readings page; each reading belongs to its own section so navigation stays predictable and device names are not repeated endlessly.</p>
 <p>The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device.</p>
 <p>Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as <code>CPU hardware VM memory translation (SLAT/EPT/NPT)</code> so the reading is less cryptic.</p>
-<p>The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Connected Wi-Fi adapters can also show the network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them.</p>
+<p>The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Connected Wi-Fi adapters can also show the network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them.</p><p>The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.</p>
 <p>The USB section shows connected devices, hubs, controllers, connection speed, capable speed where Windows exposes it, requested power, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, and other copyable details. USB data is partly dependent on what Windows and the device driver expose, so some devices may report less detail than others.</p>
 <p>The Audio section groups related endpoints under their device or interface name where possible, then separates playback and recording entries. It shows vendor, status, direction, and default format details such as channels, sample rate, and bit depth where Windows exposes them.</p>
 <p>The Display section shows graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.</p>
@@ -975,7 +1001,7 @@
 <p>Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try <a href="https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor">Dell Command | Monitor</a>. Lenovo users can try <a href="https://www.lenovo.com/us/en/software/vantage">Lenovo Vantage</a> or <a href="https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications">Lenovo System Update</a>. MSI users can try <a href="https://www.msi.com/Landing/MSI-Center">MSI Center</a>. Asus users can try <a href="https://g-helper.com/">G-Helper</a>. HP, OMEN, and Victus users can try <a href="https://support.hp.com/us-en/help/hp-support-assistant">HP Support Assistant</a> and <a href="https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html">OMEN Gaming Hub</a>. These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.</p>
 <p>Sensor Readout only reads these optional support paths unless a plug-in says otherwise; it does not flash firmware or replace the laptop maker's own tools.</p>
 <h3>Update Backups</h3><p>Sensor Readout may create update backups when it finds old update folders or language files that look user-edited. These backups live under <code>Backups\Updates</code> so they do not interfere with live settings, reports, logs, sounds, languages, or plug-ins. Normal shipped folders such as <code>Docs</code>, <code>Data</code>, and bundled plug-ins are replaced cleanly during updates and are not backed up every time.</p><p>Use <code>File</code> &gt; <code>Update backups</code> to open the update backup folder or delete old update backups when you no longer need them.</p><h2 id="changelog">Changelog</h2>
-<h3>4.3.2</h3><ul><li>Fixed: Wi-Fi detail collection now reads Windows access-point list metadata safely, preventing crashes on some Wi-Fi-connected systems during periodic refresh.</li></ul><h3>4.3.1</h3><ul><li>Improved: New notification-area status and spoken hotkey profiles now skip unavailable readings by default, while existing saved profiles keep their current setting.</li><li>Fixed: Device battery readings now ignore stale Bluetooth/HID battery levels when Windows reports that the device is not currently connected, so conditional spoken hotkeys and notification-area status do not announce old battery values for disconnected keyboards, headphones, mice, or similar devices.</li></ul><h3>4.3.0</h3><ul><li>Added: Performance/Overview now includes PCIe and expansion slot information where Windows exposes it, including physical slot usage and PCIe current/maximum link width and speed for supported PCI devices.</li><li>Added: Performance/Overview now shows GPU usage where Windows performance counters expose it, and the GPU spoken hotkey preset includes GPU usage when available.</li><li>Improved: Performance/Overview now exposes more GPU, memory module, and uptime detail, including GPU clocks and compute capability where available, memory module layout/speed/slot summaries, and system uptime with seconds.</li><li>Fixed: The reading tree's &quot;remember my last expand or collapse action&quot; preference now keeps your chosen expanded or collapsed view after refreshes and tree rebuilds.</li><li>Added: Battery charge or discharge remaining time now appears in Battery and Performance/Overview when Windows exposes enough live battery data. These readings can also be used in notification area status and spoken hotkeys. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/15">issue #15</a>.</li><li>Fixed: System BIOS vendor is no longer grouped under Graphics.</li></ul><h3>4.2.0</h3><ul><li>Added: Battery now includes Windows power-meter rows where supported, including live current power from Win32_PowerMeter and rated output power from Win32_PowerSupply when Windows exposes those values. This can help laptop users check charger or power-supply wattage where the hardware reports it.</li><li>Improved: TXT reports are now easier to read in text editors, with clear category headings, a separate Details section, a Sensor Readout download link, and a smaller reading-focused layout. Use HTML reports or diagnostics ZIPs when you want to reopen a saved report inside Sensor Readout.</li></ul><h3>4.1.2</h3><ul><li>Added: Notification-area speech and individual spoken hotkey profiles can now skip unavailable readings, so disconnected adapters, missing removable drives, inactive cellular connections, and similar optional readings do not clutter spoken output unless you want them included.</li><li>Improved: The Lenovo Laptop plug-in now reports more read-only Lenovo laptop data where Windows exposes it, including ACPI fan presence, ACPI battery health/status/runtime, IdeaPad battery information, thermal throttle state, storage health/temperature/wear, Lenovo thermal-driver presence, and Lenovo WMI diagnostics. Thanks to serrebidev for the detailed Lenovo contribution.</li></ul><h3>4.1.1</h3><ul><li>Added: Performance/Overview now includes physical + virtual memory totals, plus total, used, and free space across all connected disks. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/11">issue #11</a> and <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/12">issue #12</a>.</li><li>Privacy: Anonymous community stats can now include connected-disk count and total/used/free space as aggregate storage metrics, without drive letters, labels, models, serials, paths, or per-drive rows.</li></ul><h3>4.1.0</h3><ul><li>Added: General preferences now let you choose whether reading trees open expanded, open collapsed, or remember your last expand/collapse action when switching categories.</li><li>Fixed: Help &gt; Run diagnostics now uses Alt+G so it no longer shares Alt+D with Donate.</li></ul><h3>4.0.7</h3><ul><li>Fixed: CPU and GPU temperatures, motherboard fan readings, fan hotkeys, and reports now load correctly again after 4.0.6 could prevent low-level hardware sensors from opening.</li></ul><h3>4.0.6</h3><ul><li>Improved: Bundled plug-ins are now verified during updates so shipped plug-in folders are replaced cleanly, while user-modified bundled plug-in files are backed up outside the live Plug-Ins folder.</li><li>Improved: Display and GPU memory rows now warn when Windows reports a graphics adapter device problem that may make reported memory values unreliable.</li><li>Fixed: German language files and manuals now use proper umlauts instead of ASCII substitutions, and damaged accent characters in bundled Spanish, French, and Italian text were repaired.</li></ul><h3>4.0.5</h3><ul><li>Improved: Automatic updates now avoid routine backups of unchanged shipped folders such as Docs, Data, bundled Plug-Ins, and Sounds. Only legacy update backups and language files that appear user-edited are kept.</li><li>Added: File &gt; Update backups lets users open or delete old update backup ZIPs without touching current settings, reports, logs, sounds, languages, or plug-ins.</li><li>Improved: The bundled Asus ROG plug-in now rolls in safer Asus desktop/tower support-readiness detection from a community pull request, while keeping desktop fan control read-only.</li></ul><h3>4.0.4</h3><ul><li>Added: Performance/Overview now includes an Accessibility group with screen-reader output status, detected supported screen readers, and common Windows accessibility settings such as High Contrast, Sticky Keys, Toggle Keys, Filter Keys, Show Sounds, and audio descriptions where Windows exposes them.</li><li>Privacy: Anonymous community stats now include Windows edition/version/build and broad accessibility feature flags, but still do not include installed programs, program usage, identifying device data, or full report rows.</li></ul><h3>4.0.3</h3><ul><li>Fixed: The Portuguese manual is now a full bundled user guide instead of a short summary, matching the standard expected for shipped languages.</li></ul><h3>4.0.2</h3><ul><li>Added: Portuguese language and a Portuguese manual, contributed by Vitor Ferreira.</li></ul><h3>4.0.1</h3><ul><li>Fixed: Community stats upload now explicitly uses modern TLS settings, preventing SSL/TLS secure channel errors on some systems.</li></ul><h3>4.0.0</h3><ul><li>Added: Help &gt; Share anonymous community stats lets users opt in to sending a small hardware-coverage summary. Sensor Readout shows the exact JSON first and uploads nothing unless the user presses Upload.</li><li>Privacy: Community stats are separate from anonymized reports and do not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows. A random local anonymous client ID is stored locally, and only its SHA-256 hash is sent so one machine can update its aggregate entry.</li></ul><h3>3.10.5</h3><ul><li>Fixed: Diagnostics no longer shows a completion dialog after opening the Reports folder, preventing an inaccessible hidden dialog if Sensor Readout is hidden while diagnostics are running. The status line now includes how long diagnostics took.</li><li>Improved: When Sensor Readout is hidden or minimized and no alarms, fan curves, or history logging need close monitoring, automatic refresh is throttled to reduce background impact on slower laptops. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Added: Performance/Overview now shows paging file total, used, and free space where Windows exposes it. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.</li></ul><h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
+<h3>4.4.0</h3><ul><li>Added: A new Bluetooth category shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available. Bluetooth battery readings remain in Battery.</li><li>Added: Preferences now has a Categories tab for choosing which main categories appear and in what order. Category shortcuts follow that order, with <code>Ctrl+0</code> through <code>Ctrl+9</code> for the first ten categories and <code>Ctrl+Shift+0</code> through <code>Ctrl+Shift+9</code> for categories 10 through 19.</li><li>Added: <code>Edit</code> &gt; <code>Undo</code> (<code>Ctrl+Z</code>) now names the last hide action it will restore, and <code>Edit</code> &gt; <code>Redo</code> (<code>Ctrl+Y</code>) can reapply that hide action after undoing it.</li><li>Improved: Notification area status now appears as a permanent entry in the Hotkeys profile list, sharing the same reading editor, reset-label command, copy/cut/paste support, and speak-tray hotkey.</li><li>Added: Alarms can now use an optional custom spoken message, so the screen reader can say different text from the alarm&apos;s management name.</li><li>Improved: Notification area status and spoken hotkey profiles can now copy, cut, and paste selected readings between each other from Preferences, and ordered preference lists support mouse drag-and-drop as well as keyboard movement.</li><li>Fixed: The show/hide hotkey is now blocked with spoken feedback while Preferences, diagnostics/support report generation, or community stats review is active, preventing hidden modal windows that are hard to recover.</li></ul><h3>4.3.2</h3><ul><li>Fixed: Wi-Fi detail collection now reads Windows access-point list metadata safely, preventing crashes on some Wi-Fi-connected systems during periodic refresh.</li></ul><h3>4.3.1</h3><ul><li>Improved: New notification-area status and spoken hotkey profiles now skip unavailable readings by default, while existing saved profiles keep their current setting.</li><li>Fixed: Device battery readings now ignore stale Bluetooth/HID battery levels when Windows reports that the device is not currently connected, so conditional spoken hotkeys and notification-area status do not announce old battery values for disconnected keyboards, headphones, mice, or similar devices.</li></ul><h3>4.3.0</h3><ul><li>Added: Performance/Overview now includes PCIe and expansion slot information where Windows exposes it, including physical slot usage and PCIe current/maximum link width and speed for supported PCI devices.</li><li>Added: Performance/Overview now shows GPU usage where Windows performance counters expose it, and the GPU spoken hotkey preset includes GPU usage when available.</li><li>Improved: Performance/Overview now exposes more GPU, memory module, and uptime detail, including GPU clocks and compute capability where available, memory module layout/speed/slot summaries, and system uptime with seconds.</li><li>Fixed: The reading tree's &quot;remember my last expand or collapse action&quot; preference now keeps your chosen expanded or collapsed view after refreshes and tree rebuilds.</li><li>Added: Battery charge or discharge remaining time now appears in Battery and Performance/Overview when Windows exposes enough live battery data. These readings can also be used in notification area status and spoken hotkeys. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/15">issue #15</a>.</li><li>Fixed: System BIOS vendor is no longer grouped under Graphics.</li></ul><h3>4.2.0</h3><ul><li>Added: Battery now includes Windows power-meter rows where supported, including live current power from Win32_PowerMeter and rated output power from Win32_PowerSupply when Windows exposes those values. This can help laptop users check charger or power-supply wattage where the hardware reports it.</li><li>Improved: TXT reports are now easier to read in text editors, with clear category headings, a separate Details section, a Sensor Readout download link, and a smaller reading-focused layout. Use HTML reports or diagnostics ZIPs when you want to reopen a saved report inside Sensor Readout.</li></ul><h3>4.1.2</h3><ul><li>Added: Notification-area speech and individual spoken hotkey profiles can now skip unavailable readings, so disconnected adapters, missing removable drives, inactive cellular connections, and similar optional readings do not clutter spoken output unless you want them included.</li><li>Improved: The Lenovo Laptop plug-in now reports more read-only Lenovo laptop data where Windows exposes it, including ACPI fan presence, ACPI battery health/status/runtime, IdeaPad battery information, thermal throttle state, storage health/temperature/wear, Lenovo thermal-driver presence, and Lenovo WMI diagnostics. Thanks to serrebidev for the detailed Lenovo contribution.</li></ul><h3>4.1.1</h3><ul><li>Added: Performance/Overview now includes physical + virtual memory totals, plus total, used, and free space across all connected disks. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/11">issue #11</a> and <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/12">issue #12</a>.</li><li>Privacy: Anonymous community stats can now include connected-disk count and total/used/free space as aggregate storage metrics, without drive letters, labels, models, serials, paths, or per-drive rows.</li></ul><h3>4.1.0</h3><ul><li>Added: General preferences now let you choose whether reading trees open expanded, open collapsed, or remember your last expand/collapse action when switching categories.</li><li>Fixed: Help &gt; Run diagnostics now uses Alt+G so it no longer shares Alt+D with Donate.</li></ul><h3>4.0.7</h3><ul><li>Fixed: CPU and GPU temperatures, motherboard fan readings, fan hotkeys, and reports now load correctly again after 4.0.6 could prevent low-level hardware sensors from opening.</li></ul><h3>4.0.6</h3><ul><li>Improved: Bundled plug-ins are now verified during updates so shipped plug-in folders are replaced cleanly, while user-modified bundled plug-in files are backed up outside the live Plug-Ins folder.</li><li>Improved: Display and GPU memory rows now warn when Windows reports a graphics adapter device problem that may make reported memory values unreliable.</li><li>Fixed: German language files and manuals now use proper umlauts instead of ASCII substitutions, and damaged accent characters in bundled Spanish, French, and Italian text were repaired.</li></ul><h3>4.0.5</h3><ul><li>Improved: Automatic updates now avoid routine backups of unchanged shipped folders such as Docs, Data, bundled Plug-Ins, and Sounds. Only legacy update backups and language files that appear user-edited are kept.</li><li>Added: File &gt; Update backups lets users open or delete old update backup ZIPs without touching current settings, reports, logs, sounds, languages, or plug-ins.</li><li>Improved: The bundled Asus ROG plug-in now rolls in safer Asus desktop/tower support-readiness detection from a community pull request, while keeping desktop fan control read-only.</li></ul><h3>4.0.4</h3><ul><li>Added: Performance/Overview now includes an Accessibility group with screen-reader output status, detected supported screen readers, and common Windows accessibility settings such as High Contrast, Sticky Keys, Toggle Keys, Filter Keys, Show Sounds, and audio descriptions where Windows exposes them.</li><li>Privacy: Anonymous community stats now include Windows edition/version/build and broad accessibility feature flags, but still do not include installed programs, program usage, identifying device data, or full report rows.</li></ul><h3>4.0.3</h3><ul><li>Fixed: The Portuguese manual is now a full bundled user guide instead of a short summary, matching the standard expected for shipped languages.</li></ul><h3>4.0.2</h3><ul><li>Added: Portuguese language and a Portuguese manual, contributed by Vitor Ferreira.</li></ul><h3>4.0.1</h3><ul><li>Fixed: Community stats upload now explicitly uses modern TLS settings, preventing SSL/TLS secure channel errors on some systems.</li></ul><h3>4.0.0</h3><ul><li>Added: Help &gt; Share anonymous community stats lets users opt in to sending a small hardware-coverage summary. Sensor Readout shows the exact JSON first and uploads nothing unless the user presses Upload.</li><li>Privacy: Community stats are separate from anonymized reports and do not include computer names, usernames, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, or full report rows. A random local anonymous client ID is stored locally, and only its SHA-256 hash is sent so one machine can update its aggregate entry.</li></ul><h3>3.10.5</h3><ul><li>Fixed: Diagnostics no longer shows a completion dialog after opening the Reports folder, preventing an inaccessible hidden dialog if Sensor Readout is hidden while diagnostics are running. The status line now includes how long diagnostics took.</li><li>Improved: When Sensor Readout is hidden or minimized and no alarms, fan curves, or history logging need close monitoring, automatic refresh is throttled to reduce background impact on slower laptops. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Added: Performance/Overview now shows paging file total, used, and free space where Windows exposes it. These readings can also be used in spoken hotkeys and notification area status. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Added: Storage now shows BitLocker status for drives where Windows exposes it, with protection, encryption, lock, method, and volume details available from Details.</li></ul><h3>3.10.2</h3><ul><li>Fixed: The Language editor now supports F3 search from the tab, remembers the last file and entry you were editing, and handles typed multi-letter navigation in the entries list.</li></ul><h3>3.10.1</h3><ul><li>Fixed: Category summary rows now localize their reading and group counts instead of mixing English wording into non-English languages.</li><li>Fixed: Italian update and install messages now use proper accented characters where needed.</li></ul>
 <h3>3.10.0</h3><ul><li>Added: Help now includes an initial setup wizard for show/hide and speak-tray hotkeys, plus a hints and tips browser that can optionally appear at startup.</li><li>Added: Preferences now includes a Delete all settings command for starting fresh or cleaning a copy before sharing it. Logs and reports are kept.</li><li>Fixed: Total space and used space readings can now be added to notification area status and spoken hotkeys. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Improved: Bundled non-English preferences, alarm presets, hotkey presets, fan profile labels, and screen reader descriptions now have broader translation coverage.</li><li>Fixed: Ready removable drives such as SD cards and USB flash drives now appear with storage space and available logical-disk activity readings, making them available for notification area status, spoken hotkeys, reports, and alarms. Closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
@@ -1330,6 +1356,7 @@
 </ul>
 <h2 id="credits">Credits</h2>
 <p>Created by Codex. Ideas by Andre Louis.</p>
+<p>A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better.</p>
 <p>Questions and feedback can be sent through <code>Help</code> &gt; <code>Contact</code> in the app or <a href="https://onj.me/contact">https://onj.me/contact</a>.</p>
 <p>Sensor Readout is free software. If you want to support Andre's work, use <code>Help</code> &gt; <code>Donate</code> in the app or visit <a href="https://www.paypal.me/AndreLouis">https://www.paypal.me/AndreLouis</a>.</p>
 <p>Sensor Readout uses or bundles components from these projects:</p>

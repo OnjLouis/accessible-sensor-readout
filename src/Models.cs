@@ -76,6 +76,8 @@ public sealed class AppSettings
     public List<string> TrayItemKeys = new List<string>();
     public List<SpokenHotKeySetting> SpokenHotKeys = new List<SpokenHotKeySetting>();
     public List<string> HiddenReadingKeys = new List<string>();
+    public List<string> CategoryOrderKeys = new List<string>();
+    public List<string> HiddenCategoryKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
     public bool ShowStoppedFans = false;
@@ -140,6 +142,8 @@ public sealed class MachineAppSettings
     public List<string> TrayItemKeys = new List<string>();
     public List<SpokenHotKeySetting> SpokenHotKeys = new List<SpokenHotKeySetting>();
     public List<string> HiddenReadingKeys = new List<string>();
+    public List<string> CategoryOrderKeys = new List<string>();
+    public List<string> HiddenCategoryKeys = new List<string>();
     public Dictionary<string, string> FanLabels = new Dictionary<string, string>();
     public Dictionary<string, FanControlSetting> FanControlSettings = new Dictionary<string, FanControlSetting>();
     public bool ShowStoppedFans = false;
@@ -192,6 +196,18 @@ public sealed class PlugInHelpLink
     public override string ToString()
     {
         return string.IsNullOrWhiteSpace(Label) ? Url : Label;
+    }
+}
+
+public sealed class CategoryChoice
+{
+    public string Key = "";
+    public string DisplayName = "";
+    public string Type = "";
+
+    public override string ToString()
+    {
+        return DisplayName;
     }
 }
 
@@ -280,6 +296,7 @@ public sealed class AlarmSetting
     public string ThresholdUnit = "";
     public bool Enabled = true;
     public bool Speak = true;
+    public string SpokenMessage = "";
     public string SoundFile = "";
     public int CooldownSeconds = 60;
 

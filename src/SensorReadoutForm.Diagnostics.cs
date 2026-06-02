@@ -40,6 +40,11 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        if (reportViewMode)
+        {
+            ReturnToLiveReadings();
+        }
+
         diagnosticsRunning = true;
         var timerWasEnabled = timer.Enabled;
         timer.Stop();
@@ -62,10 +67,7 @@ public sealed partial class SensorReadoutForm : Form
                 var message = task.Exception == null ? "Diagnostics failed." : task.Exception.GetBaseException().Message;
                 statusLabel.Text = T("status.diagnosticsFailed", "Diagnostics failed.") + " " + message;
                 LogError("Diagnostics failed. " + message);
-                if (IsMinimizedOrHidden())
-                {
-                    RestoreFromTray();
-                }
+                BringToFrontForUserPrompt();
                 MessageBox.Show(this, T("status.diagnosticsFailed", "Diagnostics failed.") + " " + message, diagnosticsCaption, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }

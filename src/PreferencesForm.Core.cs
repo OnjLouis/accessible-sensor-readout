@@ -561,6 +561,10 @@ public sealed partial class PreferencesForm : Form
         liveSettings.Alarms = CloneAlarms(currentAlarms);
         HiddenReadingKeys = CurrentHiddenReadingKeys();
         liveSettings.HiddenReadingKeys = new List<string>(HiddenReadingKeys);
+        CategoryOrderKeys = CurrentCategoryOrderKeys();
+        liveSettings.CategoryOrderKeys = new List<string>(CategoryOrderKeys);
+        HiddenCategoryKeys = CurrentHiddenCategoryKeys();
+        liveSettings.HiddenCategoryKeys = new List<string>(HiddenCategoryKeys);
         ReadingSpeechLabels = CurrentReadingSpeechLabels();
         liveSettings.ReadingSpeechLabels = new Dictionary<string, string>(ReadingSpeechLabels, StringComparer.OrdinalIgnoreCase);
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
@@ -605,6 +609,8 @@ public sealed partial class PreferencesForm : Form
         FanProfiles = CurrentFanProfiles();
         Alarms = CurrentAlarms();
         HiddenReadingKeys = CurrentHiddenReadingKeys();
+        CategoryOrderKeys = CurrentCategoryOrderKeys();
+        HiddenCategoryKeys = CurrentHiddenCategoryKeys();
         ReadingSpeechLabels = CurrentReadingSpeechLabels();
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SaveLivePreferences();

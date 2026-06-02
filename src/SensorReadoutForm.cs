@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.3.2";
+    public const string AppVersion = "4.4.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -26,6 +26,8 @@ public sealed partial class SensorReadoutForm : Form
     public const string ReadingTreeExpansionRemember = "Remember";
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
+    private readonly ToolStripMenuItem editUndoMenuItem;
+    private readonly ToolStripMenuItem editRedoMenuItem;
     private readonly ToolStripMenuItem editRenameMenuItem;
     private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem editTrendLogMenuItem;
@@ -130,9 +132,12 @@ public sealed partial class SensorReadoutForm : Form
     private HashSet<string> hiddenReadingExpandedKeys = new HashSet<string>();
     private bool menuInteractionActive;
     private bool visibleRefreshPending;
+    private bool communityStatsDialogActive;
     private DateTime lastUserNavigationUtc = DateTime.MinValue;
     private DateTime lastFocusedAutoRefreshUtc = DateTime.MinValue;
     private DateTime lastHiddenAutoRefreshUtc = DateTime.MinValue;
+    private UndoRedoEntry lastUndoEntry;
+    private UndoRedoEntry lastRedoEntry;
     private List<LanguageChoice> languageChoices = new List<LanguageChoice>();
     private string languageFolderSignature = "";
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
@@ -144,6 +149,20 @@ public sealed partial class SensorReadoutForm : Form
     public SensorReadoutForm()
         : this(false)
     {
+    }
+
+    private sealed class UndoRedoEntry
+    {
+        public UndoRedoEntry(string actionName, Action undoAction, Action redoAction)
+        {
+            ActionName = string.IsNullOrWhiteSpace(actionName) ? "" : actionName;
+            UndoAction = undoAction;
+            RedoAction = redoAction;
+        }
+
+        public string ActionName { get; private set; }
+        public Action UndoAction { get; private set; }
+        public Action RedoAction { get; private set; }
     }
 
     public SensorReadoutForm(bool startMinimized)
@@ -170,7 +189,7 @@ public sealed partial class SensorReadoutForm : Form
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Compare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Co&mpare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Save &anonymized report...", Keys.Control | Keys.Shift | Keys.A, delegate { SaveAnonymizedReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Import settings and profiles...", Keys.Control | Keys.I, delegate { ImportSettingsAndProfiles(); }));
@@ -182,7 +201,7 @@ public sealed partial class SensorReadoutForm : Form
         backupsMenu.DropDownItems.Add(T("ui.&Delete update backups...", "&Delete update backups..."), null, delegate { DeleteUpdateBackups(); });
         backupsMenu.DropDownOpening += delegate { UpdateBackupsMenuOpening(backupsMenu); };
         fileMenu.DropDownItems.Add(backupsMenu);
-        returnToLiveReadingsMenuItem = CreateShortcutMenuItem("&Return to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
+        returnToLiveReadingsMenuItem = CreateShortcutMenuItem("Re&turn to live readings", Keys.Control | Keys.R, delegate { ReturnToLiveReadings(); });
         returnToLiveReadingsMenuItem.Visible = false;
         fileMenu.DropDownItems.Add(returnToLiveReadingsMenuItem);
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Import &Plug-In from ZIP...", Keys.Control | Keys.Shift | Keys.I, delegate { ImportPlugInFromZip(); }));
@@ -190,38 +209,29 @@ public sealed partial class SensorReadoutForm : Form
         fileMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("E&xit", "Alt+F4", delegate { Close(); }));
 
         var editMenu = new ToolStripMenuItem("&Edit");
+        editUndoMenuItem = CreateShortcutMenuItem("&Undo", Keys.Control | Keys.Z, delegate { UndoLastAction(); });
+        editRedoMenuItem = CreateShortcutMenuItem("&Redo", Keys.Control | Keys.Y, delegate { RedoLastAction(); });
+        editMenu.DropDownItems.Add(editUndoMenuItem);
+        editMenu.DropDownItems.Add(editRedoMenuItem);
+        editMenu.DropDownItems.Add(new ToolStripSeparator());
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Copy", Keys.Control | Keys.C, delegate { CopySelectedTreeNode(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem(T("ui.Copy &value only", "Copy &value only"), Keys.Control | Keys.Shift | Keys.C, delegate { CopySelectedTreeNodeValueOnly(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
-        editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hot&key or tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
         editTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
         editMenu.DropDownItems.Add(editTrendLogMenuItem);
-        editRenameMenuItem = CreateShortcutMenuItem("&Rename...", Keys.F2, delegate { RenameSelectedTreeNode(); });
+        editRenameMenuItem = CreateShortcutMenuItem("Re&name...", Keys.F2, delegate { RenameSelectedTreeNode(); });
         editMenu.DropDownItems.Add(editRenameMenuItem);
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("&Hide selected", Keys.Delete, delegate { HideSelectedTreeNode(); }));
-        editMenu.DropDownOpening += delegate { UpdateRenameMenuVisibility(); };
+        editMenu.DropDownOpening += delegate { UpdateEditMenuOpening(); };
 
         var viewMenu = new ToolStripMenuItem("&View");
-        viewMenu.DropDownItems.Add("&Performance/Overview\tCtrl+0", null, delegate { SelectCategoryByKey("type|Performance"); });
-        viewMenu.DropDownItems.Add("&Temperatures\tCtrl+1", null, delegate { SelectCategoryByKey("type|Temperature"); });
-        viewMenu.DropDownItems.Add("&Fans\tCtrl+2", null, delegate { SelectCategoryByKey("type|Fan"); });
-        viewMenu.DropDownItems.Add("&SMART\tCtrl+3", null, delegate { SelectCategoryByKey("type|SMART"); });
-        viewMenu.DropDownItems.Add("&Network\tCtrl+4", null, delegate { SelectCategoryByKey("type|Network"); });
-        viewMenu.DropDownItems.Add("&USB\tCtrl+5", null, delegate { SelectCategoryByKey("type|USB"); });
-        viewMenu.DropDownItems.Add("&Audio\tCtrl+6", null, delegate { SelectCategoryByKey("type|Audio"); });
-        viewMenu.DropDownItems.Add("&Display\tCtrl+7", null, delegate { SelectCategoryByKey("type|Display"); });
-        batteryViewMenuItem = new ToolStripMenuItem("&Battery\tCtrl+8", null, delegate { SelectCategoryByKey("type|Battery"); });
-        viewMenu.DropDownItems.Add(batteryViewMenuItem);
-        viewMenu.DropDownItems.Add("De&vices\tCtrl+9", null, delegate { SelectCategoryByKey("type|Devices"); });
-        viewMenu.DropDownItems.Add(new ToolStripSeparator());
-        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
-        viewMenu.DropDownItems.Add(new ToolStripSeparator());
-        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
-        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
-        viewMenu.DropDownOpening += delegate { UpdateViewMenuVisibility(); };
+        batteryViewMenuItem = null;
+        RebuildViewMenu(viewMenu);
+        viewMenu.DropDownOpening += delegate { RebuildViewMenu(viewMenu); };
 
         var optionsMenu = new ToolStripMenuItem("&Options");
         autoRefreshMenuItem = new ToolStripMenuItem("&Auto refresh")
@@ -296,7 +306,7 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(autoRefreshMenuItem);
         optionsMenu.DropDownItems.Add(refreshWhileFocusedMenuItem);
         optionsMenu.DropDownItems.Add(trayStatusMenuItem);
-        trendLoggingMenuItem = new ToolStripMenuItem(T("ui.Enable reading history &logging", "Enable reading history &logging"))
+        trendLoggingMenuItem = new ToolStripMenuItem(T("ui.Enable reading &history logging", "Enable reading &history logging"))
         {
             Checked = settings.TrendLoggingEnabled,
             CheckOnClick = false
@@ -306,7 +316,7 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(temperatureMenu);
         optionsMenu.DropDownItems.Add(languageMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
-        optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan c&urves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
+        optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
 
         hotkeysMenu = new ToolStripMenuItem("Hot&keys");
@@ -409,6 +419,15 @@ public sealed partial class SensorReadoutForm : Form
                 UpdateReadingList();
             }
         };
+        deviceList.KeyDown += delegate(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Delete)
+            {
+                HideSelectedCategory();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        };
         readingTree = new TreeView
         {
             Dock = DockStyle.Fill,
@@ -430,7 +449,7 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
         treeDetailsMenuItem = CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); });
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
-        treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hot&key or tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
         treeTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
         readingTree.ContextMenuStrip.Items.Add(treeTrendLogMenuItem);
@@ -701,6 +720,18 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
+        if (modifiers == Keys.Control && keyCode == Keys.Z)
+        {
+            UndoLastAction();
+            return true;
+        }
+
+        if (modifiers == Keys.Control && keyCode == Keys.Y)
+        {
+            RedoLastAction();
+            return true;
+        }
+
         if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.C)
         {
             CopySelectedTreeNodeValueOnly();
@@ -765,6 +796,11 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
+        if (modifiers == (Keys.Control | Keys.Shift) && SelectCategoryByShortcut(keyCode, 10))
+        {
+            return true;
+        }
+
         if (modifiers == Keys.Shift && keyCode == Keys.F1)
         {
             CheckForUpdates();
@@ -816,7 +852,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         return new ShortcutButton
         {
-            Text = L("ui.Close", "Close"),
+            Text = L("ui.Close", "&Close"),
             AutoSize = true,
             ShortcutText = "Esc",
             ShortcutKeys = Keys.Escape,

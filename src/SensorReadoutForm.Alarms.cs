@@ -139,6 +139,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private static string BuildAlarmMessage(AlarmSetting alarm, SensorRow row)
     {
+        if (alarm != null && !string.IsNullOrWhiteSpace(alarm.SpokenMessage))
+        {
+            return alarm.SpokenMessage.Trim();
+        }
+
         var name = alarm == null || string.IsNullOrWhiteSpace(alarm.Name) ? "Alarm" : alarm.Name.Trim();
         var reading = row == null ? "" : DefaultSpeechLabel(row.Type, row.Hardware, row.Name, true);
         var value = row == null ? "" : FormatValue(row);

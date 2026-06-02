@@ -52,6 +52,7 @@ public sealed partial class PreferencesForm : Form
     private readonly ListBox traySelectedList;
     private readonly Label traySelectionStatusLabel;
     private readonly ListBox spokenHotKeyList;
+    private Button removeSpokenHotKeyProfileButton;
     private readonly TextBox spokenHotKeyNameBox;
     private readonly TextBox spokenHotKeyBox;
     private readonly CheckBox spokenHotKeySkipUnavailableCheckBox;
@@ -80,12 +81,14 @@ public sealed partial class PreferencesForm : Form
     private readonly ComboBox alarmThresholdUnitBox;
     private readonly NumericUpDown alarmCooldownBox;
     private readonly CheckBox alarmSpeakCheckBox;
+    private readonly TextBox alarmSpokenMessageBox;
     private readonly ComboBox alarmSoundBox;
     private readonly ComboBox startupSoundBox;
     private readonly ComboBox shutdownSoundBox;
     private readonly Label alarmStatusLabel;
     private readonly CheckedListBox plugInList;
     private readonly Label plugInDetailsLabel;
+    private readonly CheckedListBox categoryList;
     private readonly CheckedListBox hiddenItemsList;
     private readonly List<SensorRow> latestSensorRows;
     private readonly List<SensorRow> rows;
@@ -93,6 +96,8 @@ public sealed partial class PreferencesForm : Form
     private string rowsSignature = "";
     private string fanControlRowsSignature = "";
     private readonly List<string> hiddenReadingKeys;
+    private readonly List<string> categoryOrderKeys;
+    private readonly List<string> hiddenCategoryKeys;
     private readonly List<SpokenHotKeySetting> spokenHotKeys;
     private readonly List<FanProfileSetting> fanProfiles;
     private readonly List<AlarmSetting> alarms;
@@ -106,6 +111,7 @@ public sealed partial class PreferencesForm : Form
     private readonly Dictionary<object, string> originalAccessibleNames = new Dictionary<object, string>();
     private readonly Dictionary<object, string> originalAccessibleDescriptions = new Dictionary<object, string>();
     private readonly Dictionary<ListBox, ListSearchState> listSearchStates = new Dictionary<ListBox, ListSearchState>();
+    private readonly List<string> spokenReadingClipboardKeys = new List<string>();
     private bool loadingPreferences;
     private bool fanProfileStarterProfilesInitialized;
     private string lastAlarmReadingKey = "";
@@ -191,6 +197,8 @@ public sealed partial class PreferencesForm : Form
     public List<FanProfileSetting> FanProfiles { get; private set; }
     public List<AlarmSetting> Alarms { get; private set; }
     public List<string> HiddenReadingKeys { get; private set; }
+    public List<string> CategoryOrderKeys { get; private set; }
+    public List<string> HiddenCategoryKeys { get; private set; }
     public Dictionary<string, string> ReadingSpeechLabels { get; private set; }
     public Dictionary<string, bool> PlugInsEnabled { get { return CurrentPlugInSettings(); } }
     public string StartupSoundFile { get { return SelectedSoundFile(startupSoundBox); } }
@@ -234,6 +242,8 @@ public sealed partial class PreferencesForm : Form
         originalTrayItemKeys = new List<string>(settings.TrayItemKeys ?? new List<string>());
         loadingPreferences = true;
         hiddenReadingKeys = new List<string>(settings.HiddenReadingKeys ?? new List<string>());
+        categoryOrderKeys = new List<string>(settings.CategoryOrderKeys ?? new List<string>());
+        hiddenCategoryKeys = new List<string>(settings.HiddenCategoryKeys ?? new List<string>());
         spokenHotKeys = CloneSpokenHotKeys(settings.SpokenHotKeys);
         fanProfiles = CloneFanProfiles(settings.FanProfiles);
         fanProfileStarterProfilesInitialized = settings.FanProfileStarterProfilesInitialized;
@@ -269,6 +279,7 @@ public sealed partial class PreferencesForm : Form
         var fanProfilesTab = new TabPage("Fan profiles") { Name = "Fan profiles" };
         var alarmsTab = new TabPage("Alarms") { Name = "Alarms" };
         var plugInsTab = new TabPage("Plug-Ins") { Name = "Plug-Ins" };
+        var categoriesTab = new TabPage("Categories") { Name = "Categories" };
         var hiddenTab = new TabPage("Hidden items") { Name = "Hidden items" };
         var languageEditorTab = new TabPage("Language editor") { Name = "Language editor" };
 
@@ -276,7 +287,7 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 17,
+            RowCount = 14,
             Padding = new Padding(10)
         };
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -292,14 +303,11 @@ public sealed partial class PreferencesForm : Form
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         autoRefreshCheckBox = new CheckBox
         {
-            Text = "Auto refresh",
+            Text = "&Auto refresh",
             Checked = settings.AutoRefreshEnabled,
             AutoSize = true,
             AccessibleName = "Auto refresh"
@@ -307,7 +315,7 @@ public sealed partial class PreferencesForm : Form
 
         refreshWhileFocusedCheckBox = new CheckBox
         {
-            Text = "Refresh while Sensor Readout has focus",
+            Text = "Refresh while Sensor Readout has &focus",
             Checked = settings.RefreshWhileFocused,
             AutoSize = true,
             AccessibleName = "Refresh while focused"
@@ -315,7 +323,7 @@ public sealed partial class PreferencesForm : Form
 
         trayStatusCheckBox = new CheckBox
         {
-            Text = "Show status in notification area",
+            Text = "Show status in &notification area",
             Checked = settings.TrayStatusEnabled,
             AutoSize = true,
             AccessibleName = "Show status in notification area"
@@ -353,21 +361,21 @@ public sealed partial class PreferencesForm : Form
         };
         readingTreeExpandRadio = new RadioButton
         {
-            Text = "Expand when switching categories",
+            Text = "&Expand when switching categories",
             AutoSize = true,
             AccessibleName = "Expand when switching categories",
             AccessibleDescription = "Reading trees open expanded when you switch categories."
         };
         readingTreeCollapseRadio = new RadioButton
         {
-            Text = "Keep collapsed when switching categories",
+            Text = "Keep c&ollapsed when switching categories",
             AutoSize = true,
             AccessibleName = "Keep collapsed when switching categories",
             AccessibleDescription = "Reading trees show only their top-level items when you switch categories."
         };
         readingTreeRememberRadio = new RadioButton
         {
-            Text = "Remember my last expand or collapse action",
+            Text = "Remember my &last expand or collapse action",
             AutoSize = true,
             AccessibleName = "Remember my last expand or collapse action",
             AccessibleDescription = "When you switch categories, Sensor Readout follows your most recent expand or collapse action."
@@ -383,7 +391,7 @@ public sealed partial class PreferencesForm : Form
 
         runAtStartupCheckBox = new CheckBox
         {
-            Text = "Run at Windows startup",
+            Text = "&Run at Windows startup",
             Checked = settings.RunAtStartup,
             AutoSize = true,
             AccessibleName = "Run at Windows startup"
@@ -391,7 +399,7 @@ public sealed partial class PreferencesForm : Form
 
         desktopShortcutCheckBox = new CheckBox
         {
-            Text = "Create desktop shortcut",
+            Text = "Create &desktop shortcut",
             Checked = SensorReadoutForm.DesktopShortcutExists(),
             AutoSize = true,
             AccessibleName = "Create desktop shortcut"
@@ -399,7 +407,7 @@ public sealed partial class PreferencesForm : Form
 
         startMinimizedCheckBox = new CheckBox
         {
-            Text = "Start minimized to notification area",
+            Text = "Start &minimized to notification area",
             Checked = settings.StartMinimizedToTray,
             AutoSize = true,
             AccessibleName = "Start minimized to notification area"
@@ -593,7 +601,7 @@ public sealed partial class PreferencesForm : Form
         diagnosticsPanel.SetColumnSpan(diagnosticsPanel.Controls[0], 2);
         diagnosticsSpeakProgressCheckBox = new CheckBox
         {
-            Text = "Speak diagnostic progress",
+            Text = "&Speak diagnostic progress",
             Checked = settings.DiagnosticsSpeakProgress,
             AutoSize = true,
             AccessibleName = "Speak diagnostic progress",
@@ -603,7 +611,7 @@ public sealed partial class PreferencesForm : Form
         diagnosticsPanel.SetColumnSpan(diagnosticsSpeakProgressCheckBox, 2);
         diagnosticsPlaySoundsCheckBox = new CheckBox
         {
-            Text = "Play diagnostic sounds",
+            Text = "&Play diagnostic sounds",
             Checked = settings.DiagnosticsPlaySounds,
             AutoSize = true,
             AccessibleName = "Play diagnostic sounds",
@@ -622,33 +630,38 @@ public sealed partial class PreferencesForm : Form
         diagnosticsStartSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
         diagnosticsCompleteSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
 
-        var hotKeyPanel = new TableLayoutPanel
+        var showHideHotKeyPanel = new TableLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 3
+            RowCount = 1
         };
-        hotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        hotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        hotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        hotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        showHideHotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         showHideHotKeyBox = CreateHotKeyBox(settings.ShowHideHotKey, "Show or hide Sensor Readout global hotkey");
-        hotKeyPanel.Controls.Add(showHideHotKeyBox, 1, 0);
+        showHideHotKeyPanel.Controls.Add(showHideHotKeyBox, 1, 0);
         var clearShowHideButton = new Button { Text = "&Clear", AutoSize = true };
         clearShowHideButton.Click += delegate { showHideHotKeyBox.Text = ""; };
-        hotKeyPanel.Controls.Add(clearShowHideButton, 2, 0);
-        hotKeyPanel.Controls.Add(new Label { Text = "Speak tray status hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 1);
+        showHideHotKeyPanel.Controls.Add(clearShowHideButton, 2, 0);
+
+        var hotKeyOptionsPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1
+        };
+        hotKeyOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        hotKeyOptionsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         speakTrayHotKeyBox = CreateHotKeyBox(settings.SpeakTrayHotKey, "Speak notification area status global hotkey");
-        hotKeyPanel.Controls.Add(speakTrayHotKeyBox, 1, 1);
-        var clearSpeakButton = new Button { Text = "&Clear", AutoSize = true };
-        clearSpeakButton.Click += delegate { speakTrayHotKeyBox.Text = ""; };
-        hotKeyPanel.Controls.Add(clearSpeakButton, 2, 1);
-        hotKeyPanel.Controls.Add(new Label { Text = "Double-press hotkey copies:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 2);
+        hotKeyOptionsPanel.Controls.Add(new Label { Text = "Double-press hotkey copies:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         hotKeyCopyDoublePressBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 210, AccessibleName = "Double-press hotkey copies" };
         hotKeyCopyDoublePressBox.Items.AddRange(HotKeyCopyDoublePressOptions().Cast<object>().ToArray());
         hotKeyCopyDoublePressBox.SelectedIndex = SafeComboIndex(hotKeyCopyDoublePressBox, HotKeyCopyDoublePressIndex(settings.HotKeyCopyDoublePressMs));
-        hotKeyPanel.Controls.Add(hotKeyCopyDoublePressBox, 1, 2);
+        hotKeyOptionsPanel.Controls.Add(hotKeyCopyDoublePressBox, 1, 0);
 
         var startupSpeechPanel = new TableLayoutPanel
         {
@@ -662,7 +675,7 @@ public sealed partial class PreferencesForm : Form
         startupSpeechPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         startupSpeechEnabledCheckBox = new CheckBox
         {
-            Text = "Speak startup message",
+            Text = "Sp&eak startup message",
             Checked = settings.StartupSpeechEnabled,
             AutoSize = true,
             AccessibleName = "Speak startup message",
@@ -677,7 +690,7 @@ public sealed partial class PreferencesForm : Form
             AccessibleDescription = "Message spoken by the screen reader when Sensor Readout starts minimized to the notification area."
         };
         startupSpeechPanel.Controls.Add(startupSpeechMessageBox, 1, 0);
-        var resetStartupSpeechButton = new Button { Text = "&Reset", AutoSize = true };
+        var resetStartupSpeechButton = new Button { Text = "Rese&t", AutoSize = true };
         resetStartupSpeechButton.Click += delegate { startupSpeechMessageBox.Text = SensorReadoutForm.DefaultStartupSpeechMessage(); };
         startupSpeechPanel.Controls.Add(resetStartupSpeechButton, 2, 0);
         startupSpeechMessageBox.Enabled = startupSpeechEnabledCheckBox.Checked;
@@ -688,7 +701,7 @@ public sealed partial class PreferencesForm : Form
 
         speechIncludesDeviceNamesCheckBox = new CheckBox
         {
-            Text = "Include device names in spoken feedback",
+            Text = "Include device names in spoken feed&back",
             Checked = settings.SpeechIncludesDeviceNames,
             AutoSize = true,
             AccessibleName = "Include device names in spoken feedback",
@@ -725,13 +738,6 @@ public sealed partial class PreferencesForm : Form
         loggingLevelBox.SelectedIndex = LoggingLevelIndex(configuredLogging);
         loggingPanel.Controls.Add(loggingLevelBox);
         loggingLevelBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
-
-        var trayLabel = new Label
-        {
-            Text = "Notification area items. Maximum eight readings. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.",
-            AutoSize = true,
-            Dock = DockStyle.Fill
-        };
 
         var selectedKeys = settings.TrayItemKeys ?? new List<string>();
         trayAvailableList = new ListBox
@@ -802,8 +808,8 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
-            AccessibleName = "Spoken hotkeys",
-            AccessibleDescription = "Choose a spoken hotkey profile to edit."
+            AccessibleName = "Hotkey profiles",
+            AccessibleDescription = "Choose notification area status or a spoken hotkey profile to edit."
         };
         spokenHotKeyNameBox = new TextBox
         {
@@ -814,7 +820,7 @@ public sealed partial class PreferencesForm : Form
         spokenHotKeyBox = CreateHotKeyBox("", "Spoken hotkey key combination");
         spokenHotKeySkipUnavailableCheckBox = new CheckBox
         {
-            Text = "S&kip unavailable readings for this hotkey",
+            Text = "Skip unavaila&ble readings for this hotkey",
             AutoSize = true,
             AccessibleName = "Skip unavailable readings for this spoken hotkey",
             AccessibleDescription = "When checked, this spoken hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group."
@@ -855,13 +861,13 @@ public sealed partial class PreferencesForm : Form
         fanProfileHotKeyBox = CreateHotKeyBox("", "Fan profile key combination");
         fanProfileToggleBox = new CheckBox
         {
-            Text = "Toggle back to automatic when pressed again",
+            Text = "&Toggle back to automatic when pressed again",
             AutoSize = true,
             AccessibleName = "Toggle fan profile back to automatic"
         };
         fanProfileSpeakBox = new CheckBox
         {
-            Text = SensorReadoutForm.L("ui.Speak when profile changes", "Speak when profile changes"),
+            Text = SensorReadoutForm.L("ui.Speak when profile changes", "&Speak when profile changes"),
             Checked = true,
             AutoSize = true,
             AccessibleName = SensorReadoutForm.L("a11y.Speak when fan profile changes", "Speak when fan profile changes")
@@ -874,7 +880,7 @@ public sealed partial class PreferencesForm : Form
         };
         fanProfileShowStoppedBox = new CheckBox
         {
-            Text = SensorReadoutForm.L("ui.Show stopped or hidden fan controls", "Show stopped or hidden fan controls"),
+            Text = SensorReadoutForm.L("ui.Show stopped or hidden fan controls", "Show stopped or &hidden fan controls"),
             Checked = settings.ShowStoppedFans,
             AutoSize = true,
             AccessibleName = SensorReadoutForm.L("a11y.Show stopped or hidden fan controls", "Show stopped or hidden fan controls")
@@ -912,7 +918,7 @@ public sealed partial class PreferencesForm : Form
             IntegralHeight = false,
             AccessibleName = "Alarms"
         };
-        alarmEnabledCheckBox = new CheckBox { Text = "Enabled", Checked = true, AutoSize = true };
+        alarmEnabledCheckBox = new CheckBox { Text = "&Enabled", Checked = true, AutoSize = true };
         alarmNameBox = new TextBox { Dock = DockStyle.Fill, AccessibleName = "Alarm name" };
         alarmReadingBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Alarm reading" };
         alarmConditionBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Alarm condition" };
@@ -922,7 +928,13 @@ public sealed partial class PreferencesForm : Form
         alarmThresholdUnitBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, AccessibleName = "Alarm threshold unit" };
         alarmCooldownBox = new NumericUpDown { Minimum = 0, Maximum = 86400, Value = 60, Dock = DockStyle.Fill, AccessibleName = "Alarm cooldown seconds" };
         AttachNumericAutoSelect(alarmCooldownBox);
-        alarmSpeakCheckBox = new CheckBox { Text = "Speak with screen reader", Checked = true, AutoSize = true };
+        alarmSpeakCheckBox = new CheckBox { Text = "&Speak with screen reader", Checked = true, AutoSize = true };
+        alarmSpokenMessageBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            AccessibleName = SensorReadoutForm.L("a11y.Alarm spoken message", "Alarm spoken message"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Optional text spoken when this alarm triggers. Leave blank to speak the alarm name, reading, and current value.", "Optional text spoken when this alarm triggers. Leave blank to speak the alarm name, reading, and current value.")
+        };
         alarmSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Alarm sound" };
         PopulateSoundCombo(alarmSoundBox, "");
         alarmStatusLabel = new Label { AutoSize = true, Dock = DockStyle.Fill };
@@ -935,6 +947,27 @@ public sealed partial class PreferencesForm : Form
             AccessibleDescription = SensorReadoutForm.L("a11y.Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.", "Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.")
         };
         plugInDetailsLabel = new Label { AutoSize = true, Dock = DockStyle.Fill };
+        categoryList = new CheckedListBox
+        {
+            Dock = DockStyle.Fill,
+            CheckOnClick = true,
+            IntegralHeight = false,
+            AccessibleName = SensorReadoutForm.L("a11y.Visible categories", "Visible categories"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.", "Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.")
+        };
+        PopulateCategoryList();
+        categoryList.ItemCheck += delegate
+        {
+            if (loadingPreferences)
+            {
+                return;
+            }
+
+            BeginInvoke((MethodInvoker)delegate { SaveLivePreferences(); });
+        };
+        categoryList.KeyDown += CategoryListKeyDown;
+        AttachIncrementalListSearch(categoryList);
+        AttachListReorderDragDrop(categoryList, SaveLivePreferences);
         plugInList.SelectedIndexChanged += delegate { UpdatePlugInDetails(); };
         plugInList.ItemCheck += delegate(object sender, ItemCheckEventArgs e)
         {
@@ -996,7 +1029,12 @@ public sealed partial class PreferencesForm : Form
             SaveSelectedAlarm(false);
         };
         alarmCooldownBox.ValueChanged += delegate { SaveSelectedAlarm(false); };
-        alarmSpeakCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(false); };
+        alarmSpeakCheckBox.CheckedChanged += delegate
+        {
+            alarmSpokenMessageBox.Enabled = alarmSpeakCheckBox.Enabled && alarmSpeakCheckBox.Checked;
+            SaveSelectedAlarm(false);
+        };
+        alarmSpokenMessageBox.TextChanged += delegate { SaveSelectedAlarm(false); };
         alarmSoundBox.SelectedIndexChanged += delegate
         {
             SaveSelectedAlarm(false);
@@ -1014,18 +1052,10 @@ public sealed partial class PreferencesForm : Form
         AttachIncrementalListSearch(spokenSelectedList);
         AttachIncrementalListSearch(fanProfileAvailableList);
         AttachIncrementalListSearch(fanProfileSelectedList);
-        foreach (var profile in SortedSpokenHotKeyProfiles())
-        {
-            spokenHotKeyList.Items.Add(profile);
-        }
-        if (spokenHotKeyList.Items.Count > 0)
-        {
-            spokenHotKeyList.SelectedIndex = 0;
-        }
-        else
-        {
-            UpdateSpokenHotKeyEditor();
-        }
+        AttachListReorderDragDrop(traySelectedList, SaveLivePreferences);
+        AttachListReorderDragDrop(spokenSelectedList, SaveSelectedSpokenReadingKeys);
+        AttachListReorderDragDrop(fanProfileSelectedList, SaveSelectedFanProfileActions);
+        RebuildSpokenHotKeyProfileList(null);
 
         foreach (var profile in fanProfiles)
         {
@@ -1045,7 +1075,7 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             CheckOnClick = true,
             IntegralHeight = false,
-            AccessibleName = "Hidden readings"
+            AccessibleName = "Hidden readings and categories"
         };
         showUpdateInstallConfirmationCheckBox = new CheckBox
         {
@@ -1071,12 +1101,17 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = "Show tips on startup",
             AccessibleDescription = "When checked, Sensor Readout shows a short hint or tip when it starts."
         };
+        foreach (var key in hiddenCategoryKeys.OrderBy(k => k))
+        {
+            var index = hiddenItemsList.Items.Add(key);
+            hiddenItemsList.SetItemChecked(index, true);
+        }
         foreach (var key in hiddenReadingKeys.OrderBy(k => k))
         {
             var index = hiddenItemsList.Items.Add(key);
             hiddenItemsList.SetItemChecked(index, true);
         }
-        hiddenItemsList.ItemCheck += delegate
+        hiddenItemsList.ItemCheck += delegate(object sender, ItemCheckEventArgs e)
         {
             if (loadingPreferences)
             {
@@ -1085,7 +1120,11 @@ public sealed partial class PreferencesForm : Form
 
             if (IsHandleCreated)
             {
-                BeginInvoke((MethodInvoker)SaveLivePreferences);
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    SyncCategoryListFromHiddenItems(e.Index, e.NewValue);
+                    SaveLivePreferences();
+                });
             }
         };
 
@@ -1102,7 +1141,7 @@ public sealed partial class PreferencesForm : Form
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        hiddenLayout.Controls.Add(new Label { Text = "Hidden readings and groups. Checked items are hidden. Uncheck items to show them again.", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        hiddenLayout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hidden readings and categories. Checked items are hidden. Uncheck items to show them again.", "Hidden readings and categories. Checked items are hidden. Uncheck items to show them again."), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
         hiddenLayout.Controls.Add(confirmSpokenHotKeyProfileRemovalCheckBox, 0, 2);
         hiddenLayout.Controls.Add(showTipsOnStartupCheckBox, 0, 3);
@@ -1128,7 +1167,7 @@ public sealed partial class PreferencesForm : Form
         hiddenButtons.Controls.Add(unhideAllButton);
         var resetSettingsButton = new Button
         {
-            Text = "Delete all &settings...",
+            Text = "&Delete all settings...",
             AutoSize = true,
             AccessibleName = "Delete all settings",
             AccessibleDescription = "Deletes Sensor Readout settings and restarts with defaults. Logs and reports are kept."
@@ -1167,17 +1206,14 @@ public sealed partial class PreferencesForm : Form
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 3);
         main.Controls.Add(trayStatusCheckBox, 0, 4);
         main.Controls.Add(trayTooltipPartialReadingsCheckBox, 0, 5);
-        main.Controls.Add(readingTreeExpansionGroup, 0, 6);
-        main.Controls.Add(intervalPanel, 0, 7);
-        main.Controls.Add(temperaturePanel, 0, 8);
-        main.Controls.Add(decimalSeparatorPanel, 0, 9);
-        main.Controls.Add(updatesPanel, 0, 10);
-        main.Controls.Add(diagnosticsPanel, 0, 11);
-        main.Controls.Add(loggingPanel, 0, 12);
-        main.Controls.Add(trayLabel, 0, 13);
-        main.Controls.Add(BuildTraySelectionPanel(), 0, 14);
-        main.Controls.Add(traySpeechSkipsUnavailableReadingsCheckBox, 0, 15);
-        main.Controls.Add(traySelectionStatusLabel, 0, 16);
+        main.Controls.Add(showHideHotKeyPanel, 0, 6);
+        main.Controls.Add(readingTreeExpansionGroup, 0, 7);
+        main.Controls.Add(intervalPanel, 0, 8);
+        main.Controls.Add(temperaturePanel, 0, 9);
+        main.Controls.Add(decimalSeparatorPanel, 0, 10);
+        main.Controls.Add(updatesPanel, 0, 11);
+        main.Controls.Add(diagnosticsPanel, 0, 12);
+        main.Controls.Add(loggingPanel, 0, 13);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 
@@ -1262,7 +1298,7 @@ public sealed partial class PreferencesForm : Form
         hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hotKeysLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        hotKeysLayout.Controls.Add(hotKeyPanel, 0, 0);
+        hotKeysLayout.Controls.Add(hotKeyOptionsPanel, 0, 0);
         hotKeysLayout.Controls.Add(speechIncludesDeviceNamesCheckBox, 0, 1);
         hotKeysLayout.Controls.Add(BuildSpokenHotKeysPanel(), 0, 2);
         hotKeysTab.Controls.Add(hotKeysLayout);
@@ -1273,6 +1309,8 @@ public sealed partial class PreferencesForm : Form
         preferencesTabs.TabPages.Add(alarmsTab);
         plugInsTab.Controls.Add(BuildPlugInsPanel());
         preferencesTabs.TabPages.Add(plugInsTab);
+        categoriesTab.Controls.Add(BuildCategoriesPanel());
+        preferencesTabs.TabPages.Add(categoriesTab);
         preferencesTabs.TabPages.Add(hiddenTab);
         languageEditorTab.Controls.Add(BuildLanguageEditorPanel(effectiveLanguageChoices));
         preferencesTabs.TabPages.Add(languageEditorTab);

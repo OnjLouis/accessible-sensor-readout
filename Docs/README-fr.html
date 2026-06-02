@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle: 4.3.2.</p>
+<p>Version actuelle: 4.4.0.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
 <p>Sensor Readout est disponible <a href="https://github.com/OnjLouis/accessible-sensor-readout">sur GitHub</a>.</p>
@@ -22,7 +22,7 @@
 <a href="#what-it-does">Fonctions</a>
 </li>
 <li>
-<a href="#prerequisites">Prerequis</a>
+<a href="#system-requirements">Configuration requise</a>
 </li>
 <li>
 <a href="#getting-started">Premiers pas</a>
@@ -91,7 +91,7 @@
 <h2 id="what-it-does">Fonctions</h2>
 <ul>
 <li>Lit temperatures, vitesse des ventilateurs, etat et capacite du stockage, etat BitLocker des lecteurs lorsque Windows l expose, ainsi que certains compteurs materiels.</li>
-<li>Affiche une categorie Peripheriques avec inventaire PnP Windows, dont peripheriques PCI/systeme, controleurs de stockage, peripheriques d entree, Bluetooth, imprimantes, peripheriques de securite et entrees croisees concises pour le materiel USB, audio, affichage et reseau.</li>
+<li>Affiche une categorie Peripheriques avec inventaire PnP Windows, dont peripheriques PCI/systeme, controleurs de stockage, peripheriques d entree, Bluetooth, imprimantes, peripheriques de securite et entrees croisees concises pour le materiel USB, audio, affichage et reseau.</li><li>Affiche une catégorie Bluetooth pour les radios Bluetooth exposées par Windows et les appareils jumelés ou connectés, avec adresse adaptateur/appareil, type, services, fabricant, état de connexion, état de jumelage et dates de dernière détection/utilisation lorsque disponibles.</li>
 <li>Affiche une catégorie Performances/Vue d'ensemble pour le temps de fonctionnement, les détails BIOS, les détails GPU, l'utilisation CPU, le modèle/coeurs/threads/cache CPU, l'utilisation mémoire, le fichier d'échange, les totaux de mémoire physique et virtuelle, les informations PCIe et emplacements d'extension, les totaux de disques connectés et l'activité de lecture/écriture du stockage, groupés pour garder les informations liées ensemble.</li>
 <li>Ouvre l'interface principale immediatement pendant que la premiere actualisation continue en arriere-plan.</li>
 <li>Affiche les cartes reseau avec etat, adresses IP, vitesse de lien, debits et trafic total.</li>
@@ -121,7 +121,7 @@
 <li>La journalisation est desactivee par defaut et peut etre activee pour le depannage.</li>
 <li>Peut afficher des mesures choisies dans l'info-bulle de la zone de notification.</li>
 </ul>
-<h2 id="prerequisites">Prerequis</h2>
+<h2 id="system-requirements">Configuration requise</h2>
 <ul>
 <li>Windows 10 ou Windows 11, 64 bits.</li>
 <li>Microsoft .NET Framework 4.8 ou plus recent.</li>
@@ -129,8 +129,18 @@
 <li>Droits administrateur pour lire beaucoup de capteurs de carte mere ou controler les ventilateurs.</li>
 </ul>
 <p>LibreHardwareMonitor n'a pas besoin de tourner comme application separee car les bibliotheques necessaires sont fournies. L'application autonome peut rester utile pour diagnostiquer.</p>
+<h2 id="getting-started">Premiers pas</h2>
+<p>1. Lancez <code>Sensor Readout.exe</code>.</p>
+<p>2. Acceptez l'invite administrateur Windows.</p>
+<p>3. Si l'assistant de configuration initiale apparaît, définissez un raccourci afficher/masquer et un raccourci pour annoncer l'état de la zone de notification si vous voulez un accès rapide depuis n'importe où.</p>
+<p>4. Choisissez une catégorie à gauche. <code>Performances/Vue d'ensemble</code> est un bon premier point pour le temps de fonctionnement, Windows, CPU, mémoire, GPU, stockage, imprimantes, accessibilité et sources de données.</p>
+<p>5. Utilisez <code>F3</code> pour trouver une mesure comme l'utilisation CPU, la mémoire GPU, la vitesse réseau, l'activité disque, le temps de fonctionnement, Bluetooth ou un nom d'appareil. Utilisez <code>F4</code> pour relire le texte exact, ou <code>Entrée</code> pour ouvrir les détails lorsqu'ils existent.</p>
+<p>6. Appuyez sur <code>Ctrl+Maj+H</code> sur une mesure utile pour l'ajouter à l'état de la zone de notification ou à un profil de raccourci parlé.</p>
+<p>7. Appuyez sur <code>F5</code> si les valeurs chargent encore.</p>
+<p>Si PawnIO manque, Sensor Readout peut proposer l'installateur de prérequis. Vous pouvez le relancer plus tard depuis <code>Aide</code> &gt; <code>Installer les prérequis...</code>.</p>
+<p>Les contrôles de ventilateurs sont optionnels et dépendent du matériel compatible. Ouvrez <code>Options</code> &gt; <code>Contrôle des ventilateurs...</code> ou appuyez sur <code>Ctrl+L</code> seulement si vous voulez inspecter ou ajuster des contrôles de ventilateur modifiables. Si des ventilateurs ou contrôles de carte mère manquent, vérifiez PawnIO et le lancement comme administrateur.</p>
 <h2 id="prerequisite-installer">Programme d installation des prerequis</h2>
-<p>Executez d abord <code>Install-Prerequisites.cmd</code> depuis ce dossier. Il appelle <code>Install-Prerequisites.ps1</code>, demande les droits administrateur si necessaire et installe PawnIO. Il essaie winget, puis Chocolatey s il est deja installe, puis telecharge la version officielle PawnIO.Setup depuis GitHub si aucun gestionnaire de paquets n est disponible. Quand winget existe, il peut aussi installer .NET Framework Runtime.</p>
+<p>La plupart des utilisateurs peuvent lancer directement <code>Sensor Readout.exe</code>. Si un composant requis manque, Sensor Readout proposera d'exécuter l'installateur de prérequis. <code>Install-Prerequisites.cmd</code> sert surtout à la configuration manuelle ou au diagnostic. Il appelle <code>Install-Prerequisites.ps1</code>, demande les droits administrateur si nécessaire et installe PawnIO. Il essaie winget, puis Chocolatey s'il est déjà installé, puis télécharge la version officielle PawnIO.Setup depuis GitHub si aucun gestionnaire de paquets n'est disponible. Quand winget existe, il peut aussi installer .NET Framework Runtime.</p>
 <p>
 <button type="button" class="copy-command" data-command="Install-Prerequisites.cmd">Copier la commande</button>
 </p>
@@ -165,13 +175,6 @@
 <pre>
 <code>winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget</code>
 </pre>
-<h2 id="getting-started">Premiers pas</h2>
-<p>1. Lancez <code>Sensor Readout.exe</code>.</p>
-<p>2. Acceptez l'invite administrateur Windows.</p>
-<p>3. Si PawnIO manque, Sensor Readout propose l'installateur de prerequis.</p>
-<p>4. Appuyez sur <code>F5</code> si les valeurs chargent encore.</p>
-<p>5. Ouvrez <code>Options</code> &gt; <code>Controle des ventilateurs...</code> ou appuyez sur <code>Ctrl+L</code>.</p>
-<p>Si des ventilateurs ou controles de carte mere manquent, verifiez PawnIO et le lancement comme administrateur. L'installateur est disponible plus tard depuis <code>Aide</code> &gt; <code>Installer les prerequis...</code>.</p>
 <h2 id="accessibility-setup">Configuration accessibilite</h2>
 <p>Utilisez <code>Aide</code> &gt; <code>Verifier la configuration d accessibilite...</code> apres le premier lancement ou apres avoir modifie les préférences de demarrage et de raccourcis. La verification indique si Sensor Readout peut atteindre la parole du lecteur d ecran, si la parole de la zone de notification est configuree, si les dossiers rapports et journaux peuvent etre ouverts, et si un demarrage reduit pourrait vous laisser sans moyen evident de revenir a la fenetre principale.</p>
 <p>Si vous utilisez <code>Demarrer reduit dans la zone de notification</code>, definissez un raccourci afficher/masquer dans <code>Options</code> &gt; <code>Préférences</code> &gt; <code>Raccourcis</code>. Sans cette touche, Sensor Readout peut encore etre ouvert depuis son icone de zone de notification, mais Windows peut masquer les nouvelles icones tant que vous ne les autorisez pas dans les parametres de zone de notification ou de barre systeme. Un raccourci afficher/masquer donne aux utilisateurs clavier et lecteur d ecran un retour fiable.</p>
@@ -224,7 +227,7 @@
 <tr>
 <td>Fenetre principale</td>
 <td>
-<code>Ctrl+Shift+C</code>
+<code>Ctrl+Maj+C</code>
 </td>
 <td>Copy value only: copy the selected reading value without the reading name. On a branch, copies one value per reading.</td>
 </tr>
@@ -245,23 +248,44 @@
 <tr>
 <td>Fenetre principale</td>
 <td>
-<code>Ctrl+Shift+H</code>
+<code>Ctrl+Maj+H</code>
 </td>
 <td>Add the selected reading to notification area status or a spoken hotkey profile, remove it again, or create a spoken hotkey profile from the same dialog.</td>
 </tr>
 <tr>
 <td>Fenetre principale</td>
 <td>
-<code>Ctrl+Shift+Right</code> / <code>Ctrl+Shift+Left</code>
+<code>Ctrl+Maj+Right</code> / <code>Ctrl+Maj+Left</code>
 </td>
 <td>Développer ou replier toute l'arborescence des mesures pour la catégorie actuelle.</td>
 </tr>
 <tr>
 <td>Fenetre principale</td>
 <td>
-<code>Ctrl+0</code> to <code>Ctrl+9</code>
+<code>Ctrl+0</code> à <code>Ctrl+9</code>
 </td>
-<td>Switch directly to a main reading category.</td>
+<td>Passe directement aux dix premières catégories visibles selon l’ordre configuré.</td>
+</tr>
+<tr>
+<td>Fenetre principale</td>
+<td>
+<code>Ctrl+Maj+0</code> à <code>Ctrl+Maj+9</code>
+</td>
+<td>Passe directement aux catégories 10 à 19 lorsque la liste visible contient plus de dix éléments.</td>
+</tr>
+<tr>
+<td>Fenetre principale</td>
+<td>
+<code>Ctrl+Z</code>
+</td>
+<td>Annule le dernier masquage d’une lecture ou d’une catégorie.</td>
+</tr>
+<tr>
+<td>Fenetre principale</td>
+<td>
+<code>Ctrl+Y</code>
+</td>
+<td>Rétablit le dernier masquage après l’avoir annulé.</td>
 </tr>
 <tr>
 <td>Commandes de fichier</td>
@@ -294,7 +318,7 @@
 <tr>
 <td>Commandes de fichier</td>
 <td>
-<code>Ctrl+Shift+E</code>
+<code>Ctrl+Maj+E</code>
 </td>
 <td>Export a portable copy ZIP of the current app and settings.</td>
 </tr>
@@ -308,21 +332,21 @@
 <tr>
 <td>Commandes de fichier</td>
 <td>
-<code>Ctrl+Shift+I</code>
+<code>Ctrl+Maj+I</code>
 </td>
 <td>Importe un ZIP de plug-in.</td>
 </tr>
 <tr>
 <td>Commandes de fichier</td>
 <td>
-<code>Ctrl+Shift+O</code>
+<code>Ctrl+Maj+O</code>
 </td>
 <td>Ouvrir le dossier Reports.</td>
 </tr>
 <tr>
 <td>Commandes de fichier</td>
 <td>
-<code>Ctrl+Shift+L</code>
+<code>Ctrl+Maj+L</code>
 </td>
 <td>Open the Logs folder.</td>
 </tr>
@@ -441,9 +465,9 @@
 <tr>
 <td>Préférences</td>
 <td>
-<code>Ctrl+1</code> to <code>Ctrl+8</code>
+<code>Ctrl+1</code> à <code>Ctrl+9</code>
 </td>
-<td>Aller a General, Demarrage et installation, Raccourcis, Profils de ventilateurs, Alarmes, Plug-Ins, Elements masques ou Editeur de langue.</td>
+<td>Aller à Général, Démarrage et installation, Raccourcis, Profils de ventilateurs, Alarmes, Plug-Ins, Catégories, Éléments masqués ou Éditeur de langue.</td>
 </tr>
 <tr>
 <td>Préférences</td>
@@ -471,14 +495,14 @@
 <td>
 <code>Ctrl+Right</code>
 </td>
-<td>Add the selected available reading to the tray order or selected spoken hotkey.</td>
+<td>Add the selected available reading to notification area status or the selected spoken hotkey profile.</td>
 </tr>
 <tr>
 <td>Préférences</td>
 <td>
 <code>Ctrl+Left</code>
 </td>
-<td>Remove the selected tray or spoken-hotkey reading.</td>
+<td>Remove the selected notification-area or spoken-hotkey reading.</td>
 </tr>
 <tr>
 <td>Préférences</td>
@@ -527,14 +551,14 @@
 <td>
 <code>Alt+P</code>
 </td>
-<td>In Hotkeys, remove the selected spoken hotkey profile.</td>
+<td>In Hotkeys, remove the selected spoken hotkey profile. Notification area status is permanent and cannot be removed.</td>
 </tr>
 <tr>
 <td>Préférences</td>
 <td>
 <code>Alt+A</code>
 </td>
-<td>In Hotkeys, add the selected reading to the selected spoken hotkey.</td>
+<td>In Hotkeys, add the selected reading to notification area status or the selected spoken hotkey profile.</td>
 </tr>
 <tr>
 <td>Préférences</td>
@@ -569,7 +593,7 @@
 <td>
 <code>Supprete</code>
 </td>
-<td>Remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable.</td>
+<td>Remove the selected notification-area reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable.</td>
 </tr>
 </tbody>
 </table>
@@ -693,10 +717,12 @@
 <p>Surveiller des mesures, choisir seuil, unite, delai, parole et son.</p>
 <h3>Plug-Ins (<code>Ctrl+6</code>)</h3>
 <p>Voir, decrire, importer et activer les plug-ins materiels installes.</p>
-<h3>Elements masques (<code>Ctrl+7</code>)</h3>
-<p>Restaurer les mesures ou groupes masques dans la fenetre principale.</p>
+<h3>Catégories (<code>Ctrl+7</code>)</h3>
+<p>L’onglet Catégories contrôle les catégories principales affichées dans la liste de gauche et leur ordre. Les catégories cochées sont visibles. Décochez une case ou appuyez sur <code>Suppr</code> pour masquer une catégorie, et utilisez Haut, Bas, <code>Ctrl+Haut</code>, <code>Ctrl+Bas</code> ou le glisser-déposer à la souris pour changer l’ordre. Les raccourcis de la fenêtre principale suivent ce même ordre: <code>Ctrl+0</code> à <code>Ctrl+9</code> sélectionnent les dix premières catégories visibles, et <code>Ctrl+Maj+0</code> à <code>Ctrl+Maj+9</code> sélectionnent les catégories 10 à 19.</p>
+<h3>Éléments masqués (<code>Ctrl+8</code>)</h3>
+<p>Restaurer les mesures, groupes ou catégories masqués dans la fenêtre principale.</p>
 <p>L onglet inclut aussi les préférences de confirmation pour installer les mises a jour et retirer les profils de raccourci parle, afin de reactiver ces avertissements apres les avoir masques.</p>
-<h3>Editeur de langue (<code>Ctrl+8</code>)</h3>
+<h3>Éditeur de langue (<code>Ctrl+9</code>)</h3>
 <p>Modifier les fichiers de langue ou en creer un depuis l anglais. Les chaines manquantes retombent sur l anglais.</p>
 <p>Quand l etat de notification est active, reduire Sensor Readout le retire de la barre des taches et de Alt+Tab. Rouvrez-le depuis l icone. <code>Alt+F4</code> quitte l application.</p>
 <p id="notification-area-readings">Les mesures de la zone de notification passent d une liste disponible a une liste d ordre. La limite est de quatre car les info-bulles Windows sont courtes. Une mesure n apparait que dans une liste. Utilisez les boutons ou Ctrl+fleches. Les elements affichent appareil, nom et categorie, par exemple <code>Ethernet - Rx: Reseau</code>.</p>
@@ -717,7 +743,7 @@
 <p>Le plug-in Framework Laptop fourni est optionnel et desactive par defaut. Il peut ajouter les temperatures et RPM de ventilateur Framework quand Framework Control est installe et lance.</p>
 <p>Pour les developpeurs, l arbre source GitHub contient <code>Docs\\Plug-In-development.md</code>.</p>
 <p>Utilisez <code>Edition</code> &gt; <code>Rechercher une lecture...</code> ou <code>F3</code> pour chercher dans toutes les categories. La recherche se reduit pendant la frappe. Tab va a la liste des resultats, Entree va a la mesure selectionnee, <code>Alt+L</code> efface la recherche, et <code>Esc</code> ou Fermer revient a la fenetre principale.</p>
-<h2 id="fan-control-workflow">Controle des ventilateurs</h2>
+<p>La section Bluetooth affiche les radios Bluetooth exposées par Windows et les appareils Bluetooth jumelés ou connectés. Les lignes d adaptateur peuvent inclure adresse, type, services, fabricant et sous-version LMP. Les lignes d appareil peuvent inclure état de connexion, jumelé/mémorisé, adresse, type, services et dates de dernière détection ou utilisation. Les batteries d appareils Bluetooth restent dans Batterie lorsque Windows les expose. Sensor Readout n invente pas la force du signal Bluetooth; les API Bluetooth classiques de Windows n exposent pas de RSSI/dBm fiable en direct pour les appareils jumelés ordinaires comme Windows le fait pour le Wi-Fi.</p><h2 id="fan-control-workflow">Controle des ventilateurs</h2>
 <p>Ouvrez <code>Options</code> &gt; <code>Controle des ventilateurs...</code> ou <code>Ctrl+L</code>.</p>
 <p>1. Choisissez un controle. 2. Optionnel : nommez-le et appuyez sur <code>Alt+L</code>. 3. Entrez un pourcentage de 0 a 100. 4. <code>Alt+M</code> applique. 5. <code>Alt+A</code> remet la selection en automatique. 6. <code>Alt+R</code> remet tous les visibles en automatique.</p>
 <p>Les boutons globaux n'affectent que les controles visibles. Les connecteurs arretes ou vides sont masques tant que <code>Afficher arretes</code> n'est pas coche. Les noms sont gardes dans la configuration propre a l'ordinateur dans <code>Config</code> et ne changent que l'affichage.</p>
@@ -821,10 +847,10 @@
 <p>Des outils optionnels du fabricant peuvent aussi aider a exposer ou verifier les donnees propres au portable. Les utilisateurs Dell peuvent essayer <a href="https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor">Dell Command | Monitor</a>. Les utilisateurs Lenovo peuvent essayer <a href="https://www.lenovo.com/us/en/software/vantage">Lenovo Vantage</a> ou <a href="https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications">Lenovo System Update</a>. Les utilisateurs MSI peuvent essayer <a href="https://www.msi.com/Landing/MSI-Center">MSI Center</a>. Les utilisateurs Asus peuvent essayer <a href="https://g-helper.com/">G-Helper</a>. Les utilisateurs HP, OMEN et Victus peuvent essayer <a href="https://support.hp.com/us-en/help/hp-support-assistant">HP Support Assistant</a> et <a href="https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html">OMEN Gaming Hub</a>. Ces outils ne font pas partie de Sensor Readout; utilisez les pages du fabricant ou du projet et installez seulement ce qui a du sens pour votre machine.</p>
 <p>Sensor Readout lit seulement ces chemins de support optionnels sauf indication contraire d un plug-in; il ne flashe pas le firmware et ne remplace pas les outils du fabricant.</p>
 <h2 id="report-comparison-support-and-history">Report Comparison, Support, And History</h2>
-<p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Shift+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Shift+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
+<p>Sensor Readout 3.6.0 adds <code>File</code> &gt; <code>Compare reports...</code> (<code>Ctrl+Maj+M</code>) for before-and-after or two-machine comparisons, <code>File</code> &gt; <code>Save anonymized report...</code> (<code>Ctrl+Maj+A</code>) for masking common private identifiers before sharing, and <code>Help</code> &gt; <code>Prepare support report...</code> for creating a diagnostic ZIP with a copyable path and GitHub issue shortcut.</p>
 <p>Utilisez <code>Options</code> &gt; <code>Activer le journal d historique des mesures</code>, puis selectionnez une mesure et appuyez sur <code>Ctrl+Maj+G</code> ou choisissez <code>Edition</code> &gt; <code>Ajouter au journal d historique</code> pour ecrire les mesures choisies dans un CSV temporaire dans <code>Logs</code>. Performance/Synthese inclut aussi un groupe de sources de donnees indiquant quelles sources Windows, LibreHardwareMonitor, plug-in, base de donnees et Sensor Readout ont contribue a la vue actuelle.</p>
 <h3>Sauvegardes de mise a jour</h3><p>Sensor Readout peut creer des sauvegardes de mise a jour quand il trouve d anciens dossiers de mise a jour ou des fichiers de langue qui semblent modifies par l utilisateur. Ces sauvegardes se trouvent dans <code>Backups\Updates</code> afin de ne pas gener les reglages, rapports, journaux, sons, langues ou plug-ins actifs.</p><h2 id="changelog">Changements</h2>
-<h3>4.3.2</h3><ul><li>Corrigé : la collecte des détails Wi-Fi lit désormais en toute sécurité les métadonnées de la liste des points d’accès Windows, ce qui évite des plantages sur certains systèmes connectés en Wi-Fi pendant l’actualisation périodique.</li></ul><h3>4.3.1</h3><ul><li>Amélioration : les nouveaux profils d état de la zone de notification et de raccourcis vocaux ignorent désormais les mesures indisponibles par défaut, tandis que les profils enregistrés existants conservent leur réglage actuel.</li><li>Correction : les mesures de batterie des périphériques ignorent maintenant les niveaux Bluetooth/HID périmés lorsque Windows indique que le périphérique n est pas actuellement connecté. Les raccourcis vocaux conditionnels et l état de la zone de notification n annoncent donc plus d anciens niveaux de batterie pour les claviers, casques, souris ou périphériques similaires déconnectés.</li></ul><h3>4.3.0</h3><ul><li>Ajout : Performance/Vue d'ensemble inclut maintenant les informations PCIe et emplacements d'extension lorsque Windows les expose, notamment l'utilisation des emplacements physiques et la largeur/vitesse actuelle et maximale du lien PCIe pour les périphériques PCI pris en charge.</li><li>Ajout : Performance/Vue d'ensemble affiche maintenant l'utilisation GPU lorsque les compteurs de performance Windows l'exposent, et le modèle de raccourci vocal GPU inclut l'utilisation GPU lorsqu'elle est disponible.</li><li>Amélioration : Performance/Vue d'ensemble expose davantage de détails GPU, modules mémoire et temps de fonctionnement, notamment les fréquences GPU et la capacité de calcul lorsque disponibles, les résumés de disposition/vitesse/emplacements mémoire, et le temps de fonctionnement avec les secondes.</li><li>Correction : la préférence mémorisant la dernière action de développement ou de repli de l'arborescence des mesures conserve maintenant votre vue développée ou repliée après les actualisations et reconstructions de l'arbre.</li><li>Ajout : le temps restant de charge ou décharge de batterie apparaît maintenant dans Batterie et Performances/Vue d ensemble lorsque Windows expose suffisamment de données batterie en direct. Ces mesures peuvent aussi être utilisées dans l état de la zone de notification et les raccourcis vocaux. Clôt <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/15">l issue #15</a>.</li><li>Correction : le fabricant du BIOS système n'est plus classé dans Graphiques.</li></ul><h3>4.2.0</h3><ul><li>Ajouté : Batterie inclut maintenant les lignes de compteur d alimentation Windows lorsque c est pris en charge, dont la puissance actuelle en direct depuis Win32_PowerMeter et la puissance de sortie nominale depuis Win32_PowerSupply lorsque Windows expose ces valeurs. Cela peut aider les utilisateurs de portables à vérifier la puissance du chargeur ou de l alimentation lorsque le matériel la signale.</li><li>Amélioré : les rapports TXT sont maintenant plus faciles à lire dans les éditeurs de texte, avec des titres de catégorie clairs, une section Détails séparée, un lien de téléchargement de Sensor Readout et une mise en page plus compacte centrée sur la lecture. Utilisez les rapports HTML ou les ZIP de diagnostic lorsque vous voulez rouvrir un rapport enregistré dans Sensor Readout.</li></ul><h3>4.1.2</h3><ul><li>Ajouté : la synthèse de la zone de notification et les profils de raccourcis parlés peuvent désormais ignorer les mesures indisponibles, afin que les adaptateurs déconnectés, lecteurs amovibles absents, connexions cellulaires inactives et mesures optionnelles similaires ne surchargent pas l annonce vocale sauf si vous voulez les inclure.</li><li>Amélioré : le plug-in Lenovo Laptop signale maintenant davantage de données Lenovo en lecture seule lorsque Windows les expose, dont la présence de ventilateur ACPI, l état/statut/autonomie de batterie ACPI, les informations de batterie IdeaPad, l état de limitation thermique, l état/température/usure du stockage, la présence du pilote thermique Lenovo et les diagnostics WMI Lenovo. Merci à serrebidev pour la contribution Lenovo détaillée.</li></ul><h3>4.1.1</h3><ul><li>Ajouté : Performances/Vue d ensemble affiche maintenant les totaux de mémoire physique + virtuelle, ainsi que l espace total, utilisé et libre de tous les disques connectés. Ces mesures peuvent aussi être utilisées dans les raccourcis vocaux et l état de la zone de notification. Clôt <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/11">l issue #11</a> et <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/12">l issue #12</a>.</li><li>Confidentialité : les statistiques anonymes de la communauté peuvent maintenant inclure le nombre de disques connectés et l espace total/utilisé/libre comme métriques de stockage agrégées, sans lettres de lecteurs, étiquettes, modèles, numéros de série, chemins ni lignes par disque.</li></ul><h3>4.1.0</h3><ul><li>Ajouté : les préférences générales permettent maintenant de choisir si les arborescences de mesures s’ouvrent développées, repliées ou mémorisent la dernière action de développement ou de repli lors du changement de catégorie.</li><li>Corrigé : Aide &gt; Exécuter les diagnostics utilise maintenant Alt+G et ne partage plus Alt+D avec Faire un don.</li></ul><h3>4.0.7</h3><ul><li>Corrigé : les températures CPU et GPU, les mesures des ventilateurs de la carte mère, les raccourcis de ventilateurs et les rapports se chargent à nouveau correctement après que la version 4.0.6 pouvait empêcher l ouverture des capteurs matériels de bas niveau.</li></ul><h3>4.0.6</h3><ul><li>Amélioré : les plug-ins fournis sont maintenant vérifiés pendant les mises à jour afin que les dossiers de plug-ins livrés soient remplacés proprement, tandis que les fichiers de plug-ins fournis modifiés par l utilisateur sont sauvegardés hors du dossier Plug-Ins actif.</li><li>Amélioré : les lignes d affichage et de mémoire GPU avertissent maintenant lorsque Windows signale un problème de carte graphique pouvant rendre les valeurs de mémoire peu fiables.</li><li>Corrigé : les fichiers de langue et manuels allemands utilisent maintenant de vrais trémas au lieu de substitutions ASCII, et des caractères accentués endommagés dans les textes espagnols, français et italiens fournis ont été réparés.</li></ul><h3>4.0.5</h3><ul><li>Ameliore : les mises a jour automatiques evitent maintenant les sauvegardes systematiques des dossiers fournis inchanges comme Docs, Data, les Plug-Ins inclus et Sounds.</li><li>Ajoute : Fichier &gt; Sauvegardes de mise a jour permet d ouvrir ou de supprimer les anciens ZIP de sauvegarde de mise a jour.</li><li>Ameliore : le plug-in Asus ROG inclus integre une detection plus sure des ordinateurs Asus de bureau/tour issue d une pull request de la communaute, tout en gardant le controle des ventilateurs de bureau en lecture seule.</li></ul><h3>4.0.4</h3><ul><li>Ajouté : Performances/Vue d ensemble inclut maintenant un groupe Accessibilité avec l état de la sortie lecteur d écran, les lecteurs d écran pris en charge détectés et les réglages courants d accessibilité Windows comme le contraste élevé, les touches rémanentes, les touches bascules, les touches filtres, l affichage des sons et les descriptions audio lorsque Windows les expose.</li><li>Confidentialité : les statistiques anonymes de la communauté incluent maintenant l édition, la version et le build de Windows ainsi que ces indicateurs généraux d accessibilité, mais toujours pas les programmes installés, l utilisation des programmes, les données identifiantes des périphériques ni les lignes complètes du rapport.</li></ul><h3>4.0.3</h3><ul><li>Corrige : le manuel portugais est maintenant un guide utilisateur complet fourni avec l application, et non un court resume, conforme au niveau attendu pour les langues incluses.</li></ul><h3>4.0.2</h3><ul><li>Ajouté : langue portugaise et manuel portugais, fournis par Vitor Ferreira.</li></ul><h3>4.0.1</h3><ul><li>Corrige : l envoi des statistiques de communaute utilise maintenant explicitement des reglages TLS modernes, afin d eviter les erreurs de canal securise SSL/TLS sur certains systemes.</li></ul><h3>4.0.0</h3><ul><li>Ajouté : Aide &gt; Partager des statistiques anonymes de la communauté permet aux utilisateurs d envoyer volontairement un petit résumé de couverture matérielle. Sensor Readout affiche d abord le JSON exact et ne téléverse rien sauf si l utilisateur appuie sur Envoyer.</li><li>Confidentialité : les statistiques de la communauté sont séparées des rapports anonymisés et ne contiennent pas le nom de l ordinateur, le nom d utilisateur, les numéros de série, les adresses MAC ou IP, les chemins, les étiquettes de lecteurs, les identifiants de périphérique, les identifiants PnP, les champs Détails bruts, les programmes installés ni les lignes complètes du rapport. Un ID client anonyme aléatoire est stocké localement, et seul son hash SHA-256 est envoyé afin qu une machine puisse mettre à jour son entrée agrégée.</li></ul><h3>3.10.5</h3><ul><li>Corrige : Diagnostics n affiche plus de boite de dialogue de fin apres l ouverture du dossier des rapports, ce qui evite une boite de dialogue cachee inaccessible si Sensor Readout est masque pendant les diagnostics. La ligne d etat indique maintenant la duree des diagnostics.</li><li>Ameliore : lorsque Sensor Readout est masque ou minimise et qu aucune alarme, courbe de ventilateur ou journalisation d historique ne demande une surveillance rapprochee, l actualisation automatique est ralentie afin de reduire l impact en arriere-plan sur les portables plus lents. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Ajoute: Performances/Vue d ensemble affiche maintenant la taille totale, utilisee et libre du fichier d echange lorsque Windows l expose. Ces mesures peuvent aussi etre utilisees dans les raccourcis vocaux et dans l etat de la zone de notification. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Ajoute: Stockage affiche maintenant l etat BitLocker des lecteurs lorsque Windows l expose, avec protection, chiffrement, verrouillage, methode et details du volume disponibles depuis Details.</li></ul><h3>3.10.2</h3><ul><li>Corrige : l editeur de langue prend maintenant en charge la recherche F3 depuis l onglet, memorise le dernier fichier et la derniere entree modifies, et gere la navigation tapee sur plusieurs lettres dans la liste des entrees.</li></ul><h3>3.10.1</h3><ul><li>Corrigé : les lignes de résumé de catégorie localisent maintenant les nombres de lectures et de groupes au lieu de mélanger des mots anglais dans les autres langues.</li><li>Corrigé : les messages italiens de mise à jour et d installation utilisent maintenant les accents nécessaires.</li></ul>
+<h3>4.4.0</h3><ul><li>Ajouté : Une nouvelle catégorie Bluetooth affiche les radios Bluetooth exposées par Windows et les appareils Bluetooth jumelés ou connectés, avec adresse adaptateur/appareil, type, services, fabricant, état de connexion, état de jumelage et dates de dernière détection/utilisation lorsque disponibles. Les lectures de batterie Bluetooth restent dans Batterie.</li><li>Ajouté : les préférences ont maintenant un onglet Catégories pour choisir les catégories principales affichées et leur ordre. Les raccourcis de catégorie suivent cet ordre, avec <code>Ctrl+0</code> à <code>Ctrl+9</code> pour les dix premières catégories et <code>Ctrl+Maj+0</code> à <code>Ctrl+Maj+9</code> pour les catégories 10 à 19.</li><li>Ajouté : <code>Édition</code> &gt; <code>Annuler</code> (<code>Ctrl+Z</code>) peut restaurer la dernière lecture ou catégorie masquée depuis la fenêtre principale.</li><li>Amélioré : les profils de raccourcis parlés peuvent maintenant copier, couper et coller les lectures sélectionnées entre profils depuis les préférences, et les listes ordonnées prennent en charge le glisser-déposer à la souris en plus du clavier.</li><li>Correction : le raccourci afficher/masquer est d&#233;sormais bloqu&#233; avec un retour vocal pendant que les pr&#233;f&#233;rences, les diagnostics/la cr&#233;ation du rapport de support ou la v&#233;rification des statistiques communautaires sont actifs, afin d’&#233;viter les fen&#234;tres modales masqu&#233;es difficiles &#224; r&#233;cup&#233;rer.</li></ul><h3>4.3.2</h3><ul><li>Corrigé : la collecte des détails Wi-Fi lit désormais en toute sécurité les métadonnées de la liste des points d’accès Windows, ce qui évite des plantages sur certains systèmes connectés en Wi-Fi pendant l’actualisation périodique.</li></ul><h3>4.3.1</h3><ul><li>Amélioration : les nouveaux profils d état de la zone de notification et de raccourcis vocaux ignorent désormais les mesures indisponibles par défaut, tandis que les profils enregistrés existants conservent leur réglage actuel.</li><li>Correction : les mesures de batterie des périphériques ignorent maintenant les niveaux Bluetooth/HID périmés lorsque Windows indique que le périphérique n est pas actuellement connecté. Les raccourcis vocaux conditionnels et l état de la zone de notification n annoncent donc plus d anciens niveaux de batterie pour les claviers, casques, souris ou périphériques similaires déconnectés.</li></ul><h3>4.3.0</h3><ul><li>Ajout : Performance/Vue d'ensemble inclut maintenant les informations PCIe et emplacements d'extension lorsque Windows les expose, notamment l'utilisation des emplacements physiques et la largeur/vitesse actuelle et maximale du lien PCIe pour les périphériques PCI pris en charge.</li><li>Ajout : Performance/Vue d'ensemble affiche maintenant l'utilisation GPU lorsque les compteurs de performance Windows l'exposent, et le modèle de raccourci vocal GPU inclut l'utilisation GPU lorsqu'elle est disponible.</li><li>Amélioration : Performance/Vue d'ensemble expose davantage de détails GPU, modules mémoire et temps de fonctionnement, notamment les fréquences GPU et la capacité de calcul lorsque disponibles, les résumés de disposition/vitesse/emplacements mémoire, et le temps de fonctionnement avec les secondes.</li><li>Correction : la préférence mémorisant la dernière action de développement ou de repli de l'arborescence des mesures conserve maintenant votre vue développée ou repliée après les actualisations et reconstructions de l'arbre.</li><li>Ajout : le temps restant de charge ou décharge de batterie apparaît maintenant dans Batterie et Performances/Vue d ensemble lorsque Windows expose suffisamment de données batterie en direct. Ces mesures peuvent aussi être utilisées dans l état de la zone de notification et les raccourcis vocaux. Clôt <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/15">l issue #15</a>.</li><li>Correction : le fabricant du BIOS système n'est plus classé dans Graphiques.</li></ul><h3>4.2.0</h3><ul><li>Ajouté : Batterie inclut maintenant les lignes de compteur d alimentation Windows lorsque c est pris en charge, dont la puissance actuelle en direct depuis Win32_PowerMeter et la puissance de sortie nominale depuis Win32_PowerSupply lorsque Windows expose ces valeurs. Cela peut aider les utilisateurs de portables à vérifier la puissance du chargeur ou de l alimentation lorsque le matériel la signale.</li><li>Amélioré : les rapports TXT sont maintenant plus faciles à lire dans les éditeurs de texte, avec des titres de catégorie clairs, une section Détails séparée, un lien de téléchargement de Sensor Readout et une mise en page plus compacte centrée sur la lecture. Utilisez les rapports HTML ou les ZIP de diagnostic lorsque vous voulez rouvrir un rapport enregistré dans Sensor Readout.</li></ul><h3>4.1.2</h3><ul><li>Ajouté : la synthèse de la zone de notification et les profils de raccourcis parlés peuvent désormais ignorer les mesures indisponibles, afin que les adaptateurs déconnectés, lecteurs amovibles absents, connexions cellulaires inactives et mesures optionnelles similaires ne surchargent pas l annonce vocale sauf si vous voulez les inclure.</li><li>Amélioré : le plug-in Lenovo Laptop signale maintenant davantage de données Lenovo en lecture seule lorsque Windows les expose, dont la présence de ventilateur ACPI, l état/statut/autonomie de batterie ACPI, les informations de batterie IdeaPad, l état de limitation thermique, l état/température/usure du stockage, la présence du pilote thermique Lenovo et les diagnostics WMI Lenovo. Merci à serrebidev pour la contribution Lenovo détaillée.</li></ul><h3>4.1.1</h3><ul><li>Ajouté : Performances/Vue d ensemble affiche maintenant les totaux de mémoire physique + virtuelle, ainsi que l espace total, utilisé et libre de tous les disques connectés. Ces mesures peuvent aussi être utilisées dans les raccourcis vocaux et l état de la zone de notification. Clôt <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/11">l issue #11</a> et <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/12">l issue #12</a>.</li><li>Confidentialité : les statistiques anonymes de la communauté peuvent maintenant inclure le nombre de disques connectés et l espace total/utilisé/libre comme métriques de stockage agrégées, sans lettres de lecteurs, étiquettes, modèles, numéros de série, chemins ni lignes par disque.</li></ul><h3>4.1.0</h3><ul><li>Ajouté : les préférences générales permettent maintenant de choisir si les arborescences de mesures s’ouvrent développées, repliées ou mémorisent la dernière action de développement ou de repli lors du changement de catégorie.</li><li>Corrigé : Aide &gt; Exécuter les diagnostics utilise maintenant Alt+G et ne partage plus Alt+D avec Faire un don.</li></ul><h3>4.0.7</h3><ul><li>Corrigé : les températures CPU et GPU, les mesures des ventilateurs de la carte mère, les raccourcis de ventilateurs et les rapports se chargent à nouveau correctement après que la version 4.0.6 pouvait empêcher l ouverture des capteurs matériels de bas niveau.</li></ul><h3>4.0.6</h3><ul><li>Amélioré : les plug-ins fournis sont maintenant vérifiés pendant les mises à jour afin que les dossiers de plug-ins livrés soient remplacés proprement, tandis que les fichiers de plug-ins fournis modifiés par l utilisateur sont sauvegardés hors du dossier Plug-Ins actif.</li><li>Amélioré : les lignes d affichage et de mémoire GPU avertissent maintenant lorsque Windows signale un problème de carte graphique pouvant rendre les valeurs de mémoire peu fiables.</li><li>Corrigé : les fichiers de langue et manuels allemands utilisent maintenant de vrais trémas au lieu de substitutions ASCII, et des caractères accentués endommagés dans les textes espagnols, français et italiens fournis ont été réparés.</li></ul><h3>4.0.5</h3><ul><li>Ameliore : les mises a jour automatiques evitent maintenant les sauvegardes systematiques des dossiers fournis inchanges comme Docs, Data, les Plug-Ins inclus et Sounds.</li><li>Ajoute : Fichier &gt; Sauvegardes de mise a jour permet d ouvrir ou de supprimer les anciens ZIP de sauvegarde de mise a jour.</li><li>Ameliore : le plug-in Asus ROG inclus integre une detection plus sure des ordinateurs Asus de bureau/tour issue d une pull request de la communaute, tout en gardant le controle des ventilateurs de bureau en lecture seule.</li></ul><h3>4.0.4</h3><ul><li>Ajouté : Performances/Vue d ensemble inclut maintenant un groupe Accessibilité avec l état de la sortie lecteur d écran, les lecteurs d écran pris en charge détectés et les réglages courants d accessibilité Windows comme le contraste élevé, les touches rémanentes, les touches bascules, les touches filtres, l affichage des sons et les descriptions audio lorsque Windows les expose.</li><li>Confidentialité : les statistiques anonymes de la communauté incluent maintenant l édition, la version et le build de Windows ainsi que ces indicateurs généraux d accessibilité, mais toujours pas les programmes installés, l utilisation des programmes, les données identifiantes des périphériques ni les lignes complètes du rapport.</li></ul><h3>4.0.3</h3><ul><li>Corrige : le manuel portugais est maintenant un guide utilisateur complet fourni avec l application, et non un court resume, conforme au niveau attendu pour les langues incluses.</li></ul><h3>4.0.2</h3><ul><li>Ajouté : langue portugaise et manuel portugais, fournis par Vitor Ferreira.</li></ul><h3>4.0.1</h3><ul><li>Corrige : l envoi des statistiques de communaute utilise maintenant explicitement des reglages TLS modernes, afin d eviter les erreurs de canal securise SSL/TLS sur certains systemes.</li></ul><h3>4.0.0</h3><ul><li>Ajouté : Aide &gt; Partager des statistiques anonymes de la communauté permet aux utilisateurs d envoyer volontairement un petit résumé de couverture matérielle. Sensor Readout affiche d abord le JSON exact et ne téléverse rien sauf si l utilisateur appuie sur Envoyer.</li><li>Confidentialité : les statistiques de la communauté sont séparées des rapports anonymisés et ne contiennent pas le nom de l ordinateur, le nom d utilisateur, les numéros de série, les adresses MAC ou IP, les chemins, les étiquettes de lecteurs, les identifiants de périphérique, les identifiants PnP, les champs Détails bruts, les programmes installés ni les lignes complètes du rapport. Un ID client anonyme aléatoire est stocké localement, et seul son hash SHA-256 est envoyé afin qu une machine puisse mettre à jour son entrée agrégée.</li></ul><h3>3.10.5</h3><ul><li>Corrige : Diagnostics n affiche plus de boite de dialogue de fin apres l ouverture du dossier des rapports, ce qui evite une boite de dialogue cachee inaccessible si Sensor Readout est masque pendant les diagnostics. La ligne d etat indique maintenant la duree des diagnostics.</li><li>Ameliore : lorsque Sensor Readout est masque ou minimise et qu aucune alarme, courbe de ventilateur ou journalisation d historique ne demande une surveillance rapprochee, l actualisation automatique est ralentie afin de reduire l impact en arriere-plan sur les portables plus lents. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/9">l issue #9</a>.</li></ul><h3>3.10.4</h3><ul><li>Ajoute: Performances/Vue d ensemble affiche maintenant la taille totale, utilisee et libre du fichier d echange lorsque Windows l expose. Ces mesures peuvent aussi etre utilisees dans les raccourcis vocaux et dans l etat de la zone de notification. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/8">l issue #8</a>.</li></ul><h3>3.10.3</h3><ul><li>Ajoute: Stockage affiche maintenant l etat BitLocker des lecteurs lorsque Windows l expose, avec protection, chiffrement, verrouillage, methode et details du volume disponibles depuis Details.</li></ul><h3>3.10.2</h3><ul><li>Corrige : l editeur de langue prend maintenant en charge la recherche F3 depuis l onglet, memorise le dernier fichier et la derniere entree modifies, et gere la navigation tapee sur plusieurs lettres dans la liste des entrees.</li></ul><h3>3.10.1</h3><ul><li>Corrigé : les lignes de résumé de catégorie localisent maintenant les nombres de lectures et de groupes au lieu de mélanger des mots anglais dans les autres langues.</li><li>Corrigé : les messages italiens de mise à jour et d installation utilisent maintenant les accents nécessaires.</li></ul>
 <h3>3.10.0</h3><ul><li>Ajoute: Aide inclut maintenant un assistant de configuration initiale pour les raccourcis afficher/masquer et parler l etat de la zone de notification, ainsi qu une fenetre de conseils pouvant apparaitre au demarrage.</li><li>Ajoute: Préférences inclut maintenant Supprimer tous les reglages pour repartir de zero ou nettoyer une copie avant de la partager. Les journaux et rapports sont conserves.</li><li>Corrige: les mesures d espace total et d espace utilise peuvent maintenant etre ajoutees a l etat de la zone de notification et aux raccourcis vocaux. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/7">l issue #7</a>.</li></ul>
 <h3>3.9.2</h3><ul><li>Ameliore: les préférences, presets d alarmes, presets de raccourcis, libelles de profils de ventilateur et descriptions pour lecteur d ecran des langues non anglaises incluses ont maintenant une couverture de traduction plus complete.</li><li>Corrige: les lecteurs amovibles prets, comme les cartes SD et les cles USB, apparaissent maintenant avec l espace de stockage et les mesures disponibles d activite de disque logique, ce qui les rend disponibles pour l etat de la zone de notification, les raccourcis vocaux, les rapports et les alarmes. Clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/6">l issue #6</a>.</li></ul>
 <h3>3.9.1</h3>
@@ -841,7 +867,7 @@
 </ul>
 <h3>3.8.1</h3>
 <ul>
-<li>Ameliore : <code>Fichier</code> &gt; <code>Importer les reglages et profils...</code> utilise maintenant <code>Ctrl+I</code>, en accord avec <code>Ctrl+E</code> pour l export. L importateur ZIP de plug-in, moins courant, utilise maintenant <code>Ctrl+Shift+I</code>.</li>
+<li>Ameliore : <code>Fichier</code> &gt; <code>Importer les reglages et profils...</code> utilise maintenant <code>Ctrl+I</code>, en accord avec <code>Ctrl+E</code> pour l export. L importateur ZIP de plug-in, moins courant, utilise maintenant <code>Ctrl+Maj+I</code>.</li>
 </ul>
 <h3>3.8.0</h3>
 <ul>
@@ -911,7 +937,7 @@
 <li>Ameliore : les Details de disque incluent maintenant le disque physique, les partitions, les partitions cachees ou sans lettre et les volumes logiques quand Windows les expose.</li>
 <li>Ameliore : les Details reseau incluent maintenant passerelle, DNS, DHCP, IP, MTU, statistiques d adaptateur et champs bruts d adaptateur/configuration Windows quand ils sont disponibles.</li>
 <li>Ameliore : les Details s ouvrent maintenant comme une arborescence groupee plutot qu une liste a deux colonnes, afin que les lecteurs d ecran lisent chaque champ et valeur comme un seul element, que les champs WMI ou registre bruts puissent etre sautes par groupe, et que F3/F4 fonctionnent dans Details pour rechercher et relire le texte.</li>
-<li>Ajoute : <code>Ctrl+Shift+C</code> copie uniquement la valeur de la mesure selectionnee, sans le nom de la mesure, pour reutiliser plus facilement des numeros de modele, chaines de peripherique, UUID et champs similaires.</li>
+<li>Ajoute : <code>Ctrl+Maj+C</code> copie uniquement la valeur de la mesure selectionnee, sans le nom de la mesure, pour reutiliser plus facilement des numeros de modele, chaines de peripherique, UUID et champs similaires.</li>
 <li>Ameliore : les utilisateurs de lecteur d ecran entendent maintenant &quot;A des details&quot; apres les elements d arborescence qui prennent en charge la commande Details, sans ajouter cette indication au texte copie ni aux rapports.</li>
 </ul>
 <h3>3.2.1</h3>
@@ -936,8 +962,8 @@
 </ul>
 <h3>3.1.0</h3>
 <ul>
-<li>Ajoute: <code>Edition</code> &gt; <code>Ajouter/retirer du raccourci vocal...</code> (<code>Ctrl+Shift+H</code>) permet d ajouter la mesure selectionnee a un profil de raccourci vocal, ou de la retirer, sans ouvrir tout le flux des Préférences.</li>
-<li>Ajoute: <code>Edition</code> &gt; <code>Tout developper</code> (<code>Ctrl+Shift+Right</code>) et <code>Edition</code> &gt; <code>Tout reduire</code> (<code>Ctrl+Shift+Left</code>) rendent les grandes categories plus faciles a parcourir ou remettre a plat.</li>
+<li>Ajoute: <code>Edition</code> &gt; <code>Ajouter/retirer du raccourci vocal...</code> (<code>Ctrl+Maj+H</code>) permet d ajouter la mesure selectionnee a un profil de raccourci vocal, ou de la retirer, sans ouvrir tout le flux des Préférences.</li>
+<li>Ajoute: <code>Edition</code> &gt; <code>Tout developper</code> (<code>Ctrl+Maj+Right</code>) et <code>Edition</code> &gt; <code>Tout reduire</code> (<code>Ctrl+Maj+Left</code>) rendent les grandes categories plus faciles a parcourir ou remettre a plat.</li>
 <li>Ameliore: Les info-bulles de la zone de notification peuvent maintenant utiliser le texte natif Windows plus long quand il est disponible, afin d afficher plus de mesures selectionnees avant de revenir a <code>...</code>. Cela clot <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/3">GitHub issue #3</a>.</li>
 <li>Ameliore: Les Préférences proposent une option pour afficher autant de mesures que possible dans l info-bulle de la zone de notification, ou garder les longues info-bulles sur le simple libelle <code>Sensor Readout</code>.</li>
 <li>Corrige: Afficher et masquer la fenetre principale ne replie plus l arborescence des mesures de facon inattendue.</li>
@@ -953,7 +979,7 @@
 <li>Ameliore : Details des lignes CPU et memoire inclut maintenant des champs materiels Windows plus avances, comme les identifiants processeur, proprietes CPU WMI, enregistrements de cache, limites de matrice memoire, fabricant, reference et numero de serie des modules, vitesses, largeurs, tensions et type de memoire lorsque Windows les expose.</li>
 <li>Ameliore : Telecharger et installer peut maintenant memoriser quand vous ne voulez plus voir la confirmation de fermeture/installation/reouverture, et Préférences &gt; Elements masques peut reactiver cette confirmation.</li>
 <li>Ameliore : Desinstaller de ce PC propose maintenant une option explicite pour supprimer aussi <code>Config</code>, <code>Logs</code> et <code>Reports</code> pour un nettoyage complet.</li>
-<li>Ajout : <code>Fichier</code> &gt; <code>Exporter une copie portable...</code> (<code>Ctrl+Shift+E</code>) cree un fichier ZIP de l application personnalisee pour l utiliser sur un autre PC, avec les parametres et fichiers personnalises de l application, et Reports et Logs en option.</li>
+<li>Ajout : <code>Fichier</code> &gt; <code>Exporter une copie portable...</code> (<code>Ctrl+Maj+E</code>) cree un fichier ZIP de l application personnalisee pour l utiliser sur un autre PC, avec les parametres et fichiers personnalises de l application, et Reports et Logs en option.</li>
 <li>Ameliore : les rapports TXT conservent maintenant les donnees de reouverture exacte dans un bloc libelle et coupe en lignes courtes apres le contenu lisible, evitant une seule ligne trop longue pour les lecteurs d ecran.</li>
 <li>Ajoute : Performances/Apercu affiche maintenant les tailles de cache CPU, dont L1, L2 et L3 quand Windows les signale.</li>
 <li>Ameliore : la barre de titre d un rapport ouvert affiche maintenant directement l ordinateur du rapport, par exemple <code>Report: Example-PC</code>, au lieu de repeter le titre complet du rapport.</li>
@@ -985,7 +1011,7 @@
 <h3>2.1.0</h3>
 <ul>
 <li>Ajoute : Demarrage et installation ajoute une commande Installer sur ce PC accessible avec <code>Alt+I</code>, capable de deplacer une copie portable ou dossier synchronise vers le dossier normal des programmes Windows de cet utilisateur. Elle peut aussi creer un raccourci sur le bureau, maintenir le demarrage Windows pointe vers la copie installee, fermer l ancienne copie et ouvrir la copie installee.</li>
-<li>Ajoute : <code>Fichier</code> &gt; <code>Ouvrir le dossier des rapports</code> (<code>Ctrl+Shift+O</code>) et <code>Fichier</code> &gt; <code>Ouvrir le dossier des logs</code> (<code>Ctrl+Shift+L</code>) rendent les rapports et logs enregistres plus faciles a retrouver.</li>
+<li>Ajoute : <code>Fichier</code> &gt; <code>Ouvrir le dossier des rapports</code> (<code>Ctrl+Maj+O</code>) et <code>Fichier</code> &gt; <code>Ouvrir le dossier des logs</code> (<code>Ctrl+Maj+L</code>) rendent les rapports et logs enregistres plus faciles a retrouver.</li>
 <li>Ajoute : Les plug-ins actives peuvent ajouter des pages de support liees au menu Aide, par exemple des pages d utilitaires constructeur pour portables Dell, Asus, HP, OMEN, Victus et Framework.</li>
 <li>Ameliore : Les mises a jour automatiques gerent plus fiablement les reglages inhabituels de dossiers temporaires Windows.</li>
 <li>Ameliore : Les noms par defaut des rapports enregistres incluent maintenant le nom de l ordinateur.</li>
@@ -1141,7 +1167,7 @@
 <li>Premiere version portable avec capteurs, rapports, notification, reglages par ordinateur, mesures masquees, noms de ventilateurs et controle direct LibreHardwareMonitor/PawnIO.</li>
 </ul>
 <h2 id="credits">Credits</h2>
-<p>Cree par Codex. Idees par Andre Louis. Questions et retours : <a href="https://onj.me/contact">onj.me/contact</a>. Sensor Readout est gratuit; soutien possible sur <a href="https://www.paypal.me/AndreLouis">paypal.me/AndreLouis</a>.</p>
+<p>Cree par Codex. Idees par Andre Louis. Un grand merci a toutes les personnes qui ont envoye une issue ou une pull request sur GitHub. Vous avez aide a rendre Sensor Readout meilleur. Questions et retours : <a href="https://onj.me/contact">onj.me/contact</a>. Sensor Readout est gratuit; soutien possible sur <a href="https://www.paypal.me/AndreLouis">paypal.me/AndreLouis</a>.</p>
 <p>Sensor Readout utilise ou inclut <a href="https://librehardwaremonitor.net/">LibreHardwareMonitor</a>, <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">LibreHardwareMonitor sur GitHub</a>, <a href="https://github.com/namazso/PawnIO">PawnIO</a>, <a href="https://github.com/namazso/PawnIO.Setup">PawnIO.Setup</a>, <a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, <a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, <a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, <a href="https://github.com/LibreHardwareMonitor/RAMSPDToolkit">RAMSPDToolkit</a>, <a href="https://www.nuget.org/packages/BlackSharp.Core/">BlackSharp.Core</a>, <a href="https://github.com/dkager/tolk">bibliotheque de lecteur d'ecran Tolk</a>, <a href="https://github.com/ozturkkl/framework-control">Framework Control</a> (API locale optionnelle), <a href="https://github.com/seerge/g-helper">G-Helper</a>, <a href="http://www.linux-usb.org/usb-ids.html">usb.ids</a>, <a href="https://github.com/uxmansarwar/mac-address-vendor-database">MAC Address Vendor Database</a> et Microsoft .NET Framework.</p>
 <h2>Licence</h2>
 <p>L application principale Sensor Readout est sous licence MIT. Voir <code>LICENSE.txt</code>. Certains plug-ins ou fichiers de donnees optionnels inclus ont leurs propres licences et avis. En particulier, <code>Plug-Ins\AsusRog</code> contient du travail ACPI derive de G-Helper et fournit son propre avis GPL et texte GPL dans ce dossier.</p>

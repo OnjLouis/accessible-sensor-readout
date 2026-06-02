@@ -46,6 +46,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
+            form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
@@ -139,8 +140,37 @@ public sealed partial class SensorReadoutForm : Form
     private void SelfTestCategoryNavigation()
     {
         EnsureSelfTestRows();
+        if (!latestRows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
+        {
+            latestRows.Add(new SensorRow { Type = "Battery", Hardware = "Self-test", Name = "Battery test", Identifier = "selftest-battery", Value = 100, DisplayValue = "100%", Source = "Self-test" });
+        }
+
+        settings.CategoryOrderKeys = new List<string>
+        {
+            "type|Devices",
+            "type|Performance",
+            "type|Temperature",
+            "type|Fan",
+            "type|SMART",
+            "type|Network",
+            "type|Bluetooth",
+            "type|USB",
+            "type|Audio",
+            "type|Display",
+            "type|Battery"
+        };
+        settings.HiddenCategoryKeys = new List<string>();
         UpdateDeviceList();
         Require(deviceList.Items.Count > 0, "Category list is empty.");
+        var firstFilter = deviceList.Items[0] as DeviceFilter;
+        Require(firstFilter != null && string.Equals(firstFilter.Key, "type|Devices", StringComparison.OrdinalIgnoreCase), "Custom category order was not applied.");
+        Require(SelectCategoryByShortcut(Keys.D0), "Ctrl+0 category shortcut did not select the first category.");
+        Require(deviceList.SelectedIndex == 0, "Ctrl+0 did not select category index 0.");
+        Require(SelectCategoryByShortcut(Keys.D0, 10), "Ctrl+Shift+0 category shortcut did not select overflow category.");
+        Require(deviceList.SelectedIndex == 10, "Ctrl+Shift+0 did not select category index 10.");
+        settings.HiddenCategoryKeys = new List<string> { "type|Network" };
+        UpdateDeviceList();
+        Require(!deviceList.Items.Cast<object>().OfType<DeviceFilter>().Any(f => string.Equals(f.Key, "type|Network", StringComparison.OrdinalIgnoreCase)), "Hidden category was still visible.");
         for (var i = 0; i < deviceList.Items.Count; i++)
         {
             deviceList.SelectedIndex = i;
@@ -152,6 +182,9 @@ public sealed partial class SensorReadoutForm : Form
                 Require(readingTree.Nodes.Count > 0 && !string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal), "Reading tree empty for populated category " + deviceList.Items[i] + ".");
             }
         }
+
+        settings.CategoryOrderKeys = new List<string>();
+        settings.HiddenCategoryKeys = new List<string>();
     }
 
     private void SelfTestExpandCollapse()
@@ -335,6 +368,202 @@ public sealed partial class SensorReadoutForm : Form
         return false;
     }
 
+    private void SelfTestUiMnemonicUniqueness()
+    {
+        EnsureSelfTestRows();
+        using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "General"))
+        {
+            preferences.CreateControl();
+            var tabControls = FindControls<TabControl>(preferences.Controls).ToList();
+            Require(tabControls.Count > 0, "Preferences form had no tab control to check.");
+            foreach (var tabControl in tabControls)
+            {
+                foreach (TabPage page in tabControl.TabPages)
+                {
+                    RequireUniqueControlMnemonics("Preferences tab " + (page.Text ?? page.Name), page.Controls);
+                }
+            }
+        }
+
+        RequireUniqueMenuMnemonics("Main menu bar", menuStrip.Items);
+        foreach (ToolStripItem item in menuStrip.Items)
+        {
+            var dropDown = item as ToolStripDropDownItem;
+            if (dropDown != null)
+            {
+                RequireUniqueMenuMnemonics("Menu " + StripMnemonicForSelfTest(item.Text), dropDown.DropDownItems);
+            }
+        }
+
+        if (readingTree.ContextMenuStrip != null)
+        {
+            RequireUniqueMenuMnemonics("Reading tree context menu", readingTree.ContextMenuStrip.Items);
+        }
+    }
+
+    private static IEnumerable<T> FindControls<T>(Control.ControlCollection controls) where T : Control
+    {
+        foreach (Control control in controls)
+        {
+            var match = control as T;
+            if (match != null)
+            {
+                yield return match;
+            }
+
+            foreach (var child in FindControls<T>(control.Controls))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private static void RequireUniqueControlMnemonics(string scope, Control.ControlCollection controls)
+    {
+        var seen = new Dictionary<char, string>();
+        foreach (var control in FlattenControls(controls))
+        {
+            if (!(control is ButtonBase) || string.IsNullOrWhiteSpace(control.Text))
+            {
+                continue;
+            }
+
+            char key;
+            if (!TryGetControlMnemonicKey(control, out key))
+            {
+                continue;
+            }
+
+            var label = StripMnemonicForSelfTest(control.Text);
+            string existing;
+            if (seen.TryGetValue(key, out existing))
+            {
+                throw new InvalidOperationException(scope + " uses Alt+" + key + " for both \"" + existing + "\" and \"" + label + "\".");
+            }
+
+            seen[key] = label;
+        }
+    }
+
+    private static IEnumerable<Control> FlattenControls(Control.ControlCollection controls)
+    {
+        foreach (Control control in controls)
+        {
+            yield return control;
+            foreach (var child in FlattenControls(control.Controls))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private static bool TryGetControlMnemonicKey(Control control, out char key)
+    {
+        key = '\0';
+        var shortcutButton = control as ShortcutButton;
+        if (shortcutButton != null && TryGetAltShortcutMnemonicKey(shortcutButton.ShortcutKeys, out key))
+        {
+            return true;
+        }
+
+        return TryGetMnemonicKey(control == null ? "" : control.Text, out key);
+    }
+
+    private static bool TryGetAltShortcutMnemonicKey(Keys keys, out char key)
+    {
+        key = '\0';
+        if ((keys & Keys.Alt) != Keys.Alt || (keys & Keys.Control) == Keys.Control)
+        {
+            return false;
+        }
+
+        var code = keys & Keys.KeyCode;
+        if (code >= Keys.A && code <= Keys.Z)
+        {
+            key = (char)('A' + (code - Keys.A));
+            return true;
+        }
+
+        if (code >= Keys.D0 && code <= Keys.D9)
+        {
+            key = (char)('0' + (code - Keys.D0));
+            return true;
+        }
+
+        if (code >= Keys.NumPad0 && code <= Keys.NumPad9)
+        {
+            key = (char)('0' + (code - Keys.NumPad0));
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void RequireUniqueMenuMnemonics(string scope, ToolStripItemCollection items)
+    {
+        var seen = new Dictionary<char, string>();
+        foreach (ToolStripItem item in items)
+        {
+            if (item is ToolStripSeparator || string.IsNullOrWhiteSpace(item.Text))
+            {
+                continue;
+            }
+
+            char key;
+            if (!TryGetMnemonicKey(item.Text, out key))
+            {
+                continue;
+            }
+
+            var label = StripMnemonicForSelfTest(item.Text);
+            string existing;
+            if (seen.TryGetValue(key, out existing))
+            {
+                throw new InvalidOperationException(scope + " uses Alt+" + key + " for both \"" + existing + "\" and \"" + label + "\".");
+            }
+
+            seen[key] = label;
+        }
+    }
+
+    private static bool TryGetMnemonicKey(string text, out char key)
+    {
+        key = '\0';
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < text.Length - 1; i++)
+        {
+            if (text[i] != '&')
+            {
+                continue;
+            }
+
+            if (text[i + 1] == '&')
+            {
+                i++;
+                continue;
+            }
+
+            key = char.ToUpperInvariant(text[i + 1]);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string StripMnemonicForSelfTest(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "";
+        }
+
+        return text.Replace("&&", "\u0001").Replace("&", "").Replace("\u0001", "&").Trim();
+    }
+
     private void SelfTestSpokenHotKeyAssignment()
     {
         EnsureSelfTestRows();
@@ -382,6 +611,7 @@ public sealed partial class SensorReadoutForm : Form
                 Threshold = 999999,
                 Enabled = true,
                 Speak = false,
+                SpokenMessage = "Self-test spoken alarm message",
                 SoundFile = "",
                 CooldownSeconds = 1
             }
@@ -403,6 +633,7 @@ public sealed partial class SensorReadoutForm : Form
         SaveSettings(settings);
         var reloaded = LoadSettings();
         Require(reloaded.Alarms.Any(a => string.Equals(a.Name, "Self-test alarm", StringComparison.Ordinal)), "Alarm did not persist.");
+        Require(reloaded.Alarms.Any(a => string.Equals(a.SpokenMessage, "Self-test spoken alarm message", StringComparison.Ordinal)), "Alarm spoken message did not persist.");
         Require(reloaded.FanCurves.Any(c => string.Equals(c.Name, "Self-test disabled fan curve", StringComparison.Ordinal)), "Fan curve did not persist.");
         CheckAlarms(latestRows);
     }
@@ -418,13 +649,101 @@ public sealed partial class SensorReadoutForm : Form
         Require(File.Exists(html) && new FileInfo(html).Length > 0, "HTML report was not written.");
         var txtText = File.ReadAllText(txt);
         var htmlText = File.ReadAllText(html);
-        Require(txtText.Contains("Sensor Readout"), "TXT report does not look like a Sensor Readout report.");
-        Require(htmlText.Contains("Sensor Readout"), "HTML report does not look like a Sensor Readout report.");
-        Require(!txtText.Contains("[SensorReadoutReportData]"), "TXT report should be human-readable and should not contain wrapped internal report data.");
-        Require(txtText.Contains("# "), "TXT report missing section headings.");
-        Require(txtText.Contains("Download Sensor Readout:"), "TXT report missing Sensor Readout download link.");
-        Require(!Regex.IsMatch(txtText, @"(?im)^[ \t]*Printer[ \t]+[^\r\n]+[ \t]+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
-            "TXT report contains verbose printer prefixes instead of the grouped printer tree.");
+        AssertSelfTestTextReportSanity(txtText, "TXT report");
+        AssertSelfTestHtmlReportSanity(htmlText, "HTML report");
+    }
+
+    private void AssertSelfTestTextReportSanity(string text, string label)
+    {
+        Require(!string.IsNullOrWhiteSpace(text), label + " is empty.");
+        Require(text.Contains("Sensor Readout"), label + " does not look like a Sensor Readout report.");
+        Require(text.Contains("Generated by Sensor Readout"), label + " missing generated-by line.");
+        Require(text.Contains("Download Sensor Readout:"), label + " missing Sensor Readout download link.");
+        Require(!text.Contains("[SensorReadoutReportData]"), label + " should be human-readable and should not contain wrapped internal report data.");
+        Require(!Regex.IsMatch(text, @"(?m)^.{600,}$"), label + " contains an unexpectedly long line.");
+        Require(!Regex.IsMatch(text, @"(?im)^[ \t]*Printer[ \t]+[^\r\n]+[ \t]+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
+            label + " contains verbose printer prefixes instead of the grouped printer tree.");
+
+        AssertSelfTestReportTextDoesNotContainUiNoise(text, label);
+
+        var headings = Regex.Matches(text, @"(?m)^#\s+(.+?)\s*$")
+            .Cast<Match>()
+            .Select(m => m.Groups[1].Value.Trim())
+            .Where(s => s.Length > 0)
+            .ToList();
+        Require(headings.Count >= 3, label + " has too few top-level sections.");
+        var duplicateHeading = headings
+            .GroupBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(g => g.Count() > 1);
+        Require(duplicateHeading == null, label + " repeats top-level section: " + (duplicateHeading == null ? "" : duplicateHeading.Key));
+
+    }
+
+    private void AssertSelfTestHtmlReportSanity(string html, string label)
+    {
+        Require(!string.IsNullOrWhiteSpace(html), label + " is empty.");
+        Require(html.IndexOf("Sensor Readout", StringComparison.OrdinalIgnoreCase) >= 0, label + " does not look like a Sensor Readout report.");
+        Require(Regex.Matches(html, "id=[\"']sensor-readout-report-data[\"']", RegexOptions.IgnoreCase).Count == 1, label + " must contain exactly one structured report payload.");
+        Require(!html.Contains("[SensorReadoutReportData]"), label + " contains legacy TXT report markers.");
+        AssertSelfTestReportTextDoesNotContainUiNoise(html, label);
+
+        ReportSnapshot snapshot;
+        Require(TryReadEmbeddedReportSnapshot(html, out snapshot), label + " structured payload could not be decoded.");
+        AssertSelfTestReportSnapshotSanity(snapshot, label + " snapshot");
+
+        var headings = Regex.Matches(html, "<h2>(?<text>.*?)</h2>", RegexOptions.IgnoreCase | RegexOptions.Singleline)
+            .Cast<Match>()
+            .Select(m => Regex.Replace(System.Net.WebUtility.HtmlDecode(m.Groups["text"].Value), "<.*?>", "").Trim())
+            .Where(s => s.Length > 0)
+            .ToList();
+        Require(headings.Count >= 3, label + " has too few visible category sections.");
+        var duplicateHeading = headings
+            .GroupBy(h => h, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(g => g.Count() > 1);
+        Require(duplicateHeading == null, label + " repeats visible category section: " + (duplicateHeading == null ? "" : duplicateHeading.Key));
+    }
+
+    private void AssertSelfTestReportSnapshotSanity(ReportSnapshot snapshot, string label)
+    {
+        Require(snapshot != null, label + " is missing.");
+        Require(!string.IsNullOrWhiteSpace(snapshot.AppVersion), label + " missing app version.");
+        Require(!string.IsNullOrWhiteSpace(snapshot.MachineName), label + " missing machine name.");
+        Require(snapshot.Rows != null && snapshot.Rows.Count > 0, label + " has no rows.");
+        Require(snapshot.Rows.Count(r => !string.IsNullOrWhiteSpace(r.Type)) >= 3, label + " has too few typed rows.");
+        var blankRow = snapshot.Rows.FirstOrDefault(r => string.IsNullOrWhiteSpace(r.Type) || string.IsNullOrWhiteSpace(r.Name));
+        Require(blankRow == null, label + " contains a row with a blank type or name.");
+    }
+
+    private void AssertSelfTestReportTextDoesNotContainUiNoise(string text, string label)
+    {
+        foreach (var term in new[]
+        {
+            "Data appears here after a refresh",
+            "will appear after a refresh",
+            "Refreshing sensors",
+            "No meter for selected reading",
+            "Has Details"
+        })
+        {
+            Require(text.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0, label + " contains UI/status/fallback text: " + term);
+        }
+
+        Require(!Regex.IsMatch(text, @"(?im)(^|[\s>])(?:ui|a11y|message)\.[A-Za-z0-9_.-]+"),
+            label + " contains an untranslated UI/status key.");
+    }
+
+    private void AssertSelfTestAnonymizedReportSanity(string text, string label)
+    {
+        Require(!string.IsNullOrWhiteSpace(text), label + " is empty.");
+        var machine = Environment.MachineName ?? "";
+        if (!string.IsNullOrWhiteSpace(machine))
+        {
+            Require(text.IndexOf(machine, StringComparison.OrdinalIgnoreCase) < 0, label + " still contains the current computer name.");
+        }
+
+        Require(!Regex.IsMatch(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b"), label + " still contains an IPv4 address.");
+        Require(!Regex.IsMatch(text, @"\b[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5}\b", RegexOptions.IgnoreCase), label + " still contains a MAC address.");
+        Require(!Regex.IsMatch(text, @"(?i)\b[A-Z]:\\Users\\|\\Users\\|/Users/"), label + " still contains a user-profile filesystem path.");
     }
 
     private void SelfTestReportReopen(string outputFolder)
@@ -472,6 +791,22 @@ public sealed partial class SensorReadoutForm : Form
         Require(reportViewMode, "ZIP report did not enter report view.");
         Require(latestRows.Count > 0, "ZIP report view has no rows.");
         ReturnToLiveReadings();
+
+        EnsureSelfTestRows();
+        var foreignReportRows = latestRows.Select(ToReportSnapshotRow).ToList();
+        EnterReportView(new ReportSnapshot
+        {
+            AppVersion = AppVersion,
+            Title = "Sensor Readout report for OTHERBOX",
+            MachineName = "OTHERBOX",
+            GeneratedLocal = "2026-01-01 00:00:00",
+            Rows = foreignReportRows
+        }, Path.Combine(outputFolder, "foreign-report.html"));
+        Require(reportViewMode, "Foreign report did not enter report view.");
+        ReturnToLiveReadings();
+        var liveSnapshot = BuildReportSnapshot();
+        Require(!string.Equals(liveSnapshot.MachineName, "OTHERBOX", StringComparison.OrdinalIgnoreCase),
+            "Returning to live readings kept the opened report machine name in generated report metadata.");
     }
 
     private void SelfTestReportToolsAndHistory(string outputFolder)
@@ -506,8 +841,14 @@ public sealed partial class SensorReadoutForm : Form
 
         var sanitized = SanitizeReportSnapshot(before);
         Require(string.Equals(sanitized.MachineName, "Computer", StringComparison.Ordinal), "Anonymized report did not replace machine name.");
+        AssertSelfTestReportSnapshotSanity(sanitized, "Anonymized report snapshot");
         var sanitizedHtml = BuildHtmlReport("", sanitized);
         Require(sanitizedHtml.IndexOf(Environment.MachineName ?? "", StringComparison.OrdinalIgnoreCase) < 0 || string.IsNullOrWhiteSpace(Environment.MachineName), "Anonymized report still contains the current computer name.");
+        AssertSelfTestHtmlReportSanity(sanitizedHtml, "Anonymized HTML report");
+        AssertSelfTestAnonymizedReportSanity(sanitizedHtml, "Anonymized HTML report");
+        var sanitizedText = BuildTextReport("", sanitized);
+        AssertSelfTestTextReportSanity(sanitizedText, "Anonymized TXT report");
+        AssertSelfTestAnonymizedReportSanity(sanitizedText, "Anonymized TXT report");
 
         var row = latestRows.FirstOrDefault(IsSelectableReadoutRow);
         Require(row != null, "No selectable row available for reading history.");

@@ -540,7 +540,7 @@ public sealed partial class SensorReadoutForm : Form
     private static string ReportTypeFromHeading(string heading)
     {
         heading = (heading ?? "").Trim();
-        foreach (var type in new[] { "Performance", "Temperature", "Fan", "SMART", "Battery", "Network", "USB", "Audio", "Display", "Devices" })
+        foreach (var type in new[] { "Performance", "Temperature", "Fan", "SMART", "Battery", "Network", "Bluetooth", "USB", "Audio", "Display", "Devices" })
         {
             if (heading.Equals(type, StringComparison.OrdinalIgnoreCase) || heading.Equals(DisplayTypeName(type), StringComparison.OrdinalIgnoreCase))
             {

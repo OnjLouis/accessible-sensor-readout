@@ -8,57 +8,40 @@ public sealed partial class SensorReadoutForm : Form
 {
     private bool SelectCategoryByShortcut(Keys keyCode)
     {
-        if (keyCode == Keys.D0 || keyCode == Keys.NumPad0)
+        return SelectCategoryByShortcut(keyCode, 0);
+    }
+
+    private bool SelectCategoryByShortcut(Keys keyCode, int offset)
+    {
+        var digit = DigitFromShortcutKey(keyCode);
+        if (digit < 0 || deviceList == null)
         {
-            return SelectCategoryByKey("type|Performance");
+            return false;
         }
 
-        if (keyCode == Keys.D1 || keyCode == Keys.NumPad1)
+        var index = offset + digit;
+        if (index < 0 || index >= deviceList.Items.Count)
         {
-            return SelectCategoryByKey("type|Temperature");
+            return false;
         }
 
-        if (keyCode == Keys.D2 || keyCode == Keys.NumPad2)
+        var filter = deviceList.Items[index] as DeviceFilter;
+        return filter != null && SelectCategoryByKey(filter.Key);
+    }
+
+    private static int DigitFromShortcutKey(Keys keyCode)
+    {
+        if (keyCode >= Keys.D0 && keyCode <= Keys.D9)
         {
-            return SelectCategoryByKey("type|Fan");
+            return keyCode - Keys.D0;
         }
 
-        if (keyCode == Keys.D3 || keyCode == Keys.NumPad3)
+        if (keyCode >= Keys.NumPad0 && keyCode <= Keys.NumPad9)
         {
-            return SelectCategoryByKey("type|SMART");
+            return keyCode - Keys.NumPad0;
         }
 
-        if (keyCode == Keys.D4 || keyCode == Keys.NumPad4)
-        {
-            return SelectCategoryByKey("type|Network");
-        }
-
-        if (keyCode == Keys.D5 || keyCode == Keys.NumPad5)
-        {
-            return SelectCategoryByKey("type|USB");
-        }
-
-        if (keyCode == Keys.D6 || keyCode == Keys.NumPad6)
-        {
-            return SelectCategoryByKey("type|Audio");
-        }
-
-        if (keyCode == Keys.D7 || keyCode == Keys.NumPad7)
-        {
-            return SelectCategoryByKey("type|Display");
-        }
-
-        if (keyCode == Keys.D8 || keyCode == Keys.NumPad8)
-        {
-            return SelectCategoryByKey("type|Battery");
-        }
-
-        if (keyCode == Keys.D9 || keyCode == Keys.NumPad9)
-        {
-            return SelectCategoryByKey("type|Devices");
-        }
-
-        return false;
+        return -1;
     }
 
     private bool SelectCategoryByKey(string key)
@@ -83,6 +66,61 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return false;
+    }
+
+    private void RebuildViewMenu(ToolStripMenuItem viewMenu)
+    {
+        if (viewMenu == null)
+        {
+            return;
+        }
+
+        viewMenu.DropDownItems.Clear();
+        var filters = deviceList == null
+            ? new List<DeviceFilter>()
+            : deviceList.Items.Cast<object>().OfType<DeviceFilter>().ToList();
+        for (var i = 0; i < filters.Count; i++)
+        {
+            var filter = filters[i];
+            if (filter == null || string.IsNullOrWhiteSpace(filter.Key))
+            {
+                continue;
+            }
+
+            var shortcutText = CategoryShortcutText(i);
+            var text = filter.DisplayName;
+            if (!string.IsNullOrWhiteSpace(shortcutText))
+            {
+                text += "\t" + shortcutText;
+            }
+
+            var key = filter.Key;
+            viewMenu.DropDownItems.Add(text, null, delegate { SelectCategoryByKey(key); });
+        }
+
+        if (viewMenu.DropDownItems.Count > 0)
+        {
+            viewMenu.DropDownItems.Add(new ToolStripSeparator());
+        }
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Refresh now", Keys.F5, delegate { RefreshSensors(); }));
+        viewMenu.DropDownItems.Add(new ToolStripSeparator());
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
+        viewMenu.DropDownItems.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
+    }
+
+    private static string CategoryShortcutText(int index)
+    {
+        if (index >= 0 && index <= 9)
+        {
+            return "Ctrl+" + index.ToString();
+        }
+
+        if (index >= 10 && index <= 19)
+        {
+            return "Ctrl+Shift+" + (index - 10).ToString();
+        }
+
+        return "";
     }
 
     private void ShowPreferences()
@@ -202,6 +240,8 @@ public sealed partial class SensorReadoutForm : Form
         settings.StartupSoundFile = dialog.StartupSoundFile;
         settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
         settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
+        settings.CategoryOrderKeys = dialog.CategoryOrderKeys;
+        settings.HiddenCategoryKeys = dialog.HiddenCategoryKeys;
         settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
         settings.PlugInsEnabled = dialog.PlugInsEnabled;
         plugInManager = null;
@@ -245,6 +285,8 @@ public sealed partial class SensorReadoutForm : Form
         UpdateTemperatureUnitMenu();
         BuildLanguageMenu();
         ApplyLanguage();
+        selectedFilterKey = deviceList.SelectedItem is DeviceFilter ? ((DeviceFilter)deviceList.SelectedItem).Key : selectedFilterKey;
+        UpdateDeviceList();
         RegisterGlobalHotKeys();
         ApplyTimerSettings();
         StartAutomaticUpdateChecks();
@@ -697,9 +739,33 @@ public sealed partial class SensorReadoutForm : Form
 
         settings.HiddenReadingKeys = settings.HiddenReadingKeys ?? new List<string>();
         var fallbackKey = FindHideFallbackKey(readingTree.SelectedNode);
-        if (!settings.HiddenReadingKeys.Contains(readingTree.SelectedNode.Name))
+        var hiddenKey = readingTree.SelectedNode.Name;
+        var hiddenText = readingTree.SelectedNode.Text;
+        if (!settings.HiddenReadingKeys.Contains(hiddenKey))
         {
-            settings.HiddenReadingKeys.Add(readingTree.SelectedNode.Name);
+            settings.HiddenReadingKeys.Add(hiddenKey);
+            RegisterUndo(
+                string.Format(L("ui.Hide reading action", "Hide {0}"), hiddenText),
+                delegate
+                {
+                    settings.HiddenReadingKeys.RemoveAll(k => string.Equals(k, hiddenKey, StringComparison.OrdinalIgnoreCase));
+                    SaveSettings(settings);
+                    lastReadingTreeSignature = "";
+                    lastReadingTreeShapeSignature = "";
+                    UpdateReadingList();
+                },
+                delegate
+                {
+                    settings.HiddenReadingKeys = settings.HiddenReadingKeys ?? new List<string>();
+                    if (!settings.HiddenReadingKeys.Contains(hiddenKey))
+                    {
+                        settings.HiddenReadingKeys.Add(hiddenKey);
+                    }
+                    SaveSettings(settings);
+                    lastReadingTreeSignature = "";
+                    lastReadingTreeShapeSignature = "";
+                    UpdateReadingList();
+                });
             SaveSettings(settings);
         }
 
@@ -707,6 +773,113 @@ public sealed partial class SensorReadoutForm : Form
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         UpdateReadingList(fallbackKey);
+    }
+
+    private void HideSelectedCategory()
+    {
+        var filter = deviceList == null ? null : deviceList.SelectedItem as DeviceFilter;
+        if (filter == null || string.IsNullOrWhiteSpace(filter.Key))
+        {
+            return;
+        }
+
+        settings.HiddenCategoryKeys = settings.HiddenCategoryKeys ?? new List<string>();
+        if (!settings.HiddenCategoryKeys.Contains(filter.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var hiddenKey = filter.Key;
+            var hiddenName = filter.DisplayName;
+            settings.HiddenCategoryKeys.Add(hiddenKey);
+            RegisterUndo(
+                string.Format(L("ui.Hide category action", "Hide {0} category"), hiddenName),
+                delegate
+                {
+                    settings.HiddenCategoryKeys.RemoveAll(k => string.Equals(k, hiddenKey, StringComparison.OrdinalIgnoreCase));
+                    SaveSettings(settings);
+                    UpdateDeviceList();
+                    SelectCategoryByKey(hiddenKey);
+                },
+                delegate
+                {
+                    settings.HiddenCategoryKeys = settings.HiddenCategoryKeys ?? new List<string>();
+                    if (!settings.HiddenCategoryKeys.Contains(hiddenKey))
+                    {
+                        settings.HiddenCategoryKeys.Add(hiddenKey);
+                    }
+                    SaveSettings(settings);
+                    UpdateDeviceList();
+                });
+            SaveSettings(settings);
+        }
+
+        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), filter.DisplayName);
+        UpdateDeviceList();
+    }
+
+    private void RegisterUndo(string actionName, Action undoAction, Action redoAction)
+    {
+        lastUndoEntry = new UndoRedoEntry(actionName, undoAction, redoAction);
+        lastRedoEntry = null;
+    }
+
+    private void UndoLastAction()
+    {
+        var entry = lastUndoEntry;
+        if (entry == null || entry.UndoAction == null)
+        {
+            statusLabel.Text = L("status.Nothing to undo.", "Nothing to undo.");
+            return;
+        }
+
+        lastUndoEntry = null;
+        entry.UndoAction();
+        lastRedoEntry = entry.RedoAction == null ? null : entry;
+        statusLabel.Text = string.Format(L("status.Undid action.", "Undid {0}."), entry.ActionName);
+        UpdateUndoRedoMenuItems();
+    }
+
+    private void RedoLastAction()
+    {
+        var entry = lastRedoEntry;
+        if (entry == null || entry.RedoAction == null)
+        {
+            statusLabel.Text = L("status.Nothing to redo.", "Nothing to redo.");
+            return;
+        }
+
+        lastRedoEntry = null;
+        entry.RedoAction();
+        lastUndoEntry = entry.UndoAction == null ? null : entry;
+        statusLabel.Text = string.Format(L("status.Redid action.", "Redid {0}."), entry.ActionName);
+        UpdateUndoRedoMenuItems();
+    }
+
+    private void UpdateEditMenuOpening()
+    {
+        UpdateRenameMenuVisibility();
+        UpdateUndoRedoMenuItems();
+    }
+
+    private void UpdateUndoRedoMenuItems()
+    {
+        if (editUndoMenuItem != null)
+        {
+            editUndoMenuItem.Text = WithShortcutText(
+                lastUndoEntry == null
+                    ? L("ui.&Undo", "&Undo")
+                    : string.Format(L("ui.&Undo action", "&Undo {0}"), lastUndoEntry.ActionName),
+                "Ctrl+Z");
+            editUndoMenuItem.Enabled = lastUndoEntry != null;
+        }
+
+        if (editRedoMenuItem != null)
+        {
+            editRedoMenuItem.Text = WithShortcutText(
+                lastRedoEntry == null
+                    ? L("ui.&Redo", "&Redo")
+                    : string.Format(L("ui.&Redo action", "&Redo {0}"), lastRedoEntry.ActionName),
+                "Ctrl+Y");
+            editRedoMenuItem.Enabled = lastRedoEntry != null;
+        }
     }
 
     private void RenameSelectedTreeNode()

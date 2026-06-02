@@ -98,7 +98,25 @@ public sealed partial class PreferencesForm : Form
 
     private void TraySelectedListKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.KeyCode == Keys.F2)
+        if (e.Control && e.KeyCode == Keys.C)
+        {
+            CopySelectedTrayChoice(false);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.X)
+        {
+            CopySelectedTrayChoice(true);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.Control && e.KeyCode == Keys.V)
+        {
+            PasteTrayChoices();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.F2)
         {
             RenameSelectedTrayChoice();
             e.Handled = true;
@@ -141,6 +159,106 @@ public sealed partial class PreferencesForm : Form
         }
 
         RenameSpeechLabel(item, SetTraySelectionStatus);
+    }
+
+    private void ResetSelectedTrayChoiceLabel()
+    {
+        var item = traySelectedList.SelectedItem as TrayItemChoice;
+        if (item == null)
+        {
+            SetTraySelectionStatus(SensorReadoutForm.L("status.Select a tray reading first.", "Select a tray reading first."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        readingSpeechLabels.Remove(item.Key);
+        RefreshSpeechPreviewLists();
+        SaveLivePreferences();
+        SetTraySelectionStatus(SensorReadoutForm.L("ui.Reset spoken label for", "Reset spoken label for") + " " + item + ".");
+    }
+
+    private void CopySelectedTrayChoice(bool cut)
+    {
+        var item = traySelectedList == null ? null : traySelectedList.SelectedItem as TrayItemChoice;
+        if (item == null || string.IsNullOrWhiteSpace(item.Key))
+        {
+            SetTraySelectionStatus(SensorReadoutForm.L("status.Select a tray reading first.", "Select a tray reading first."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        spokenReadingClipboardKeys.Clear();
+        spokenReadingClipboardKeys.Add(item.Key);
+        if (cut)
+        {
+            RemoveSelectedTrayChoice();
+            SetTraySelectionStatus(string.Format(SensorReadoutForm.L("status.Cut reading.", "Cut {0}."), item));
+        }
+        else
+        {
+            SetTraySelectionStatus(string.Format(SensorReadoutForm.L("status.Copied reading.", "Copied {0}."), item));
+        }
+    }
+
+    private void PasteTrayChoices()
+    {
+        if (spokenReadingClipboardKeys.Count == 0)
+        {
+            SetTraySelectionStatus(SensorReadoutForm.L("status.No copied readings.", "No copied readings."));
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var added = 0;
+        TrayItemChoice lastAdded = null;
+        foreach (var key in spokenReadingClipboardKeys)
+        {
+            if (string.IsNullOrWhiteSpace(key) || ContainsTrayChoice(traySelectedList, key))
+            {
+                continue;
+            }
+
+            if (traySelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings)
+            {
+                break;
+            }
+
+            var item = TakeTrayChoiceByKey(trayAvailableList, key);
+            if (item == null)
+            {
+                var row = RowForKey(key);
+                item = row == null
+                    ? TrayItemChoice.Unresolved(key, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames)
+                    : new TrayItemChoice(row, readingSpeechLabels, ShouldPreviewSpeechWithDeviceNames);
+            }
+
+            item.ShowSpeechPreview = true;
+            traySelectedList.Items.Add(item);
+            lastAdded = item;
+            added++;
+        }
+
+        if (added == 0)
+        {
+            var message = traySelectedList.Items.Count >= SensorReadoutForm.MaxTrayStatusReadings
+                ? SensorReadoutForm.L("status.Tray reading limit reached.", "The notification area can show up to eight readings.")
+                : SensorReadoutForm.L("status.Copied readings are already in tray.", "Copied readings are already in the notification area status.");
+            SetTraySelectionStatus(message);
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        if (lastAdded != null)
+        {
+            traySelectedList.SelectedItem = lastAdded;
+        }
+
+        SaveLivePreferences();
+        SetTraySelectionStatus(string.Format(
+            added == 1
+                ? SensorReadoutForm.L("status.Pasted one reading into tray.", "Pasted {0} reading into notification area status.")
+                : SensorReadoutForm.L("status.Pasted readings into tray.", "Pasted {0} readings into notification area status."),
+            added));
     }
 
     private void ShowPreferenceListSearch(ListBox list, string title)
@@ -201,6 +319,122 @@ public sealed partial class PreferencesForm : Form
 
         listSearchStates[list] = new ListSearchState();
         list.KeyDown += IncrementalListSearchKeyDown;
+    }
+
+    private void AttachListReorderDragDrop(ListBox list, Action saveAfterReorder)
+    {
+        if (list == null)
+        {
+            return;
+        }
+
+        list.AllowDrop = true;
+        var dragIndex = -1;
+        var dragStart = Point.Empty;
+        list.MouseDown += delegate(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+            {
+                dragIndex = -1;
+                return;
+            }
+
+            var source = sender as ListBox;
+            var index = source == null ? -1 : source.IndexFromPoint(e.Location);
+            if (source == null || index < 0 || index >= source.Items.Count)
+            {
+                return;
+            }
+
+            source.SelectedIndex = index;
+            dragIndex = index;
+            dragStart = e.Location;
+        };
+        list.MouseMove += delegate(object sender, MouseEventArgs e)
+        {
+            var source = sender as ListBox;
+            if (source == null || dragIndex < 0 || (e.Button & MouseButtons.Left) == 0)
+            {
+                return;
+            }
+
+            var dragSize = SystemInformation.DragSize;
+            var dragBounds = new Rectangle(
+                dragStart.X - dragSize.Width / 2,
+                dragStart.Y - dragSize.Height / 2,
+                dragSize.Width,
+                dragSize.Height);
+            if (dragBounds.Contains(e.Location))
+            {
+                return;
+            }
+
+            var index = dragIndex;
+            dragIndex = -1;
+            source.DoDragDrop(new ListDragState(source, index), DragDropEffects.Move);
+        };
+        list.MouseUp += delegate { dragIndex = -1; };
+        list.DragEnter += delegate(object sender, DragEventArgs e)
+        {
+            var state = e.Data == null ? null : e.Data.GetData(typeof(ListDragState)) as ListDragState;
+            e.Effect = state != null && state.Source == sender ? DragDropEffects.Move : DragDropEffects.None;
+        };
+        list.DragDrop += delegate(object sender, DragEventArgs e)
+        {
+            var targetList = sender as ListBox;
+            var state = e.Data == null ? null : e.Data.GetData(typeof(ListDragState)) as ListDragState;
+            if (targetList == null || state == null || state.Source != targetList)
+            {
+                return;
+            }
+
+            var point = targetList.PointToClient(new Point(e.X, e.Y));
+            var target = targetList.IndexFromPoint(point);
+            if (target < 0)
+            {
+                target = targetList.Items.Count - 1;
+            }
+
+            if (MoveListItem(targetList, state.Index, target))
+            {
+                if (saveAfterReorder != null)
+                {
+                    saveAfterReorder();
+                }
+            }
+        };
+    }
+
+    private static bool MoveListItem(ListBox list, int fromIndex, int toIndex)
+    {
+        if (list == null || fromIndex < 0 || fromIndex >= list.Items.Count || toIndex < 0 || toIndex >= list.Items.Count || fromIndex == toIndex)
+        {
+            return false;
+        }
+
+        var checkedList = list as CheckedListBox;
+        var wasChecked = checkedList != null && checkedList.GetItemChecked(fromIndex);
+        var item = list.Items[fromIndex];
+        list.Items.RemoveAt(fromIndex);
+        list.Items.Insert(toIndex, item);
+        if (checkedList != null)
+        {
+            checkedList.SetItemChecked(toIndex, wasChecked);
+        }
+        list.SelectedIndex = toIndex;
+        return true;
+    }
+
+    private sealed class ListDragState
+    {
+        public readonly ListBox Source;
+        public readonly int Index;
+
+        public ListDragState(ListBox source, int index)
+        {
+            Source = source;
+            Index = index;
+        }
     }
 
     private void IncrementalListSearchKeyDown(object sender, KeyEventArgs e)
@@ -357,7 +591,7 @@ public sealed partial class PreferencesForm : Form
             fanControlRowsSignature = newFanControlSignature;
 
             PopulateTrayReadingLists(CurrentTrayItemKeys());
-            PopulateSpokenReadingLists(SelectedSpokenHotKey());
+            PopulateSpokenReadingLists(SelectedSpokenHotKey(), IsNotificationAreaStatusSelected());
             PopulateFanProfileLists(SelectedFanProfile());
             PopulateAlarmReadings();
             UpdateTraySelectionStatus();
@@ -478,10 +712,9 @@ public sealed partial class PreferencesForm : Form
 
     private List<string> CurrentTrayItemKeys()
     {
-        return traySelectedList.Items
-            .Cast<TrayItemChoice>()
+        return new List<string>(liveSettings.TrayItemKeys ?? new List<string>())
+            .Where(i => !string.IsNullOrWhiteSpace(i))
             .Take(SensorReadoutForm.MaxTrayStatusReadings)
-            .Select(i => i.Key)
             .ToList();
     }
 }

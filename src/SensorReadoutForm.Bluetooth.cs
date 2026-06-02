@@ -1,0 +1,457 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+public sealed partial class SensorReadoutForm : Form
+{
+    private IEnumerable<SensorRow> GetBluetoothRows()
+    {
+        var rows = new List<SensorRow>();
+        var seenDeviceAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var radio in GetBluetoothRadios())
+        {
+            rows.AddRange(BuildBluetoothRadioRows(radio));
+
+            foreach (var device in radio.Devices)
+            {
+                if (!seenDeviceAddresses.Add(device.AddressText))
+                {
+                    continue;
+                }
+
+                rows.AddRange(BuildBluetoothDeviceRows(device));
+            }
+        }
+
+        return rows;
+    }
+
+    private static IEnumerable<SensorRow> BuildBluetoothRadioRows(BluetoothRadioDetails radio)
+    {
+        var hardware = string.IsNullOrWhiteSpace(radio.Name) ? "Bluetooth radio" : radio.Name;
+        var details = BuildBluetoothRadioDetails(radio);
+
+        yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Status", DisplayValue = "Available", Value = 1, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".status" };
+        if (!string.IsNullOrWhiteSpace(radio.AddressText))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter address", DisplayValue = radio.AddressText, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".address" };
+        }
+        if (!string.IsNullOrWhiteSpace(radio.DeviceClass))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter type", DisplayValue = radio.DeviceClass, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".type" };
+        }
+        if (!string.IsNullOrWhiteSpace(radio.ServiceClasses))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter services", DisplayValue = radio.ServiceClasses, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".services" };
+        }
+        if (!string.IsNullOrWhiteSpace(radio.Manufacturer))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter manufacturer", DisplayValue = radio.Manufacturer, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".manufacturer" };
+        }
+        if (!string.IsNullOrWhiteSpace(radio.LmpSubversion))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "LMP subversion", DisplayValue = radio.LmpSubversion, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".lmp-subversion" };
+        }
+    }
+
+    private static IEnumerable<SensorRow> BuildBluetoothDeviceRows(BluetoothDeviceDetails device)
+    {
+        var hardware = string.IsNullOrWhiteSpace(device.Name) ? "Bluetooth device " + device.AddressText : device.Name;
+        var details = BuildBluetoothDeviceDetails(device);
+        var connected = device.Connected ? 1 : 0;
+        var paired = device.Authenticated ? 1 : 0;
+
+        yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Connected", DisplayValue = FormatYesNo(device.Connected), Value = connected, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".connected" };
+        yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Paired", DisplayValue = FormatYesNo(device.Authenticated), Value = paired, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".paired" };
+        yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Remembered", DisplayValue = FormatYesNo(device.Remembered), Value = device.Remembered ? 1 : 0, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".remembered" };
+        if (!string.IsNullOrWhiteSpace(device.AddressText))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Device address", DisplayValue = device.AddressText, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".address" };
+        }
+        if (!string.IsNullOrWhiteSpace(device.DeviceClass))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Device type", DisplayValue = device.DeviceClass, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".type" };
+        }
+        if (!string.IsNullOrWhiteSpace(device.ServiceClasses))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Device services", DisplayValue = device.ServiceClasses, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".services" };
+        }
+        if (!string.IsNullOrWhiteSpace(device.LastSeen))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Last seen", DisplayValue = device.LastSeen, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".last-seen" };
+        }
+        if (!string.IsNullOrWhiteSpace(device.LastUsed))
+        {
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Last used", DisplayValue = device.LastUsed, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".last-used" };
+        }
+    }
+
+    private static Dictionary<string, string> BuildBluetoothRadioDetails(BluetoothRadioDetails radio)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(details, "Radio name", radio.Name);
+        AddDetail(details, "Radio address", radio.AddressText);
+        AddDetail(details, "Radio class", radio.DeviceClass);
+        AddDetail(details, "Radio service classes", radio.ServiceClasses);
+        AddDetail(details, "Radio class code", radio.ClassCode);
+        AddDetail(details, "Manufacturer", radio.Manufacturer);
+        AddDetail(details, "Manufacturer code", radio.ManufacturerCode);
+        AddDetail(details, "LMP subversion", radio.LmpSubversion);
+        AddDetail(details, "RSSI note", "Windows classic Bluetooth APIs used by Sensor Readout do not expose reliable live RSSI/dBm for paired devices. RSSI is shown only if a reliable source is added later.");
+        return details;
+    }
+
+    private static Dictionary<string, string> BuildBluetoothDeviceDetails(BluetoothDeviceDetails device)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(details, "Device name", device.Name);
+        AddDetail(details, "Device address", device.AddressText);
+        AddDetail(details, "Connected", FormatYesNo(device.Connected));
+        AddDetail(details, "Paired", FormatYesNo(device.Authenticated));
+        AddDetail(details, "Remembered", FormatYesNo(device.Remembered));
+        AddDetail(details, "Device class", device.DeviceClass);
+        AddDetail(details, "Service classes", device.ServiceClasses);
+        AddDetail(details, "Class code", device.ClassCode);
+        AddDetail(details, "Last seen", device.LastSeen);
+        AddDetail(details, "Last used", device.LastUsed);
+        AddDetail(details, "RSSI note", "Windows classic Bluetooth APIs used by Sensor Readout do not expose reliable live RSSI/dBm for paired devices. RSSI is shown only if a reliable source is added later.");
+        return details;
+    }
+
+    private static List<BluetoothRadioDetails> GetBluetoothRadios()
+    {
+        var radios = new List<BluetoothRadioDetails>();
+        var openedRadioHandles = new List<IntPtr>();
+        var findParams = new BluetoothFindRadioParams { Size = Marshal.SizeOf(typeof(BluetoothFindRadioParams)) };
+        IntPtr radioHandle;
+        var findHandle = BluetoothFindFirstRadio(ref findParams, out radioHandle);
+        if (findHandle == IntPtr.Zero)
+        {
+            return radios;
+        }
+
+        try
+        {
+            while (radioHandle != IntPtr.Zero)
+            {
+                openedRadioHandles.Add(radioHandle);
+                var info = new BluetoothRadioInfo { Size = Marshal.SizeOf(typeof(BluetoothRadioInfo)) };
+                if (BluetoothGetRadioInfo(radioHandle, ref info) == 0)
+                {
+                    var radio = new BluetoothRadioDetails
+                    {
+                        Handle = radioHandle,
+                        Name = info.Name,
+                        AddressText = FormatBluetoothAddress(info.Address),
+                        DeviceClass = FormatBluetoothMajorClass(info.ClassOfDevice),
+                        ServiceClasses = FormatBluetoothServiceClasses(info.ClassOfDevice),
+                        ClassCode = "0x" + info.ClassOfDevice.ToString("X6", CultureInfo.InvariantCulture),
+                        Manufacturer = FormatBluetoothManufacturer(info.Manufacturer),
+                        ManufacturerCode = info.Manufacturer.ToString(CultureInfo.InvariantCulture),
+                        LmpSubversion = info.LmpSubversion.ToString(CultureInfo.InvariantCulture)
+                    };
+                    radio.Devices.AddRange(GetBluetoothDevices(radioHandle));
+                    radios.Add(radio);
+                }
+
+                IntPtr nextRadio;
+                if (!BluetoothFindNextRadio(findHandle, out nextRadio))
+                {
+                    break;
+                }
+
+                radioHandle = nextRadio;
+            }
+        }
+        finally
+        {
+            BluetoothFindRadioClose(findHandle);
+            foreach (var handle in openedRadioHandles.Distinct())
+            {
+                if (handle != IntPtr.Zero)
+                {
+                    CloseHandle(handle);
+                }
+            }
+        }
+
+        return radios;
+    }
+
+    private static List<BluetoothDeviceDetails> GetBluetoothDevices(IntPtr radioHandle)
+    {
+        var devices = new List<BluetoothDeviceDetails>();
+        var search = new BluetoothDeviceSearchParams
+        {
+            Size = Marshal.SizeOf(typeof(BluetoothDeviceSearchParams)),
+            ReturnAuthenticated = true,
+            ReturnRemembered = true,
+            ReturnUnknown = false,
+            ReturnConnected = true,
+            IssueInquiry = false,
+            TimeoutMultiplier = 0,
+            Radio = radioHandle
+        };
+        var info = new BluetoothDeviceInfo { Size = Marshal.SizeOf(typeof(BluetoothDeviceInfo)) };
+        var findHandle = BluetoothFindFirstDevice(ref search, ref info);
+        if (findHandle == IntPtr.Zero)
+        {
+            return devices;
+        }
+
+        try
+        {
+            while (true)
+            {
+                var address = FormatBluetoothAddress(info.Address);
+                devices.Add(new BluetoothDeviceDetails
+                {
+                    Name = info.Name,
+                    AddressText = address,
+                    Connected = info.Connected,
+                    Remembered = info.Remembered,
+                    Authenticated = info.Authenticated,
+                    DeviceClass = FormatBluetoothMajorClass(info.ClassOfDevice),
+                    ServiceClasses = FormatBluetoothServiceClasses(info.ClassOfDevice),
+                    ClassCode = "0x" + info.ClassOfDevice.ToString("X6", CultureInfo.InvariantCulture),
+                    LastSeen = FormatBluetoothSystemTime(info.LastSeen),
+                    LastUsed = FormatBluetoothSystemTime(info.LastUsed)
+                });
+
+                info = new BluetoothDeviceInfo { Size = Marshal.SizeOf(typeof(BluetoothDeviceInfo)) };
+                if (!BluetoothFindNextDevice(findHandle, ref info))
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            BluetoothFindDeviceClose(findHandle);
+        }
+
+        return devices;
+    }
+
+    private static string FormatBluetoothAddress(ulong address)
+    {
+        if (address == 0)
+        {
+            return "";
+        }
+
+        var parts = new List<string>();
+        for (var index = 5; index >= 0; index--)
+        {
+            parts.Add(((address >> (index * 8)) & 0xFF).ToString("X2", CultureInfo.InvariantCulture));
+        }
+
+        return string.Join(":", parts.ToArray());
+    }
+
+    private static string FormatBluetoothMajorClass(uint classOfDevice)
+    {
+        switch ((classOfDevice >> 8) & 0x1F)
+        {
+            case 1: return "Computer";
+            case 2: return "Phone";
+            case 3: return "LAN or network access point";
+            case 4: return "Audio/video";
+            case 5: return "Peripheral";
+            case 6: return "Imaging";
+            case 7: return "Wearable";
+            case 8: return "Toy";
+            case 9: return "Health";
+            default: return "Uncategorized";
+        }
+    }
+
+    private static string FormatBluetoothServiceClasses(uint classOfDevice)
+    {
+        var services = new List<string>();
+        if ((classOfDevice & 0x00002000) != 0) services.Add("Limited discoverable");
+        if ((classOfDevice & 0x00010000) != 0) services.Add("Positioning");
+        if ((classOfDevice & 0x00020000) != 0) services.Add("Networking");
+        if ((classOfDevice & 0x00040000) != 0) services.Add("Rendering");
+        if ((classOfDevice & 0x00080000) != 0) services.Add("Capturing");
+        if ((classOfDevice & 0x00100000) != 0) services.Add("Object transfer");
+        if ((classOfDevice & 0x00200000) != 0) services.Add("Audio");
+        if ((classOfDevice & 0x00400000) != 0) services.Add("Telephony");
+        if ((classOfDevice & 0x00800000) != 0) services.Add("Information");
+        return services.Count == 0 ? "" : string.Join(", ", services.ToArray());
+    }
+
+    private static string FormatBluetoothManufacturer(ushort manufacturer)
+    {
+        switch (manufacturer)
+        {
+            case 0: return "Ericsson Technology Licensing";
+            case 1: return "Nokia Mobile Phones";
+            case 2: return "Intel Corp.";
+            case 10: return "Cambridge Silicon Radio";
+            case 13: return "Texas Instruments";
+            case 15: return "Broadcom";
+            case 29: return "Qualcomm";
+            case 48: return "Apple";
+            case 57: return "Realtek";
+            case 69: return "Atheros Communications";
+            case 76: return "Samsung Electronics";
+            case 93: return "Microsoft";
+            default: return manufacturer == 65535 ? "" : "Code " + manufacturer.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    private static string FormatBluetoothSystemTime(SystemTime time)
+    {
+        if (time.Year <= 1 || time.Month < 1 || time.Day < 1)
+        {
+            return "";
+        }
+
+        try
+        {
+            return new DateTime(time.Year, time.Month, time.Day, time.Hour, time.Minute, time.Second, DateTimeKind.Local).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private sealed class BluetoothRadioDetails
+    {
+        public IntPtr Handle;
+        public string Name = "";
+        public string AddressText = "";
+        public string DeviceClass = "";
+        public string ServiceClasses = "";
+        public string ClassCode = "";
+        public string Manufacturer = "";
+        public string ManufacturerCode = "";
+        public string LmpSubversion = "";
+        public List<BluetoothDeviceDetails> Devices = new List<BluetoothDeviceDetails>();
+    }
+
+    private sealed class BluetoothDeviceDetails
+    {
+        public string Name = "";
+        public string AddressText = "";
+        public bool Connected;
+        public bool Remembered;
+        public bool Authenticated;
+        public string DeviceClass = "";
+        public string ServiceClasses = "";
+        public string ClassCode = "";
+        public string LastSeen = "";
+        public string LastUsed = "";
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BluetoothFindRadioParams
+    {
+        public int Size;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct BluetoothRadioInfo
+    {
+        public int Size;
+        public ulong Address;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 248)]
+        public string Name;
+
+        public uint ClassOfDevice;
+        public ushort LmpSubversion;
+        public ushort Manufacturer;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BluetoothDeviceSearchParams
+    {
+        public int Size;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool ReturnAuthenticated;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool ReturnRemembered;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool ReturnUnknown;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool ReturnConnected;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool IssueInquiry;
+
+        public byte TimeoutMultiplier;
+        public IntPtr Radio;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct BluetoothDeviceInfo
+    {
+        public int Size;
+        public ulong Address;
+        public uint ClassOfDevice;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool Connected;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool Remembered;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool Authenticated;
+
+        public SystemTime LastSeen;
+        public SystemTime LastUsed;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 248)]
+        public string Name;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SystemTime
+    {
+        public ushort Year;
+        public ushort Month;
+        public ushort DayOfWeek;
+        public ushort Day;
+        public ushort Hour;
+        public ushort Minute;
+        public ushort Second;
+        public ushort Milliseconds;
+    }
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern IntPtr BluetoothFindFirstRadio(ref BluetoothFindRadioParams parameters, out IntPtr radioHandle);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool BluetoothFindNextRadio(IntPtr findHandle, out IntPtr radioHandle);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool BluetoothFindRadioClose(IntPtr findHandle);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern int BluetoothGetRadioInfo(IntPtr radioHandle, ref BluetoothRadioInfo radioInfo);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    private static extern IntPtr BluetoothFindFirstDevice(ref BluetoothDeviceSearchParams searchParams, ref BluetoothDeviceInfo deviceInfo);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool BluetoothFindNextDevice(IntPtr findHandle, ref BluetoothDeviceInfo deviceInfo);
+
+    [DllImport("bthprops.cpl", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool BluetoothFindDeviceClose(IntPtr findHandle);
+}

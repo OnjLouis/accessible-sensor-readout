@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.3.2.
+Current version: 4.4.0.
 
 Sensor Readout is a Windows utility for reading hardware sensors, checking connected devices, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -39,6 +39,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
+- Shows a Bluetooth category for Windows-exposed Bluetooth radios and paired or connected devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
 - Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.
 - Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.
@@ -86,7 +87,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Can import a plug-in ZIP from Preferences without automatically enabling it.
 - Can show laptop battery charge, status, capacity, health, cycle count, voltage, power rate, and charge/discharge remaining time where Windows exposes enough battery data.
 
-## Prerequisites
+## System Requirements
 
 - Windows 10 or Windows 11, 64-bit.
 - Microsoft .NET Framework 4.8 or newer.
@@ -109,9 +110,25 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [Tolk screen reader library](https://github.com/dkager/tolk)
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
+## Getting Started
+
+1. Start `Sensor Readout.exe`.
+2. Accept the Windows administrator prompt.
+3. If the initial setup dialog appears, set a show/hide hotkey and a speak notification-area status hotkey if you want quick access from anywhere.
+4. Choose a category on the left. `Performance/Overview` is a good first stop for uptime, Windows, CPU, memory, GPU, storage, printer, accessibility, and data-source summaries.
+5. Use `F3` to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use `F4` to review the exact text, or `Enter` to open Details when available.
+6. Press `Ctrl+Shift+H` on a useful reading to add it to notification-area status or a spoken hotkey profile.
+7. Press `F5` to refresh if values are still loading.
+
+If PawnIO is missing, Sensor Readout may offer to run the prerequisite installer. You can rerun it later from `Help` > `Install prerequisites...`.
+
+Fan controls are optional and depend on supported hardware. Open `Options` > `Fan controls...` or press `Ctrl+L` only if you specifically want to inspect or adjust writable fan controls. If motherboard fans or controls are missing, check that PawnIO is installed and that the app was started as administrator.
+
+For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in the `Reports` folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, `--diagnostics [path]` creates the same ZIP and exits.
+
 ## Prerequisite Installer
 
-Run `Install-Prerequisites.cmd` from this folder first. It calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.
+Most users can start `Sensor Readout.exe` directly. If a required component is missing, Sensor Readout will offer to run the prerequisite installer. `Install-Prerequisites.cmd` is mainly for manual setup or troubleshooting; it calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.
 
 To also install the standalone LibreHardwareMonitor app with winget for troubleshooting, run:
 
@@ -134,25 +151,11 @@ Optional troubleshooting tool:
 winget install --id LibreHardwareMonitor.LibreHardwareMonitor -e --source winget
 ```
 
-## First Run
-
-1. Start `Sensor Readout.exe`.
-2. Accept the Windows administrator prompt.
-3. If PawnIO is missing, Sensor Readout offers to run the prerequisite installer.
-4. Press `F5` to refresh if values are still loading.
-5. Open `Options` > `Fan controls...` or press `Ctrl+L` if you want to adjust fan control values.
-
-If motherboard fans or controls are missing, check that PawnIO is installed and that the app was started as administrator.
-
-You can rerun the prerequisite installer later from `Help` > `Install prerequisites...`.
-
-For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in the `Reports` folder, opens that folder, and can optionally speak each step and play sounds at the start and end of the test. For unattended testing, `--diagnostics [path]` creates the same ZIP and exits.
-
 ## Accessibility Setup
 
 Use `Help` > `Check accessibility setup...` after first run or after changing startup and hotkey preferences. It checks whether Sensor Readout can reach screen reader speech, whether notification-area speech is configured, whether report and log folders can be opened, and whether a minimized startup setup could leave you without an obvious way back to the main window.
 
-If you use `Start minimized to notification area`, set a show/hide hotkey in `Options` > `Preferences` > `Hotkeys`. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.
+If you use `Start minimized to notification area`, set a show/hide hotkey in `Options` > `Preferences` > `General`. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.
 
 The same Hotkeys tab can set a key for `Speak notification area status`. That key reads the configured notification-area readings without opening the main window, and it is often the fastest way to check important values such as memory, temperatures, uptime, network status, or GPU memory.
 
@@ -171,7 +174,10 @@ The same Hotkeys tab can set a key for `Speak notification area status`. That ke
 | Main window | `Ctrl+Shift+H` | Add the selected reading to notification area status or a spoken hotkey profile, remove it again, or create a spoken hotkey profile from the same dialog. |
 | Main window | `Ctrl+Shift+G` | Add or remove the selected reading from the optional reading history CSV log. |
 | Main window | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse the full reading tree for the current category. |
-| Main window | `Ctrl+0` to `Ctrl+9` | Switch directly to a main reading category. |
+| Main window | `Ctrl+0` to `Ctrl+9` | Switch directly to the first ten visible reading categories in your configured category order. |
+| Main window | `Ctrl+Shift+0` to `Ctrl+Shift+9` | Switch directly to categories 10 through 19 when your visible category list is longer than ten items. |
+| Main window | `Ctrl+Z` | Undo the last reading or category hide action. |
+| Main window | `Ctrl+Y` | Redo the last hide action after undoing it. |
 | File commands | `Ctrl+S` | Save a report. |
 | File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
 | File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
@@ -203,26 +209,26 @@ The same Hotkeys tab can set a key for `Speak notification area status`. That ke
 | Details dialog | `Ctrl+C` / `Ctrl+Shift+C` | Copy the selected Details branch, or copy value-only lines from the selected branch. |
 | Details dialog | `F3` / `F4` | Find within Details, or review the selected Details branch in a read-only text box. |
 | Details dialog | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse all Details groups. |
-| Preferences | `Ctrl+1` to `Ctrl+8` | Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Hidden items, or Language editor. |
+| Preferences | `Ctrl+1` to `Ctrl+9` | Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Categories, Hidden items, or Language editor. |
 | Preferences | `F3` | Find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
 | Preferences | `F2` | Jump to the name or rename field where applicable. |
+| Preferences > Hotkeys | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` | Copy, cut, or paste the selected reading between notification area status and spoken hotkey profiles. |
 | Preferences | `Enter` | Jump to the main value field where applicable. |
-| Preferences | `Ctrl+Right` | Add the selected available reading to the tray order or selected spoken hotkey. |
-| Preferences | `Ctrl+Left` | Remove the selected tray or spoken-hotkey reading. |
-| Preferences | `Ctrl+Up` / `Ctrl+Down` | Move the selected tray or spoken-hotkey reading earlier or later. |
+| Preferences | `Ctrl+Right` | Add the selected available reading to notification area status or the selected spoken hotkey profile. |
+| Preferences | `Ctrl+Left` | Remove the selected notification-area or spoken-hotkey reading. |
+| Preferences | `Ctrl+Up` / `Ctrl+Down` | Move the selected notification-area reading, spoken-hotkey reading, fan-profile action, or main category earlier or later. |
 | Preferences | `Alt+I` | In Startup and Install, install to this PC. |
 | Preferences | `Alt+U` | In Startup and Install, uninstall from this PC when running from the installed copy. |
 | Preferences | `Alt+I` | In Plug-Ins, import a plug-in ZIP. |
 | Preferences | `Alt+N` | In Hotkeys, create a new spoken hotkey profile. |
 | Preferences | `Alt+I` | In Hotkeys, import spoken hotkey profiles from another machine config. |
 | Preferences | `Alt+P` | In Hotkeys or Alarms, open presets. |
-| Preferences | `Alt+R` | In Hotkeys, remove the selected spoken hotkey profile. |
-| Preferences | `Alt+A` | In Hotkeys, add the selected reading to the selected spoken hotkey. |
-| Preferences | `Alt+M` | In Notification area or Hotkeys, remove the selected reading. |
+| Preferences | `Alt+R` | In Hotkeys, remove the selected spoken hotkey profile. Notification area status is permanent and cannot be removed. |
+| Preferences | `Alt+A` | In Hotkeys, add the selected reading to notification area status or the selected spoken hotkey profile. |
+| Preferences | `Alt+M` | In Hotkeys, remove the selected reading from notification area status or the selected spoken hotkey profile. |
 | Preferences | `Alt+U` / `Alt+W` | Move the selected spoken-hotkey reading up or down. |
-| Preferences | `Alt+R` | Rename the selected spoken label for notification area status or a spoken hotkey. |
 | Preferences | `Alt+D` | Reset the selected spoken label to default. |
-| Preferences | `Delete` | Remove the selected tray reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
+| Preferences | `Delete` | Remove the selected notification-area reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
 
 ## Command-Line Options
 
@@ -260,6 +266,7 @@ The General tab controls the main reading experience.
 - Refresh interval: set the normal refresh interval in seconds.
 - Show status in notification area: show or hide the tray icon and its tooltip.
 - Show as many readings as possible in notification area tooltip: use the longer Windows tooltip text where available; turn this off if you prefer long tray tooltips to show only `Sensor Readout`.
+- Show/hide hotkey: toggle the main window from anywhere. This is especially useful if you start minimized or Windows hides the notification-area icon.
 - Reading tree expansion: choose whether categories open expanded, open collapsed, or follow your most recent expand/collapse action when switching categories.
 - Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Decimal separator: use the language default, period, or comma.
@@ -293,16 +300,17 @@ If Sensor Readout restarts after install or update and the main window does not 
 
 ### Hotkeys (`Ctrl+3`)
 
-The Hotkeys tab controls global speech and visibility keys. Spoken hotkey profiles are sorted by assigned key, with unassigned profiles after assigned profiles.
+The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Spoken hotkey profiles are sorted by assigned key, with unassigned profiles after assigned profiles.
 
-- Show/hide hotkey: toggle the main window from anywhere.
-- Speak notification area status hotkey: speak the configured tray readings.
+- Notification area status: choose the readings used by the tray tooltip and the speak-tray hotkey. This is a permanent profile, so it stays available even if you remove every extra spoken hotkey profile.
+- Speak notification area status hotkey: speak the configured notification-area readings.
 - Include device names in spoken feedback: choose between fuller output such as `Ethernet Rx` and shorter output such as `Rx`.
 - Skip unavailable readings when speaking notification area status: omit configured tray readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.
 - Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
 - Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
 - Spoken hotkey presets: create starter profiles with useful reading groups. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
+- Copy, cut, and paste readings: use `Ctrl+C`, `Ctrl+X`, and `Ctrl+V`, or the matching buttons, to copy readings between notification area status and spoken hotkey profiles without rebuilding each list from scratch.
 
 Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
 
@@ -323,7 +331,7 @@ The Alarms tab lets you monitor readings without watching the main window.
 - Choose Above or equal, Below or equal, or Equal.
 - Set the threshold and unit.
 - Set a cooldown so repeated alarms do not fire too often.
-- Choose whether the alarm speaks, plays a sound, or both.
+- Choose whether the alarm speaks, plays a sound, or both. If you want speech text that differs from the alarm name and reading value, enter a custom spoken message.
 
 Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.
 
@@ -331,17 +339,21 @@ Alarms are best for values that naturally change, such as temperature, fan speed
 
 The Plug-Ins tab lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust. Imported plug-in ZIP files are copied into the `Plug-Ins` folder but stay disabled until you enable them yourself.
 
-### Hidden Items (`Ctrl+7`)
+### Categories (`Ctrl+7`)
 
-The Hidden items tab restores readings or groups hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.
+The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
-### Language Editor (`Ctrl+8`)
+### Hidden Items (`Ctrl+8`)
+
+The Hidden items tab restores readings or categories hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.
+
+### Language Editor (`Ctrl+9`)
 
 The Language editor tab edits installed language files without opening a separate text editor. English is the primary fallback language. Missing translated strings fall back to English, and corrupt language files are skipped rather than crashing the app.
 
 ## Alarms And Sounds
 
-Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both.
+Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both. The spoken message field is optional; leave it blank to speak the alarm name, reading, and current value automatically.
 
 The `Presets...` button offers practical starter alarms when matching readings exist on the current machine. Presets start unchecked so you can choose only the ones you want. Check the threshold, sound, and cooldown before relying on them.
 
@@ -378,6 +390,8 @@ The Performance section summarizes live system counters and storage activity. It
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
 The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
+
+The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
 The USB section shows connected devices, hubs, controllers, connection speed, capable speed where Windows exposes it, requested power, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, and other copyable details. USB data is partly dependent on what Windows and the device driver expose, so some devices may report less detail than others.
 
@@ -510,7 +524,7 @@ Use `Options` > `Enable reading history logging` to turn short-term CSV logging 
 
 ## Settings Transfer
 
-Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items, or plug-in choices.
+Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items and category order, or plug-in choices.
 
 Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
 
@@ -525,7 +539,7 @@ Portable build:
 Configuration and logging created by the app:
 
 - `Config\Shared.json`: portable preferences shared across machines, such as language, refresh behavior, temperature unit, startup/shutdown sounds, startup speech, notification-area visibility, update checks, and global hotkey choices.
-- `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
+- `Config\<ComputerName>.json`: machine-specific preferences, such as run-at-Windows-startup, selected notification-area readings, spoken-hotkey reading lists, alarms, hidden readings and categories, category order, fan labels, fan control settings, custom spoken reading labels, logging level, and first-run prerequisite prompts.
 - `*.srsettings.json`: optional settings transfer packages created by `File` > `Export settings and profiles...`.
 - `Logs\<ComputerName>.log`: optional diagnostics, fan actions, hotkey registration, and screen reader speech messages, created only when logging is enabled.
 - `Logs\ReadingHistory-<ComputerName>-<Date>.csv`: optional short-term reading history created only when reading history logging is enabled and at least one reading has been selected for it.
@@ -592,6 +606,15 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.4.0
+- Added: A new Bluetooth category shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available. Bluetooth battery readings remain in Battery.
+- Added: Preferences now has a Categories tab for choosing which main categories appear and in what order. Category shortcuts follow that order, with `Ctrl+0` through `Ctrl+9` for the first ten categories and `Ctrl+Shift+0` through `Ctrl+Shift+9` for categories 10 through 19.
+- Added: `Edit` > `Undo` (`Ctrl+Z`) now names the last hide action it will restore, and `Edit` > `Redo` (`Ctrl+Y`) can reapply that hide action after undoing it.
+- Improved: Notification area status now appears as a permanent entry in the Hotkeys profile list, sharing the same reading editor, reset-label command, copy/cut/paste support, and speak-tray hotkey.
+- Added: Alarms can now use an optional custom spoken message, so the screen reader can say different text from the alarm's management name.
+- Improved: Notification area status and spoken hotkey profiles can now copy, cut, and paste selected readings between each other from Preferences, and ordered preference lists support mouse drag-and-drop as well as keyboard movement.
+- Fixed: The show/hide hotkey is now blocked with spoken feedback while Preferences, diagnostics/support report generation, or community stats review is active, preventing hidden modal windows that are hard to recover.
 
 ### 4.3.2
 - Fixed: Wi-Fi detail collection now reads Windows access-point list metadata safely, preventing crashes on some Wi-Fi-connected systems during periodic refresh.
@@ -1044,6 +1067,8 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 ## Credits
 
 Created by Codex. Ideas by Andre Louis.
+
+A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better.
 
 Questions and feedback can be sent through `Help` > `Contact` in the app or <https://onj.me/contact>.
 

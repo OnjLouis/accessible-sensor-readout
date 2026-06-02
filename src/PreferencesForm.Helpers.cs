@@ -90,7 +90,52 @@ public sealed partial class PreferencesForm : Form
             .Cast<object>()
             .Select(i => Convert.ToString(i))
             .Where(i => !string.IsNullOrWhiteSpace(i))
+            .Where(i => !i.StartsWith("type|", StringComparison.OrdinalIgnoreCase))
             .ToList();
+    }
+
+    private List<string> CurrentCategoryOrderKeys()
+    {
+        if (categoryList == null)
+        {
+            return new List<string>(categoryOrderKeys ?? new List<string>());
+        }
+
+        return categoryList.Items
+            .Cast<object>()
+            .OfType<CategoryChoice>()
+            .Select(i => i.Key)
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .ToList();
+    }
+
+    private List<string> CurrentHiddenCategoryKeys()
+    {
+        if (categoryList == null)
+        {
+            return new List<string>(hiddenCategoryKeys ?? new List<string>());
+        }
+
+        var hidden = new List<string>();
+        for (var i = 0; i < categoryList.Items.Count; i++)
+        {
+            var choice = categoryList.Items[i] as CategoryChoice;
+            if (choice != null && !categoryList.GetItemChecked(i) && !string.IsNullOrWhiteSpace(choice.Key))
+            {
+                hidden.Add(choice.Key);
+            }
+        }
+
+        foreach (var item in hiddenItemsList == null ? new List<object>() : hiddenItemsList.CheckedItems.Cast<object>())
+        {
+            var text = Convert.ToString(item);
+            if (!string.IsNullOrWhiteSpace(text) && text.StartsWith("type|", StringComparison.OrdinalIgnoreCase) && !hidden.Contains(text, StringComparer.OrdinalIgnoreCase))
+            {
+                hidden.Add(text);
+            }
+        }
+
+        return hidden;
     }
 
     private Dictionary<string, string> CurrentReadingSpeechLabels()
@@ -358,6 +403,27 @@ public sealed partial class PreferencesForm : Form
             result = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
             if (result != 0) return result;
             return string.Compare(left.Type, right.Type, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private sealed class NotificationAreaStatusProfileChoice
+    {
+        private readonly Func<string> hotKey;
+        private readonly Func<int> readingCount;
+
+        public NotificationAreaStatusProfileChoice(Func<string> hotKey, Func<int> readingCount)
+        {
+            this.hotKey = hotKey;
+            this.readingCount = readingCount;
+        }
+
+        public override string ToString()
+        {
+            var key = hotKey == null ? "" : hotKey();
+            var count = readingCount == null ? 0 : readingCount();
+            var displayKey = string.IsNullOrWhiteSpace(key) ? "no hotkey" : key.Trim();
+            return SensorReadoutForm.L("ui.Notification area status", "Notification area status") +
+                " (" + displayKey + ", " + count + " reading" + (count == 1 ? "" : "s") + ", non-removable)";
         }
     }
 

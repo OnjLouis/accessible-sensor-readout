@@ -18,14 +18,12 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ShowCommunityStatsDialog()
     {
+        communityStatsDialogActive = true;
+        try
+        {
         if (reportViewMode)
         {
-            MessageBox.Show(this,
-                T("message.Community stats live only", "Community stats can only be shared from live readings, not from an opened report."),
-                T("ui.Share anonymous community stats", "Share anonymous community stats"),
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return;
+            ReturnToLiveReadings();
         }
 
         var generatingMessage = T("status.Generating community stats payload.", "Generating community stats payload.");
@@ -37,6 +35,7 @@ public sealed partial class SensorReadoutForm : Form
         var json = JsonConvert.SerializeObject(payload, Formatting.Indented);
         var intro = T("message.Community stats preview intro", "Review the exact anonymous community stats payload below. Sensor Readout will only upload this small allow-listed payload if you press Upload. It does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw details, installed programs, program usage, or full report rows.");
 
+        BringToFrontForUserPrompt();
         using (var dialog = new Form())
         {
             dialog.Text = T("ui.Share anonymous community stats", "Share anonymous community stats");
@@ -163,6 +162,11 @@ public sealed partial class SensorReadoutForm : Form
             };
             dialog.ShowDialog(this);
         }
+        }
+        finally
+        {
+            communityStatsDialogActive = false;
+        }
     }
 
     private static void SpeakCommunityStatsStatus(string text)
@@ -275,6 +279,7 @@ public sealed partial class SensorReadoutForm : Form
             { "hasFans", rows.Any(r => string.Equals(r.Type, "Fan", StringComparison.OrdinalIgnoreCase)) },
             { "hasSmart", rows.Any(r => string.Equals(r.Type, "SMART", StringComparison.OrdinalIgnoreCase)) },
             { "hasNetwork", rows.Any(r => string.Equals(r.Type, "Network", StringComparison.OrdinalIgnoreCase)) },
+            { "hasBluetooth", rows.Any(r => string.Equals(r.Type, "Bluetooth", StringComparison.OrdinalIgnoreCase)) },
             { "hasUsb", rows.Any(r => string.Equals(r.Type, "USB", StringComparison.OrdinalIgnoreCase)) },
             { "hasAudio", rows.Any(r => string.Equals(r.Type, "Audio", StringComparison.OrdinalIgnoreCase)) },
             { "hasDisplay", rows.Any(r => string.Equals(r.Type, "Display", StringComparison.OrdinalIgnoreCase)) },
@@ -305,6 +310,7 @@ public sealed partial class SensorReadoutForm : Form
             { "dedicatedGpuMemoryTotal", SafeCommunityStatsValue(FindDisplayValue(rows, "Performance", "Dedicated GPU memory total")) },
             { "smartDeviceCount", CountDistinctHardware(rows, "SMART") },
             { "networkAdapterGroupCount", CountDistinctHardware(rows, "Network") },
+            { "bluetoothGroupCount", CountDistinctHardware(rows, "Bluetooth") },
             { "usbGroupCount", CountDistinctHardware(rows, "USB") },
             { "audioGroupCount", CountDistinctHardware(rows, "Audio") },
             { "displayGroupCount", CountDistinctHardware(rows, "Display") },
@@ -346,6 +352,7 @@ public sealed partial class SensorReadoutForm : Form
             { "fanRowCount", rows.Count(r => string.Equals(r.Type, "Fan", StringComparison.OrdinalIgnoreCase)) },
             { "smartRowCount", rows.Count(r => string.Equals(r.Type, "SMART", StringComparison.OrdinalIgnoreCase)) },
             { "networkRowCount", rows.Count(r => string.Equals(r.Type, "Network", StringComparison.OrdinalIgnoreCase)) },
+            { "bluetoothRowCount", rows.Count(r => string.Equals(r.Type, "Bluetooth", StringComparison.OrdinalIgnoreCase)) },
             { "usbRowCount", rows.Count(r => string.Equals(r.Type, "USB", StringComparison.OrdinalIgnoreCase)) },
             { "deviceRowCount", rows.Count(r => string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase)) },
             { "nonWorkingDeviceCount", rows.Count(r => string.Equals(r.Type, "Devices", StringComparison.OrdinalIgnoreCase) && string.Equals(r.Hardware ?? "", "Non-working devices", StringComparison.OrdinalIgnoreCase)) },

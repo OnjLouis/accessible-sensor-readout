@@ -344,6 +344,7 @@ public sealed partial class PreferencesForm : Form
             alarmThresholdUnitBox.Enabled = enabled;
             alarmCooldownBox.Enabled = enabled;
             alarmSpeakCheckBox.Enabled = enabled;
+            alarmSpokenMessageBox.Enabled = enabled && (alarm == null || alarm.Speak);
             alarmSoundBox.Enabled = enabled;
 
             alarmEnabledCheckBox.Checked = alarm == null || alarm.Enabled;
@@ -355,6 +356,7 @@ public sealed partial class PreferencesForm : Form
             alarmThresholdBox.Value = ClampDecimal(AlarmThresholdBaseToInput(alarm == null ? 80 : alarm.Threshold, SelectedAlarmThresholdUnit(), SelectedAlarmRow()), alarmThresholdBox.Minimum, alarmThresholdBox.Maximum);
             alarmCooldownBox.Value = ClampDecimal(alarm == null ? 60 : alarm.CooldownSeconds, alarmCooldownBox.Minimum, alarmCooldownBox.Maximum);
             alarmSpeakCheckBox.Checked = alarm == null || alarm.Speak;
+            alarmSpokenMessageBox.Text = alarm == null ? "" : alarm.SpokenMessage ?? "";
             PopulateSoundCombo(alarmSoundBox, alarm == null ? "" : alarm.SoundFile);
             lastAlarmReadingKey = SelectedAlarmReadingKey();
         }
@@ -385,6 +387,7 @@ public sealed partial class PreferencesForm : Form
         alarm.Threshold = AlarmThresholdInputToBase(Convert.ToDouble(alarmThresholdBox.Value), alarm.ThresholdUnit, SelectedAlarmRow());
         alarm.CooldownSeconds = Convert.ToInt32(alarmCooldownBox.Value);
         alarm.Speak = alarmSpeakCheckBox.Checked;
+        alarm.SpokenMessage = alarmSpokenMessageBox.Text.Trim();
         alarm.SoundFile = SelectedSoundFile(alarmSoundBox);
         if (refreshListItem)
         {
@@ -505,6 +508,7 @@ public sealed partial class PreferencesForm : Form
             focusedControl == alarmThresholdUnitBox ||
             focusedControl == alarmCooldownBox ||
             focusedControl == alarmSpeakCheckBox ||
+            focusedControl == alarmSpokenMessageBox ||
             focusedControl == alarmSoundBox;
 
         if (!shouldRestore)
@@ -828,6 +832,7 @@ public sealed partial class PreferencesForm : Form
                 ThresholdUnit = a.ThresholdUnit ?? "",
                 Enabled = a.Enabled,
                 Speak = a.Speak,
+                SpokenMessage = a.SpokenMessage ?? "",
                 SoundFile = System.IO.Path.GetFileName(a.SoundFile ?? ""),
                 CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds))
             })
