@@ -1134,6 +1134,65 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
     }
 }
 
+function Invoke-DotNetUpdaterSmoke([string]$releaseVersion, [string]$candidateZip) {
+    if ($SkipUpgradeSmoke) {
+        Info "Skipping .NET updater smoke by request."
+        return
+    }
+
+    Info "Running .NET updater smoke for $releaseVersion."
+    $updateRoot = Join-Path $SmokeRoot "updater-dotnet-$releaseVersion"
+    $targetRoot = Join-Path $updateRoot 'Target'
+    Remove-Item -LiteralPath $updateRoot -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $targetRoot | Out-Null
+    robocopy $portable $targetRoot /E /XD Config Logs Reports Backups 'Update Backups' 'Update Temp' /XF '*.pdb' /R:2 /W:1 /NFL /NDL /NP | Out-Host
+    if ($LASTEXITCODE -ge 8) {
+        Fail ".NET updater smoke setup copy failed. Robocopy exit code $LASTEXITCODE."
+    }
+
+    $sentinel = Set-SmokeConfig $targetRoot
+    $legacyUpdateBackup = Join-Path $targetRoot 'Config\Update Backups\legacy'
+    New-Item -ItemType Directory -Force -Path $legacyUpdateBackup | Out-Null
+    Set-Content -LiteralPath (Join-Path $legacyUpdateBackup 'old-language.txt') -Value 'release-smoke legacy backup' -Encoding UTF8
+    $nestedPlugIn = Join-Path $targetRoot 'Plug-Ins\AsusRog\AsusRog'
+    New-Item -ItemType Directory -Force -Path $nestedPlugIn | Out-Null
+    Set-Content -LiteralPath (Join-Path $nestedPlugIn 'plugin.json') -Value '{"id":"release-smoke.bad-nested-plugin","name":"Bad nested plugin"}' -Encoding UTF8
+
+    $exe = Join-Path $targetRoot 'Sensor Readout.exe'
+    $zipUrl = ([Uri]$candidateZip).AbsoluteUri
+    $updater = Join-Path $portable 'Sensor Readout.exe'
+    $p = Start-Process -FilePath $updater -ArgumentList @(
+        '--apply-update',
+        '--update-url', $zipUrl,
+        '--update-target', $targetRoot,
+        '--update-exe', $exe,
+        '--update-temp', $updateRoot,
+        '--update-wait-pid', '0',
+        '--update-no-restart'
+    ) -WorkingDirectory $repoRoot -WindowStyle Hidden -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        Fail ".NET updater smoke exited with code $($p.ExitCode)."
+    }
+
+    $updaterLog = Join-Path $targetRoot 'Logs\Updater.log'
+    if (Test-Path -LiteralPath $updaterLog) {
+        Fail ".NET updater smoke wrote an updater error log: $updaterLog"
+    }
+
+    Assert-SmokeConfigPreserved $targetRoot $sentinel $releaseVersion
+    foreach ($nested in @('Plug-Ins\AsusRog\AsusRog', 'Docs\Docs', 'Langs\Langs', 'Data\Data', 'Plug-Ins\Plug-Ins')) {
+        if (Test-Path -LiteralPath (Join-Path $targetRoot $nested)) {
+            Fail ".NET updater smoke left nested shipped folder live: $nested"
+        }
+    }
+    if (Test-Path -LiteralPath (Join-Path $targetRoot 'Config\Update Backups')) {
+        Fail ".NET updater smoke left legacy Config\Update Backups live."
+    }
+    if (!(Test-Path -LiteralPath (Join-Path $targetRoot 'Backups\Updates'))) {
+        Fail ".NET updater smoke did not move legacy update backups into top-level Backups."
+    }
+}
+
 function Invoke-PostPublishUpdateSmoke([string]$releaseVersion) {
     if ($SkipPostPublishUpdateSmoke) {
         Info "Skipping post-publish update smoke by request."
@@ -1214,6 +1273,7 @@ Invoke-CommandLineReportSmoke $Version
 Invoke-CommandLineDiagnosticsSmoke $Version
 $zipPath = New-ReleaseZip $Version
 $sourceZipPath = New-SourceSnapshot $Version
+Invoke-DotNetUpdaterSmoke $Version $zipPath
 Invoke-LocalUpgradeSmoke $Version $zipPath
 Mirror-AppCopy 'C:\Users\OnjLo\AppData\Local\Programs\Sensor Readout' 'installed copy' $true
 Mirror-AppCopy 'D:\Dropbox\SOFTWARE\SensorReadout' 'personal Dropbox copy' $false

@@ -654,12 +654,21 @@ public sealed partial class SensorReadoutForm : Form
             var appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
             var exePath = Application.ExecutablePath;
             var updaterTempDir = GetUpdaterTempDirectory(appDir);
-            var scriptPath = System.IO.Path.Combine(updaterTempDir, "SensorReadoutUpdater-" + Guid.NewGuid().ToString("N") + ".ps1");
-            System.IO.File.WriteAllText(scriptPath, BuildUpdaterScript(zipUrl, appDir, exePath, updaterTempDir, Process.GetCurrentProcess().Id));
+            var updaterRoot = System.IO.Path.Combine(updaterTempDir, "SensorReadoutUpdater-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(updaterRoot);
+            var updaterExe = System.IO.Path.Combine(updaterRoot, "Sensor Readout Updater.exe");
+            System.IO.File.Copy(exePath, updaterExe, true);
             Process.Start(new ProcessStartInfo
             {
-                FileName = "powershell.exe",
-                Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + scriptPath + "\"",
+                FileName = updaterExe,
+                Arguments =
+                    "--apply-update" +
+                    " --update-url " + CommandLineQuote(zipUrl) +
+                    " --update-target " + CommandLineQuote(appDir) +
+                    " --update-exe " + CommandLineQuote(exePath) +
+                    " --update-temp " + CommandLineQuote(updaterTempDir) +
+                    " --update-wait-pid " + Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture),
+                WorkingDirectory = updaterRoot,
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
@@ -786,197 +795,9 @@ public sealed partial class SensorReadoutForm : Form
         throw new InvalidOperationException("Could not create a temporary folder for the updater.");
     }
 
-    private static string BuildUpdaterScript(string zipUrl, string targetDir, string exePath, string tempDir, int processId)
+    private static string CommandLineQuote(string value)
     {
-        return
-            "$ErrorActionPreference = 'Stop'\r\n" +
-            "Add-Type -AssemblyName System.Windows.Forms\r\n" +
-            "$zipUrl = " + PowerShellQuote(zipUrl) + "\r\n" +
-            "$userAgent = " + PowerShellQuote("Sensor Readout " + AppVersion) + "\r\n" +
-            "$target = " + PowerShellQuote(targetDir) + "\r\n" +
-            "$exe = " + PowerShellQuote(exePath) + "\r\n" +
-            "$tempBase = " + PowerShellQuote(tempDir) + "\r\n" +
-            "$pidToWait = " + processId.ToString(CultureInfo.InvariantCulture) + "\r\n" +
-            "function Get-FileSha256($path) {\r\n" +
-            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return '' }\r\n" +
-            "  return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash\r\n" +
-            "}\r\n" +
-            "function Read-LanguageHashManifest($path) {\r\n" +
-            "  $map = @{}\r\n" +
-            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $map }\r\n" +
-            "  try {\r\n" +
-            "    $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json\r\n" +
-            "    if ($manifest -and $manifest.Files) { $manifest.Files.PSObject.Properties | ForEach-Object { $map[$_.Name] = [string]$_.Value } }\r\n" +
-            "  } catch {}\r\n" +
-            "  return $map\r\n" +
-            "}\r\n" +
-            "function Get-LanguageHashMap($langRoot) {\r\n" +
-            "  $map = @{}\r\n" +
-            "  if (Test-Path -LiteralPath $langRoot) {\r\n" +
-            "    Get-ChildItem -LiteralPath $langRoot -Recurse -File | ForEach-Object {\r\n" +
-            "      $relative = $_.FullName.Substring($langRoot.Length).TrimStart('\\')\r\n" +
-            "      $map[$relative] = Get-FileSha256 $_.FullName\r\n" +
-            "    }\r\n" +
-            "  }\r\n" +
-            "  return $map\r\n" +
-            "}\r\n" +
-            "function Read-PlugInHashManifest($path) {\r\n" +
-            "  $map = @{}\r\n" +
-            "  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $map }\r\n" +
-            "  try {\r\n" +
-            "    $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json\r\n" +
-            "    if ($manifest -and $manifest.Files) { $manifest.Files.PSObject.Properties | ForEach-Object { $map[$_.Name] = [string]$_.Value } }\r\n" +
-            "  } catch {}\r\n" +
-            "  return $map\r\n" +
-            "}\r\n" +
-            "function Get-PlugInHashMap($plugInRoot) {\r\n" +
-            "  $map = @{}\r\n" +
-            "  if (Test-Path -LiteralPath $plugInRoot) {\r\n" +
-            "    Get-ChildItem -LiteralPath $plugInRoot -Recurse -File | ForEach-Object {\r\n" +
-            "      $relative = $_.FullName.Substring($plugInRoot.Length).TrimStart('\\')\r\n" +
-            "      $map[$relative] = Get-FileSha256 $_.FullName\r\n" +
-            "    }\r\n" +
-            "  }\r\n" +
-            "  return $map\r\n" +
-            "}\r\n" +
-            "try {\r\n" +
-            "  if ([string]::IsNullOrWhiteSpace($tempBase)) { throw 'No updater temporary folder was provided.' }\r\n" +
-            "  [System.IO.Directory]::CreateDirectory($tempBase) | Out-Null\r\n" +
-            "  $root = Join-Path $tempBase ('SensorReadoutUpdate_' + [guid]::NewGuid().ToString('N'))\r\n" +
-            "  $zip = Join-Path $root 'update.zip'\r\n" +
-            "  $stage = Join-Path $root 'stage'\r\n" +
-            "  [System.IO.Directory]::CreateDirectory($root) | Out-Null\r\n" +
-            "  [System.IO.Directory]::CreateDirectory($stage) | Out-Null\r\n" +
-            "  Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing -UserAgent $userAgent\r\n" +
-            "  Expand-Archive -LiteralPath $zip -DestinationPath $stage -Force\r\n" +
-            "  $source = $stage\r\n" +
-            "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) {\r\n" +
-            "    $candidate = Get-ChildItem -LiteralPath $stage -Recurse -Filter 'Sensor Readout.exe' -File | Select-Object -First 1\r\n" +
-            "    if ($candidate) { $source = $candidate.DirectoryName }\r\n" +
-            "  }\r\n" +
-            "  if (-not (Test-Path -LiteralPath (Join-Path $source 'Sensor Readout.exe'))) { throw 'The downloaded ZIP does not contain Sensor Readout.exe.' }\r\n" +
-            "  Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Wait-Process\r\n" +
-            "  function New-BackupZip($path, $backupRoot, $name) {\r\n" +
-            "    if (-not (Test-Path -LiteralPath $path)) { return }\r\n" +
-            "    [System.IO.Directory]::CreateDirectory($backupRoot) | Out-Null\r\n" +
-            "    $safeName = ($name -replace '[\\\\/:*?\"\"<>|]', '_')\r\n" +
-            "    $zipPath = Join-Path $backupRoot ($safeName + '.zip')\r\n" +
-            "    if (Test-Path -LiteralPath $zipPath) { $zipPath = Join-Path $backupRoot ($safeName + '-' + [guid]::NewGuid().ToString('N') + '.zip') }\r\n" +
-            "    Compress-Archive -LiteralPath $path -DestinationPath $zipPath -Force\r\n" +
-            "  }\r\n" +
-            "  function Backup-CustomLanguages($existingLangs, $incomingLangs, $backupRoot) {\r\n" +
-            "    if (-not (Test-Path -LiteralPath $existingLangs)) { return }\r\n" +
-            "    $previousLanguageHashes = Read-LanguageHashManifest (Join-Path (Join-Path $target 'Data') 'BundledLanguageHashes.json')\r\n" +
-            "    $incomingLanguageHashes = Read-LanguageHashManifest (Join-Path (Join-Path $source 'Data') 'BundledLanguageHashes.json')\r\n" +
-            "    if ($incomingLanguageHashes.Count -eq 0) { $incomingLanguageHashes = Get-LanguageHashMap $incomingLangs }\r\n" +
-            "    $customRoot = Join-Path $root 'custom-langs'\r\n" +
-            "    Get-ChildItem -LiteralPath $existingLangs -Recurse -File | ForEach-Object {\r\n" +
-            "      $relative = $_.FullName.Substring($existingLangs.Length).TrimStart('\\')\r\n" +
-            "      $currentHash = Get-FileSha256 $_.FullName\r\n" +
-            "      $previousHash = if ($previousLanguageHashes.ContainsKey($relative)) { $previousLanguageHashes[$relative] } else { '' }\r\n" +
-            "      $incomingHash = if ($incomingLanguageHashes.ContainsKey($relative)) { $incomingLanguageHashes[$relative] } else { '' }\r\n" +
-            "      $matchesPreviousBundle = (-not [string]::IsNullOrWhiteSpace($previousHash)) -and [string]::Equals($currentHash, $previousHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
-            "      $matchesIncomingBundle = (-not [string]::IsNullOrWhiteSpace($incomingHash)) -and [string]::Equals($currentHash, $incomingHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
-            "      if (-not $matchesPreviousBundle -and -not $matchesIncomingBundle) {\r\n" +
-            "        $destination = Join-Path $customRoot $relative\r\n" +
-            "        [System.IO.Directory]::CreateDirectory((Split-Path -Parent $destination)) | Out-Null\r\n" +
-            "        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force\r\n" +
-            "      }\r\n" +
-            "    }\r\n" +
-            "    if (Test-Path -LiteralPath $customRoot) { New-BackupZip $customRoot $backupRoot 'Custom-Langs' }\r\n" +
-            "  }\r\n" +
-            "  function Replace-ShippedFolder($name, $backupRoot) {\r\n" +
-            "    $incoming = Join-Path $source $name\r\n" +
-            "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
-            "    $existing = Join-Path $target $name\r\n" +
-            "    if (Test-Path -LiteralPath $existing) {\r\n" +
-            "      if ($name -eq 'Langs') { Backup-CustomLanguages $existing $incoming $backupRoot }\r\n" +
-            "      Remove-Item -LiteralPath $existing -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
-            "    }\r\n" +
-            "    Copy-Item -LiteralPath $incoming -Destination $existing -Recurse -Force\r\n" +
-            "  }\r\n" +
-            "  function Backup-CustomPlugInFiles($existingPlugIns, $incomingPlugIns, $backupRoot) {\r\n" +
-            "    if (-not (Test-Path -LiteralPath $existingPlugIns)) { return }\r\n" +
-            "    $previousPlugInHashes = Read-PlugInHashManifest (Join-Path (Join-Path $target 'Data') 'BundledPlugInHashes.json')\r\n" +
-            "    $incomingPlugInHashes = Read-PlugInHashManifest (Join-Path (Join-Path $source 'Data') 'BundledPlugInHashes.json')\r\n" +
-            "    if ($incomingPlugInHashes.Count -eq 0) { $incomingPlugInHashes = Get-PlugInHashMap $incomingPlugIns }\r\n" +
-            "    $customRoot = Join-Path $root 'custom-plug-ins'\r\n" +
-            "    $incomingTopNames = @{}\r\n" +
-            "    if (Test-Path -LiteralPath $incomingPlugIns) { Get-ChildItem -LiteralPath $incomingPlugIns -Force | ForEach-Object { $incomingTopNames[$_.Name] = $true } }\r\n" +
-            "    Get-ChildItem -LiteralPath $existingPlugIns -Recurse -File | ForEach-Object {\r\n" +
-            "      $relative = $_.FullName.Substring($existingPlugIns.Length).TrimStart('\\')\r\n" +
-            "      $topName = ($relative -split '\\\\', 2)[0]\r\n" +
-            "      if (-not $incomingTopNames.ContainsKey($topName)) { return }\r\n" +
-            "      $currentHash = Get-FileSha256 $_.FullName\r\n" +
-            "      $previousHash = if ($previousPlugInHashes.ContainsKey($relative)) { $previousPlugInHashes[$relative] } else { '' }\r\n" +
-            "      $incomingHash = if ($incomingPlugInHashes.ContainsKey($relative)) { $incomingPlugInHashes[$relative] } else { '' }\r\n" +
-            "      $matchesPreviousBundle = (-not [string]::IsNullOrWhiteSpace($previousHash)) -and [string]::Equals($currentHash, $previousHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
-            "      $matchesIncomingBundle = (-not [string]::IsNullOrWhiteSpace($incomingHash)) -and [string]::Equals($currentHash, $incomingHash, [StringComparison]::OrdinalIgnoreCase)\r\n" +
-            "      if (-not $matchesPreviousBundle -and -not $matchesIncomingBundle) {\r\n" +
-            "        $destination = Join-Path $customRoot $relative\r\n" +
-            "        [System.IO.Directory]::CreateDirectory((Split-Path -Parent $destination)) | Out-Null\r\n" +
-            "        Copy-Item -LiteralPath $_.FullName -Destination $destination -Force\r\n" +
-            "      }\r\n" +
-            "    }\r\n" +
-            "    if (Test-Path -LiteralPath $customRoot) { New-BackupZip $customRoot $backupRoot 'Custom-Bundled-Plug-Ins' }\r\n" +
-            "  }\r\n" +
-            "  function Replace-PlugInsFolder($backupRoot) {\r\n" +
-            "    $incoming = Join-Path $source 'Plug-Ins'\r\n" +
-            "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
-            "    $existing = Join-Path $target 'Plug-Ins'\r\n" +
-            "    [System.IO.Directory]::CreateDirectory($existing) | Out-Null\r\n" +
-            "    Backup-CustomPlugInFiles $existing $incoming $backupRoot\r\n" +
-            "    $incomingNames = @{}\r\n" +
-            "    Get-ChildItem -LiteralPath $incoming -Force | ForEach-Object { $incomingNames[$_.Name] = $true }\r\n" +
-            "    foreach ($name in $incomingNames.Keys) {\r\n" +
-            "      $oldPath = Join-Path $existing $name\r\n" +
-            "      if (Test-Path -LiteralPath $oldPath) { Remove-Item -LiteralPath $oldPath -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
-            "    }\r\n" +
-            "    Get-ChildItem -LiteralPath $incoming -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $existing $_.Name) -Recurse -Force }\r\n" +
-            "  }\r\n" +
-            "  function Update-SoundsFolder() {\r\n" +
-            "    $incoming = Join-Path $source 'Sounds'\r\n" +
-            "    if (-not (Test-Path -LiteralPath $incoming)) { return }\r\n" +
-            "    $existing = Join-Path $target 'Sounds'\r\n" +
-            "    [System.IO.Directory]::CreateDirectory($existing) | Out-Null\r\n" +
-            "    Get-ChildItem -LiteralPath $incoming -File -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $existing $_.Name) -Force }\r\n" +
-            "  }\r\n" +
-            "  function Remove-NestedDuplicateFolders($rootFolder, $backupRoot) {\r\n" +
-            "    if (-not (Test-Path -LiteralPath $rootFolder)) { return }\r\n" +
-            "    Get-ChildItem -LiteralPath $rootFolder -Directory -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {\r\n" +
-            "      $nested = Join-Path $_.FullName $_.Name\r\n" +
-            "      if (Test-Path -LiteralPath $nested) { Remove-Item -LiteralPath $nested -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
-            "    }\r\n" +
-            "  }\r\n" +
-            "  $backupRoot = Join-Path (Join-Path $target 'Backups\\Updates') (Get-Date -Format 'yyyyMMdd-HHmmss')\r\n" +
-            "  $legacyBackups = Join-Path $target 'Config\\Update Backups'\r\n" +
-            "  if (Test-Path -LiteralPath $legacyBackups) { New-BackupZip $legacyBackups $backupRoot 'Legacy-Config-Update-Backups'; Remove-Item -LiteralPath $legacyBackups -Recurse -Force -ErrorAction SilentlyContinue }\r\n" +
-            "  Remove-NestedDuplicateFolders $target $backupRoot\r\n" +
-            "  foreach ($name in @('Docs','Langs','Data')) { Replace-ShippedFolder $name $backupRoot }\r\n" +
-            "  Replace-PlugInsFolder $backupRoot\r\n" +
-            "  Update-SoundsFolder\r\n" +
-            "  $preservedFolders = @('Config','Logs','Reports','Backups','Update Backups','Update Temp','Docs','Langs','Data','Plug-Ins','Sounds')\r\n" +
-            "  Get-ChildItem -LiteralPath $source -Force | ForEach-Object {\r\n" +
-            "    if ($_.PSIsContainer -and ($preservedFolders -contains $_.Name)) { return }\r\n" +
-            "    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $target $_.Name) -Recurse -Force\r\n" +
-            "  }\r\n" +
-            "  Remove-NestedDuplicateFolders $target $backupRoot\r\n" +
-            "  if ((Test-Path -LiteralPath $backupRoot) -and -not (Get-ChildItem -LiteralPath $backupRoot -Force -ErrorAction SilentlyContinue | Select-Object -First 1)) { Remove-Item -LiteralPath $backupRoot -Force -ErrorAction SilentlyContinue }\r\n" +
-            "  Remove-Item -LiteralPath (Join-Path $target 'README.md') -Force -ErrorAction SilentlyContinue\r\n" +
-            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.dll') -Force -ErrorAction SilentlyContinue\r\n" +
-            "  Remove-Item -LiteralPath (Join-Path $target 'nvdaControllerClient.LICENSE.txt') -Force -ErrorAction SilentlyContinue\r\n" +
-            "  if (Test-Path -LiteralPath (Join-Path $target 'Docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'Docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
-            "  if (Test-Path -LiteralPath (Join-Path $target 'docs')) { Get-ChildItem -LiteralPath (Join-Path $target 'docs') -Filter '*.md' -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue }\r\n" +
-            "  Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
-            "  Start-Process -FilePath $exe\r\n" +
-            "} catch {\r\n" +
-            "  [System.Windows.Forms.MessageBox]::Show('Sensor Readout update failed:' + [Environment]::NewLine + [Environment]::NewLine + $_.Exception.Message, 'Sensor Readout updater', 'OK', 'Error') | Out-Null\r\n" +
-            "}\r\n" +
-            "Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue\r\n";
-    }
-
-    private static string PowerShellQuote(string value)
-    {
-        return "'" + (value ?? "").Replace("'", "''") + "'";
+        var text = value ?? "";
+        return "\"" + text.Replace("\"", "\\\"") + "\"";
     }
 }

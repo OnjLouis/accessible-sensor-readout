@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.4.1.
+Current version: 4.4.2.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -610,6 +610,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.4.2
+- Fixed: The updater now applies updates through Sensor Readout itself instead of relying on newer PowerShell commands. This improves update compatibility on older Windows systems such as Windows 7 while keeping the same update flow on modern systems.
+- Improved: Updater failures now write an `Updater.log` file in the Logs folder, making update problems easier to diagnose from support reports.
 
 ### 4.4.1
 - Improved: Main categories now stay visible unless you hide them yourself. Empty categories show clear "no data currently available" guidance and explain that the category can be hidden from Preferences, so optional sections such as Battery do not disappear just because the current system has no matching readings.

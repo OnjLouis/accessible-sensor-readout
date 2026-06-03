@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-public static class Program
+public static partial class Program
 {
     public const string CloseRequestEventName = @"Local\OnjSensorReadoutCloseRequest";
     private const int CrashRestartLimit = 3;
@@ -20,6 +20,12 @@ public static class Program
         if (HasArg(args, "--close"))
         {
             CloseOtherInstances();
+            return;
+        }
+
+        if (HasArg(args, "--apply-update"))
+        {
+            ApplyUpdateFromCommandLine(args);
             return;
         }
 
@@ -319,6 +325,7 @@ public static class Program
                !HasOption(startupArgs, "--run-diagnostics") &&
                !HasOption(startupArgs, "--self-test") &&
                !HasOption(startupArgs, "--community-stats-json") &&
+               !HasArg(startupArgs, "--apply-update") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
                !HasArg(startupArgs, "/?");
