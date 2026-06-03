@@ -125,6 +125,10 @@ public sealed partial class SensorReadoutForm : Form
         {
             ApplyLanguageToToolStripItems(trayIcon.ContextMenuStrip.Items);
         }
+        if (deviceList != null && deviceList.ContextMenuStrip != null)
+        {
+            ApplyLanguageToToolStripItems(deviceList.ContextMenuStrip.Items);
+        }
         ApplyAccessibleLanguage();
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";

@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.4.0";
+    public const string AppVersion = "4.4.1";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -417,11 +417,31 @@ public sealed partial class SensorReadoutForm : Form
             {
                 selectedFilterKey = filter.Key;
                 UpdateReadingList();
+                UpdateSelectedCategoryStatus();
             }
         };
+        deviceList.ContextMenuStrip = new ContextMenuStrip();
+        deviceList.ContextMenuStrip.Items.Add(CreateShortcutMenuItem(T("ui.&Move up", "&Move up"), Keys.Control | Keys.Up, delegate { MoveSelectedCategory(-1); }));
+        deviceList.ContextMenuStrip.Items.Add(CreateShortcutMenuItem(T("ui.Move &down", "Move &down"), Keys.Control | Keys.Down, delegate { MoveSelectedCategory(1); }));
+        deviceList.ContextMenuStrip.Items.Add(CreateShortcutMenuItem(T("ui.&Hide category", "&Hide category"), Keys.Delete, delegate { HideSelectedCategory(); }));
+        deviceList.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+        deviceList.ContextMenuStrip.Items.Add(T("ui.&Category preferences...", "&Category preferences..."), null, delegate { ShowPreferences("Categories"); });
+        deviceList.ContextMenuStrip.Opening += delegate { UpdateSelectedCategoryCommandVisibility(); };
         deviceList.KeyDown += delegate(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Delete)
+            if (e.Control && e.KeyCode == Keys.Up)
+            {
+                MoveSelectedCategory(-1);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.Control && e.KeyCode == Keys.Down)
+            {
+                MoveSelectedCategory(1);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+            else if (e.KeyCode == Keys.Delete)
             {
                 HideSelectedCategory();
                 e.Handled = true;

@@ -783,6 +783,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        var selectedIndex = deviceList.SelectedIndex;
         settings.HiddenCategoryKeys = settings.HiddenCategoryKeys ?? new List<string>();
         if (!settings.HiddenCategoryKeys.Contains(filter.Key, StringComparer.OrdinalIgnoreCase))
         {
@@ -813,6 +814,130 @@ public sealed partial class SensorReadoutForm : Form
 
         statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), filter.DisplayName);
         UpdateDeviceList();
+        if (deviceList.Items.Count > 0)
+        {
+            deviceList.SelectedIndex = Math.Min(selectedIndex, deviceList.Items.Count - 1);
+        }
+        UpdateSelectedCategoryStatus();
+        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), filter.DisplayName);
+        UpdateUndoRedoMenuItems();
+    }
+
+    private void MoveSelectedCategory(int direction)
+    {
+        if (deviceList == null || direction == 0)
+        {
+            return;
+        }
+
+        var index = deviceList.SelectedIndex;
+        if (index < 0)
+        {
+            return;
+        }
+
+        var target = index + direction;
+        if (target < 0 || target >= deviceList.Items.Count)
+        {
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var currentFilter = deviceList.Items[index] as DeviceFilter;
+        if (currentFilter == null || string.IsNullOrWhiteSpace(currentFilter.Key))
+        {
+            return;
+        }
+
+        var visibleOrder = deviceList.Items
+            .Cast<object>()
+            .OfType<DeviceFilter>()
+            .Select(f => f.Key)
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .ToList();
+        var key = visibleOrder[index];
+        visibleOrder.RemoveAt(index);
+        visibleOrder.Insert(target, key);
+
+        var knownOrder = (settings.CategoryOrderKeys ?? new List<string>())
+            .Concat(DefaultCategoryChoices().Select(c => c.Key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(k => !visibleOrder.Contains(k, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        settings.CategoryOrderKeys = visibleOrder.Concat(knownOrder).ToList();
+        selectedFilterKey = currentFilter.Key;
+        SaveSettings(settings);
+        UpdateDeviceList();
+        SelectCategoryByKey(currentFilter.Key);
+        UpdateSelectedCategoryStatus();
+        statusLabel.Text = string.Format(
+            L("status.Moved category.", "Moved {0}. Shortcut is now {1}."),
+            currentFilter.DisplayName,
+            CategoryShortcutText(deviceList.SelectedIndex));
+    }
+
+    private void UpdateSelectedCategoryCommandVisibility()
+    {
+        if (deviceList == null || deviceList.ContextMenuStrip == null)
+        {
+            return;
+        }
+
+        var hasSelection = deviceList.SelectedIndex >= 0;
+        foreach (ToolStripItem item in deviceList.ContextMenuStrip.Items)
+        {
+            if (item is ToolStripSeparator)
+            {
+                continue;
+            }
+
+            item.Enabled = hasSelection;
+        }
+
+        if (!hasSelection)
+        {
+            return;
+        }
+
+        if (deviceList.ContextMenuStrip.Items.Count >= 2)
+        {
+            deviceList.ContextMenuStrip.Items[0].Enabled = deviceList.SelectedIndex > 0;
+            deviceList.ContextMenuStrip.Items[1].Enabled = deviceList.SelectedIndex < deviceList.Items.Count - 1;
+        }
+    }
+
+    private void UpdateSelectedCategoryStatus()
+    {
+        if (deviceList == null || statusLabel == null)
+        {
+            return;
+        }
+
+        var filter = deviceList.SelectedItem as DeviceFilter;
+        if (filter == null)
+        {
+            return;
+        }
+
+        var shortcut = CategoryShortcutText(deviceList.SelectedIndex);
+        if (string.IsNullOrWhiteSpace(shortcut))
+        {
+            statusLabel.Text = string.Format(L("status.Category selected.", "{0} category selected."), filter.DisplayName);
+            return;
+        }
+
+        var message = string.Format(L("status.Category selected with shortcut.", "{0} category selected. Shortcut: {1}."), filter.DisplayName, shortcut);
+        statusLabel.Text = message;
+        if (!deviceList.ContainsFocus)
+        {
+            return;
+        }
+
+        string error;
+        if (!ScreenReaderOutput.TrySpeakPolite(message, out error))
+        {
+            LogMessage("Debug", "Category shortcut hint was not spoken. " + error);
+        }
     }
 
     private void RegisterUndo(string actionName, Action undoAction, Action redoAction)

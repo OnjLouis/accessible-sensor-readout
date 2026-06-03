@@ -140,10 +140,6 @@ public sealed partial class SensorReadoutForm : Form
     private void SelfTestCategoryNavigation()
     {
         EnsureSelfTestRows();
-        if (!latestRows.Any(r => string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)))
-        {
-            latestRows.Add(new SensorRow { Type = "Battery", Hardware = "Self-test", Name = "Battery test", Identifier = "selftest-battery", Value = 100, DisplayValue = "100%", Source = "Self-test" });
-        }
 
         settings.CategoryOrderKeys = new List<string>
         {
@@ -168,6 +164,12 @@ public sealed partial class SensorReadoutForm : Form
         Require(deviceList.SelectedIndex == 0, "Ctrl+0 did not select category index 0.");
         Require(SelectCategoryByShortcut(Keys.D0, 10), "Ctrl+Shift+0 category shortcut did not select overflow category.");
         Require(deviceList.SelectedIndex == 10, "Ctrl+Shift+0 did not select category index 10.");
+        Require(SelectCategoryByKey("type|Performance"), "Could not select Performance category before move test.");
+        MoveSelectedCategory(1);
+        Require(deviceList.SelectedIndex == 2, "Ctrl+Down-style category move did not keep moved category selected.");
+        var movedFilter = deviceList.SelectedItem as DeviceFilter;
+        Require(movedFilter != null && string.Equals(movedFilter.Key, "type|Performance", StringComparison.OrdinalIgnoreCase), "Moved category selection did not stay on Performance.");
+        Require(settings.CategoryOrderKeys.Count > 2 && string.Equals(settings.CategoryOrderKeys[2], "type|Performance", StringComparison.OrdinalIgnoreCase), "Moved category order was not saved.");
         settings.HiddenCategoryKeys = new List<string> { "type|Network" };
         UpdateDeviceList();
         Require(!deviceList.Items.Cast<object>().OfType<DeviceFilter>().Any(f => string.Equals(f.Key, "type|Network", StringComparison.OrdinalIgnoreCase)), "Hidden category was still visible.");
@@ -181,6 +183,29 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Require(readingTree.Nodes.Count > 0 && !string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal), "Reading tree empty for populated category " + deviceList.Items[i] + ".");
             }
+        }
+
+        var originalRows = latestRows.ToList();
+        try
+        {
+            SetLatestRows(latestRows.Where(r => !string.Equals(r.Type, "Battery", StringComparison.OrdinalIgnoreCase)).ToList());
+            settings.HiddenCategoryKeys = new List<string>();
+            lastReadingTreeFilterKey = "";
+            lastReadingTreeSignature = "";
+            lastReadingTreeShapeSignature = "";
+            readingTreeExpansionInitialized = false;
+            UpdateDeviceList();
+            Require(deviceList.Items.Cast<object>().OfType<DeviceFilter>().Any(f => string.Equals(f.Key, "type|Battery", StringComparison.OrdinalIgnoreCase)), "Battery category was hidden when it had no readings.");
+            Require(SelectCategoryByKey("type|Battery"), "Could not select empty Battery category.");
+            UpdateReadingList();
+            var emptyStateDebug = "Count=" + readingTree.Nodes.Count + "; " + string.Join("; ", readingTree.Nodes.Cast<TreeNode>().Select(n => "Name=" + n.Name + ", Text=" + n.Text).ToArray());
+            Require(readingTree.Nodes.Count == 1 && string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal), "Empty category did not show an empty-state row. " + emptyStateDebug);
+            Require(readingTree.Nodes[0].Text.IndexOf("No data currently available for this category.", StringComparison.OrdinalIgnoreCase) >= 0, "Empty category did not explain that no data is currently available.");
+            Require(readingTree.Nodes[0].Text.IndexOf("hide this category", StringComparison.OrdinalIgnoreCase) >= 0, "Empty category did not explain that the category can be hidden.");
+        }
+        finally
+        {
+            SetLatestRows(originalRows);
         }
 
         settings.CategoryOrderKeys = new List<string>();
@@ -398,6 +423,11 @@ public sealed partial class SensorReadoutForm : Form
         if (readingTree.ContextMenuStrip != null)
         {
             RequireUniqueMenuMnemonics("Reading tree context menu", readingTree.ContextMenuStrip.Items);
+        }
+
+        if (deviceList.ContextMenuStrip != null)
+        {
+            RequireUniqueMenuMnemonics("Category list context menu", deviceList.ContextMenuStrip.Items);
         }
     }
 

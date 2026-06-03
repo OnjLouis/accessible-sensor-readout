@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.4.0.
+Current version: 4.4.1.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -226,7 +226,7 @@ The same Hotkeys tab can set a key for `Speak notification area status`. That ke
 | Preferences | `Alt+R` | In Hotkeys, remove the selected spoken hotkey profile. Notification area status is permanent and cannot be removed. |
 | Preferences | `Alt+A` | In Hotkeys, add the selected reading to notification area status or the selected spoken hotkey profile. |
 | Preferences | `Alt+M` | In Hotkeys, remove the selected reading from notification area status or the selected spoken hotkey profile. |
-| Preferences | `Alt+U` / `Alt+W` | Move the selected spoken-hotkey reading up or down. |
+| Preferences > Hotkeys | `Ctrl+Up` / `Ctrl+Down` | Move the selected notification-area or spoken-hotkey reading up or down. |
 | Preferences | `Alt+D` | Reset the selected spoken label to default. |
 | Preferences | `Delete` | Remove the selected notification-area reading, spoken hotkey profile, spoken hotkey reading, or alarm where applicable. |
 
@@ -342,6 +342,10 @@ The Plug-Ins tab lists installed hardware plug-ins and describes what each one d
 ### Categories (`Ctrl+7`)
 
 The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
+
+Main categories stay visible unless you hide them yourself, even when the current system has no readings for that category. Empty categories show a short explanation and remind you that you can hide the category from Preferences.
+
+You can also manage categories directly from the main category list. Press `Delete` to hide the selected category, `Ctrl+Up` or `Ctrl+Down` to move it, or press the Application key/right-click for the category context menu. When the category list has focus, the status line and screen-reader output include the shortcut for the selected category.
 
 ### Hidden Items (`Ctrl+8`)
 
@@ -606,6 +610,10 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.4.1
+- Improved: Main categories now stay visible unless you hide them yourself. Empty categories show clear "no data currently available" guidance and explain that the category can be hidden from Preferences, so optional sections such as Battery do not disappear just because the current system has no matching readings.
+- Added: Categories can now be hidden or reordered directly from the main category list with `Delete`, `Ctrl+Up`, `Ctrl+Down`, or the category context menu. When the category list has focus, Sensor Readout also reports the shortcut for the selected category.
 
 ### 4.4.0
 - Added: A new Bluetooth category shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available. Bluetooth battery readings remain in Battery.
