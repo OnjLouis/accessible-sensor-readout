@@ -1310,12 +1310,12 @@ if (!$SkipBuild) {
     }
 }
 
-Set-LegacyUpdaterPlugInHashManifest $Version
 Assert-LanguageParity
 Assert-NoNestedPortableFolders
 Invoke-GitDiffCheck
 Invoke-CommandLineReportSmoke $Version
 Invoke-CommandLineDiagnosticsSmoke $Version
+Set-LegacyUpdaterPlugInHashManifest $Version
 $zipPath = New-ReleaseZip $Version
 $sourceZipPath = New-SourceSnapshot $Version
 Invoke-DotNetUpdaterSmoke $Version $zipPath
