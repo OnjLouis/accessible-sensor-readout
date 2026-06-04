@@ -13,6 +13,7 @@ public sealed partial class SensorReadoutForm
         public string ProfileName;
         public string Ssid;
         public string Bssid;
+        public string BssidVendor;
         public string BssType;
         public string RadioType;
         public string Authentication;
@@ -124,6 +125,10 @@ public sealed partial class SensorReadoutForm
                 Authentication = FormatAuthentication(connection.SecurityAttributes.AuthenticationAlgorithm),
                 Cipher = FormatCipher(connection.SecurityAttributes.CipherAlgorithm)
             };
+            if (!string.IsNullOrWhiteSpace(info.Bssid))
+            {
+                info.BssidVendor = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data")).Lookup(info.Bssid);
+            }
 
             AddWifiBssDetails(clientHandle, wlanInterface.InterfaceGuid, info);
             return info;
@@ -222,7 +227,8 @@ public sealed partial class SensorReadoutForm
             yield break;
         }
 
-        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi connected", Value = wifi.Connected ? 1 : 0, DisplayValue = wifi.Connected ? "Connected" : "Disconnected", Source = "Windows WLAN" };
+        var details = BuildWifiDetails(wifi);
+        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi connected", Value = wifi.Connected ? 1 : 0, DisplayValue = wifi.Connected ? "Connected" : "Disconnected", Source = "Windows WLAN", Details = CloneDetails(details) };
 
         if (!wifi.Connected)
         {
@@ -231,67 +237,100 @@ public sealed partial class SensorReadoutForm
 
         if (!string.IsNullOrWhiteSpace(wifi.Ssid))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi network", DisplayValue = wifi.Ssid, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi network", DisplayValue = wifi.Ssid, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (!string.IsNullOrWhiteSpace(wifi.ProfileName) && !string.Equals(wifi.ProfileName, wifi.Ssid, StringComparison.OrdinalIgnoreCase))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi profile", DisplayValue = wifi.ProfileName, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi profile", DisplayValue = wifi.ProfileName, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (!string.IsNullOrWhiteSpace(wifi.Bssid))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi access point", DisplayValue = wifi.Bssid, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi access point", DisplayValue = wifi.Bssid, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
-        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi signal strength", Value = wifi.SignalQuality, DisplayValue = FormatNumber(wifi.SignalQuality, "0") + "%", Source = "Windows WLAN" };
+        if (!string.IsNullOrWhiteSpace(wifi.BssidVendor))
+        {
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi access point vendor", DisplayValue = wifi.BssidVendor, Source = "OUI database", Details = CloneDetails(details) };
+        }
+
+        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi signal strength", Value = wifi.SignalQuality, DisplayValue = FormatNumber(wifi.SignalQuality, "0") + "%", Source = "Windows WLAN", Details = CloneDetails(details) };
 
         if (wifi.RssiDbm.HasValue)
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi signal RSSI", Value = wifi.RssiDbm.Value, DisplayValue = wifi.RssiDbm.Value + " dBm", Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi signal RSSI", Value = wifi.RssiDbm.Value, DisplayValue = wifi.RssiDbm.Value + " dBm", Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (wifi.Channel.HasValue)
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi channel", Value = wifi.Channel.Value, DisplayValue = wifi.Channel.Value.ToString(), Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi channel", Value = wifi.Channel.Value, DisplayValue = wifi.Channel.Value.ToString(), Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (wifi.FrequencyMhz.HasValue)
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi frequency", Value = wifi.FrequencyMhz.Value, DisplayValue = wifi.FrequencyMhz.Value + " MHz", Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi frequency", Value = wifi.FrequencyMhz.Value, DisplayValue = wifi.FrequencyMhz.Value + " MHz", Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (!string.IsNullOrWhiteSpace(wifi.RadioType))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi radio type", DisplayValue = wifi.RadioType, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi radio type", DisplayValue = wifi.RadioType, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (!string.IsNullOrWhiteSpace(wifi.BssType))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi connection type", DisplayValue = wifi.BssType, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi connection type", DisplayValue = wifi.BssType, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (wifi.ReceiveRateKbps > 0)
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi receive link speed", Value = wifi.ReceiveRateKbps * 1000f, DisplayValue = FormatBitsPerSecond((long)wifi.ReceiveRateKbps * 1000L), Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi receive link speed", Value = wifi.ReceiveRateKbps * 1000f, DisplayValue = FormatBitsPerSecond((long)wifi.ReceiveRateKbps * 1000L), Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (wifi.TransmitRateKbps > 0)
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi transmit link speed", Value = wifi.TransmitRateKbps * 1000f, DisplayValue = FormatBitsPerSecond((long)wifi.TransmitRateKbps * 1000L), Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi transmit link speed", Value = wifi.TransmitRateKbps * 1000f, DisplayValue = FormatBitsPerSecond((long)wifi.TransmitRateKbps * 1000L), Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
-        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi security", DisplayValue = wifi.SecurityEnabled ? "Enabled" : "Open", Source = "Windows WLAN" };
+        yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi security", DisplayValue = wifi.SecurityEnabled ? "Enabled" : "Open", Source = "Windows WLAN", Details = CloneDetails(details) };
 
         if (!string.IsNullOrWhiteSpace(wifi.Authentication))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi authentication", DisplayValue = wifi.Authentication, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi authentication", DisplayValue = wifi.Authentication, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (!string.IsNullOrWhiteSpace(wifi.Cipher))
         {
-            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi cipher", DisplayValue = wifi.Cipher, Source = "Windows WLAN" };
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi cipher", DisplayValue = wifi.Cipher, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
+    }
+
+    private static Dictionary<string, string> BuildWifiDetails(WifiInterfaceInfo wifi)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (wifi == null)
+        {
+            return details;
+        }
+
+        AddDetail(details, "Wi-Fi connected", wifi.Connected ? "Connected" : "Disconnected");
+        AddDetail(details, "Wi-Fi interface", wifi.InterfaceDescription);
+        AddDetail(details, "Wi-Fi network", wifi.Ssid);
+        AddDetail(details, "Wi-Fi profile", wifi.ProfileName);
+        AddDetail(details, "Wi-Fi access point", wifi.Bssid);
+        AddDetail(details, "Wi-Fi access point vendor", wifi.BssidVendor);
+        AddDetail(details, "Wi-Fi signal strength", FormatNumber(wifi.SignalQuality, "0") + "%");
+        if (wifi.RssiDbm.HasValue) AddDetail(details, "Wi-Fi signal RSSI", wifi.RssiDbm.Value + " dBm");
+        if (wifi.Channel.HasValue) AddDetail(details, "Wi-Fi channel", wifi.Channel.Value.ToString());
+        if (wifi.FrequencyMhz.HasValue) AddDetail(details, "Wi-Fi frequency", wifi.FrequencyMhz.Value + " MHz");
+        AddDetail(details, "Wi-Fi radio type", wifi.RadioType);
+        AddDetail(details, "Wi-Fi connection type", wifi.BssType);
+        if (wifi.ReceiveRateKbps > 0) AddDetail(details, "Wi-Fi receive link speed", FormatBitsPerSecond((long)wifi.ReceiveRateKbps * 1000L));
+        if (wifi.TransmitRateKbps > 0) AddDetail(details, "Wi-Fi transmit link speed", FormatBitsPerSecond((long)wifi.TransmitRateKbps * 1000L));
+        AddDetail(details, "Wi-Fi security", wifi.SecurityEnabled ? "Enabled" : "Open");
+        AddDetail(details, "Wi-Fi authentication", wifi.Authentication);
+        AddDetail(details, "Wi-Fi cipher", wifi.Cipher);
+        return details;
     }
 
     private static string DecodeSsid(Dot11Ssid ssid)

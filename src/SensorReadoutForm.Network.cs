@@ -216,7 +216,12 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(wmiDetails, "WMI default gateway", FormatWmiDetailValue(GetWmiPropertyValue(config, "DefaultIPGateway")));
                     AddDetail(wmiDetails, "WMI IP addresses", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPAddress")));
                     AddDetail(wmiDetails, "WMI IP subnets", FormatWmiDetailValue(GetWmiPropertyValue(config, "IPSubnet")));
-                    AddDetail(wmiDetails, "WMI MAC address", GetWmiPropertyText(config, "MACAddress"));
+                    var wmiMacAddress = GetWmiPropertyText(config, "MACAddress");
+                    AddDetail(wmiDetails, "WMI MAC address", wmiMacAddress);
+                    if (!string.IsNullOrWhiteSpace(wmiMacAddress))
+                    {
+                        AddDetail(wmiDetails, "WMI MAC vendor", MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data")).Lookup(wmiMacAddress));
+                    }
                     AddRawWmiDetails(wmiDetails, "Network configuration WMI", config);
                 }
             }

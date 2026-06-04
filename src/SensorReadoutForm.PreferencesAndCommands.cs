@@ -550,9 +550,7 @@ public sealed partial class SensorReadoutForm : Form
             Action refreshResults = delegate
             {
                 var terms = NormalizeSearchQuery(searchBox.Text);
-                var matches = allChoices
-                    .Where(i => SearchChoiceMatches(i, terms, displayText, searchText))
-                    .ToList();
+                var matches = FilterSearchChoices(allChoices, terms, displayText, searchText);
                 resultList.BeginUpdate();
                 try
                 {
@@ -658,7 +656,43 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
-        var text = ((displayText == null ? "" : displayText(item)) + " " + (searchText == null ? "" : searchText(item)) ?? "").ToUpperInvariant();
+        var text = ((displayText == null ? "" : displayText(item)) + " " + (searchText == null ? "" : searchText(item)) ?? "");
+        return SearchTextMatches(text, terms);
+    }
+
+    private static List<object> FilterSearchChoices(List<object> allChoices, string[] terms, Func<object, string> displayText, Func<object, string> searchText)
+    {
+        if (allChoices == null)
+        {
+            return new List<object>();
+        }
+
+        if (terms == null || terms.Length == 0)
+        {
+            return allChoices.ToList();
+        }
+
+        var visibleMatches = allChoices
+            .Where(i => SearchTextMatches(displayText == null ? "" : displayText(i), terms))
+            .ToList();
+        if (visibleMatches.Count > 0)
+        {
+            return visibleMatches;
+        }
+
+        return allChoices
+            .Where(i => SearchChoiceMatches(i, terms, displayText, searchText))
+            .ToList();
+    }
+
+    private static bool SearchTextMatches(string text, string[] terms)
+    {
+        if (terms == null || terms.Length == 0)
+        {
+            return true;
+        }
+
+        text = (text ?? "").ToUpperInvariant();
         return terms.All(term => text.IndexOf(term.ToUpperInvariant(), StringComparison.Ordinal) >= 0);
     }
 
