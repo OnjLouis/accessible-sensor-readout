@@ -86,6 +86,8 @@ public static partial class Program
             return;
         }
 
+        RepairBundledHashManifests();
+
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         if (saveReport)
@@ -141,6 +143,107 @@ public static partial class Program
             }
 
             Application.Run(new SensorReadoutForm(ShouldStartMinimized(args)));
+        }
+    }
+
+    private static void RepairBundledHashManifests()
+    {
+        try
+        {
+            var baseFolder = AppDomain.CurrentDomain.BaseDirectory;
+            var dataFolder = System.IO.Path.Combine(baseFolder, "Data");
+            if (!System.IO.Directory.Exists(dataFolder))
+            {
+                return;
+            }
+
+            WriteBundledHashManifestIfDifferent(
+                System.IO.Path.Combine(baseFolder, "Langs"),
+                System.IO.Path.Combine(dataFolder, "BundledLanguageHashes.json"));
+            WriteBundledHashManifestIfDifferent(
+                System.IO.Path.Combine(baseFolder, "Plug-Ins"),
+                System.IO.Path.Combine(dataFolder, "BundledPlugInHashes.json"));
+        }
+        catch
+        {
+        }
+    }
+
+    private static void WriteBundledHashManifestIfDifferent(string sourceFolder, string manifestPath)
+    {
+        if (!System.IO.Directory.Exists(sourceFolder) || string.IsNullOrWhiteSpace(manifestPath))
+        {
+            return;
+        }
+
+        var files = System.IO.Directory.GetFiles(sourceFolder, "*", System.IO.SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var builder = new System.Text.StringBuilder();
+        builder.AppendLine("{");
+        builder.AppendLine("    \"Version\":  1,");
+        builder.AppendLine("    \"UpdatedUtc\":  \"" + DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture) + "\",");
+        builder.AppendLine("    \"Files\":  {");
+        for (var i = 0; i < files.Count; i++)
+        {
+            var relative = ManifestRelativePath(sourceFolder, files[i]).Replace("/", "\\");
+            builder.Append("                  \"");
+            builder.Append(JsonEscape(relative));
+            builder.Append("\":  \"");
+            builder.Append(GetManifestFileSha256(files[i]));
+            builder.Append("\"");
+            if (i + 1 < files.Count)
+            {
+                builder.Append(",");
+            }
+
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("              }");
+        builder.AppendLine("}");
+
+        var next = builder.ToString();
+        var current = System.IO.File.Exists(manifestPath) ? System.IO.File.ReadAllText(manifestPath) : "";
+        if (string.Equals(NormalizeManifestForComparison(current), NormalizeManifestForComparison(next), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(manifestPath));
+        System.IO.File.WriteAllText(manifestPath, next, System.Text.Encoding.UTF8);
+    }
+
+    private static string NormalizeManifestForComparison(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "";
+        }
+
+        return System.Text.RegularExpressions.Regex.Replace(text, "\"UpdatedUtc\"\\s*:\\s*\"[^\"]*\"", "\"UpdatedUtc\":\"\"");
+    }
+
+    private static string ManifestRelativePath(string root, string path)
+    {
+        var fullRoot = System.IO.Path.GetFullPath(root).TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
+        var fullPath = System.IO.Path.GetFullPath(path);
+        return fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase) ? fullPath.Substring(fullRoot.Length) : System.IO.Path.GetFileName(path);
+    }
+
+    private static string JsonEscape(string value)
+    {
+        return (value ?? "")
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"");
+    }
+
+    private static string GetManifestFileSha256(string path)
+    {
+        using (var stream = System.IO.File.OpenRead(path))
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+        {
+            return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
         }
     }
 

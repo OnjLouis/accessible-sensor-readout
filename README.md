@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.5.0.
+Current version: 4.5.1.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -611,12 +611,13 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
-### 4.5.0
+### 4.5.1
 
 - Added: Network now includes public IP lookup rows for country, region, city, coordinates, internet provider, autonomous system, and connection type where the online lookup provider returns them.
 - Added: Network now includes passive local TCP and UDP listening-port summaries from Windows, with detailed endpoint lists available from Details. Sensor Readout does not scan remote hosts or test firewall exposure.
 - Privacy: anonymized reports remove online public-IP lookup rows entirely, so public IP location and provider metadata are not included in shareable anonymized reports.
 - Fixed: The updater no longer saves unchanged bundled plug-ins or language files as user backups just because a new release contains rebuilt bundled files. Update backups should now stay focused on files that appear to have actually been changed by the user.
+- Fixed: updates from older public builds avoid unnecessary bundled plug-in backups, and Sensor Readout repairs bundled hash metadata after launch so future updates stay clean.
 
 ### 4.4.3
 

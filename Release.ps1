@@ -975,6 +975,28 @@ function Find-ProgramBuildZip([string]$buildVersion) {
     Fail "Could not find previous build ZIP for $buildVersion in $programBuilds."
 }
 
+function Set-LegacyUpdaterPlugInHashManifest([string]$releaseVersion) {
+    $previous = Resolve-PreviousVersion $releaseVersion
+    $previousZip = Find-ProgramBuildZip $previous
+    $temp = Join-Path $SmokeRoot "previous-plugin-hashes-$previous"
+    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $temp | Out-Null
+    try {
+        Expand-Archive -LiteralPath $previousZip -DestinationPath $temp -Force
+        $previousManifest = Join-Path $temp 'Data\BundledPlugInHashes.json'
+        if (!(Test-Path -LiteralPath $previousManifest)) {
+            Info "Previous build $previous has no bundled plug-in hash manifest; using current manifest."
+            return
+        }
+
+        $targetManifest = Join-Path $portable 'Data\BundledPlugInHashes.json'
+        Copy-Item -LiteralPath $previousManifest -Destination $targetManifest -Force
+        Info "Using $previous bundled plug-in hashes in the release package so older updaters do not back up unchanged bundled plug-ins. Sensor Readout repairs this manifest after launch."
+    } finally {
+        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Set-SmokeConfig([string]$appDir) {
     $config = Join-Path $appDir 'Config'
     $logs = Join-Path $appDir 'Logs'
@@ -1288,6 +1310,7 @@ if (!$SkipBuild) {
     }
 }
 
+Set-LegacyUpdaterPlugInHashManifest $Version
 Assert-LanguageParity
 Assert-NoNestedPortableFolders
 Invoke-GitDiffCheck
