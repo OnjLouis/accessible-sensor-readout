@@ -150,6 +150,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var details = BuildInternetIpDetails(info);
+        AddInternetIpRow(rows, "Public IP summary", FormatInternetIpSummary(info), details);
         AddInternetIpRow(rows, "Public IP address", info.IpAddress, details);
         AddInternetIpRow(rows, "IP country", info.Country, details);
         AddInternetIpRow(rows, "IP region", info.Region, details);
@@ -161,6 +162,54 @@ public sealed partial class SensorReadoutForm : Form
         AddInternetIpRow(rows, "Autonomous system", info.AutonomousSystem, details);
         AddInternetIpRow(rows, "Connection type", info.ConnectionType, details);
         return rows;
+    }
+
+    private static string FormatInternetIpSummary(InternetIpInfo info)
+    {
+        if (info == null)
+        {
+            return "";
+        }
+
+        var parts = new List<string>();
+        AddSummaryPart(parts, "IP", info.IpAddress);
+
+        var location = new List<string>();
+        AddSummaryValue(location, info.City);
+        AddSummaryValue(location, info.Region);
+        AddSummaryValue(location, info.Country);
+        AddSummaryValue(location, info.PostalCode);
+        if (location.Count > 0)
+        {
+            parts.Add("Location: " + string.Join(", ", location.ToArray()));
+        }
+
+        AddSummaryPart(parts, "Coordinates", info.Coordinates);
+        AddSummaryPart(parts, "Provider", info.Isp);
+        AddSummaryPart(parts, "Organization", info.Organization);
+        AddSummaryPart(parts, "Autonomous system", info.AutonomousSystem);
+        AddSummaryPart(parts, "Connection type", info.ConnectionType);
+        return string.Join("; ", parts.ToArray());
+    }
+
+    private static void AddSummaryPart(List<string> parts, string label, string value)
+    {
+        if (parts == null || string.IsNullOrWhiteSpace(label) || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        parts.Add(label + ": " + value.Trim());
+    }
+
+    private static void AddSummaryValue(List<string> parts, string value)
+    {
+        if (parts == null || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        parts.Add(value.Trim());
     }
 
     private InternetIpInfo GetCachedInternetIpInfo()

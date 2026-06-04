@@ -300,6 +300,27 @@ public sealed partial class SensorReadoutForm : Form
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Connected disks total space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Connected disks total space is not selectable for notification area/spoken hotkeys.");
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Total space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Total space is not selectable for notification area/spoken hotkeys.");
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Used space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Used space is not selectable for notification area/spoken hotkeys.");
+        var publicIpRows = new[]
+        {
+            "Public IP lookup",
+            "Public IP summary",
+            "Public IP address",
+            "IP country",
+            "IP region",
+            "IP city",
+            "IP postal code",
+            "IP coordinates",
+            "Internet provider",
+            "IP organization",
+            "Autonomous system",
+            "Connection type"
+        };
+        foreach (var publicIpRow in publicIpRows)
+        {
+            var row = new SensorRow { Type = "Network", Hardware = "Internet connection", Name = publicIpRow, DisplayValue = "Self-test" };
+            Require(IsSelectableReadoutRow(row), publicIpRow + " is not selectable for notification area/spoken hotkeys.");
+        }
+
         var keys = latestRows.Where(IsSelectableReadoutRow).Select(RowSettingsKey).Where(k => !string.IsNullOrWhiteSpace(k)).Take(MaxTrayStatusReadings).ToList();
         Require(keys.Count > 0, "No selectable rows for tray status.");
         settings.TrayItemKeys = keys;
