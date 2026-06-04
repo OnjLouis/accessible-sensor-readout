@@ -983,15 +983,31 @@ function Set-LegacyUpdaterPlugInHashManifest([string]$releaseVersion) {
     New-Item -ItemType Directory -Force -Path $temp | Out-Null
     try {
         Expand-Archive -LiteralPath $previousZip -DestinationPath $temp -Force
-        $previousManifest = Join-Path $temp 'Data\BundledPlugInHashes.json'
-        if (!(Test-Path -LiteralPath $previousManifest)) {
-            Info "Previous build $previous has no bundled plug-in hash manifest; using current manifest."
+        $previousPlugIns = Join-Path $temp 'Plug-Ins'
+        if (!(Test-Path -LiteralPath $previousPlugIns -PathType Container)) {
+            Info "Previous build $previous has no bundled Plug-Ins folder; using current manifest."
             return
         }
 
         $targetManifest = Join-Path $portable 'Data\BundledPlugInHashes.json'
-        Copy-Item -LiteralPath $previousManifest -Destination $targetManifest -Force
-        Info "Using $previous bundled plug-in hashes in the release package so older updaters do not back up unchanged bundled plug-ins. Sensor Readout repairs this manifest after launch."
+        $files = [ordered]@{}
+        foreach ($file in Get-ChildItem -LiteralPath $previousPlugIns -Recurse -File | Sort-Object FullName) {
+            $relative = $file.FullName.Substring($previousPlugIns.Length).TrimStart('\','/')
+            if ([string]::IsNullOrWhiteSpace($relative)) {
+                continue
+            }
+
+            $relative = $relative.Replace('/', '\')
+            $files[$relative] = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToUpperInvariant()
+        }
+
+        $manifest = [ordered]@{
+            Version = 1
+            UpdatedUtc = [DateTime]::UtcNow.ToString('o')
+            Files = $files
+        }
+        $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $targetManifest -Encoding UTF8
+        Info "Using bundled plug-in file hashes computed from $previous in the release package so older updaters do not back up unchanged bundled plug-ins. Sensor Readout repairs this manifest after launch."
     } finally {
         Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
     }

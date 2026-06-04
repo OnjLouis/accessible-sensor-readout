@@ -24,6 +24,7 @@ public sealed partial class SensorReadoutForm : Form
     private sealed class InternetIpInfo
     {
         public bool Success;
+        public bool Loading;
         public string Error = "";
         public string IpAddress = "";
         public string Country = "";
@@ -136,8 +137,15 @@ public sealed partial class SensorReadoutForm : Form
     {
         var rows = new List<SensorRow>();
         var info = GetCachedInternetIpInfo();
-        if (info == null || !info.Success)
+        if (info == null || info.Loading)
         {
+            AddInternetIpStatusRow(rows, "Loading public IP lookup...");
+            return rows;
+        }
+
+        if (!info.Success)
+        {
+            AddInternetIpStatusRow(rows, "Unavailable" + (string.IsNullOrWhiteSpace(info.Error) ? "" : ": " + info.Error));
             return rows;
         }
 
@@ -159,14 +167,22 @@ public sealed partial class SensorReadoutForm : Form
     {
         lock (internetIpInfoLock)
         {
-            if (cachedInternetIpInfo != null && (DateTime.UtcNow - cachedInternetIpInfoUtc).TotalHours < 6)
+            if (cachedInternetIpInfo != null)
             {
-                return cachedInternetIpInfo;
+                var age = DateTime.UtcNow - cachedInternetIpInfoUtc;
+                if ((cachedInternetIpInfo.Loading && internetIpInfoRefreshInProgress) ||
+                    (cachedInternetIpInfo.Success && age.TotalHours < 6) ||
+                    (!cachedInternetIpInfo.Success && !cachedInternetIpInfo.Loading && age.TotalMinutes < 10))
+                {
+                    return cachedInternetIpInfo;
+                }
             }
 
             if (!internetIpInfoRefreshInProgress)
             {
                 internetIpInfoRefreshInProgress = true;
+                cachedInternetIpInfo = new InternetIpInfo { Loading = true };
+                cachedInternetIpInfoUtc = DateTime.UtcNow;
                 ThreadPool.QueueUserWorkItem(delegate
                 {
                     var refreshed = FetchInternetIpInfo();
@@ -322,6 +338,28 @@ public sealed partial class SensorReadoutForm : Form
             DisplayValue = value,
             Source = PublicIpLookupSource,
             Details = CloneDetails(details)
+        });
+    }
+
+    private static void AddInternetIpStatusRow(List<SensorRow> rows, string status)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(details, "Lookup provider", PublicIpLookupProvider);
+        AddDetail(details, "Lookup status", status);
+        AddDetail(details, "Lookup note", "Public IP metadata is estimated by an online lookup service and may be approximate.");
+        rows.Add(new SensorRow
+        {
+            Type = "Network",
+            Hardware = "Internet connection",
+            Name = "Public IP lookup",
+            DisplayValue = status,
+            Source = PublicIpLookupSource,
+            Details = details
         });
     }
 
