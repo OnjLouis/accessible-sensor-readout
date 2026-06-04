@@ -246,6 +246,11 @@ public sealed partial class SensorReadoutForm : Form
                 continue;
             }
 
+            if (IsOnlineIpLookupReportRow(row))
+            {
+                continue;
+            }
+
             snapshot.Rows.Add(new ReportSnapshotRow
             {
                 Type = row.Type ?? "",
@@ -262,10 +267,21 @@ public sealed partial class SensorReadoutForm : Form
         return snapshot;
     }
 
+    private static bool IsOnlineIpLookupReportRow(ReportSnapshotRow row)
+    {
+        if (row == null)
+        {
+            return false;
+        }
+
+        return string.Equals(row.Source ?? "", PublicIpLookupSource, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Hardware ?? "", "Internet connection", StringComparison.OrdinalIgnoreCase);
+    }
+
     private string BuildSanitizationPreview(ReportSnapshot snapshot)
     {
         var rows = snapshot == null || snapshot.Rows == null ? 0 : snapshot.Rows.Count;
-        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths.") +
+        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths. Online public-IP lookup rows are removed from anonymized reports.") +
             Environment.NewLine + Environment.NewLine +
             T("ui.Rows included:", "Rows included:") + " " + rows + Environment.NewLine +
             T("ui.Computer name:", "Computer name:") + " Computer";

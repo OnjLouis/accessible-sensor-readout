@@ -79,13 +79,16 @@ public static partial class Program
                 TryDeleteDirectory(legacyBackups);
             }
 
+            var previousLanguageHashes = ReadHashManifest(Path.Combine(Path.Combine(targetDir, "Data"), "BundledLanguageHashes.json"));
+            var previousPlugInHashes = ReadHashManifest(Path.Combine(Path.Combine(targetDir, "Data"), "BundledPlugInHashes.json"));
+
             RemoveNestedDuplicateFolders(targetDir);
             foreach (var name in new[] { "Docs", "Langs", "Data" })
             {
-                ReplaceShippedFolder(source, targetDir, name, backupRoot);
+                ReplaceShippedFolder(source, targetDir, name, backupRoot, previousLanguageHashes);
             }
 
-            ReplacePlugInsFolder(source, targetDir, backupRoot);
+            ReplacePlugInsFolder(source, targetDir, backupRoot, previousPlugInHashes);
             UpdateSoundsFolder(source, targetDir);
 
             var preservedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -218,7 +221,7 @@ public static partial class Program
         }
     }
 
-    private static void ReplaceShippedFolder(string sourceRoot, string targetRoot, string name, string backupRoot)
+    private static void ReplaceShippedFolder(string sourceRoot, string targetRoot, string name, string backupRoot, Dictionary<string, string> previousLanguageHashes)
     {
         var incoming = Path.Combine(sourceRoot, name);
         if (!Directory.Exists(incoming))
@@ -231,7 +234,7 @@ public static partial class Program
         {
             if (string.Equals(name, "Langs", StringComparison.OrdinalIgnoreCase))
             {
-                BackupCustomLanguages(existing, incoming, targetRoot, sourceRoot, backupRoot);
+                BackupCustomLanguages(existing, incoming, sourceRoot, backupRoot, previousLanguageHashes);
             }
 
             TryDeleteDirectory(existing);
@@ -240,9 +243,13 @@ public static partial class Program
         CopyDirectory(incoming, existing);
     }
 
-    private static void BackupCustomLanguages(string existingLangs, string incomingLangs, string targetRoot, string sourceRoot, string backupRoot)
+    private static void BackupCustomLanguages(string existingLangs, string incomingLangs, string sourceRoot, string backupRoot, Dictionary<string, string> previousLanguageHashes)
     {
-        var previousLanguageHashes = ReadHashManifest(Path.Combine(Path.Combine(targetRoot, "Data"), "BundledLanguageHashes.json"));
+        if (previousLanguageHashes == null)
+        {
+            previousLanguageHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
         var incomingLanguageHashes = ReadHashManifest(Path.Combine(Path.Combine(sourceRoot, "Data"), "BundledLanguageHashes.json"));
         if (incomingLanguageHashes.Count == 0)
         {
@@ -275,7 +282,7 @@ public static partial class Program
         }
     }
 
-    private static void ReplacePlugInsFolder(string sourceRoot, string targetRoot, string backupRoot)
+    private static void ReplacePlugInsFolder(string sourceRoot, string targetRoot, string backupRoot, Dictionary<string, string> previousPlugInHashes)
     {
         var incoming = Path.Combine(sourceRoot, "Plug-Ins");
         if (!Directory.Exists(incoming))
@@ -285,7 +292,7 @@ public static partial class Program
 
         var existing = Path.Combine(targetRoot, "Plug-Ins");
         Directory.CreateDirectory(existing);
-        BackupCustomPlugInFiles(existing, incoming, targetRoot, sourceRoot, backupRoot);
+        BackupCustomPlugInFiles(existing, incoming, sourceRoot, backupRoot, previousPlugInHashes);
 
         foreach (var incomingItem in Directory.GetFileSystemEntries(incoming))
         {
@@ -315,9 +322,13 @@ public static partial class Program
         }
     }
 
-    private static void BackupCustomPlugInFiles(string existingPlugIns, string incomingPlugIns, string targetRoot, string sourceRoot, string backupRoot)
+    private static void BackupCustomPlugInFiles(string existingPlugIns, string incomingPlugIns, string sourceRoot, string backupRoot, Dictionary<string, string> previousPlugInHashes)
     {
-        var previousPlugInHashes = ReadHashManifest(Path.Combine(Path.Combine(targetRoot, "Data"), "BundledPlugInHashes.json"));
+        if (previousPlugInHashes == null)
+        {
+            previousPlugInHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
         var incomingPlugInHashes = ReadHashManifest(Path.Combine(Path.Combine(sourceRoot, "Data"), "BundledPlugInHashes.json"));
         if (incomingPlugInHashes.Count == 0)
         {

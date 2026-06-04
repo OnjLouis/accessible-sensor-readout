@@ -1,6 +1,6 @@
-﻿# Sensor Readout
+# Sensor Readout
 
-Current version: 4.4.3.
+Current version: 4.5.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -393,7 +393,7 @@ The Performance section summarizes live system counters and storage activity. It
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
-The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
+The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Network also includes a passive local listening-port summary from Windows, plus public IP lookup rows for country, region, city, coordinates, provider, autonomous system, and connection type where the online lookup provider returns them. Public IP location data is approximate. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
 
 The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
@@ -484,7 +484,7 @@ TXT reports are a simplified reading and sharing format. They use clear `#` sect
 
 The first save creates the `Reports` folder if it does not already exist. Use `File` > `Open Reports folder` or `Ctrl+Shift+O` to jump to saved reports, and use `File` > `Open Logs folder` or `Ctrl+Shift+L` when support needs the log folder. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
 
-Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name and masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them.
+Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name, masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them, and removes online public-IP lookup rows entirely.
 
 ### Anonymous Community Stats
 
@@ -610,6 +610,13 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.5.0
+
+- Added: Network now includes public IP lookup rows for country, region, city, coordinates, internet provider, autonomous system, and connection type where the online lookup provider returns them.
+- Added: Network now includes passive local TCP and UDP listening-port summaries from Windows, with detailed endpoint lists available from Details. Sensor Readout does not scan remote hosts or test firewall exposure.
+- Privacy: anonymized reports remove online public-IP lookup rows entirely, so public IP location and provider metadata are not included in shareable anonymized reports.
+- Fixed: The updater no longer saves unchanged bundled plug-ins or language files as user backups just because a new release contains rebuilt bundled files. Update backups should now stay focused on files that appear to have actually been changed by the user.
 
 ### 4.4.3
 

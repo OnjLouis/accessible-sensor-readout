@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.4.3";
+    public const string AppVersion = "4.5.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -107,6 +107,10 @@ public sealed partial class SensorReadoutForm : Form
     private readonly Dictionary<string, NetworkSnapshot> networkSnapshots = new Dictionary<string, NetworkSnapshot>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CachedDetailSnapshot> networkWmiDetailsCache = new Dictionary<string, CachedDetailSnapshot>(StringComparer.OrdinalIgnoreCase);
     private readonly object networkWmiDetailsCacheLock = new object();
+    private InternetIpInfo cachedInternetIpInfo;
+    private DateTime cachedInternetIpInfoUtc = DateTime.MinValue;
+    private bool internetIpInfoRefreshInProgress;
+    private readonly object internetIpInfoLock = new object();
     private readonly Dictionary<string, LogicalDiskPerformanceCounters> logicalDiskCounters = new Dictionary<string, LogicalDiskPerformanceCounters>(StringComparer.OrdinalIgnoreCase);
     private readonly object logicalDiskCountersLock = new object();
     private readonly Dictionary<string, int> lastAppliedFanCurvePercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

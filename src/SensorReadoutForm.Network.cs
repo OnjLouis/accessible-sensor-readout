@@ -4,16 +4,41 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Management;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.IO.MemoryMappedFiles;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
+using Newtonsoft.Json.Linq;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private const string PublicIpLookupSource = "Online IP lookup";
+    private const string PublicIpLookupProvider = "https://api.techniknews.net/ipgeo/";
+
+    private sealed class InternetIpInfo
+    {
+        public bool Success;
+        public string Error = "";
+        public string IpAddress = "";
+        public string Country = "";
+        public string Region = "";
+        public string City = "";
+        public string PostalCode = "";
+        public string Coordinates = "";
+        public string TimeZone = "";
+        public string Isp = "";
+        public string Organization = "";
+        public string AutonomousSystem = "";
+        public string ReverseDns = "";
+        public string ConnectionType = "";
+    }
+
     private IEnumerable<SensorRow> GetNetworkRows()
     {
         var rows = new List<SensorRow>();
@@ -102,7 +127,295 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        rows.AddRange(BuildInternetIpRows());
+        rows.AddRange(BuildListeningPortRows());
         return rows;
+    }
+
+    private IEnumerable<SensorRow> BuildInternetIpRows()
+    {
+        var rows = new List<SensorRow>();
+        var info = GetCachedInternetIpInfo();
+        if (info == null || !info.Success)
+        {
+            return rows;
+        }
+
+        var details = BuildInternetIpDetails(info);
+        AddInternetIpRow(rows, "Public IP address", info.IpAddress, details);
+        AddInternetIpRow(rows, "IP country", info.Country, details);
+        AddInternetIpRow(rows, "IP region", info.Region, details);
+        AddInternetIpRow(rows, "IP city", info.City, details);
+        AddInternetIpRow(rows, "IP postal code", info.PostalCode, details);
+        AddInternetIpRow(rows, "IP coordinates", info.Coordinates, details);
+        AddInternetIpRow(rows, "Internet provider", info.Isp, details);
+        AddInternetIpRow(rows, "IP organization", info.Organization, details);
+        AddInternetIpRow(rows, "Autonomous system", info.AutonomousSystem, details);
+        AddInternetIpRow(rows, "Connection type", info.ConnectionType, details);
+        return rows;
+    }
+
+    private InternetIpInfo GetCachedInternetIpInfo()
+    {
+        lock (internetIpInfoLock)
+        {
+            if (cachedInternetIpInfo != null && (DateTime.UtcNow - cachedInternetIpInfoUtc).TotalHours < 6)
+            {
+                return cachedInternetIpInfo;
+            }
+
+            if (!internetIpInfoRefreshInProgress)
+            {
+                internetIpInfoRefreshInProgress = true;
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    var refreshed = FetchInternetIpInfo();
+                    lock (internetIpInfoLock)
+                    {
+                        cachedInternetIpInfo = refreshed;
+                        cachedInternetIpInfoUtc = DateTime.UtcNow;
+                        internetIpInfoRefreshInProgress = false;
+                    }
+                });
+            }
+
+            return cachedInternetIpInfo;
+        }
+    }
+
+    private InternetIpInfo FetchInternetIpInfo()
+    {
+        var info = new InternetIpInfo();
+        try
+        {
+            var json = DownloadStringWithTimeout(PublicIpLookupProvider, 8000);
+            var obj = JObject.Parse(json);
+            info.Success = string.Equals(ValueText(obj, "status"), "success", StringComparison.OrdinalIgnoreCase);
+            if (!info.Success)
+            {
+                info.Error = FirstNonEmpty(ValueText(obj, "message"), "Public IP lookup did not return success.");
+                return info;
+            }
+
+            info.IpAddress = ValueText(obj, "ip");
+            info.Country = ValueText(obj, "country");
+            info.Region = ValueText(obj, "regionName");
+            info.City = ValueText(obj, "city");
+            info.PostalCode = ValueText(obj, "zip");
+            info.TimeZone = ValueText(obj, "timezone");
+            info.Isp = ValueText(obj, "isp");
+            info.Organization = ValueText(obj, "org");
+            info.AutonomousSystem = ValueText(obj, "as");
+            info.ReverseDns = ValueText(obj, "reverse");
+            var lat = ValueText(obj, "lat");
+            var lon = ValueText(obj, "lon");
+            info.Coordinates = string.IsNullOrWhiteSpace(lat) || string.IsNullOrWhiteSpace(lon) ? "" : lat + ", " + lon;
+            info.ConnectionType = FormatInternetConnectionType(obj);
+        }
+        catch (Exception ex)
+        {
+            info.Success = false;
+            info.Error = ex.Message;
+        }
+
+        return info;
+    }
+
+    private static string DownloadStringWithTimeout(string url, int timeoutMilliseconds)
+    {
+        var request = (HttpWebRequest)WebRequest.Create(url);
+        request.UserAgent = "Sensor Readout " + AppVersion;
+        request.Timeout = timeoutMilliseconds;
+        request.ReadWriteTimeout = timeoutMilliseconds;
+        using (var response = (HttpWebResponse)request.GetResponse())
+        using (var stream = response.GetResponseStream())
+        {
+            if (stream == null)
+            {
+                throw new InvalidOperationException("Public IP lookup did not return a response stream.");
+            }
+
+            using (var reader = new System.IO.StreamReader(stream))
+            {
+            return reader.ReadToEnd();
+            }
+        }
+    }
+
+    private static string ValueText(JObject obj, string name)
+    {
+        if (obj == null || string.IsNullOrWhiteSpace(name))
+        {
+            return "";
+        }
+
+        var token = obj[name];
+        return token == null ? "" : Convert.ToString(token, CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatInternetConnectionType(JObject obj)
+    {
+        if (obj == null)
+        {
+            return "";
+        }
+
+        var parts = new List<string>();
+        AddInternetFlag(parts, obj, "mobile", "Mobile");
+        AddInternetFlag(parts, obj, "proxy", "Proxy or VPN");
+        AddInternetFlag(parts, obj, "hosting", "Hosting or datacenter");
+        return parts.Count == 0 ? "ISP or residential connection" : string.Join(", ", parts.ToArray());
+    }
+
+    private static void AddInternetFlag(List<string> parts, JObject obj, string key, string label)
+    {
+        if (parts == null || obj == null)
+        {
+            return;
+        }
+
+        var token = obj[key];
+        bool value;
+        if (token != null && bool.TryParse(Convert.ToString(token, CultureInfo.InvariantCulture), out value) && value)
+        {
+            parts.Add(label);
+        }
+    }
+
+    private static Dictionary<string, string> BuildInternetIpDetails(InternetIpInfo info)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (info == null)
+        {
+            return details;
+        }
+
+        AddDetail(details, "Public IP address", info.IpAddress);
+        AddDetail(details, "Country", info.Country);
+        AddDetail(details, "Region", info.Region);
+        AddDetail(details, "City", info.City);
+        AddDetail(details, "Postal code", info.PostalCode);
+        AddDetail(details, "Coordinates", info.Coordinates);
+        AddDetail(details, "Time zone", info.TimeZone);
+        AddDetail(details, "Internet provider", info.Isp);
+        AddDetail(details, "Organization", info.Organization);
+        AddDetail(details, "Autonomous system", info.AutonomousSystem);
+        AddDetail(details, "Reverse DNS", info.ReverseDns);
+        AddDetail(details, "Connection type", info.ConnectionType);
+        AddDetail(details, "Lookup provider", PublicIpLookupProvider);
+        AddDetail(details, "Lookup note", "Public IP metadata is estimated by an online lookup service and may be approximate.");
+        return details;
+    }
+
+    private static void AddInternetIpRow(List<SensorRow> rows, string name, string value, Dictionary<string, string> details)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "Network",
+            Hardware = "Internet connection",
+            Name = name,
+            DisplayValue = value,
+            Source = PublicIpLookupSource,
+            Details = CloneDetails(details)
+        });
+    }
+
+    private IEnumerable<SensorRow> BuildListeningPortRows()
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            var properties = IPGlobalProperties.GetIPGlobalProperties();
+            var tcp = properties.GetActiveTcpListeners()
+                .Where(e => e != null)
+                .OrderBy(e => e.Port)
+                .ThenBy(e => e.Address == null ? "" : e.Address.ToString())
+                .ToList();
+            var udp = properties.GetActiveUdpListeners()
+                .Where(e => e != null)
+                .OrderBy(e => e.Port)
+                .ThenBy(e => e.Address == null ? "" : e.Address.ToString())
+                .ToList();
+
+            var details = BuildListeningPortDetails(tcp, udp);
+            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "TCP listening ports", Value = tcp.Count, DisplayValue = FormatPortCount(tcp.Count), Source = "Windows Network", Details = CloneDetails(details) });
+            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "UDP listening ports", Value = udp.Count, DisplayValue = FormatPortCount(udp.Count), Source = "Windows Network", Details = CloneDetails(details) });
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static Dictionary<string, string> BuildListeningPortDetails(List<IPEndPoint> tcp, List<IPEndPoint> udp)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddDetail(details, "TCP listening port count", tcp == null ? "" : tcp.Count.ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, "UDP listening port count", udp == null ? "" : udp.Count.ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, "TCP listening port numbers", FormatPortNumbers(tcp));
+        AddDetail(details, "UDP listening port numbers", FormatPortNumbers(udp));
+        AddEndpointDetails(details, "TCP listening endpoint", tcp);
+        AddEndpointDetails(details, "UDP listening endpoint", udp);
+        AddDetail(details, "Listening port note", "These are local endpoints Windows reports as listening. Sensor Readout does not scan remote hosts or test firewall exposure.");
+        return details;
+    }
+
+    private static void AddEndpointDetails(Dictionary<string, string> details, string prefix, List<IPEndPoint> endpoints)
+    {
+        if (details == null || endpoints == null)
+        {
+            return;
+        }
+
+        var index = 1;
+        foreach (var endpoint in endpoints.Take(200))
+        {
+            AddDetail(details, prefix + " " + index.ToString(CultureInfo.InvariantCulture), FormatEndpoint(endpoint));
+            index++;
+        }
+
+        if (endpoints.Count > 200)
+        {
+            AddDetail(details, prefix + " omitted", (endpoints.Count - 200).ToString(CultureInfo.InvariantCulture) + " more");
+        }
+    }
+
+    private static string FormatPortCount(int count)
+    {
+        return count.ToString(CultureInfo.InvariantCulture) + (count == 1 ? " port" : " ports");
+    }
+
+    private static string FormatPortNumbers(List<IPEndPoint> endpoints)
+    {
+        if (endpoints == null || endpoints.Count == 0)
+        {
+            return "";
+        }
+
+        return string.Join(", ", endpoints
+            .Select(e => e == null ? 0 : e.Port)
+            .Where(p => p > 0)
+            .Distinct()
+            .OrderBy(p => p)
+            .Select(p => p.ToString(CultureInfo.InvariantCulture))
+            .ToArray());
+    }
+
+    private static string FormatEndpoint(IPEndPoint endpoint)
+    {
+        if (endpoint == null)
+        {
+            return "";
+        }
+
+        var address = endpoint.Address == null ? "" : endpoint.Address.ToString();
+        return address + ":" + endpoint.Port.ToString(CultureInfo.InvariantCulture);
     }
 
     private Dictionary<string, string> BuildNetworkAdapterDetails(NetworkInterface adapter, string macAddress, string macVendor, IPv4InterfaceStatistics stats, IPInterfaceProperties properties)
