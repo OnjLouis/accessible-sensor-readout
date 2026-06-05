@@ -153,9 +153,10 @@ function Assert-ManualHealthForFolder([string]$folder, [string]$releaseVersion, 
             Fail "$label $($manual.Name) has an unusually long line ($maxLine characters), which can hurt screen readers and usually indicates generated-document corruption."
         }
 
+        $topOfManual = $text.Substring(0, [Math]::Min($text.Length, 5000))
         $visibleVersion = [regex]::Match(
-            $text,
-            '<p>[^<]*(Current version|Aktuelle Version|Versi[oó]n actual|Version actuelle|Versione attuale|Vers.o atual)[^<]*</p>',
+            $topOfManual,
+            '<p>[^<]*' + [regex]::Escape($releaseVersion) + '[^<]*</p>',
             [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         if (!$visibleVersion.Success) {
             Fail "$label $($manual.Name) does not have a visible top-of-manual version line."
