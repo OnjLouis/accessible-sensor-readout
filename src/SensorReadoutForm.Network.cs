@@ -38,6 +38,8 @@ public sealed partial class SensorReadoutForm : Form
         public string AutonomousSystem = "";
         public string ReverseDns = "";
         public string ConnectionType = "";
+        public string ProviderCached = "";
+        public string ProviderCacheTime = "";
     }
 
     private IEnumerable<SensorRow> GetNetworkRows()
@@ -248,6 +250,20 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private void InvalidateInternetIpCache()
+    {
+        lock (internetIpInfoLock)
+        {
+            if (internetIpInfoRefreshInProgress)
+            {
+                return;
+            }
+
+            cachedInternetIpInfo = null;
+            cachedInternetIpInfoUtc = DateTime.MinValue;
+        }
+    }
+
     private InternetIpInfo FetchInternetIpInfo()
     {
         var info = new InternetIpInfo();
@@ -276,6 +292,8 @@ public sealed partial class SensorReadoutForm : Form
             var lon = ValueText(obj, "lon");
             info.Coordinates = string.IsNullOrWhiteSpace(lat) || string.IsNullOrWhiteSpace(lon) ? "" : lat + ", " + lon;
             info.ConnectionType = FormatInternetConnectionType(obj);
+            info.ProviderCached = FormatInternetProviderCached(obj);
+            info.ProviderCacheTime = FormatInternetProviderCacheTime(ValueText(obj, "cacheTimestamp"));
         }
         catch (Exception ex)
         {
@@ -332,6 +350,44 @@ public sealed partial class SensorReadoutForm : Form
         return parts.Count == 0 ? "ISP or residential connection" : string.Join(", ", parts.ToArray());
     }
 
+    private static string FormatInternetProviderCached(JObject obj)
+    {
+        if (obj == null)
+        {
+            return "";
+        }
+
+        var token = obj["cached"];
+        bool value;
+        return token != null && bool.TryParse(Convert.ToString(token, CultureInfo.InvariantCulture), out value)
+            ? (value ? "Yes" : "No")
+            : "";
+    }
+
+    private static string FormatInternetProviderCacheTime(string rawTimestamp)
+    {
+        if (string.IsNullOrWhiteSpace(rawTimestamp))
+        {
+            return "";
+        }
+
+        long seconds;
+        if (!long.TryParse(rawTimestamp.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out seconds))
+        {
+            return rawTimestamp.Trim();
+        }
+
+        try
+        {
+            var utc = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
+            return utc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
+        }
+        catch
+        {
+            return rawTimestamp.Trim();
+        }
+    }
+
     private static void AddInternetFlag(List<string> parts, JObject obj, string key, string label)
     {
         if (parts == null || obj == null)
@@ -368,6 +424,8 @@ public sealed partial class SensorReadoutForm : Form
         AddDetail(details, "Reverse DNS", info.ReverseDns);
         AddDetail(details, "Connection type", info.ConnectionType);
         AddDetail(details, "Lookup provider", PublicIpLookupProvider);
+        AddDetail(details, "Provider returned cached lookup", info.ProviderCached);
+        AddDetail(details, "Provider cache time", info.ProviderCacheTime);
         AddDetail(details, "Lookup note", "Public IP metadata is estimated by an online lookup service and may be approximate.");
         return details;
     }

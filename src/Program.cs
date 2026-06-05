@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -157,28 +158,154 @@ public static partial class Program
                 return;
             }
 
-            WriteBundledHashManifestIfDifferent(
-                System.IO.Path.Combine(baseFolder, "Langs"),
-                System.IO.Path.Combine(dataFolder, "BundledLanguageHashes.json"));
-            WriteBundledHashManifestIfDifferent(
-                System.IO.Path.Combine(baseFolder, "Plug-Ins"),
-                System.IO.Path.Combine(dataFolder, "BundledPlugInHashes.json"));
+            RepairBundledPlugInHashManifest(baseFolder);
         }
         catch
         {
         }
     }
 
-    private static void WriteBundledHashManifestIfDifferent(string sourceFolder, string manifestPath)
+    internal static bool RepairBundledPlugInHashManifestForTest(string baseFolder)
+    {
+        return RepairBundledPlugInHashManifest(baseFolder);
+    }
+
+    private static bool RepairBundledPlugInHashManifest(string baseFolder)
+    {
+        if (string.IsNullOrWhiteSpace(baseFolder))
+        {
+            return false;
+        }
+
+        var plugInsFolder = System.IO.Path.Combine(baseFolder, "Plug-Ins");
+        var manifestPath = System.IO.Path.Combine(System.IO.Path.Combine(baseFolder, "Data"), "BundledPlugInHashes.json");
+        if (!System.IO.Directory.Exists(plugInsFolder) || !System.IO.File.Exists(manifestPath))
+        {
+            return false;
+        }
+
+        var existingManifest = ReadManifestHashes(manifestPath);
+        if (existingManifest.Count == 0)
+        {
+            return false;
+        }
+
+        var files = GetKnownBundledPlugInFiles(plugInsFolder);
+        if (files.Count == 0)
+        {
+            return false;
+        }
+
+        var dllsWithManifestEntries = files
+            .Where(path => string.Equals(System.IO.Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase))
+            .Where(path => existingManifest.ContainsKey(ManifestRelativePath(plugInsFolder, path).Replace("/", "\\")))
+            .ToList();
+        if (dllsWithManifestEntries.Count == 0)
+        {
+            return false;
+        }
+
+        var mismatchedCurrentDlls = 0;
+        foreach (var dll in dllsWithManifestEntries)
+        {
+            var relative = ManifestRelativePath(plugInsFolder, dll).Replace("/", "\\");
+            var expectedHash = existingManifest[relative];
+            var actualHash = GetManifestFileSha256(dll);
+            if (!string.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!IsCurrentVersionFile(dll))
+                {
+                    return false;
+                }
+
+                mismatchedCurrentDlls++;
+            }
+        }
+
+        if (mismatchedCurrentDlls != dllsWithManifestEntries.Count)
+        {
+            return false;
+        }
+
+        return WriteBundledHashManifestIfDifferent(plugInsFolder, manifestPath, files);
+    }
+
+    private static List<string> GetKnownBundledPlugInFiles(string plugInsFolder)
+    {
+        var knownBundledFolders = new[]
+        {
+            "AsusRog",
+            "DellLatitude",
+            "Framework",
+            "HP",
+            "LenovoThinkPad",
+            "MsiLaptop"
+        };
+        var files = new List<string>();
+        foreach (var folderName in knownBundledFolders)
+        {
+            var folder = System.IO.Path.Combine(plugInsFolder, folderName);
+            if (!System.IO.Directory.Exists(folder))
+            {
+                continue;
+            }
+
+            files.AddRange(System.IO.Directory.GetFiles(folder, "*", System.IO.SearchOption.AllDirectories));
+        }
+
+        return files
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsCurrentVersionFile(string path)
+    {
+        try
+        {
+            var version = FileVersionInfo.GetVersionInfo(path).FileVersion;
+            return string.Equals(version, SensorReadoutForm.AppVersion + ".0", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static Dictionary<string, string> ReadManifestHashes(string manifestPath)
+    {
+        var hashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(manifestPath) || !System.IO.File.Exists(manifestPath))
+        {
+            return hashes;
+        }
+
+        var text = System.IO.File.ReadAllText(manifestPath);
+        var filesMatch = System.Text.RegularExpressions.Regex.Match(text, "\"Files\"\\s*:\\s*\\{(?<files>.*?)\\}\\s*\\}", System.Text.RegularExpressions.RegexOptions.Singleline);
+        if (!filesMatch.Success)
+        {
+            return hashes;
+        }
+
+        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(filesMatch.Groups["files"].Value, "\"(?<path>(?:\\\\.|[^\"])*)\"\\s*:\\s*\"(?<hash>[A-Fa-f0-9]{64})\""))
+        {
+            var relativePath = JsonUnescape(match.Groups["path"].Value).Replace("/", "\\");
+            var hash = match.Groups["hash"].Value;
+            if (!string.IsNullOrWhiteSpace(relativePath) && !hashes.ContainsKey(relativePath))
+            {
+                hashes.Add(relativePath, hash);
+            }
+        }
+
+        return hashes;
+    }
+
+    private static bool WriteBundledHashManifestIfDifferent(string sourceFolder, string manifestPath, List<string> files)
     {
         if (!System.IO.Directory.Exists(sourceFolder) || string.IsNullOrWhiteSpace(manifestPath))
         {
-            return;
+            return false;
         }
 
-        var files = System.IO.Directory.GetFiles(sourceFolder, "*", System.IO.SearchOption.AllDirectories)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToList();
         var builder = new System.Text.StringBuilder();
         builder.AppendLine("{");
         builder.AppendLine("    \"Version\":  1,");
@@ -207,11 +334,12 @@ public static partial class Program
         var current = System.IO.File.Exists(manifestPath) ? System.IO.File.ReadAllText(manifestPath) : "";
         if (string.Equals(NormalizeManifestForComparison(current), NormalizeManifestForComparison(next), StringComparison.Ordinal))
         {
-            return;
+            return false;
         }
 
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(manifestPath));
         System.IO.File.WriteAllText(manifestPath, next, System.Text.Encoding.UTF8);
+        return true;
     }
 
     private static string NormalizeManifestForComparison(string text)
@@ -236,6 +364,18 @@ public static partial class Program
         return (value ?? "")
             .Replace("\\", "\\\\")
             .Replace("\"", "\\\"");
+    }
+
+    private static string JsonUnescape(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return "";
+        }
+
+        return value
+            .Replace("\\\"", "\"")
+            .Replace("\\\\", "\\");
     }
 
     private static string GetManifestFileSha256(string path)

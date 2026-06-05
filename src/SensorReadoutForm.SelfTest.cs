@@ -55,6 +55,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Community stats payload privacy", delegate { form.SelfTestCommunityStatsPayloadPrivacy(); });
             form.RunSelfTestStep(results, "Diagnostics ZIP creation", delegate { form.SelfTestDiagnosticsZip(outputFolder); });
             form.RunSelfTestStep(results, "Language and manual files", delegate { form.SelfTestLanguageAndManualFiles(); });
+            form.RunSelfTestStep(results, "Bundled plug-in manifest repair", delegate { form.SelfTestBundledPlugInManifestRepair(outputFolder); });
             form.LogMessage("Debug", "Self-test complete.");
         }
 
@@ -983,6 +984,96 @@ public sealed partial class SensorReadoutForm : Form
             var extra = keys.Except(englishKeys).OrderBy(k => k, StringComparer.Ordinal).Take(10).ToList();
             Require(missing.Count == 0, Path.GetFileName(languageFile) + " missing language keys: " + string.Join(", ", missing));
             Require(extra.Count == 0, Path.GetFileName(languageFile) + " has unknown language keys: " + string.Join(", ", extra));
+        }
+    }
+
+    private void SelfTestBundledPlugInManifestRepair(string outputFolder)
+    {
+        var sourcePlugIns = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plug-Ins");
+        var asusDll = Path.Combine(sourcePlugIns, "AsusRog", "AsusRogPlugIn.dll");
+        var dellDll = Path.Combine(sourcePlugIns, "DellLatitude", "DellLatitudePlugIn.dll");
+        if (!File.Exists(asusDll) || !File.Exists(dellDll))
+        {
+            LogMessage("Debug", "Skipping bundled plug-in manifest repair self-test because bundled plug-in DLLs are not present beside the executable.");
+            return;
+        }
+
+        var tempRoot = Path.Combine(outputFolder, "self-test-plugin-manifest");
+        if (Directory.Exists(tempRoot))
+        {
+            Directory.Delete(tempRoot, true);
+        }
+
+        var tempPlugIns = Path.Combine(tempRoot, "Plug-Ins");
+        var tempData = Path.Combine(tempRoot, "Data");
+        Directory.CreateDirectory(tempData);
+        CopySelfTestPlugInDll(asusDll, Path.Combine(tempPlugIns, "AsusRog", "AsusRogPlugIn.dll"));
+        CopySelfTestPlugInDll(dellDll, Path.Combine(tempPlugIns, "DellLatitude", "DellLatitudePlugIn.dll"));
+        var customDll = Path.Combine(tempPlugIns, "CommunityPlugIn", "CommunityPlugIn.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(customDll));
+        File.WriteAllText(customDll, "custom plug-in placeholder");
+
+        var manifestPath = Path.Combine(tempData, "BundledPlugInHashes.json");
+        var asusRelative = @"AsusRog\AsusRogPlugIn.dll";
+        var dellRelative = @"DellLatitude\DellLatitudePlugIn.dll";
+        var oldHash = new string('0', 64);
+        var asusHash = ComputeSha256ForSelfTest(Path.Combine(tempPlugIns, asusRelative));
+        var dellHash = ComputeSha256ForSelfTest(Path.Combine(tempPlugIns, dellRelative));
+
+        WriteSelfTestManifest(manifestPath, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { asusRelative, oldHash },
+            { dellRelative, dellHash }
+        });
+        Require(!Program.RepairBundledPlugInHashManifestForTest(tempRoot), "Manifest repair ran when only one bundled DLL differed; this could hide user edits.");
+        var partialManifest = File.ReadAllText(manifestPath);
+        Require(partialManifest.IndexOf(oldHash, StringComparison.OrdinalIgnoreCase) >= 0, "Partial mismatch manifest was unexpectedly changed.");
+
+        WriteSelfTestManifest(manifestPath, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { asusRelative, oldHash },
+            { dellRelative, oldHash }
+        });
+        Require(Program.RepairBundledPlugInHashManifestForTest(tempRoot), "Manifest repair did not run for legacy bundled plug-in hashes.");
+        var repairedManifest = File.ReadAllText(manifestPath);
+        Require(repairedManifest.IndexOf(asusHash, StringComparison.OrdinalIgnoreCase) >= 0, "Repaired manifest missing current Asus plug-in hash.");
+        Require(repairedManifest.IndexOf(dellHash, StringComparison.OrdinalIgnoreCase) >= 0, "Repaired manifest missing current Dell plug-in hash.");
+        Require(repairedManifest.IndexOf("CommunityPlugIn", StringComparison.OrdinalIgnoreCase) < 0, "Repaired manifest incorrectly included a third-party plug-in folder.");
+    }
+
+    private static void CopySelfTestPlugInDll(string source, string target)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(target));
+        File.Copy(source, target, true);
+    }
+
+    private static void WriteSelfTestManifest(string path, Dictionary<string, string> hashes)
+    {
+        var lines = new List<string>
+        {
+            "{",
+            "    \"Version\":  1,",
+            "    \"UpdatedUtc\":  \"" + DateTime.UtcNow.ToString("o") + "\",",
+            "    \"Files\":  {"
+        };
+        var ordered = hashes.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            var pair = ordered[i];
+            lines.Add("                  \"" + pair.Key.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\":  \"" + pair.Value + "\"" + (i + 1 < ordered.Count ? "," : ""));
+        }
+
+        lines.Add("              }");
+        lines.Add("}");
+        File.WriteAllLines(path, lines.ToArray());
+    }
+
+    private static string ComputeSha256ForSelfTest(string path)
+    {
+        using (var stream = File.OpenRead(path))
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+        {
+            return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
         }
     }
 

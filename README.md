@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 4.5.3.
+Current version: 4.5.4.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -393,7 +393,7 @@ The Performance section summarizes live system counters and storage activity. It
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
-The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Network also includes a passive local listening-port summary from Windows, plus public IP lookup rows for country, region, city, coordinates, provider, autonomous system, and connection type where the online lookup provider returns them. A combined Public IP summary reading can be added to notification area status or a spoken hotkey, so one reading can speak the public-IP fields returned by the provider. Public IP location data is approximate. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
+The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Network also includes a passive local listening-port summary from Windows, plus public IP lookup rows for country, region, city, coordinates, provider, autonomous system, and connection type where the online lookup provider returns them. A combined Public IP summary reading can be added to notification area status or a spoken hotkey, so one reading can speak the public-IP fields returned by the provider. Public IP location data is approximate; use Refresh Now or F5 to request a fresh public-IP lookup if the online provider changes its result. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
 
 The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
@@ -610,6 +610,11 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.5.4
+
+- Fixed: Sensor Readout now repairs bundled plug-in update metadata more conservatively after legacy-update compatibility repairs, so imported plug-ins and user-modified bundled plug-in files are not accidentally treated as shipped files for future updates.
+- Fixed: Refresh Now and F5 now force a fresh public-IP lookup instead of reusing Sensor Readout's six-hour public-IP cache, and public-IP Details show provider cache metadata where available.
 
 ### 4.5.3
 

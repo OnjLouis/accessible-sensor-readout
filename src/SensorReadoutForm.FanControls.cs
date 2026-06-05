@@ -188,6 +188,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        InvalidateInternetIpCache();
         RefreshSensors(true, true, "manual");
     }
 
