@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Management;
@@ -1624,21 +1625,41 @@ public sealed partial class SensorReadoutForm : Form
                 AccessibleDescription = T("a11y.Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.", "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.")
             };
             PopulateDetailsTree(tree, row.Details);
+            var windowsSettingsTarget = GetRelatedWindowsSettingsTarget(row);
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
             var closeButton = CreateCloseButton();
+            var openWindowsSettingButton = windowsSettingsTarget == null
+                ? null
+                : new ShortcutButton
+                {
+                    Text = T("ui.Open &Windows setting...", "Open &Windows setting..."),
+                    AutoSize = true,
+                    ShortcutText = "Alt+W",
+                    ShortcutKeys = Keys.W,
+                    AccessibleName = T("a11y.Open related Windows setting", "Open related Windows setting"),
+                    AccessibleDescription = T("a11y.Opens the Windows Settings page related to this reading.", "Opens the Windows Settings page related to this reading.")
+                };
             var copyButton = new Button { Text = T("ui.&Copy", "&Copy"), AutoSize = true };
             var copyValueButton = new Button { Text = T("ui.Copy &value only", "Copy &value only"), AutoSize = true };
             var copyMatchingButton = new Button { Text = T("ui.Copy &matching...", "Copy &matching..."), AutoSize = true };
             var collapseAllButton = new Button { Text = T("ui.C&ollapse all", "C&ollapse all"), AutoSize = true };
             var expandAllButton = new Button { Text = T("ui.&Expand all", "&Expand all"), AutoSize = true };
             closeButton.Click += delegate { dialog.Close(); };
+            if (openWindowsSettingButton != null)
+            {
+                openWindowsSettingButton.Click += delegate { OpenWindowsSettingsTarget(windowsSettingsTarget); };
+            }
             copyButton.Click += delegate { CopyDetailsTree(tree); };
             copyValueButton.Click += delegate { CopyDetailsTreeValueOnly(tree); };
             copyMatchingButton.Click += delegate { CopyMatchingDetailsTreeLines(tree); };
             collapseAllButton.Click += delegate { CollapseDetailsTree(tree); };
             expandAllButton.Click += delegate { ExpandDetailsTree(tree); };
             buttons.Controls.Add(closeButton);
+            if (openWindowsSettingButton != null)
+            {
+                buttons.Controls.Add(openWindowsSettingButton);
+            }
             buttons.Controls.Add(copyButton);
             buttons.Controls.Add(copyValueButton);
             buttons.Controls.Add(copyMatchingButton);
@@ -1682,6 +1703,182 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return true;
+    }
+
+    private sealed class WindowsSettingsTarget
+    {
+        public string Uri;
+        public string Name;
+    }
+
+    private bool CanOpenSelectedWindowsSetting()
+    {
+        return GetRelatedWindowsSettingsTarget(GetSelectedReadingRow()) != null;
+    }
+
+    private bool OpenSelectedWindowsSetting()
+    {
+        var target = GetRelatedWindowsSettingsTarget(GetSelectedReadingRow());
+        if (target == null)
+        {
+            System.Media.SystemSounds.Beep.Play();
+            statusLabel.Text = T("status.Select a reading with a related Windows setting.", "Select a reading with a related Windows setting.");
+            return false;
+        }
+
+        OpenWindowsSettingsTarget(target);
+        return true;
+    }
+
+    private static WindowsSettingsTarget GetRelatedWindowsSettingsTarget(SensorRow row)
+    {
+        if (row == null)
+        {
+            return null;
+        }
+
+        if (IsSafeWindowsSettingsUri(row.WindowsSettingsUri))
+        {
+            return new WindowsSettingsTarget { Uri = row.WindowsSettingsUri, Name = "Windows setting" };
+        }
+
+        var type = row.Type ?? "";
+        var hardware = row.Hardware ?? "";
+        var name = CleanSensorName(row.Name);
+        var combined = (type + " " + hardware + " " + name).Trim();
+
+        if (name.Equals("Audio descriptions", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Show sounds", StringComparison.OrdinalIgnoreCase))
+        {
+            return SettingsTarget("ms-settings:easeofaccess-audio", "Accessibility audio");
+        }
+
+        if (name.Equals("Closed captions", StringComparison.OrdinalIgnoreCase))
+        {
+            return SettingsTarget("ms-settings:easeofaccess-closedcaptioning", "Closed captions");
+        }
+
+        if (name.Equals("High contrast", StringComparison.OrdinalIgnoreCase))
+        {
+            return SettingsTarget("ms-settings:easeofaccess-highcontrast", "High contrast");
+        }
+
+        if (name.Equals("Sticky Keys", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Toggle Keys", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Filter Keys", StringComparison.OrdinalIgnoreCase))
+        {
+            return SettingsTarget("ms-settings:easeofaccess-keyboard", "Accessibility keyboard");
+        }
+
+        if (name.Equals("Screen reader output", StringComparison.OrdinalIgnoreCase) ||
+            name.Equals("Detected screen readers", StringComparison.OrdinalIgnoreCase))
+        {
+            return SettingsTarget("ms-settings:easeofaccess-narrator", "Narrator");
+        }
+
+        if (ContainsAny(combined, "bluetooth"))
+        {
+            return SettingsTarget("ms-settings:bluetooth", "Bluetooth");
+        }
+
+        if (ContainsAny(combined, "printer", "print queue"))
+        {
+            return SettingsTarget("ms-settings:printers", "Printers and scanners");
+        }
+
+        if (string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, " usb "))
+        {
+            return SettingsTarget("ms-settings:usb", "USB");
+        }
+
+        if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "audio", "speaker", "microphone", "endpoint"))
+        {
+            return SettingsTarget("ms-settings:sound", "Sound");
+        }
+
+        if (string.Equals(type, "Display", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "display", "monitor", "graphics", "gpu"))
+        {
+            return SettingsTarget("ms-settings:display", "Display");
+        }
+
+        if (string.Equals(type, "Network", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "wi-fi", "wifi", "ethernet", "network", "public ip"))
+        {
+            return SettingsTarget("ms-settings:network", "Network and internet");
+        }
+
+        if (string.Equals(type, "Battery", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "battery", "power supply", "charger"))
+        {
+            return SettingsTarget("ms-settings:powersleep", "Power and battery");
+        }
+
+        if (string.Equals(type, "SMART", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "disk", "drive", "bitlocker", "storage"))
+        {
+            return SettingsTarget("ms-settings:storagesense", "Storage");
+        }
+
+        if (ContainsAny(combined, "camera", "webcam", "imaging"))
+        {
+            return SettingsTarget("ms-settings:camera", "Camera");
+        }
+
+        if (ContainsAny(combined, "startup"))
+        {
+            return SettingsTarget("ms-settings:startupapps", "Startup apps");
+        }
+
+        if (ContainsAny(combined, "windows update", "update"))
+        {
+            return SettingsTarget("ms-settings:windowsupdate", "Windows Update");
+        }
+
+        return null;
+    }
+
+    private static WindowsSettingsTarget SettingsTarget(string uri, string name)
+    {
+        return new WindowsSettingsTarget { Uri = uri, Name = name };
+    }
+
+    private static bool ContainsAny(string text, params string[] terms)
+    {
+        if (string.IsNullOrWhiteSpace(text) || terms == null)
+        {
+            return false;
+        }
+
+        foreach (var term in terms)
+        {
+            if (!string.IsNullOrWhiteSpace(term) && text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSafeWindowsSettingsUri(string uri)
+    {
+        return !string.IsNullOrWhiteSpace(uri) &&
+            uri.Trim().StartsWith("ms-settings:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OpenWindowsSettingsTarget(WindowsSettingsTarget target)
+    {
+        if (target == null || !IsSafeWindowsSettingsUri(target.Uri))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = target.Uri, UseShellExecute = true });
+            statusLabel.Text = T("status.Opened related Windows setting.", "Opened related Windows setting.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, T("ui.Could not open Windows setting", "Could not open Windows setting"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void ExpandDetailsTree(TreeView tree)

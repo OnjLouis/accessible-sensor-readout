@@ -14,6 +14,7 @@ public sealed class SensorRow
     public string DisplayValue;
     public string Source;
     public Dictionary<string, string> Details;
+    public string WindowsSettingsUri;
 
     public override string ToString()
     {
@@ -536,7 +537,7 @@ public sealed class GlobalHotKey
 
     public bool IsValid
     {
-        get { return IsAllowedBaseKey(Key) && HasRequiredModifier(Modifiers); }
+        get { return IsAllowedBaseKey(Key) && IsAllowedModifierSet(Modifiers) && !IsReservedCombination(Key, Modifiers); }
     }
 
     public static bool IsAllowedBaseKey(Keys key)
@@ -547,8 +548,47 @@ public sealed class GlobalHotKey
             (key >= Keys.F1 && key <= Keys.F24);
     }
 
-    private static bool HasRequiredModifier(uint modifiers)
+    public static bool IsAllowedModifierSet(uint modifiers)
     {
-        return (modifiers & (NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModWin)) != 0;
+        var count = 0;
+        if ((modifiers & NativeMethods.ModControl) != 0) count++;
+        if ((modifiers & NativeMethods.ModAlt) != 0) count++;
+        if ((modifiers & NativeMethods.ModShift) != 0) count++;
+        if ((modifiers & NativeMethods.ModWin) != 0) count++;
+        return count >= 2;
+    }
+
+    public static bool IsReservedCombination(Keys key, uint modifiers)
+    {
+        if ((modifiers & NativeMethods.ModAlt) != 0 && key == Keys.F4)
+        {
+            return true;
+        }
+
+        if ((modifiers & NativeMethods.ModControl) != 0 && key == Keys.Escape)
+        {
+            return true;
+        }
+
+        if ((modifiers & NativeMethods.ModWin) == 0)
+        {
+            return false;
+        }
+
+        if ((key >= Keys.D0 && key <= Keys.D9) || (key >= Keys.NumPad0 && key <= Keys.NumPad9))
+        {
+            return true;
+        }
+
+        return key == Keys.A ||
+            key == Keys.D ||
+            key == Keys.E ||
+            key == Keys.I ||
+            key == Keys.L ||
+            key == Keys.M ||
+            key == Keys.R ||
+            key == Keys.S ||
+            key == Keys.V ||
+            key == Keys.X;
     }
 }

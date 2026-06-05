@@ -480,7 +480,7 @@ public sealed partial class SensorReadoutForm : Form
                     node.Tag = item.Row;
                 }
 
-                if (textChanged || string.IsNullOrWhiteSpace(node.ToolTipText) != (item.Row == null || item.Row.Details == null || item.Row.Details.Count == 0))
+                if (textChanged || !string.Equals(node.ToolTipText, GetTreeNodeDetailsHint(item), StringComparison.Ordinal))
                 {
                     var detailsHint = GetTreeNodeDetailsHint(item);
                     if (!string.Equals(node.ToolTipText, detailsHint, StringComparison.Ordinal))
@@ -508,7 +508,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var row = readingTree.SelectedNode.Tag as SensorRow;
-        if (row == null || row.Details == null || row.Details.Count == 0)
+        if (row == null || !HasDetailsOrWindowsSetting(row))
         {
             return;
         }
@@ -548,7 +548,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var row = readingTree.SelectedNode.Tag as SensorRow;
-        if (row == null || row.Details == null || row.Details.Count == 0)
+        if (row == null || !HasDetailsOrWindowsSetting(row))
         {
             pendingDetailsAvailabilityAnnouncementKey = "";
             return;
@@ -559,7 +559,7 @@ public sealed partial class SensorReadoutForm : Form
         pendingDetailsAvailabilityAnnouncementKey = "";
 
         string error;
-        var message = T("a11y.Has details", "Has Details.");
+        var message = GetTreeNodeDetailsHint(new ReadingTreeItem { Row = row });
         if (!ScreenReaderOutput.TrySpeakPolite(message, out error))
         {
             LogMessage("Debug", "Details availability hint was not spoken. " + error);
@@ -1864,9 +1864,33 @@ public sealed partial class SensorReadoutForm : Form
 
     private static string GetTreeNodeDetailsHint(ReadingTreeItem item)
     {
-        return item != null && item.Row != null && item.Row.Details != null && item.Row.Details.Count > 0
-            ? T("a11y.Has details", "Has Details.")
+        if (item == null || item.Row == null)
+        {
+            return "";
+        }
+
+        var hasDetails = item.Row.Details != null && item.Row.Details.Count > 0;
+        var hasWindowsSetting = GetRelatedWindowsSettingsTarget(item.Row) != null;
+        if (hasDetails && hasWindowsSetting)
+        {
+            return T("a11y.Has details and Windows setting", "Has Details. Has Windows setting.");
+        }
+
+        if (hasDetails)
+        {
+            return T("a11y.Has details", "Has Details.");
+        }
+
+        return hasWindowsSetting
+            ? T("a11y.Has Windows setting", "Has Windows setting.")
             : "";
+    }
+
+    private static bool HasDetailsOrWindowsSetting(SensorRow row)
+    {
+        return row != null &&
+            ((row.Details != null && row.Details.Count > 0) ||
+             GetRelatedWindowsSettingsTarget(row) != null);
     }
 
     private static TreeNode FindTreeNode(TreeNodeCollection nodes, string key)

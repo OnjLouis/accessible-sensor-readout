@@ -38,6 +38,7 @@ public sealed partial class SensorReadoutForm : Form
             form.ConfigureSelfTestSettings();
             form.LogMessage("Debug", "Self-test started. Output folder: " + outputFolder);
             form.RunSelfTestStep(results, "Settings save and reload", delegate { form.SelfTestSettingsRoundTrip(); });
+            form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
@@ -118,6 +119,20 @@ public sealed partial class SensorReadoutForm : Form
         Require(!reloaded.ReadingTreeLastExpanded, "Reading tree last expanded state did not round-trip.");
         var transferPackage = BuildSettingsTransferPackage(new HashSet<string>(new[] { TransferTray }, StringComparer.OrdinalIgnoreCase));
         Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.CommunityStatsClientId), "Settings transfer exported the local community stats client ID.");
+    }
+
+    private void SelfTestGlobalHotKeyValidation()
+    {
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Alt+1")), "Unsafe Alt+number hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Ctrl+A")), "Unsafe single-modifier Ctrl+letter hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Shift+F1")), "Unsafe single-modifier Shift+function hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Alt+F4")), "Reserved Alt+F4 hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Ctrl+Esc")), "Reserved Ctrl+Esc hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Win+1")), "Reserved Win+number hotkey was accepted.");
+        Require(string.IsNullOrWhiteSpace(NormalizeHotKeyText("Win+D")), "Reserved Windows desktop hotkey was accepted.");
+        Require(string.Equals(NormalizeHotKeyText("Ctrl+Shift+F1"), "Ctrl+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Shift function hotkey was rejected.");
+        Require(string.Equals(NormalizeHotKeyText("Ctrl+Alt+F1"), "Ctrl+Alt+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Alt function hotkey was rejected.");
+        Require(string.Equals(NormalizeHotKeyText("Alt+Shift+F1"), "Alt+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Alt+Shift function hotkey was rejected.");
     }
 
     private void SelfTestSensorCollection()
@@ -984,6 +999,13 @@ public sealed partial class SensorReadoutForm : Form
             var extra = keys.Except(englishKeys).OrderBy(k => k, StringComparer.Ordinal).Take(10).ToList();
             Require(missing.Count == 0, Path.GetFileName(languageFile) + " missing language keys: " + string.Join(", ", missing));
             Require(extra.Count == 0, Path.GetFileName(languageFile) + " has unknown language keys: " + string.Join(", ", extra));
+        }
+
+        foreach (var manual in Directory.GetFiles(GetDocsFolderPath(), "README-*.html"))
+        {
+            var html = File.ReadAllText(manual);
+            Require(html.IndexOf("<code>Enter</code> / <code>Alt+Enter</code>", StringComparison.OrdinalIgnoreCase) < 0, Path.GetFileName(manual) + " still describes Alt+Enter as a Details shortcut.");
+            Require(!Regex.IsMatch(html, @"(?i)(Enter\s+or\s+Alt\+Enter|Enter\s+oder\s+Alt\+Enter|Enter\s+ou\s+Alt\+Enter|Enter\s+o\s+Alt\+Enter)"), Path.GetFileName(manual) + " contains stale Enter/Alt+Enter Details wording.");
         }
     }
 

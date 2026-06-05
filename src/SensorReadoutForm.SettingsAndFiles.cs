@@ -20,8 +20,7 @@ public sealed partial class SensorReadoutForm : Form
     public static string HotKeyTextFromKeyData(Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        if (key == Keys.ControlKey || key == Keys.ShiftKey || key == Keys.Menu ||
-            key == Keys.LWin || key == Keys.RWin || key == Keys.None)
+        if (IsModifierOnlyHotKeyData(keyData) || key == Keys.None)
         {
             return "";
         }
@@ -48,13 +47,29 @@ public sealed partial class SensorReadoutForm : Form
             modifiers |= NativeMethods.ModShift;
             parts.Add("Shift");
         }
-        if ((modifiers & (NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModWin)) == 0)
+        if (!GlobalHotKey.IsAllowedModifierSet(modifiers) || GlobalHotKey.IsReservedCombination(key, modifiers))
         {
             return "";
         }
 
         parts.Add(KeyToHotKeyPart(key));
         return parts.Count < 2 ? "" : string.Join("+", parts.ToArray());
+    }
+
+    public static bool IsModifierOnlyHotKeyData(Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
+        return key == Keys.ControlKey ||
+            key == Keys.LControlKey ||
+            key == Keys.RControlKey ||
+            key == Keys.ShiftKey ||
+            key == Keys.LShiftKey ||
+            key == Keys.RShiftKey ||
+            key == Keys.Menu ||
+            key == Keys.LMenu ||
+            key == Keys.RMenu ||
+            key == Keys.LWin ||
+            key == Keys.RWin;
     }
 
     public static string NormalizeHotKeyText(string text)

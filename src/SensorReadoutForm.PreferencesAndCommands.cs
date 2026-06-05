@@ -1112,9 +1112,20 @@ public sealed partial class SensorReadoutForm : Form
             editSpokenHotKeyMenuItem.Visible = spokenHotKeyVisible;
         }
 
+        var windowsSettingVisible = CanOpenSelectedWindowsSetting();
+        if (editWindowsSettingMenuItem != null)
+        {
+            editWindowsSettingMenuItem.Visible = windowsSettingVisible;
+        }
+
         if (treeDetailsMenuItem != null)
         {
             treeDetailsMenuItem.Visible = CanShowSelectedReadingDetails();
+        }
+
+        if (treeWindowsSettingMenuItem != null)
+        {
+            treeWindowsSettingMenuItem.Visible = windowsSettingVisible;
         }
 
         if (treeSpokenHotKeyMenuItem != null)
@@ -1542,20 +1553,25 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = L("a11y.Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.", "Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.")
+            AccessibleDescription = L("a11y.Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.", "Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.")
         };
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Tab)
+            if (e.KeyCode == Keys.Tab || e.KeyCode == Keys.Escape || (e.Alt && e.KeyCode == Keys.F4))
             {
                 return;
             }
 
             e.SuppressKeyPress = true;
             e.Handled = true;
-            if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete || e.KeyCode == Keys.Escape)
+            if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
             {
                 box.Text = "";
+                return;
+            }
+
+            if (IsModifierOnlyHotKeyData(e.KeyData))
+            {
                 return;
             }
 
@@ -1563,6 +1579,10 @@ public sealed partial class SensorReadoutForm : Form
             if (!string.IsNullOrWhiteSpace(text))
             {
                 box.Text = text;
+            }
+            else
+            {
+                System.Media.SystemSounds.Beep.Play();
             }
         };
         return box;

@@ -193,7 +193,7 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = L("a11y.Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.", "Press the key combination to assign it. Use Backspace, Delete, or Escape to clear it.")
+            AccessibleDescription = L("a11y.Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.", "Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.")
         };
         return box;
     }
@@ -202,16 +202,20 @@ public sealed partial class SensorReadoutForm : Form
     {
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if ((keyData & Keys.KeyCode) == Keys.Tab)
+            var key = keyData & Keys.KeyCode;
+            if (key == Keys.Tab || key == Keys.Escape || ((keyData & Keys.Alt) == Keys.Alt && key == Keys.F4))
             {
                 return base.ProcessCmdKey(ref msg, keyData);
             }
 
-            if ((keyData & Keys.KeyCode) == Keys.Back ||
-                (keyData & Keys.KeyCode) == Keys.Delete ||
-                (keyData & Keys.KeyCode) == Keys.Escape)
+            if (key == Keys.Back || key == Keys.Delete)
             {
                 Text = "";
+                return true;
+            }
+
+            if (IsModifierOnlyHotKeyData(keyData))
+            {
                 return true;
             }
 
@@ -220,6 +224,10 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Text = text;
                 SelectAll();
+            }
+            else
+            {
+                System.Media.SystemSounds.Beep.Play();
             }
 
             return true;

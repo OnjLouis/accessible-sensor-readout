@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 4.5.4.
+Current version: 4.6.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -116,7 +116,7 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 2. Accept the Windows administrator prompt.
 3. If the initial setup dialog appears, set a show/hide hotkey and a speak notification-area status hotkey if you want quick access from anywhere.
 4. Choose a category on the left. `Performance/Overview` is a good first stop for uptime, Windows, CPU, memory, GPU, storage, printer, accessibility, and data-source summaries.
-5. Use `F3` to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use `F4` to review the exact text, or `Enter` to open Details when available.
+5. Use `F3` to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use `F4` to review the exact text, `Enter` to open Details when available, or `Alt+Enter` to open a related Windows Settings page when Sensor Readout knows one.
 6. Press `Ctrl+Shift+H` on a useful reading to add it to notification-area status or a spoken hotkey profile.
 7. Press `F5` to refresh if values are still loading.
 
@@ -166,7 +166,8 @@ The same Hotkeys tab can set a key for `Speak notification area status`. That ke
 | Main window | `F5` | Refresh current readings. |
 | Main window | `F3` | Find a reading across all categories. Type to narrow results, Tab to the list, Enter to choose, Esc to close, or Alt+L to clear. |
 | Main window | `F4` | Review the selected reading or tree branch in a read-only text box. |
-| Main window | `Enter` / `Alt+Enter` | Open Details for the selected reading when extra details are available. |
+| Main window | `Enter` | Open Details for the selected reading when extra details are available. |
+| Main window | `Alt+Enter` | Open a related Windows Settings page for the selected reading when one is available. |
 | Main window | `Ctrl+C` | Copy the selected reading or tree branch. |
 | Main window | `Ctrl+Shift+C` | Copy value only: copy the selected reading value without the reading name. On a branch, copies one value per reading. |
 | Main window | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
@@ -266,7 +267,7 @@ The General tab controls the main reading experience.
 - Refresh interval: set the normal refresh interval in seconds.
 - Show status in notification area: show or hide the tray icon and its tooltip.
 - Show as many readings as possible in notification area tooltip: use the longer Windows tooltip text where available; turn this off if you prefer long tray tooltips to show only `Sensor Readout`.
-- Show/hide hotkey: toggle the main window from anywhere. This is especially useful if you start minimized or Windows hides the notification-area icon.
+- Show/hide hotkey: configured from the Hotkeys tab, with a shortcut button here for convenience. It toggles the main window from anywhere and is especially useful if you start minimized or Windows hides the notification-area icon.
 - Reading tree expansion: choose whether categories open expanded, open collapsed, or follow your most recent expand/collapse action when switching categories.
 - Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Decimal separator: use the language default, period, or comma.
@@ -407,7 +408,7 @@ When the selected reading is a percentage, Sensor Readout also exposes it throug
 
 Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
 
-Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
 ## Fan Control Workflow
 
@@ -610,6 +611,12 @@ Optional vendor tools can also help expose or verify laptop-specific data. Dell 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.6.0
+
+- Added: Supported readings can now open a related Windows Settings page with `Alt+Enter`, the reading context menu, or the Details dialog, including accessibility options, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update.
+- Improved: the show/hide global hotkey is now configured from the Hotkeys tab, with the General tab linking to it for convenience. Closes [issue #18](https://github.com/OnjLouis/accessible-sensor-readout/issues/18).
+- Improved: global hotkey entry now rejects unsafe system shortcuts and requires at least two modifiers, such as `Ctrl+Shift+F1`, `Ctrl+Alt+F1`, or `Alt+Shift+F1`.
 
 ### 4.5.4
 

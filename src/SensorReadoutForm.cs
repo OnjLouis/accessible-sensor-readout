@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.5.4";
+    public const string AppVersion = "4.6.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -29,10 +29,12 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem editUndoMenuItem;
     private readonly ToolStripMenuItem editRedoMenuItem;
     private readonly ToolStripMenuItem editRenameMenuItem;
+    private readonly ToolStripMenuItem editWindowsSettingMenuItem;
     private readonly ToolStripMenuItem editSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem editTrendLogMenuItem;
     private ToolStripMenuItem hotkeysSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
+    private readonly ToolStripMenuItem treeWindowsSettingMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem treeSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeTrendLogMenuItem;
@@ -223,6 +225,8 @@ public sealed partial class SensorReadoutForm : Form
         editMenu.DropDownItems.Add(CreateShortcutMenuItem(T("ui.Copy &value only", "Copy &value only"), Keys.Control | Keys.Shift | Keys.C, delegate { CopySelectedTreeNodeValueOnly(); }));
         editMenu.DropDownItems.Add(CreateShortcutMenuItem("Review &text...", Keys.F4, delegate { ShowSelectedTreeTextReview(); }));
         editMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); }));
+        editWindowsSettingMenuItem = CreateDisplayShortcutMenuItem(T("ui.Open &Windows setting...", "Open &Windows setting..."), "Alt+Enter", delegate { OpenSelectedWindowsSetting(); });
+        editMenu.DropDownItems.Add(editWindowsSettingMenuItem);
         editSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hot&key or tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         editMenu.DropDownItems.Add(editSpokenHotKeyMenuItem);
         editTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
@@ -473,6 +477,8 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
         treeDetailsMenuItem = CreateDisplayShortcutMenuItem("&Details...", "Enter", delegate { ShowSelectedReadingDetails(); });
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
+        treeWindowsSettingMenuItem = CreateDisplayShortcutMenuItem(T("ui.Open &Windows setting...", "Open &Windows setting..."), "Alt+Enter", delegate { OpenSelectedWindowsSetting(); });
+        readingTree.ContextMenuStrip.Items.Add(treeWindowsSettingMenuItem);
         treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hot&key or tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
         treeTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });
@@ -675,6 +681,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             Close();
             return true;
+        }
+
+        if ((keyData & Keys.Modifiers) == Keys.Alt && (keyData & Keys.KeyCode) == Keys.Enter)
+        {
+            MarkUserNavigation();
+            return OpenSelectedWindowsSetting();
         }
 
         if (keyData == Keys.Enter && readingTree != null && readingTree.Focused)

@@ -203,6 +203,19 @@ public sealed partial class PreferencesForm : Form
         if ((keyData & Keys.Alt) == Keys.Alt)
         {
             var key = keyData & Keys.KeyCode;
+            if (key == Keys.D1 || key == Keys.NumPad1)
+            {
+                FocusShowHideHotKeyBox();
+                return true;
+            }
+
+            if ((key == Keys.D2 || key == Keys.NumPad2) && spokenHotKeyList != null)
+            {
+                SelectInitialTab("Hotkeys");
+                spokenHotKeyList.Focus();
+                return true;
+            }
+
             if (PerformShortcutButton(Controls, key))
             {
                 return true;
@@ -333,20 +346,42 @@ public sealed partial class PreferencesForm : Form
     private static bool HandleHotKeyBoxCommandKey(TextBox box, Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        if (key == Keys.Back || key == Keys.Delete || key == Keys.Escape)
+        if (ShouldBypassHotKeyCapture(keyData))
+        {
+            return false;
+        }
+
+        if (key == Keys.Back || key == Keys.Delete)
         {
             box.Text = "";
+            return true;
+        }
+
+        if (SensorReadoutForm.IsModifierOnlyHotKeyData(keyData))
+        {
             return true;
         }
 
         var text = SensorReadoutForm.HotKeyTextFromKeyData(keyData);
         if (string.IsNullOrWhiteSpace(text))
         {
-            return false;
+            System.Media.SystemSounds.Beep.Play();
+            return true;
         }
 
         box.Text = text;
         return true;
+    }
+
+    private static bool ShouldBypassHotKeyCapture(Keys keyData)
+    {
+        var key = keyData & Keys.KeyCode;
+        if (key == Keys.Tab || key == Keys.Escape)
+        {
+            return true;
+        }
+
+        return (keyData & Keys.Alt) == Keys.Alt && key == Keys.F4;
     }
 
     private static bool FocusedControlShouldKeepPlainCharacters(Control.ControlCollection controls)
@@ -458,20 +493,25 @@ public sealed partial class PreferencesForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = "Press the key combination to assign it. Use the Clear button to disable it."
+            AccessibleDescription = "Press a key combination with at least two modifiers, such as Control Shift F1 or Control Alt F1. Unsafe Windows shortcuts are rejected. Use the Clear button to disable it."
         };
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Tab)
+            if (ShouldBypassHotKeyCapture(e.KeyData))
             {
                 return;
             }
 
             e.SuppressKeyPress = true;
             e.Handled = true;
-            if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete || e.KeyCode == Keys.Escape)
+            if (e.KeyCode == Keys.Back || e.KeyCode == Keys.Delete)
             {
                 box.Text = "";
+                return;
+            }
+
+            if (SensorReadoutForm.IsModifierOnlyHotKeyData(e.KeyData))
+            {
                 return;
             }
 
@@ -479,6 +519,10 @@ public sealed partial class PreferencesForm : Form
             if (!string.IsNullOrWhiteSpace(text))
             {
                 box.Text = text;
+            }
+            else
+            {
+                System.Media.SystemSounds.Beep.Play();
             }
         };
         return box;

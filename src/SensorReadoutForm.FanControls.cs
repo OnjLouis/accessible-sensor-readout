@@ -473,6 +473,7 @@ public sealed partial class SensorReadoutForm : Form
             Value = row.Value,
             DisplayValue = row.DisplayValue,
             Source = row.Source,
+            WindowsSettingsUri = row.WindowsSettingsUri,
             Details = row.Details == null ? null : new Dictionary<string, string>(row.Details, StringComparer.OrdinalIgnoreCase)
         };
     }
@@ -521,7 +522,9 @@ public sealed partial class SensorReadoutForm : Form
                 Identifier = row.Identifier,
                 Value = row.Value,
                 DisplayValue = row.DisplayValue,
-                Source = row.Source
+                Source = row.Source,
+                WindowsSettingsUri = row.WindowsSettingsUri,
+                Details = row.Details == null ? null : new Dictionary<string, string>(row.Details, StringComparer.OrdinalIgnoreCase)
             };
         }).ToList();
     }

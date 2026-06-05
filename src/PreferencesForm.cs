@@ -37,6 +37,7 @@ public sealed partial class PreferencesForm : Form
     private readonly ComboBox decimalSeparatorBox;
     private readonly ComboBox languageBox;
     private readonly Label languageFolderStatusLabel;
+    private readonly TableLayoutPanel showHideHotKeyPanel;
     private readonly TextBox showHideHotKeyBox;
     private readonly TextBox speakTrayHotKeyBox;
     private readonly ComboBox hotKeyCopyDoublePressBox;
@@ -630,7 +631,7 @@ public sealed partial class PreferencesForm : Form
         diagnosticsStartSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
         diagnosticsCompleteSoundBox.Enabled = diagnosticsPlaySoundsCheckBox.Checked;
 
-        var showHideHotKeyPanel = new TableLayoutPanel
+        showHideHotKeyPanel = new TableLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
@@ -640,12 +641,29 @@ public sealed partial class PreferencesForm : Form
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        showHideHotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        showHideHotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Shortcut Alt+1." }, 0, 0);
         showHideHotKeyBox = CreateHotKeyBox(settings.ShowHideHotKey, "Show or hide Sensor Readout global hotkey");
+        showHideHotKeyBox.AccessibleDescription = "Show or hide Sensor Readout global hotkey. Shortcut Alt+1.";
         showHideHotKeyPanel.Controls.Add(showHideHotKeyBox, 1, 0);
-        var clearShowHideButton = new Button { Text = "&Clear", AutoSize = true };
+        var clearShowHideButton = CreateShortcutButton(SensorReadoutForm.L("ui.Clear", "Clear"), "", Keys.None);
         clearShowHideButton.Click += delegate { showHideHotKeyBox.Text = ""; };
         showHideHotKeyPanel.Controls.Add(clearShowHideButton, 2, 0);
+
+        var showHideHotKeyGeneralPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            WrapContents = true
+        };
+        showHideHotKeyGeneralPanel.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.Show/hide hotkey is configured on the Hotkeys tab.", "Show/hide hotkey is configured on the Hotkeys tab."),
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0)
+        });
+        var configureShowHideButton = CreateShortcutButton(SensorReadoutForm.L("ui.Configure show/&hide hotkey...", "Configure show/&hide hotkey..."), "Alt+H", Keys.H);
+        configureShowHideButton.Click += delegate { FocusShowHideHotKeyBox(); };
+        showHideHotKeyGeneralPanel.Controls.Add(configureShowHideButton);
 
         var hotKeyOptionsPanel = new TableLayoutPanel
         {
@@ -1206,7 +1224,7 @@ public sealed partial class PreferencesForm : Form
         main.Controls.Add(refreshWhileFocusedCheckBox, 0, 3);
         main.Controls.Add(trayStatusCheckBox, 0, 4);
         main.Controls.Add(trayTooltipPartialReadingsCheckBox, 0, 5);
-        main.Controls.Add(showHideHotKeyPanel, 0, 6);
+        main.Controls.Add(showHideHotKeyGeneralPanel, 0, 6);
         main.Controls.Add(readingTreeExpansionGroup, 0, 7);
         main.Controls.Add(intervalPanel, 0, 8);
         main.Controls.Add(temperaturePanel, 0, 9);

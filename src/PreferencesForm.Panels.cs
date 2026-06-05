@@ -203,13 +203,13 @@ public sealed partial class PreferencesForm : Form
             WrapContents = false,
             Padding = new Padding(8, 24, 8, 0)
         };
-        var addButton = CreateShortcutButton("&Add", "Alt+A", Keys.A);
+        var addButton = CreateShortcutButton("Add reading", "Ctrl+Right", Keys.Control | Keys.Right);
         addButton.AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedTrayChoice(); };
         var searchButton = CreateShortcutButton("Search...", "F3", Keys.F3);
         searchButton.AccessibleDescription = "Search available readings. Shortcut F3.";
         searchButton.Click += delegate { ShowPreferenceListSearch(trayAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading")); };
-        var removeButton = CreateShortcutButton("Remo&ve", "Alt+V", Keys.V);
+        var removeButton = CreateShortcutButton("Remove reading", "Ctrl+Left", Keys.Control | Keys.Left);
         removeButton.AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedTrayChoice(); };
         var renameLabelButton = CreateShortcutButton("Rename...", "F2", Keys.F2);
@@ -311,12 +311,23 @@ public sealed partial class PreferencesForm : Form
 
     private Control BuildSpokenHotKeysPanel()
     {
+        var outer = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(10)
+        };
+        outer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        outer.Controls.Add(showHideHotKeyPanel, 0, 0);
+
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(10)
+            Padding = new Padding(0, 8, 0, 0)
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
@@ -325,12 +336,13 @@ public sealed partial class PreferencesForm : Form
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        profilePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hotkey profiles", "Hotkey profiles"), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        profilePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hotkey profiles", "Hotkey profiles"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Shortcut Alt+2." }, 0, 0);
+        spokenHotKeyList.AccessibleDescription = "Hotkey profiles. Shortcut Alt+2.";
         profilePanel.Controls.Add(spokenHotKeyList, 0, 1);
         var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
         addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
-        var importProfileButton = CreateShortcutButton("Imp&ort...", "Alt+O", Keys.O);
+        var importProfileButton = CreateShortcutButton("&Import...", "Alt+I", Keys.I);
         importProfileButton.Click += delegate { ImportSpokenHotKeysFromConfig(); };
         var presetProfileButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Presets...", "&Presets..."), "Alt+P", Keys.P);
         presetProfileButton.Click += delegate { ShowSpokenHotKeyPresetsDialog(); };
@@ -363,7 +375,7 @@ public sealed partial class PreferencesForm : Form
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         keyPanel.Controls.Add(spokenHotKeyBox, 1, 0);
-        var clearKeyButton = CreateShortcutButton("Clear &1", "Alt+1", Keys.D1);
+        var clearKeyButton = CreateShortcutButton(SensorReadoutForm.L("ui.Clear", "Clear"), "", Keys.None);
         clearKeyButton.Click += delegate { spokenHotKeyBox.Text = ""; };
         keyPanel.Controls.Add(clearKeyButton, 2, 0);
 
@@ -376,7 +388,8 @@ public sealed partial class PreferencesForm : Form
 
         layout.Controls.Add(profilePanel, 0, 0);
         layout.Controls.Add(editor, 1, 0);
-        return layout;
+        outer.Controls.Add(layout, 0, 1);
+        return outer;
     }
 
     private Control BuildFanProfilesPanel()
@@ -734,12 +747,14 @@ public sealed partial class PreferencesForm : Form
             WrapContents = false,
             Padding = new Padding(8, 24, 8, 0)
         };
-        var addButton = CreateShortcutButton("Add readin&g", "Alt+G", Keys.G);
+        var addButton = CreateShortcutButton("Add reading", "Ctrl+Right", Keys.Control | Keys.Right);
+        addButton.AccessibleDescription = "Add selected reading to this spoken hotkey. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedSpokenChoice(); };
         var searchButton = CreateShortcutButton("Search...", "F3", Keys.F3);
         searchButton.AccessibleDescription = "Search available readings. Shortcut F3.";
         searchButton.Click += delegate { ShowPreferenceListSearch(spokenAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading")); };
-        var removeButton = CreateShortcutButton("Remove reading (&Z)", "Alt+Z", Keys.Z);
+        var removeButton = CreateShortcutButton("Remove reading", "Ctrl+Left", Keys.Control | Keys.Left);
+        removeButton.AccessibleDescription = "Remove selected reading from this spoken hotkey. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedSpokenChoice(); };
         var upButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move up", "Move up"), "Ctrl+Up", Keys.Control | Keys.Up);
         upButton.AccessibleDescription = "Move selected spoken reading up. Shortcut Control Up Arrow.";
