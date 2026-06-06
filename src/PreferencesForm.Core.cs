@@ -203,30 +203,13 @@ public sealed partial class PreferencesForm : Form
         if ((keyData & Keys.Alt) == Keys.Alt)
         {
             var key = keyData & Keys.KeyCode;
-            if (key == Keys.D1 || key == Keys.NumPad1)
+            if (IsSelectedPreferencesTab("Hotkeys") && HandleHotkeysTabAltNumberShortcut(key))
             {
-                FocusShowHideHotKeyBox();
                 return true;
             }
 
-            if ((key == Keys.D2 || key == Keys.NumPad2) && spokenHotKeyList != null)
+            if (IsSelectedPreferencesTab("Fan profiles") && HandleFanProfilesTabAltNumberShortcut(key))
             {
-                SelectInitialTab("Hotkeys");
-                spokenHotKeyList.Focus();
-                return true;
-            }
-
-            if ((key == Keys.D3 || key == Keys.NumPad3) && spokenAvailableList != null)
-            {
-                SelectInitialTab("Hotkeys");
-                spokenAvailableList.Focus();
-                return true;
-            }
-
-            if ((key == Keys.D4 || key == Keys.NumPad4) && spokenSelectedList != null)
-            {
-                SelectInitialTab("Hotkeys");
-                spokenSelectedList.Focus();
                 return true;
             }
 
@@ -237,6 +220,65 @@ public sealed partial class PreferencesForm : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool HandleHotkeysTabAltNumberShortcut(Keys key)
+    {
+        if (key == Keys.D1 || key == Keys.NumPad1)
+        {
+            FocusShowHideHotKeyBox();
+            return true;
+        }
+
+        if ((key == Keys.D2 || key == Keys.NumPad2) && spokenHotKeyList != null)
+        {
+            spokenHotKeyList.Focus();
+            return true;
+        }
+
+        if ((key == Keys.D3 || key == Keys.NumPad3) && spokenAvailableList != null)
+        {
+            spokenAvailableList.Focus();
+            return true;
+        }
+
+        if ((key == Keys.D4 || key == Keys.NumPad4) && spokenSelectedList != null)
+        {
+            spokenSelectedList.Focus();
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HandleFanProfilesTabAltNumberShortcut(Keys key)
+    {
+        if ((key == Keys.D1 || key == Keys.NumPad1) && fanProfileList != null)
+        {
+            fanProfileList.Focus();
+            return true;
+        }
+
+        if ((key == Keys.D2 || key == Keys.NumPad2) && fanProfileHotKeyBox != null)
+        {
+            fanProfileHotKeyBox.Focus();
+            fanProfileHotKeyBox.SelectAll();
+            return true;
+        }
+
+        if ((key == Keys.D3 || key == Keys.NumPad3) && fanProfileAvailableList != null)
+        {
+            fanProfileAvailableList.Focus();
+            return true;
+        }
+
+        if ((key == Keys.D4 || key == Keys.NumPad4) && fanProfileSelectedList != null)
+        {
+            fanProfileSelectedList.Focus();
+            return true;
+        }
+
+        return false;
     }
 
     private bool IsSelectedPreferencesTab(string tabName)

@@ -1749,6 +1749,7 @@ public sealed partial class SensorReadoutForm : Form
         var hardware = row.Hardware ?? "";
         var name = CleanSensorName(row.Name);
         var combined = (type + " " + hardware + " " + name).Trim();
+        var isDeviceInventory = string.Equals(type, "Devices", StringComparison.OrdinalIgnoreCase);
         if (string.Equals(type, "Tasks", StringComparison.OrdinalIgnoreCase))
         {
             string executablePath;
@@ -1787,47 +1788,55 @@ public sealed partial class SensorReadoutForm : Form
             return SettingsTarget("ms-settings:easeofaccess-narrator", "Narrator");
         }
 
-        if (ContainsAny(combined, "bluetooth"))
+        if (string.Equals(type, "Bluetooth", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "bluetooth")))
         {
             return SettingsTarget("ms-settings:bluetooth", "Bluetooth");
         }
 
-        if (ContainsAny(combined, "printer", "print queue"))
+        if (ContainsAny(combined, "printer", "print queue") &&
+            (isDeviceInventory || string.Equals(type, "Performance/Overview", StringComparison.OrdinalIgnoreCase)))
         {
             return SettingsTarget("ms-settings:printers", "Printers and scanners");
         }
 
-        if (string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, " usb "))
+        if (string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, " usb ")))
         {
             return SettingsTarget("ms-settings:usb", "USB");
         }
 
-        if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "audio", "speaker", "microphone", "endpoint"))
+        if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "audio", "speaker", "microphone", "endpoint")))
         {
             return SettingsTarget("ms-settings:sound", "Sound");
         }
 
-        if (string.Equals(type, "Display", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "display", "monitor", "graphics", "gpu"))
+        if (string.Equals(type, "Display", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "display", "monitor", "graphics", "gpu")))
         {
             return SettingsTarget("ms-settings:display", "Display");
         }
 
-        if (string.Equals(type, "Network", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "wi-fi", "wifi", "ethernet", "network", "public ip"))
+        if (string.Equals(type, "Network", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "wi-fi", "wifi", "ethernet", "network", "public ip")))
         {
             return SettingsTarget("ms-settings:network", "Network and internet");
         }
 
-        if (string.Equals(type, "Battery", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "battery", "power supply", "charger"))
+        if (string.Equals(type, "Battery", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "battery", "power supply", "charger")))
         {
             return SettingsTarget("ms-settings:powersleep", "Power and battery");
         }
 
-        if (string.Equals(type, "SMART", StringComparison.OrdinalIgnoreCase) || ContainsAny(combined, "disk", "drive", "bitlocker", "storage"))
+        if (string.Equals(type, "SMART", StringComparison.OrdinalIgnoreCase) ||
+            (isDeviceInventory && ContainsAny(combined, "disk", "drive", "bitlocker", "storage")))
         {
             return SettingsTarget("ms-settings:storagesense", "Storage");
         }
 
-        if (ContainsAny(combined, "camera", "webcam", "imaging"))
+        if (isDeviceInventory && ContainsAny(combined, "camera", "webcam", "imaging"))
         {
             return SettingsTarget("ms-settings:camera", "Camera");
         }

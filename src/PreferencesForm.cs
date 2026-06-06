@@ -114,6 +114,7 @@ public sealed partial class PreferencesForm : Form
     private readonly Dictionary<ListBox, ListSearchState> listSearchStates = new Dictionary<ListBox, ListSearchState>();
     private readonly List<string> spokenReadingClipboardKeys = new List<string>();
     private bool loadingPreferences;
+    private bool syncingCategoryVisibility;
     private bool fanProfileStarterProfilesInitialized;
     private string lastAlarmReadingKey = "";
 
@@ -974,14 +975,26 @@ public sealed partial class PreferencesForm : Form
             AccessibleDescription = SensorReadoutForm.L("a11y.Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.", "Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.")
         };
         PopulateCategoryList();
-        categoryList.ItemCheck += delegate
+        categoryList.ItemCheck += delegate(object sender, ItemCheckEventArgs e)
         {
             if (loadingPreferences)
             {
                 return;
             }
 
-            BeginInvoke((MethodInvoker)delegate { SaveLivePreferences(); });
+            Action syncAndSave = delegate
+            {
+                SyncHiddenItemFromCategoryIndex(e.Index, e.NewValue == CheckState.Checked);
+                SaveLivePreferences();
+            };
+            if (IsHandleCreated)
+            {
+                BeginInvoke((MethodInvoker)delegate { syncAndSave(); });
+            }
+            else
+            {
+                syncAndSave();
+            }
         };
         categoryList.KeyDown += CategoryListKeyDown;
         AttachIncrementalListSearch(categoryList);
@@ -1136,13 +1149,18 @@ public sealed partial class PreferencesForm : Form
                 return;
             }
 
+            Action syncAndSave = delegate
+            {
+                SyncCategoryListFromHiddenItems(e.Index, e.NewValue);
+                SaveLivePreferences();
+            };
             if (IsHandleCreated)
             {
-                BeginInvoke((MethodInvoker)delegate
-                {
-                    SyncCategoryListFromHiddenItems(e.Index, e.NewValue);
-                    SaveLivePreferences();
-                });
+                BeginInvoke((MethodInvoker)delegate { syncAndSave(); });
+            }
+            else
+            {
+                syncAndSave();
             }
         };
 

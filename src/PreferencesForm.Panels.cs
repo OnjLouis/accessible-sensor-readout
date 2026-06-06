@@ -95,7 +95,48 @@ public sealed partial class PreferencesForm : Form
         }
 
         categoryList.SetItemChecked(categoryList.SelectedIndex, visible);
+        SyncHiddenItemFromSelectedCategory(visible);
         SaveLivePreferences();
+    }
+
+    private void SyncHiddenItemFromSelectedCategory(bool visible)
+    {
+        SyncHiddenItemFromCategoryIndex(categoryList == null ? -1 : categoryList.SelectedIndex, visible);
+    }
+
+    private void SyncHiddenItemFromCategoryIndex(int categoryIndex, bool visible)
+    {
+        if (syncingCategoryVisibility || categoryList == null || hiddenItemsList == null || categoryIndex < 0 || categoryIndex >= categoryList.Items.Count)
+        {
+            return;
+        }
+
+        var choice = categoryList.Items[categoryIndex] as CategoryChoice;
+        if (choice == null || string.IsNullOrWhiteSpace(choice.Key))
+        {
+            return;
+        }
+
+        for (var i = 0; i < hiddenItemsList.Items.Count; i++)
+        {
+            var key = Convert.ToString(hiddenItemsList.Items[i]);
+            if (string.Equals(key, choice.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                if (hiddenItemsList.GetItemChecked(i) != !visible)
+                {
+                    syncingCategoryVisibility = true;
+                    try
+                    {
+                        hiddenItemsList.SetItemChecked(i, !visible);
+                    }
+                    finally
+                    {
+                        syncingCategoryVisibility = false;
+                    }
+                }
+                return;
+            }
+        }
     }
 
     private void MoveSelectedCategoryChoice(int direction)
@@ -144,12 +185,24 @@ public sealed partial class PreferencesForm : Form
             SetSelectedCategoryVisible(false);
             e.Handled = true;
             e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Space)
+        {
+            var index = categoryList == null ? -1 : categoryList.SelectedIndex;
+            if (index >= 0)
+            {
+                SetSelectedCategoryVisible(!categoryList.GetItemChecked(index));
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
         }
     }
 
     private void SyncCategoryListFromHiddenItems(int hiddenItemIndex, CheckState newValue)
     {
-        if (categoryList == null || hiddenItemsList == null || hiddenItemIndex < 0 || hiddenItemIndex >= hiddenItemsList.Items.Count)
+        if (syncingCategoryVisibility || categoryList == null || hiddenItemsList == null || hiddenItemIndex < 0 || hiddenItemIndex >= hiddenItemsList.Items.Count)
         {
             return;
         }
@@ -165,7 +218,19 @@ public sealed partial class PreferencesForm : Form
             var choice = categoryList.Items[i] as CategoryChoice;
             if (choice != null && string.Equals(choice.Key, key, StringComparison.OrdinalIgnoreCase))
             {
-                categoryList.SetItemChecked(i, newValue == CheckState.Unchecked);
+                var visible = newValue == CheckState.Unchecked;
+                if (categoryList.GetItemChecked(i) != visible)
+                {
+                    syncingCategoryVisibility = true;
+                    try
+                    {
+                        categoryList.SetItemChecked(i, visible);
+                    }
+                    finally
+                    {
+                        syncingCategoryVisibility = false;
+                    }
+                }
                 return;
             }
         }
@@ -408,7 +473,8 @@ public sealed partial class PreferencesForm : Form
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        profilePanel.Controls.Add(new Label { Text = "Fan profiles", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        profilePanel.Controls.Add(new Label { Text = "Fan profiles", AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Shortcut Alt+1." }, 0, 0);
+        fanProfileList.AccessibleDescription = "Fan profiles. Shortcut Alt+1.";
         profilePanel.Controls.Add(fanProfileList, 0, 1);
         var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
@@ -445,7 +511,8 @@ public sealed partial class PreferencesForm : Form
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
+        keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Shortcut Alt+2." }, 0, 0);
+        fanProfileHotKeyBox.AccessibleDescription = "Fan profile hotkey. Shortcut Alt+2.";
         keyPanel.Controls.Add(fanProfileHotKeyBox, 1, 0);
         var clearKeyButton = CreateShortcutButton("&Clear", "Alt+C", Keys.C);
         clearKeyButton.Click += delegate { fanProfileHotKeyBox.Text = ""; };
@@ -499,8 +566,10 @@ public sealed partial class PreferencesForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available fan controls", "Available fan controls"), AutoSize = true }, 0, 0);
-        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Profile fan actions", "Profile fan actions"), AutoSize = true }, 2, 0);
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available fan controls", "Available fan controls"), AutoSize = true, AccessibleDescription = "Shortcut Alt+3." }, 0, 0);
+        fanProfileAvailableList.AccessibleDescription = "Available fan controls. Shortcut Alt+3.";
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Profile fan actions", "Profile fan actions"), AutoSize = true, AccessibleDescription = "Shortcut Alt+4." }, 2, 0);
+        fanProfileSelectedList.AccessibleDescription = "Profile fan actions. Shortcut Alt+4.";
         layout.Controls.Add(fanProfileAvailableList, 0, 1);
         layout.Controls.Add(fanProfileSelectedList, 2, 1);
 

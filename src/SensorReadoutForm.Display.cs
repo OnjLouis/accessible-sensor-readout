@@ -11,6 +11,7 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly object nvidiaSmiCacheLock = new object();
     private static DateTime cachedNvidiaSmiOutputUtc = DateTime.MinValue;
     private static string cachedNvidiaSmiOutput = "";
+    private const int NvidiaSmiCacheSeconds = 60;
 
     private static IEnumerable<SensorRow> GetDisplayRows()
     {
@@ -346,7 +347,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         lock (nvidiaSmiCacheLock)
         {
-            if (cachedNvidiaSmiOutputUtc != DateTime.MinValue && (DateTime.UtcNow - cachedNvidiaSmiOutputUtc).TotalSeconds < 5)
+            if (cachedNvidiaSmiOutputUtc != DateTime.MinValue && (DateTime.UtcNow - cachedNvidiaSmiOutputUtc).TotalSeconds < NvidiaSmiCacheSeconds)
             {
                 return cachedNvidiaSmiOutput;
             }

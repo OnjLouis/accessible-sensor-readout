@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -50,6 +51,8 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
+            form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
+            form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
@@ -570,6 +573,147 @@ public sealed partial class SensorReadoutForm : Form
         if (deviceList.ContextMenuStrip != null)
         {
             RequireUniqueMenuMnemonics("Category list context menu", deviceList.ContextMenuStrip.Items);
+        }
+    }
+
+    private void SelfTestPreferencesCategoryAndShortcutBehavior()
+    {
+        EnsureSelfTestRows();
+        settings.HiddenCategoryKeys = new List<string> { "type|Battery" };
+        SaveSettings(settings);
+
+        using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Categories"))
+        {
+            preferences.CreateControl();
+            SetPrivateField(preferences, "loadingPreferences", false);
+            var categoryList = FindControls<CheckedListBox>(preferences.Controls)
+                .FirstOrDefault(list => list.Items.Cast<object>().Any(item => item is CategoryChoice));
+            Require(categoryList != null, "Preferences category list was not found.");
+
+            var batteryIndex = -1;
+            for (var i = 0; i < categoryList.Items.Count; i++)
+            {
+                var choice = categoryList.Items[i] as CategoryChoice;
+                if (choice != null && string.Equals(choice.Key, "type|Battery", StringComparison.OrdinalIgnoreCase))
+                {
+                    batteryIndex = i;
+                    break;
+                }
+            }
+
+            Require(batteryIndex >= 0, "Battery category choice was not found.");
+            categoryList.SelectedIndex = batteryIndex;
+            InvokePrivate(preferences, "SetSelectedCategoryVisible", true);
+            var hiddenCategoryKeys = settings.HiddenCategoryKeys ?? new List<string>();
+            Require(!hiddenCategoryKeys.Contains("type|Battery", StringComparer.OrdinalIgnoreCase), "Showing a hidden category did not persist to live settings.");
+        }
+
+        using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Fan profiles"))
+        {
+            preferences.CreateControl();
+            SetPrivateField(preferences, "loadingPreferences", false);
+            var tabs = FindControls<TabControl>(preferences.Controls).FirstOrDefault();
+            Require(tabs != null, "Preferences tab control was not found for shortcut scoping.");
+            Require(string.Equals(tabs.SelectedTab.Name, "Fan profiles", StringComparison.OrdinalIgnoreCase), "Preferences did not open on Fan profiles.");
+            InvokeProcessCmdKey(preferences, Keys.Alt | Keys.D2);
+            Require(string.Equals(tabs.SelectedTab.Name, "Fan profiles", StringComparison.OrdinalIgnoreCase), "Alt+2 on Fan profiles incorrectly switched to Hotkeys.");
+        }
+    }
+
+    private void SelfTestWindowsSettingTargetMapping()
+    {
+        var temperatureGpuRow = new SensorRow
+        {
+            Type = "Temperatures",
+            Hardware = "NVIDIA GeForce RTX self-test",
+            Name = "GPU Core",
+            DisplayValue = "55 C"
+        };
+        Require(GetWindowsSettingsTargetForSelfTest(temperatureGpuRow) == null, "Temperature GPU row should not open Display settings.");
+
+        var displayRow = new SensorRow
+        {
+            Type = "Display",
+            Hardware = "NVIDIA GeForce RTX self-test",
+            Name = "Adapter",
+            DisplayValue = "Available"
+        };
+        Require(GetWindowsSettingsTargetForSelfTest(displayRow) != null, "Display row should open Display settings.");
+
+        var accessibilityRow = new SensorRow
+        {
+            Type = "Performance/Overview",
+            Hardware = "Accessibility",
+            Name = "High contrast",
+            DisplayValue = "Off"
+        };
+        Require(GetWindowsSettingsTargetForSelfTest(accessibilityRow) != null, "Accessibility row should open a related Windows setting.");
+    }
+
+    private static object GetWindowsSettingsTargetForSelfTest(SensorRow row)
+    {
+        var method = typeof(SensorReadoutForm).GetMethod("GetRelatedWindowsSettingsTarget", BindingFlags.Static | BindingFlags.NonPublic);
+        if (method == null)
+        {
+            throw new InvalidOperationException("GetRelatedWindowsSettingsTarget not found for self-test.");
+        }
+
+        try
+        {
+            return method.Invoke(null, new object[] { row });
+        }
+        catch (TargetInvocationException ex)
+        {
+            throw ex.InnerException ?? ex;
+        }
+    }
+
+    private static void InvokePrivate(object target, string methodName, params object[] args)
+    {
+        var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method == null)
+        {
+            throw new InvalidOperationException("Private method not found for self-test: " + methodName);
+        }
+
+        try
+        {
+            method.Invoke(target, args);
+        }
+        catch (TargetInvocationException ex)
+        {
+            throw ex.InnerException ?? ex;
+        }
+    }
+
+    private static void SetPrivateField(object target, string fieldName, object value)
+    {
+        var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field == null)
+        {
+            throw new InvalidOperationException("Private field not found for self-test: " + fieldName);
+        }
+
+        field.SetValue(target, value);
+    }
+
+    private static bool InvokeProcessCmdKey(Form form, Keys keyData)
+    {
+        var method = form.GetType().GetMethod("ProcessCmdKey", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method == null)
+        {
+            throw new InvalidOperationException("ProcessCmdKey not found for self-test.");
+        }
+
+        var message = Message.Create(IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero);
+        var args = new object[] { message, keyData };
+        try
+        {
+            return (bool)method.Invoke(form, args);
+        }
+        catch (TargetInvocationException ex)
+        {
+            throw ex.InnerException ?? ex;
         }
     }
 

@@ -162,55 +162,44 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 scope.Connect();
                 using (var managementClass = new ManagementClass(scope, new ManagementPath(className), null))
                 {
-                    var inParamsTemplate = managementClass.GetMethodParameters(methodName);
-                    var attemptedFans = 0;
-                    for (byte fanId = 0; fanId < 4; fanId++)
+                    var inputParameterNames = GetMethodInputParameterNames(managementClass, methodName).ToList();
+                    if (inputParameterNames.Count > 0)
                     {
-                        attemptedFans++;
-                        ManagementBaseObject inParams = null;
-                        try
-                        {
-                            inParams = inParamsTemplate == null ? null : (ManagementBaseObject)inParamsTemplate.Clone();
-                            if (inParams != null && inParams.Properties["FanID"] != null)
-                            {
-                                inParams["FanID"] = fanId;
-                            }
-
-                            using (var outParams = managementClass.InvokeMethod(methodName, inParams, null))
-                            {
-                                var details = ReadMethodDetails(outParams);
-                                details["Namespace"] = scopePath;
-                                details["WMI class"] = className;
-                                details["WMI method"] = methodName;
-                                details["Fan ID"] = fanId.ToString(CultureInfo.InvariantCulture);
-
-                                double speed;
-                                if (TryReadMethodNumber(outParams, out speed) && speed >= 0 && speed < 30000)
-                                {
-                                    rows.Add(new SensorReading
-                                    {
-                                        Type = "Fan",
-                                        Hardware = "Lenovo",
-                                        Name = "Fan " + (fanId + 1).ToString(CultureInfo.InvariantCulture),
-                                        Identifier = "lenovo/fan/method/" + fanId.ToString(CultureInfo.InvariantCulture),
-                                        Value = (float)speed,
-                                        DisplayValue = FormatNumber(speed) + " RPM",
-                                        Source = "Lenovo Laptop Support Plug-In",
-                                        Details = details
-                                    });
-                                }
-                            }
-                        }
-                        finally
-                        {
-                            if (inParams != null)
-                            {
-                                inParams.Dispose();
-                            }
-                        }
+                        summaryDetails["LENOVO_FAN_METHOD input parameters"] = string.Join(", ", inputParameterNames.ToArray());
                     }
 
-                    summaryDetails["LENOVO_FAN_METHOD fans checked"] = attemptedFans.ToString(CultureInfo.InvariantCulture);
+                    var attempts = 0;
+                    var errors = new List<string>();
+                    using (var searcher = new ManagementObjectSearcher(scopePath, "SELECT * FROM " + className))
+                    using (var instances = searcher.Get())
+                    {
+                        var instanceIndex = 0;
+                        foreach (ManagementObject instance in instances)
+                        {
+                            using (instance)
+                            {
+                                instanceIndex++;
+                                rows.AddRange(ReadLenovoFanMethodTarget(instance, methodName, inputParameterNames, instanceIndex, ref attempts, errors));
+                            }
+                        }
+
+                        if (instanceIndex == 0)
+                        {
+                            rows.AddRange(ReadLenovoFanMethodTarget(managementClass, methodName, inputParameterNames, 1, ref attempts, errors));
+                        }
+
+                        summaryDetails["LENOVO_FAN_METHOD instances"] = instanceIndex.ToString(CultureInfo.InvariantCulture);
+                    }
+
+                    summaryDetails["LENOVO_FAN_METHOD attempts"] = attempts.ToString(CultureInfo.InvariantCulture);
+                    if (rows.Count > 0)
+                    {
+                        summaryDetails["LENOVO_FAN_METHOD live fans"] = rows.Count.ToString(CultureInfo.InvariantCulture);
+                    }
+                    if (errors.Count > 0)
+                    {
+                        summaryDetails["LENOVO_FAN_METHOD attempt errors"] = string.Join("; ", errors.Take(6).ToArray());
+                    }
                 }
             }
             catch (Exception ex)
@@ -223,6 +212,135 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             }
 
             return rows;
+        }
+
+        private static IEnumerable<string> GetMethodInputParameterNames(ManagementClass managementClass, string methodName)
+        {
+            ManagementBaseObject inParams = null;
+            try
+            {
+                inParams = managementClass.GetMethodParameters(methodName);
+                if (inParams == null)
+                {
+                    yield break;
+                }
+
+                foreach (PropertyData property in inParams.Properties)
+                {
+                    if (property != null && !string.IsNullOrWhiteSpace(property.Name))
+                    {
+                        yield return property.Name;
+                    }
+                }
+            }
+            finally
+            {
+                if (inParams != null)
+                {
+                    inParams.Dispose();
+                }
+            }
+        }
+
+        private static IEnumerable<SensorReading> ReadLenovoFanMethodTarget(ManagementObject target, string methodName, List<string> inputParameterNames, int targetIndex, ref int attempts, List<string> errors)
+        {
+            var rows = new List<SensorReading>();
+            var targetName = targetIndex.ToString(CultureInfo.InvariantCulture);
+
+            // Some Legion WMI providers reject an empty input object but accept null parameters.
+            SensorReading row;
+            if (TryReadLenovoFanMethodValue(target, methodName, null, null, targetName, ref attempts, errors, out row))
+            {
+                rows.Add(row);
+                return rows;
+            }
+
+            var fanIdParameterNames = inputParameterNames
+                .Where(name => name.IndexOf("fan", StringComparison.OrdinalIgnoreCase) >= 0 && name.IndexOf("id", StringComparison.OrdinalIgnoreCase) >= 0)
+                .DefaultIfEmpty("")
+                .ToList();
+            foreach (var parameterName in fanIdParameterNames)
+            {
+                if (string.IsNullOrWhiteSpace(parameterName))
+                {
+                    continue;
+                }
+
+                for (byte fanId = 0; fanId < 4; fanId++)
+                {
+                    if (TryReadLenovoFanMethodValue(target, methodName, parameterName, fanId, targetName, ref attempts, errors, out row))
+                    {
+                        rows.Add(row);
+                    }
+                }
+            }
+
+            return rows;
+        }
+
+        private static bool TryReadLenovoFanMethodValue(ManagementObject target, string methodName, string parameterName, byte? fanId, string targetName, ref int attempts, List<string> errors, out SensorReading row)
+        {
+            row = null;
+            attempts++;
+            ManagementBaseObject inParams = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(parameterName) && fanId.HasValue)
+                {
+                    inParams = target.GetMethodParameters(methodName);
+                    if (inParams == null || inParams.Properties[parameterName] == null)
+                    {
+                        return false;
+                    }
+
+                    inParams[parameterName] = fanId.Value;
+                }
+
+                using (var outParams = target.InvokeMethod(methodName, inParams, null))
+                {
+                    var details = ReadMethodDetails(outParams);
+                    details["Namespace"] = @"root\WMI";
+                    details["WMI class"] = "LENOVO_FAN_METHOD";
+                    details["WMI method"] = methodName;
+                    details["Invocation target"] = target.Path == null ? "" : target.Path.RelativePath ?? "";
+                    details["Invocation mode"] = string.IsNullOrWhiteSpace(parameterName) ? "No input parameters" : parameterName + "=" + fanId.Value.ToString(CultureInfo.InvariantCulture);
+
+                    double speed;
+                    if (TryReadMethodNumber(outParams, out speed) && speed >= 0 && speed < 30000)
+                    {
+                        var suffix = fanId.HasValue ? (fanId.Value + 1).ToString(CultureInfo.InvariantCulture) : targetName;
+                        row = new SensorReading
+                        {
+                            Type = "Fan",
+                            Hardware = "Lenovo",
+                            Name = "Fan " + suffix,
+                            Identifier = StableIdentifier("lenovo/fan/method/" + suffix),
+                            Value = (float)speed,
+                            DisplayValue = FormatNumber(speed) + " RPM",
+                            Source = "Lenovo Laptop Support Plug-In",
+                            Details = details
+                        };
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (errors.Count < 12)
+                {
+                    var mode = string.IsNullOrWhiteSpace(parameterName) ? "no parameters" : parameterName + "=" + (fanId.HasValue ? fanId.Value.ToString(CultureInfo.InvariantCulture) : "");
+                    errors.Add(mode + ": " + ex.Message);
+                }
+            }
+            finally
+            {
+                if (inParams != null)
+                {
+                    inParams.Dispose();
+                }
+            }
+
+            return false;
         }
 
         private static IEnumerable<SensorReading> ReadLenovoFanTestData(IPluginContext context, Dictionary<string, string> summaryDetails)
