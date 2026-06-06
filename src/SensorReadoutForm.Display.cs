@@ -8,6 +8,10 @@ using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private static readonly object nvidiaSmiCacheLock = new object();
+    private static DateTime cachedNvidiaSmiOutputUtc = DateTime.MinValue;
+    private static string cachedNvidiaSmiOutput = "";
+
     private static IEnumerable<SensorRow> GetDisplayRows()
     {
         var rows = new List<SensorRow>();
@@ -340,6 +344,14 @@ public sealed partial class SensorReadoutForm : Form
 
     private static string RunNvidiaSmiQuery()
     {
+        lock (nvidiaSmiCacheLock)
+        {
+            if (cachedNvidiaSmiOutputUtc != DateTime.MinValue && (DateTime.UtcNow - cachedNvidiaSmiOutputUtc).TotalSeconds < 5)
+            {
+                return cachedNvidiaSmiOutput;
+            }
+        }
+
         try
         {
             var start = new ProcessStartInfo
@@ -368,11 +380,22 @@ public sealed partial class SensorReadoutForm : Form
                     return "";
                 }
 
-                return process.StandardOutput.ReadToEnd();
+                var output = process.StandardOutput.ReadToEnd();
+                lock (nvidiaSmiCacheLock)
+                {
+                    cachedNvidiaSmiOutput = output ?? "";
+                    cachedNvidiaSmiOutputUtc = DateTime.UtcNow;
+                }
+                return output;
             }
         }
         catch
         {
+            lock (nvidiaSmiCacheLock)
+            {
+                cachedNvidiaSmiOutput = "";
+                cachedNvidiaSmiOutputUtc = DateTime.UtcNow;
+            }
             return "";
         }
     }

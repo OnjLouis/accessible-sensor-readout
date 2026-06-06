@@ -46,6 +46,8 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
+            form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
+            form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
@@ -316,6 +318,18 @@ public sealed partial class SensorReadoutForm : Form
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Connected disks total space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Connected disks total space is not selectable for notification area/spoken hotkeys.");
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Total space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Total space is not selectable for notification area/spoken hotkeys.");
         Require(latestRows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Used space", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Used space is not selectable for notification area/spoken hotkeys.");
+        Require(DefaultCategoryChoices().Any(c => string.Equals(c.Type, "Tasks", StringComparison.OrdinalIgnoreCase)), "Tasks category is missing from default categories.");
+        Require(DefaultCategoryChoices().Any(c => string.Equals(c.Type, "Spoken Hotkeys", StringComparison.OrdinalIgnoreCase)), "Spoken Hotkeys category is missing from default categories.");
+        Require(latestRows.Any(r => string.Equals(r.Type, "Tasks", StringComparison.OrdinalIgnoreCase) && string.Equals(CleanSensorName(r.Name), "Highest memory process", StringComparison.OrdinalIgnoreCase) && IsSelectableReadoutRow(r)), "Highest memory process is not selectable for notification area/spoken hotkeys.");
+        foreach (var taskRow in new[] { "Highest CPU process", "Highest memory process", "Highest GPU process", "Highest GPU memory process" })
+        {
+            Require(IsSelectableReadoutRow(new SensorRow { Type = "Tasks", Hardware = "Processes", Name = taskRow, DisplayValue = "Self-test" }), taskRow + " is not selectable for notification area/spoken hotkeys.");
+        }
+        foreach (var taskRow in latestRows.Where(r => string.Equals(r.Type, "Tasks", StringComparison.OrdinalIgnoreCase)))
+        {
+            Require((taskRow.DisplayValue ?? "").IndexOf("PID ", StringComparison.OrdinalIgnoreCase) < 0, CleanSensorName(taskRow.Name) + " display value includes PID text.");
+        }
+
         var publicIpRows = new[]
         {
             "Public IP lookup",
@@ -377,6 +391,97 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(BuildSpeechStatusText(GetSpokenHotKeyRows(profile), profile.SkipUnavailableReadings), T("speech.noActiveReadings", "No active readings to announce."), StringComparison.Ordinal), "Inactive row was not skipped for spoken hotkey profile.");
         settings.TrayItemKeys = previousTrayKeys;
         settings.TraySpeechSkipsUnavailableReadings = previousSkipUnavailable;
+    }
+
+    private void SelfTestSpokenHotKeyMirrorOrder()
+    {
+        var sourceRows = new List<SensorRow>
+        {
+            new SensorRow { Type = "Performance", Hardware = "C: Test", Name = "Read rate", Identifier = "self-test-c-read", DisplayValue = "1 B/s", Source = "Self-test" },
+            new SensorRow { Type = "Performance", Hardware = "C: Test", Name = "Write rate", Identifier = "self-test-c-write", DisplayValue = "2 B/s", Source = "Self-test" },
+            new SensorRow { Type = "Performance", Hardware = "D: Test", Name = "Read rate", Identifier = "self-test-d-read", DisplayValue = "3 B/s", Source = "Self-test" },
+            new SensorRow { Type = "Performance", Hardware = "D: Test", Name = "Write rate", Identifier = "self-test-d-write", DisplayValue = "4 B/s", Source = "Self-test" }
+        };
+        var previousTrayKeys = settings.TrayItemKeys;
+        var previousProfiles = settings.SpokenHotKeys;
+        var previousLabels = settings.ReadingSpeechLabels;
+        try
+        {
+            settings.TrayItemKeys = new List<string>();
+            settings.ReadingSpeechLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { RowSettingsKey(sourceRows[0]), "C: Read:" },
+                { RowSettingsKey(sourceRows[1]), "Write:" },
+                { RowSettingsKey(sourceRows[2]), "D: Read:" },
+                { RowSettingsKey(sourceRows[3]), "Write:" }
+            };
+            settings.SpokenHotKeys = new List<SpokenHotKeySetting>
+            {
+                new SpokenHotKeySetting
+                {
+                    Name = "Read-Write",
+                    HotKey = "Ctrl+Shift+F4",
+                    ReadingKeys = new List<string>
+                    {
+                        RowSettingsKey(sourceRows[0]),
+                        RowSettingsKey(sourceRows[1]),
+                        RowSettingsKey(sourceRows[2]),
+                        RowSettingsKey(sourceRows[3])
+                    }
+                }
+            };
+
+            var mirrorRows = BuildSpokenHotKeyCategoryRows(sourceRows)
+                .Where(r => string.Equals(r.Hardware, "Read-Write", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            Require(mirrorRows.Count == 4, "Spoken hotkey mirror did not include all configured rows.");
+            Require(string.Equals(mirrorRows[0].Name, "C: Read:", StringComparison.Ordinal), "First mirrored row did not preserve configured order.");
+            Require(string.Equals(mirrorRows[1].Name, "Write:", StringComparison.Ordinal), "Second mirrored row did not preserve configured order.");
+            Require(string.Equals(mirrorRows[2].Name, "D: Read:", StringComparison.Ordinal), "Third mirrored row did not preserve configured order.");
+            Require(string.Equals(mirrorRows[3].Name, "Write:", StringComparison.Ordinal), "Fourth mirrored row did not preserve configured order.");
+        }
+        finally
+        {
+            settings.TrayItemKeys = previousTrayKeys;
+            settings.SpokenHotKeys = previousProfiles;
+            settings.ReadingSpeechLabels = previousLabels;
+        }
+    }
+
+    private void SelfTestTaskRowRefreshCache()
+    {
+        var cachedRow = new SensorRow { Type = "Tasks", Hardware = "Processes", Name = "Highest CPU process", Identifier = "self-test-cached-task", DisplayValue = "Cached: 1.0%", Source = "Self-test" };
+        var cachedAt = DateTime.UtcNow;
+        List<SensorRow> previousRows;
+        DateTime previousUtc;
+        lock (taskRowsCacheLock)
+        {
+            previousRows = cachedTaskRows.ToList();
+            previousUtc = cachedTaskRowsUtc;
+            cachedTaskRows = new List<SensorRow> { cachedRow };
+            cachedTaskRowsUtc = cachedAt;
+        }
+
+        try
+        {
+            var rows = GetCachedTaskRows(false, false).ToList();
+            DateTime afterUtc;
+            lock (taskRowsCacheLock)
+            {
+                afterUtc = cachedTaskRowsUtc;
+            }
+
+            Require(rows.Count == 1 && string.Equals(rows[0].Identifier, cachedRow.Identifier, StringComparison.OrdinalIgnoreCase), "Immediate task refresh did not reuse cached rows.");
+            Require(afterUtc == cachedAt, "Immediate task refresh unexpectedly replaced cached task rows.");
+        }
+        finally
+        {
+            lock (taskRowsCacheLock)
+            {
+                cachedTaskRows = previousRows;
+                cachedTaskRowsUtc = previousUtc;
+            }
+        }
     }
 
     private void SelfTestHotkeysMenu()
@@ -908,6 +1013,8 @@ public sealed partial class SensorReadoutForm : Form
 
         var sanitized = SanitizeReportSnapshot(before);
         Require(string.Equals(sanitized.MachineName, "Computer", StringComparison.Ordinal), "Anonymized report did not replace machine name.");
+        Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Tasks", StringComparison.OrdinalIgnoreCase)), "Anonymized report still contains Tasks rows.");
+        Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Spoken Hotkeys", StringComparison.OrdinalIgnoreCase)), "Anonymized report still contains Spoken Hotkeys rows.");
         AssertSelfTestReportSnapshotSanity(sanitized, "Anonymized report snapshot");
         var sanitizedHtml = BuildHtmlReport("", sanitized);
         Require(sanitizedHtml.IndexOf(Environment.MachineName ?? "", StringComparison.OrdinalIgnoreCase) < 0 || string.IsNullOrWhiteSpace(Environment.MachineName), "Anonymized report still contains the current computer name.");
@@ -1004,6 +1111,10 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var manual in Directory.GetFiles(GetDocsFolderPath(), "README-*.html"))
         {
             var html = File.ReadAllText(manual);
+            Require(Regex.IsMatch(html, @"<p>[^<]*\b" + Regex.Escape(AppVersion) + @"\.</p>"), Path.GetFileName(manual) + " missing visible current version " + AppVersion + ".");
+            Require(html.IndexOf("<h3>" + AppVersion + "</h3>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing changelog entry for " + AppVersion + ".");
+            Require(html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Categories and Readings section.");
+            Require(html.IndexOf("<code>Tab</code>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Tab guidance for moving from categories to readings.");
             Require(html.IndexOf("<code>Enter</code> / <code>Alt+Enter</code>", StringComparison.OrdinalIgnoreCase) < 0, Path.GetFileName(manual) + " still describes Alt+Enter as a Details shortcut.");
             Require(!Regex.IsMatch(html, @"(?i)(Enter\s+or\s+Alt\+Enter|Enter\s+oder\s+Alt\+Enter|Enter\s+ou\s+Alt\+Enter|Enter\s+o\s+Alt\+Enter)"), Path.GetFileName(manual) + " contains stale Enter/Alt+Enter Details wording.");
         }

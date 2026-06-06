@@ -264,6 +264,9 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Performance", "Memory available", "Memory"),
             FindPresetRow("Performance", "System uptime", null),
             FindPresetTemperatureRow("cpu"));
+        AddSpokenPresetIfAny(presets, "CPU activity", "CPU usage with the currently highest CPU process where available.",
+            FindPresetRow("Performance", "CPU usage", null),
+            FindPresetRow("Tasks", "Highest CPU process", null));
         AddSpokenPresetIfAny(presets, "Network status", "Current adapter rates and Wi-Fi strength where available.",
             FindPresetRow("Network", "Receive rate", null),
             FindPresetRow("Network", "Send rate", null),
@@ -279,9 +282,16 @@ public sealed partial class PreferencesForm : Form
         AddSpokenPresetIfAny(presets, "GPU status", "GPU usage, temperature, and memory where available.",
             FindPresetRow("Performance", "GPU usage", "GPU"),
             FindPresetTemperatureRow("gpu"),
+            FindPresetRow("Performance", "NVIDIA SMI memory used", "GPU memory"),
+            FindPresetRow("Performance", "NVIDIA SMI memory free", "GPU memory"),
             FindPresetRow("Performance", "Dedicated GPU memory used", "GPU memory"),
             FindPresetRow("Performance", "Dedicated GPU memory free", "GPU memory"),
             FindPresetRow("Performance", "Shared GPU memory used", "GPU memory"));
+        AddSpokenPresetIfAny(presets, "GPU activity", "GPU usage with the currently highest GPU process and GPU memory process where available.",
+            FindPresetRow("Performance", "GPU usage", "GPU"),
+            FindPresetRow("Performance", "NVIDIA SMI memory used", "GPU memory"),
+            FindPresetRow("Tasks", "Highest GPU process", null),
+            FindPresetRow("Tasks", "Highest GPU memory process", null));
         AddSpokenPresetIfAny(presets, "Battery status", "Battery charge, rate, health, and cycle count where available.",
             FindPresetRow("Battery", "Charge", null),
             FindPresetRow("Battery", "Power rate", null),
@@ -292,6 +302,8 @@ public sealed partial class PreferencesForm : Form
             FindPresetTemperatureRow("gpu"),
             FindFirstPresetRowByType("Fan"),
             FindPresetRow("Performance", "CPU usage", null));
+        AddSpokenPresetIfAny(presets, "Uptime", "System uptime by itself.",
+            FindPresetRow("Performance", "System uptime", null));
         return presets;
     }
 

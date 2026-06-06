@@ -24,7 +24,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var type = row.Type ?? "";
-        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery")
+        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery" || type == "Tasks")
         {
             return true;
         }
@@ -47,7 +47,9 @@ public sealed partial class SensorReadoutForm : Form
                 (name.Equals("Dedicated GPU memory total", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("Dedicated GPU memory used", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("Dedicated GPU memory free", StringComparison.OrdinalIgnoreCase)
-                || name.Equals("Shared GPU memory used", StringComparison.OrdinalIgnoreCase)))
+                || name.Equals("Shared GPU memory used", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("NVIDIA SMI memory ", StringComparison.OrdinalIgnoreCase)
+                || name.IndexOf(" NVIDIA SMI ", StringComparison.OrdinalIgnoreCase) >= 0))
             || (string.Equals(row.Hardware, "GPU", StringComparison.OrdinalIgnoreCase) &&
                 name.StartsWith("GPU ", StringComparison.OrdinalIgnoreCase) &&
                 name.EndsWith(" usage", StringComparison.OrdinalIgnoreCase))
@@ -138,6 +140,11 @@ public sealed partial class SensorReadoutForm : Form
         if (string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase))
         {
             return includeHardwareName ? ShortTrayHardware(hardware) : label;
+        }
+
+        if (string.Equals(type, "Tasks", StringComparison.OrdinalIgnoreCase))
+        {
+            return label;
         }
 
         if (string.Equals(type, "Performance", StringComparison.OrdinalIgnoreCase) ||

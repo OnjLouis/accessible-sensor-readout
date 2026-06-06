@@ -847,14 +847,14 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
-            AccessibleName = "Available readings for spoken hotkey",
+            AccessibleName = SensorReadoutForm.L("a11y.Available readings for spoken hotkey", "Available readings for spoken hotkey"),
             AccessibleDescription = "Press Control Right Arrow to add the selected reading to this spoken hotkey."
         };
         spokenSelectedList = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
-            AccessibleName = "Readings spoken by this hotkey",
+            AccessibleName = SensorReadoutForm.L("a11y.Readings spoken by this hotkey", "Readings spoken by this hotkey"),
             AccessibleDescription = "Press F2 to rename the spoken label. Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
         };
         spokenSelectionStatusLabel = new Label

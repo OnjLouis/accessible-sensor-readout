@@ -1,10 +1,10 @@
 ﻿# Sensor Readout
 
-Current version: 4.6.0.
+Current version: 4.7.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
-It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar. The goal is to make practical troubleshooting information quick to reach: temperatures and fans, storage health, USB, network, Bluetooth, audio, display, printers, batteries, PCIe details, Windows device inventory, accessibility status, diagnostics, and shareable reports.
+It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar. The goal is to make practical troubleshooting information quick to reach: temperatures and fans, storage health, USB, network, Bluetooth, tasks, audio, display, printers, batteries, PCIe details, Windows device inventory, accessibility status, diagnostics, and shareable reports.
 
 Project page: [https://github.com/OnjLouis/accessible-sensor-readout](https://github.com/OnjLouis/accessible-sensor-readout)
 
@@ -40,6 +40,9 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Opens the main UI immediately while the first sensor refresh continues in the background.
 - Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
 - Shows a Bluetooth category for Windows-exposed Bluetooth radios and paired or connected devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available.
+- Shows a Tasks category for compact current-activity readings, including the highest CPU process, highest memory process, highest GPU process, and highest GPU memory process where Windows exposes those counters.
+- Shows a Spoken Hotkeys category that mirrors notification-area status and spoken hotkey profiles in the main tree, so sighted users can review what those hotkeys currently contain without opening Preferences.
+- Shows both Windows GPU performance-counter memory and NVIDIA SMI driver-reported GPU memory where available, because those sources account for reserved and driver-managed memory differently.
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
 - Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.
 - Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.
@@ -115,8 +118,8 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 1. Start `Sensor Readout.exe`.
 2. Accept the Windows administrator prompt.
 3. If the initial setup dialog appears, set a show/hide hotkey and a speak notification-area status hotkey if you want quick access from anywhere.
-4. Choose a category on the left. `Performance/Overview` is a good first stop for uptime, Windows, CPU, memory, GPU, storage, printer, accessibility, and data-source summaries.
-5. Use `F3` to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use `F4` to review the exact text, `Enter` to open Details when available, or `Alt+Enter` to open a related Windows Settings page when Sensor Readout knows one.
+4. Choose a category on the left. `Performance/Overview` is a good first stop for uptime, Windows, CPU, memory, GPU, storage, printer, accessibility, and data-source summaries. `Tasks` is useful when you want to know which process is currently consuming the most CPU, memory, GPU, or GPU memory.
+5. Use `F3` to find a reading such as CPU usage, GPU memory, network speed, disk activity, uptime, Bluetooth, or a device name. Use `F4` to review the exact text, `Enter` to open Details when available, or `Alt+Enter` to open a related Windows Settings page or task file location when Sensor Readout knows one.
 6. Press `Ctrl+Shift+H` on a useful reading to add it to notification-area status or a spoken hotkey profile.
 7. Press `F5` to refresh if values are still loading.
 
@@ -167,7 +170,7 @@ The same Hotkeys tab can set a key for `Speak notification area status`. That ke
 | Main window | `F3` | Find a reading across all categories. Type to narrow results, Tab to the list, Enter to choose, Esc to close, or Alt+L to clear. |
 | Main window | `F4` | Review the selected reading or tree branch in a read-only text box. |
 | Main window | `Enter` | Open Details for the selected reading when extra details are available. |
-| Main window | `Alt+Enter` | Open a related Windows Settings page for the selected reading when one is available. |
+| Main window | `Alt+Enter` | Open a related Windows Settings page or task file location for the selected reading when one is available. |
 | Main window | `Ctrl+C` | Copy the selected reading or tree branch. |
 | Main window | `Ctrl+Shift+C` | Copy value only: copy the selected reading value without the reading name. On a branch, copies one value per reading. |
 | Main window | `F2` | Rename the selected fan reading, edit the selected spoken label in Preferences, or jump to the fan label field in Fan Controls. |
@@ -370,17 +373,32 @@ Preferences > Plug-Ins lists installed hardware plug-ins and describes what each
 
 Installed plug-ins are disabled by default. Importing a plug-in ZIP copies it into the `Plug-Ins` folder but still leaves it disabled until you check it yourself.
 
-When an enabled plug-in includes related support pages, those links appear in the Help menu. For example, the bundled laptop plug-ins can show the Dell Command | Monitor, G-Helper, HP Support Assistant, OMEN Gaming Hub, Lenovo Vantage, Lenovo System Update, Framework BIOS and Drivers, or Framework Control pages.
+When an enabled plug-in includes related support pages, those links appear in the Help menu. Bundled laptop plug-ins can show links such as:
 
-The bundled Framework Laptop plug-in is optional and disabled by default. It can add Framework-specific temperature and fan RPM rows when Framework Control is installed and running.
+- Dell Command | Monitor.
+- G-Helper.
+- HP Support Assistant.
+- OMEN Gaming Hub.
+- Lenovo Vantage.
+- Lenovo System Update.
+- Framework BIOS and Drivers.
+- Framework Control.
 
-Experimental HP, Dell Latitude, Lenovo Laptop, MSI Laptop, and Asus ROG Support plug-ins are also bundled for opt-in tester feedback. They are disabled by default. The Lenovo plug-in is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces. The MSI plug-in can expose MSI ACPI fan-table controls on compatible models after the user enables it. The Asus plug-in is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
+Experimental laptop plug-ins are also bundled for opt-in tester feedback. They are disabled by default:
+
+- HP Hardware Support is read-only and is aimed at HP, OMEN, and Victus tester diagnostics.
+- Dell Latitude Support is read-only and is aimed at Dell Latitude tester diagnostics.
+- Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
+- MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
+- Asus ROG Support is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
-## Reading Sensors
+## Categories and Readings
 
-The readings pane is a tree view. Choose a category from the list on the left, then review that category's readings and details on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
+The readings pane is a tree view. Choose a category from the list on the left, then press `Tab` to move into that category's readings on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
+
+The category list is configurable. Use `Options` > `Preferences` > `Categories` to choose which categories appear and in what order, or use `Delete`, `Ctrl+Up`, `Ctrl+Down`, and the category context menu directly from the main category list. Category shortcuts follow your visible order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
 Each category starts with a Category summary row. Open Details on that row to see a compact count of groups, readings, numeric values, rows with Details, and section-specific items such as non-working devices or storage health rows.
 
@@ -398,6 +416,10 @@ The Network section shows each adapter under one common tree, including status, 
 
 The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
+The Tasks section shows a small current-activity summary rather than a full task manager. It can show the process currently using the most CPU, the most memory, the most GPU engine time, and the most GPU process memory where Windows exposes those counters. These summary rows can be added to notification-area status or spoken hotkeys, but Sensor Readout does not create a hotkey candidate for every running process. When a Tasks row has an executable path, `Alt+Enter`, the reading context menu, or Details can open that file location in Explorer. Normal reports can include Tasks rows for troubleshooting. Anonymized reports remove Tasks rows because process names can reveal program usage.
+
+The Spoken Hotkeys section mirrors the notification-area status and each spoken hotkey profile in the main tree, so sighted users can review what those hotkeys currently contain. Hiding a row from this section only hides the mirror row in the tree; it does not remove the reading from the actual spoken hotkey or notification-area status profile.
+
 The USB section shows connected devices, hubs, controllers, connection speed, capable speed where Windows exposes it, requested power, drive letters, safe-to-unplug status, USB network adapter MAC address/OUI vendor and storage hardware ID/OUI vendor where available, and other copyable details. USB data is partly dependent on what Windows and the device driver expose, so some devices may report less detail than others.
 
 The Audio section groups related endpoints under their device or interface name where possible, then separates playback and recording entries. It shows vendor, status, direction, and default format details such as channels, sample rate, and bit depth where Windows exposes them.
@@ -408,7 +430,7 @@ When the selected reading is a percentage, Sensor Readout also exposes it throug
 
 Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
 
-Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page or task file location where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. When a Tasks row has an executable path, the same flow offers `Open file location...`. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
 ## Fan Control Workflow
 
@@ -606,11 +628,29 @@ Framework Laptop users should also prepare Framework Control before reporting mi
 
 Dell, Lenovo, MSI, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan readings on every model, because laptop makers decide what Windows can see. They are still worth enabling on matching laptops before sending diagnostics about missing fans or temperatures.
 
-Optional vendor tools can also help expose or verify laptop-specific data. Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor). Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications). MSI users can try [MSI Center](https://www.msi.com/Landing/MSI-Center). Asus users can try [G-Helper](https://g-helper.com/). HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html). These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
+Optional vendor tools can also help expose or verify laptop-specific data:
+
+- Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor).
+- Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications).
+- MSI users can try [MSI Center](https://www.msi.com/Landing/MSI-Center).
+- Asus users can try [G-Helper](https://g-helper.com/).
+- HP, OMEN, and Victus users can try [HP Support Assistant](https://support.hp.com/us-en/help/hp-support-assistant) and [OMEN Gaming Hub](https://www.hp.com/us-en/gaming-pc/omen-gaming-hub.html).
+
+These tools are outside Sensor Readout; use the vendor or project pages and only install what makes sense for your machine.
 
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.7.0
+
+- Added: A new Tasks category shows compact current-activity readings for the highest CPU process, highest memory process, highest GPU process, and highest GPU memory process where Windows exposes those counters. These summary readings can be used in notification-area status and spoken hotkeys without turning every running process into a hotkey candidate, and rows with an executable path can open that process file location with `Alt+Enter`, the reading context menu, or Details.
+- Added: A new Spoken Hotkeys category mirrors notification-area status and spoken hotkey profiles in the main tree, making those configured readouts visible without changing the hotkeys themselves.
+- Added: Spoken hotkey presets now include CPU activity, GPU activity, and uptime starters.
+- Added: NVIDIA SMI GPU memory total, used, and free readings now appear in Performance/Overview when available, so they can be used in notification-area status and spoken hotkeys alongside the existing Windows GPU memory counters.
+- Improved: Hints and tips now cover the Tasks category, the Spoken Hotkeys category, category ordering, and NVIDIA SMI GPU memory readings.
+- Improved: GPU memory Details now explain that Sensor Readout's Performance/Overview GPU memory figures come from Windows GPU performance counters, so they can differ from GPU-Z, nvidia-smi, or other vendor tools that account for reserved or driver-managed memory differently.
+- Privacy: Anonymized reports remove Tasks and Spoken Hotkeys rows because process names, custom profile names, and selected hotkey readings can reveal personal workflow.
 
 ### 4.6.0
 

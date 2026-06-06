@@ -95,6 +95,8 @@ public sealed partial class SensorReadoutForm : Form
             new CategoryChoice { Key = "type|SMART", DisplayName = T("type.SMART", "SMART"), Type = "SMART" },
             new CategoryChoice { Key = "type|Network", DisplayName = T("type.Network", "Network"), Type = "Network" },
             new CategoryChoice { Key = "type|Bluetooth", DisplayName = T("type.Bluetooth", "Bluetooth"), Type = "Bluetooth" },
+            new CategoryChoice { Key = "type|Tasks", DisplayName = T("type.Tasks", "Tasks"), Type = "Tasks" },
+            new CategoryChoice { Key = "type|Spoken Hotkeys", DisplayName = T("type.Spoken Hotkeys", "Spoken Hotkeys"), Type = "Spoken Hotkeys" },
             new CategoryChoice { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" },
             new CategoryChoice { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" },
             new CategoryChoice { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" },
@@ -135,11 +137,15 @@ public sealed partial class SensorReadoutForm : Form
         var resetExpansion = !readingTreeExpansionInitialized || !string.Equals(lastReadingTreeFilterKey, filterKey, StringComparison.Ordinal) || wasPlaceholderOnly;
         var expandAll = resetExpansion && ShouldExpandReadingTreeOnReset();
         var expandedKeys = resetExpansion ? new HashSet<string>() : GetExpandedNodeKeys(readingTree.Nodes);
-        var rows = ApplyFilter(latestRows, filter)
-            .OrderBy(r => TypeSortIndex(r.Type))
-            .ThenBy(r => ShortHardwareName(r.Hardware))
-            .ThenBy(r => CleanSensorName(r.Name))
-            .ToList();
+        var rows = ApplyFilter(latestRows, filter).ToList();
+        if (filter == null || !string.Equals(filter.Type, "Spoken Hotkeys", StringComparison.OrdinalIgnoreCase))
+        {
+            rows = rows
+                .OrderBy(r => TypeSortIndex(r.Type))
+                .ThenBy(r => ShortHardwareName(r.Hardware))
+                .ThenBy(r => CleanSensorName(r.Name))
+                .ToList();
+        }
 
         var items = BuildReadingTree(rows, filter);
         if (!reportViewMode)
@@ -474,11 +480,7 @@ public sealed partial class SensorReadoutForm : Form
                     textChanged = true;
                 }
 
-                var existingRow = node.Tag as SensorRow;
-                if (textChanged || (existingRow == null) != (item.Row == null))
-                {
-                    node.Tag = item.Row;
-                }
+                node.Tag = item.Row;
 
                 if (textChanged || !string.Equals(node.ToolTipText, GetTreeNodeDetailsHint(item), StringComparison.Ordinal))
                 {
@@ -782,6 +784,13 @@ public sealed partial class SensorReadoutForm : Form
                 return typeItem.Children;
             }
 
+            if (filter.Type == "Spoken Hotkeys")
+            {
+                AddSpokenHotKeyGroups(typeItem, rows);
+                InsertCategorySummary(typeItem, summaryItem);
+                return typeItem.Children;
+            }
+
             AddHardwareGroups(typeItem, rows);
             InsertCategorySummary(typeItem, summaryItem);
             return typeItem.Children;
@@ -954,6 +963,92 @@ public sealed partial class SensorReadoutForm : Form
             AddReadingRows(hardwareItem, hardwareGroup);
             parent.Children.Add(hardwareItem);
         }
+    }
+
+    private static void AddSpokenHotKeyGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
+    {
+        var orderedRows = (rows ?? Enumerable.Empty<SensorRow>())
+            .Where(r => r != null)
+            .ToList();
+        var profileOrder = new List<string>();
+        var profileRows = new Dictionary<string, List<SensorRow>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in orderedRows)
+        {
+            var profileName = string.IsNullOrWhiteSpace(row.Hardware)
+                ? T("ui.Spoken hotkey", "Spoken hotkey")
+                : row.Hardware.Trim();
+            if (!profileRows.ContainsKey(profileName))
+            {
+                profileOrder.Add(profileName);
+                profileRows[profileName] = new List<SensorRow>();
+            }
+
+            profileRows[profileName].Add(row);
+        }
+
+        foreach (var profileName in profileOrder)
+        {
+            var groupRows = profileRows[profileName];
+            var hotKey = SpokenHotKeyGroupHotKey(groupRows);
+            var groupText = string.IsNullOrWhiteSpace(hotKey)
+                ? profileName
+                : profileName + ": " + hotKey;
+            var groupKey = "spoken-hotkey-profile|" + profileName;
+            var groupItem = new ReadingTreeItem { Key = groupKey, Text = groupText };
+            foreach (var row in groupRows)
+            {
+                groupItem.Children.Add(new ReadingTreeItem
+                {
+                    Key = "row|" + RowSettingsKey(row),
+                    Text = SpokenHotKeyMirrorText(row),
+                    Row = row
+                });
+            }
+
+            parent.Children.Add(groupItem);
+        }
+    }
+
+    private static string SpokenHotKeyGroupHotKey(IEnumerable<SensorRow> rows)
+    {
+        foreach (var row in rows ?? Enumerable.Empty<SensorRow>())
+        {
+            if (row == null || row.Details == null)
+            {
+                continue;
+            }
+
+            string value;
+            if (row.Details.TryGetValue("Hotkey", out value) && !string.IsNullOrWhiteSpace(value) &&
+                !string.Equals(value, T("ui.no hotkey", "no hotkey"), StringComparison.OrdinalIgnoreCase))
+            {
+                return value.Trim();
+            }
+        }
+
+        return "";
+    }
+
+    private static string SpokenHotKeyMirrorText(SensorRow row)
+    {
+        if (row == null)
+        {
+            return "";
+        }
+
+        var name = DisplayReadingName(row.Name);
+        var value = FormatValue(row);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return name;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return value;
+        }
+
+        return name + " " + value;
     }
 
     private static void AddPerformanceGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)
@@ -1870,8 +1965,15 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var hasDetails = item.Row.Details != null && item.Row.Details.Count > 0;
-        var hasWindowsSetting = GetRelatedWindowsSettingsTarget(item.Row) != null;
-        if (hasDetails && hasWindowsSetting)
+        var relatedTarget = GetRelatedWindowsSettingsTarget(item.Row);
+        var hasRelatedTarget = relatedTarget != null;
+        var hasFileLocation = relatedTarget != null && !string.IsNullOrWhiteSpace(relatedTarget.FilePath);
+        if (hasDetails && hasFileLocation)
+        {
+            return T("a11y.Has details and file location", "Has Details. Has file location.");
+        }
+
+        if (hasDetails && hasRelatedTarget)
         {
             return T("a11y.Has details and Windows setting", "Has Details. Has Windows setting.");
         }
@@ -1881,7 +1983,12 @@ public sealed partial class SensorReadoutForm : Form
             return T("a11y.Has details", "Has Details.");
         }
 
-        return hasWindowsSetting
+        if (hasFileLocation)
+        {
+            return T("a11y.Has file location", "Has file location.");
+        }
+
+        return hasRelatedTarget
             ? T("a11y.Has Windows setting", "Has Windows setting.")
             : "";
     }
@@ -1989,24 +2096,34 @@ public sealed partial class SensorReadoutForm : Form
             return 6;
         }
 
-        if (type == "USB")
+        if (type == "Tasks")
         {
             return 7;
         }
 
-        if (type == "Audio")
+        if (type == "Spoken Hotkeys")
         {
             return 8;
         }
 
-        if (type == "Display")
+        if (type == "USB")
         {
             return 9;
         }
 
-        if (type == "Devices")
+        if (type == "Audio")
         {
             return 10;
+        }
+
+        if (type == "Display")
+        {
+            return 11;
+        }
+
+        if (type == "Devices")
+        {
+            return 12;
         }
 
         if (type == "Battery")
@@ -2014,7 +2131,7 @@ public sealed partial class SensorReadoutForm : Form
             return 4;
         }
 
-        return 11;
+        return 13;
     }
 
     public static string DisplayTypeName(string type)
@@ -2042,6 +2159,16 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Network")
         {
             return T("type.Network", "Network");
+        }
+
+        if (type == "Tasks")
+        {
+            return T("type.Tasks", "Tasks");
+        }
+
+        if (type == "Spoken Hotkeys")
+        {
+            return T("type.Spoken Hotkeys", "Spoken Hotkeys");
         }
 
         if (type == "Bluetooth")

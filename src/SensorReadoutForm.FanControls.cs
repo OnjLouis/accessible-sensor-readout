@@ -212,7 +212,8 @@ public sealed partial class SensorReadoutForm : Form
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
         }
 
-        Task.Factory.StartNew(new Func<List<SensorRow>>(() => CollectSensorRows(refreshSlowRows)))
+        var backgroundRefresh = IsMinimizedOrHidden();
+        Task.Factory.StartNew(new Func<List<SensorRow>>(() => CollectSensorRows(refreshSlowRows, backgroundRefresh)))
             .ContinueWith(delegate(Task<List<SensorRow>> task)
             {
                 try
@@ -283,6 +284,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows)
     {
+        return CollectSensorRows(refreshSlowRows, false);
+    }
+
+    private List<SensorRow> CollectSensorRows(bool refreshSlowRows, bool backgroundRefresh)
+    {
         var totalStopwatch = Stopwatch.StartNew();
         var timings = new List<string>();
         var rows = new List<SensorRow>();
@@ -299,21 +305,24 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
+        AddTimedRows(rows, "Tasks", () => GetCachedTaskRows(refreshSlowRows, backgroundRefresh), timings);
         rows = TimedTransformRows(rows, "StorageDetailsAttach", AttachStorageDetailsToRows, timings);
         rows = TimedTransformRows(rows, "FanPercentAttach", AttachFanControlPercentsToFanRows, timings);
         rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
 
         var result = ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "Bluetooth" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Devices" || s.Type == "Fan Control")
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "Bluetooth" || s.Type == "Tasks" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Devices" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList());
+        var spokenHotKeyRows = BuildSpokenHotKeyCategoryRows(result);
         result = AddDataSourceSummaryRows(result)
             .OrderBy(s => TypeSortIndex(s.Type))
             .ThenBy(s => s.Hardware)
             .ThenBy(s => ReadingSortIndex(s.Name))
             .ThenBy(s => s.Name)
             .ToList();
+        result.AddRange(spokenHotKeyRows);
         totalStopwatch.Stop();
         if (totalStopwatch.ElapsedMilliseconds >= 1000)
         {

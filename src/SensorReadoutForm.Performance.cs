@@ -167,9 +167,10 @@ public sealed partial class SensorReadoutForm : Form
         var dedicatedTotal = GetTotalGpuAdapterMemoryBytes();
         var dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Local Adapter Memory", "Local Usage");
         var sharedUsed = ReadGpuMemoryCounterTotal("GPU Non Local Adapter Memory", "Non Local Usage");
+        AddNvidiaSmiGpuMemoryRows(rows);
         if (dedicatedTotal > 0)
         {
-            AddGpuMemoryRow(rows, "Dedicated GPU memory total", dedicatedTotal, "gpu|memory|dedicated-total", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            AddGpuMemoryRow(rows, "Dedicated GPU memory total", dedicatedTotal, "gpu|memory|dedicated-total", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Source", "Win32_VideoController and display registry fallback" }
             });
@@ -177,7 +178,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (dedicatedUsed > 0)
         {
-            AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Source", "GPU Local Adapter Memory performance counter" }
             });
@@ -186,7 +187,7 @@ public sealed partial class SensorReadoutForm : Form
         if (dedicatedTotal > 0 && dedicatedUsed >= 0)
         {
             var free = Math.Max(0, dedicatedTotal - dedicatedUsed);
-            AddGpuMemoryRow(rows, "Dedicated GPU memory free", free, "gpu|memory|dedicated-free", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            AddGpuMemoryRow(rows, "Dedicated GPU memory free", free, "gpu|memory|dedicated-free", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Calculated from", "Dedicated GPU memory total minus dedicated GPU memory used" },
                 { "Total source", "Win32_VideoController and display registry fallback" },
@@ -196,18 +197,101 @@ public sealed partial class SensorReadoutForm : Form
 
         if (sharedUsed > 0)
         {
-            AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "Source", "GPU Non Local Adapter Memory performance counter" }
             });
         }
     }
 
-    private static void AddGpuMemoryRow(List<SensorRow> rows, string name, double bytes, string identifier, Dictionary<string, string> details)
+    private static void AddNvidiaSmiGpuMemoryRows(List<SensorRow> rows)
+    {
+        var summaries = GetNvidiaSmiGpuMemorySummaries();
+        foreach (var summary in summaries)
+        {
+            var prefix = summaries.Count > 1 ? "NVIDIA SMI " + summary.Name + " memory " : "NVIDIA SMI memory ";
+            var id = "gpu|memory|nvidia-smi|" + summary.StableId + "|";
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "GPU", summary.Name },
+                { "Bus ID", summary.BusId },
+                { "Source", "nvidia-smi" },
+                { "Comparison note", "This is NVIDIA driver-reported memory. It can be higher than Windows dedicated GPU memory used because NVIDIA includes driver-reserved or vendor-accounted memory that Windows performance counters may not count the same way." }
+            };
+
+            AddGpuMemoryRow(rows, prefix + "total", summary.TotalBytes, id + "total", "NVIDIA SMI", details);
+            AddGpuMemoryRow(rows, prefix + "used", summary.UsedBytes, id + "used", "NVIDIA SMI", details);
+            AddGpuMemoryRow(rows, prefix + "free", summary.FreeBytes, id + "free", "NVIDIA SMI", details);
+        }
+    }
+
+    private sealed class NvidiaSmiGpuMemorySummary
+    {
+        public string Name;
+        public string BusId;
+        public string StableId;
+        public double TotalBytes;
+        public double UsedBytes;
+        public double FreeBytes;
+    }
+
+    private static List<NvidiaSmiGpuMemorySummary> GetNvidiaSmiGpuMemorySummaries()
+    {
+        var result = new List<NvidiaSmiGpuMemorySummary>();
+        var output = RunNvidiaSmiQuery();
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return result;
+        }
+
+        foreach (var line in output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = line.Split(',').Select(f => f.Trim()).ToArray();
+            if (fields.Length < 11)
+            {
+                continue;
+            }
+
+            double totalMib;
+            double usedMib;
+            double freeMib;
+            if (!double.TryParse(fields[8], NumberStyles.Float, CultureInfo.InvariantCulture, out totalMib) ||
+                !double.TryParse(fields[9], NumberStyles.Float, CultureInfo.InvariantCulture, out usedMib) ||
+                !double.TryParse(fields[10], NumberStyles.Float, CultureInfo.InvariantCulture, out freeMib))
+            {
+                continue;
+            }
+
+            var busId = FirstNonEmpty(fields[7], fields[1], fields[5], fields[0]);
+            result.Add(new NvidiaSmiGpuMemorySummary
+            {
+                Name = FirstNonEmpty(fields[0], "NVIDIA GPU"),
+                BusId = busId,
+                StableId = SafeIdentifier(busId),
+                TotalBytes = totalMib * 1024d * 1024d,
+                UsedBytes = usedMib * 1024d * 1024d,
+                FreeBytes = freeMib * 1024d * 1024d
+            });
+        }
+
+        return result;
+    }
+
+    private static void AddGpuMemoryRow(List<SensorRow> rows, string name, double bytes, string identifier, string source, Dictionary<string, string> details)
     {
         if (rows == null || bytes < 0)
         {
             return;
+        }
+
+        if (details == null)
+        {
+            details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        if (!details.ContainsKey("Comparison note"))
+        {
+            details["Comparison note"] = "This uses Windows GPU performance counters. Vendor tools such as GPU-Z or nvidia-smi may report driver-reserved or vendor-accounted memory differently.";
         }
 
         rows.Add(new SensorRow
@@ -218,7 +302,7 @@ public sealed partial class SensorReadoutForm : Form
             Identifier = identifier,
             Value = (float)bytes,
             DisplayValue = FormatBytes(bytes),
-            Source = "Windows GPU performance counters",
+            Source = source,
             Details = CloneDetails(details)
         });
     }

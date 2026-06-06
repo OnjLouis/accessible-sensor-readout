@@ -186,13 +186,13 @@ public sealed partial class PreferencesForm : Form
         var availablePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         availablePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         availablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        availablePanel.Controls.Add(new Label { Text = "Available readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        availablePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available readings", "Available readings"), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         availablePanel.Controls.Add(trayAvailableList, 0, 1);
 
         var selectedPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        selectedPanel.Controls.Add(new Label { Text = "Tray order", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        selectedPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Tray order", "Tray order"), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         selectedPanel.Controls.Add(traySelectedList, 0, 1);
 
         var buttons = new FlowLayoutPanel
@@ -707,14 +707,16 @@ public sealed partial class PreferencesForm : Form
         var availablePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         availablePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         availablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        availablePanel.Controls.Add(new Label { Text = "Available readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        availablePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available readings", "Available readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = SensorReadoutForm.L("a11y.Available readings shortcut Alt3", "Available readings. Shortcut Alt+3.") }, 0, 0);
+        spokenAvailableList.AccessibleDescription = SensorReadoutForm.L("a11y.Available readings shortcut Alt3", "Available readings. Shortcut Alt+3.");
         availablePanel.Controls.Add(spokenAvailableList, 0, 1);
 
         var selectedPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        selectedPanel.Controls.Add(new Label { Text = "Spoken readings", AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        selectedPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Spoken readings", "Spoken readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = SensorReadoutForm.L("a11y.Spoken readings shortcut Alt4", "Spoken readings. Shortcut Alt+4.") }, 0, 0);
+        spokenSelectedList.AccessibleDescription = SensorReadoutForm.L("a11y.Spoken readings shortcut Alt4", "Spoken readings. Shortcut Alt+4.");
         var spokenLabelButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
         var renameButton = CreateShortcutButton("Rename...", "F2", Keys.F2);
         renameButton.AccessibleDescription = "Rename the selected spoken label. Shortcut F2.";

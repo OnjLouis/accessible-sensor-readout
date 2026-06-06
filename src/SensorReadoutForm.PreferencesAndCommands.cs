@@ -960,7 +960,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var message = string.Format(L("status.Category selected with shortcut.", "{0} category selected. Shortcut: {1}."), filter.DisplayName, shortcut);
+        var message = string.Format(L("status.Category selected with shortcut.", "{0} category selected. Shortcut {1}."), filter.DisplayName, shortcut);
         statusLabel.Text = message;
         if (!deviceList.ContainsFocus)
         {
@@ -1113,9 +1113,14 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var windowsSettingVisible = CanOpenSelectedWindowsSetting();
+        var windowsSettingTarget = GetRelatedWindowsSettingsTarget(GetSelectedReadingRow());
+        var windowsSettingText = windowsSettingTarget != null && !string.IsNullOrWhiteSpace(windowsSettingTarget.FilePath)
+            ? T("ui.Open file &location...", "Open file &location...")
+            : T("ui.Open &Windows setting...", "Open &Windows setting...");
         if (editWindowsSettingMenuItem != null)
         {
             editWindowsSettingMenuItem.Visible = windowsSettingVisible;
+            editWindowsSettingMenuItem.Text = windowsSettingText;
         }
 
         if (treeDetailsMenuItem != null)
@@ -1126,6 +1131,7 @@ public sealed partial class SensorReadoutForm : Form
         if (treeWindowsSettingMenuItem != null)
         {
             treeWindowsSettingMenuItem.Visible = windowsSettingVisible;
+            treeWindowsSettingMenuItem.Text = windowsSettingText;
         }
 
         if (treeSpokenHotKeyMenuItem != null)

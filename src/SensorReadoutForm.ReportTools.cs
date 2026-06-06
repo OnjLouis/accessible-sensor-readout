@@ -251,6 +251,11 @@ public sealed partial class SensorReadoutForm : Form
                 continue;
             }
 
+            if (IsPrivateActivityReportRow(row))
+            {
+                continue;
+            }
+
             snapshot.Rows.Add(new ReportSnapshotRow
             {
                 Type = row.Type ?? "",
@@ -267,6 +272,13 @@ public sealed partial class SensorReadoutForm : Form
         return snapshot;
     }
 
+    private static bool IsPrivateActivityReportRow(ReportSnapshotRow row)
+    {
+        return row != null &&
+            (string.Equals(row.Type, "Tasks", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(row.Type, "Spoken Hotkeys", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static bool IsOnlineIpLookupReportRow(ReportSnapshotRow row)
     {
         if (row == null)
@@ -281,7 +293,7 @@ public sealed partial class SensorReadoutForm : Form
     private string BuildSanitizationPreview(ReportSnapshot snapshot)
     {
         var rows = snapshot == null || snapshot.Rows == null ? 0 : snapshot.Rows.Count;
-        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths. Online public-IP lookup rows are removed from anonymized reports.") +
+        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths. Online public-IP lookup rows, Tasks rows, and Spoken Hotkeys rows are removed from anonymized reports.") +
             Environment.NewLine + Environment.NewLine +
             T("ui.Rows included:", "Rows included:") + " " + rows + Environment.NewLine +
             T("ui.Computer name:", "Computer name:") + " Computer";

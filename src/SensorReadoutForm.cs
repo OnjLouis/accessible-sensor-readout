@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.6.0";
+    public const string AppVersion = "4.7.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -16,6 +16,8 @@ public sealed partial class SensorReadoutForm : Form
     private const int RefreshIntervalMs = 5000;
     private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
     private static readonly TimeSpan HiddenAutoRefreshMinimumInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ForegroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan BackgroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(15);
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
     private const int SpokenHotKeyBaseId = 2100;
@@ -123,6 +125,12 @@ public sealed partial class SensorReadoutForm : Form
     private ulong lastCpuIdleTime;
     private ulong lastCpuKernelTime;
     private ulong lastCpuUserTime;
+    private readonly object taskSnapshotLock = new object();
+    private Dictionary<int, TaskProcessSnapshot> lastTaskProcessSnapshots = new Dictionary<int, TaskProcessSnapshot>();
+    private DateTime lastTaskProcessSnapshotUtc = DateTime.MinValue;
+    private readonly object taskRowsCacheLock = new object();
+    private List<SensorRow> cachedTaskRows = new List<SensorRow>();
+    private DateTime cachedTaskRowsUtc = DateTime.MinValue;
     private readonly object slowRowsLock = new object();
     private List<SensorRow> cachedSlowRows = new List<SensorRow>();
     private DateTime cachedSlowRowsUtc = DateTime.MinValue;

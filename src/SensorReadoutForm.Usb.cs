@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
@@ -1626,6 +1627,7 @@ public sealed partial class SensorReadoutForm : Form
             };
             PopulateDetailsTree(tree, row.Details);
             var windowsSettingsTarget = GetRelatedWindowsSettingsTarget(row);
+            var opensFileLocation = windowsSettingsTarget != null && !string.IsNullOrWhiteSpace(windowsSettingsTarget.FilePath);
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
             var closeButton = CreateCloseButton();
@@ -1633,12 +1635,12 @@ public sealed partial class SensorReadoutForm : Form
                 ? null
                 : new ShortcutButton
                 {
-                    Text = T("ui.Open &Windows setting...", "Open &Windows setting..."),
+                    Text = opensFileLocation ? T("ui.Open file &location...", "Open file &location...") : T("ui.Open &Windows setting...", "Open &Windows setting..."),
                     AutoSize = true,
-                    ShortcutText = "Alt+W",
-                    ShortcutKeys = Keys.W,
-                    AccessibleName = T("a11y.Open related Windows setting", "Open related Windows setting"),
-                    AccessibleDescription = T("a11y.Opens the Windows Settings page related to this reading.", "Opens the Windows Settings page related to this reading.")
+                    ShortcutText = opensFileLocation ? "Alt+L" : "Alt+W",
+                    ShortcutKeys = opensFileLocation ? Keys.L : Keys.W,
+                    AccessibleName = opensFileLocation ? T("a11y.Open related file location", "Open related file location") : T("a11y.Open related Windows setting", "Open related Windows setting"),
+                    AccessibleDescription = opensFileLocation ? T("a11y.Opens the folder containing the executable for this task.", "Opens the folder containing the executable for this task.") : T("a11y.Opens the Windows Settings page related to this reading.", "Opens the Windows Settings page related to this reading.")
                 };
             var copyButton = new Button { Text = T("ui.&Copy", "&Copy"), AutoSize = true };
             var copyValueButton = new Button { Text = T("ui.Copy &value only", "Copy &value only"), AutoSize = true };
@@ -1708,6 +1710,7 @@ public sealed partial class SensorReadoutForm : Form
     private sealed class WindowsSettingsTarget
     {
         public string Uri;
+        public string FilePath;
         public string Name;
     }
 
@@ -1722,7 +1725,7 @@ public sealed partial class SensorReadoutForm : Form
         if (target == null)
         {
             System.Media.SystemSounds.Beep.Play();
-            statusLabel.Text = T("status.Select a reading with a related Windows setting.", "Select a reading with a related Windows setting.");
+            statusLabel.Text = T("status.Select a reading with a related location.", "Select a reading with a related location.");
             return false;
         }
 
@@ -1746,6 +1749,14 @@ public sealed partial class SensorReadoutForm : Form
         var hardware = row.Hardware ?? "";
         var name = CleanSensorName(row.Name);
         var combined = (type + " " + hardware + " " + name).Trim();
+        if (string.Equals(type, "Tasks", StringComparison.OrdinalIgnoreCase))
+        {
+            string executablePath;
+            if (row.Details != null && row.Details.TryGetValue("Executable path", out executablePath) && File.Exists(executablePath))
+            {
+                return new WindowsSettingsTarget { FilePath = executablePath, Name = "File location" };
+            }
+        }
 
         if (name.Equals("Audio descriptions", StringComparison.OrdinalIgnoreCase) ||
             name.Equals("Show sounds", StringComparison.OrdinalIgnoreCase))
@@ -1865,19 +1876,31 @@ public sealed partial class SensorReadoutForm : Form
 
     private void OpenWindowsSettingsTarget(WindowsSettingsTarget target)
     {
-        if (target == null || !IsSafeWindowsSettingsUri(target.Uri))
+        if (target == null)
         {
             return;
         }
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(target.FilePath) && File.Exists(target.FilePath))
+            {
+                Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = "/select,\"" + target.FilePath + "\"", UseShellExecute = true });
+                statusLabel.Text = T("status.Opened file location.", "Opened file location.");
+                return;
+            }
+
+            if (!IsSafeWindowsSettingsUri(target.Uri))
+            {
+                return;
+            }
+
             Process.Start(new ProcessStartInfo { FileName = target.Uri, UseShellExecute = true });
             statusLabel.Text = T("status.Opened related Windows setting.", "Opened related Windows setting.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, T("ui.Could not open Windows setting", "Could not open Windows setting"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, T("ui.Could not open related location", "Could not open related location"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

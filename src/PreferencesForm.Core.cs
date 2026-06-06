@@ -216,6 +216,20 @@ public sealed partial class PreferencesForm : Form
                 return true;
             }
 
+            if ((key == Keys.D3 || key == Keys.NumPad3) && spokenAvailableList != null)
+            {
+                SelectInitialTab("Hotkeys");
+                spokenAvailableList.Focus();
+                return true;
+            }
+
+            if ((key == Keys.D4 || key == Keys.NumPad4) && spokenSelectedList != null)
+            {
+                SelectInitialTab("Hotkeys");
+                spokenSelectedList.Focus();
+                return true;
+            }
+
             if (PerformShortcutButton(Controls, key))
             {
                 return true;
