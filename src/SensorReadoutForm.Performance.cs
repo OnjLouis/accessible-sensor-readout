@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -26,6 +26,8 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly object gpuTotalMemoryCacheLock = new object();
     private static DateTime cachedGpuTotalMemoryUtc = DateTime.MinValue;
     private static double cachedGpuTotalMemoryBytes = -1;
+    private static readonly object gpuEngineCounterCacheLock = new object();
+    private static readonly Dictionary<string, PerformanceCounter> cachedGpuEngineCounters = new Dictionary<string, PerformanceCounter>(StringComparer.OrdinalIgnoreCase);
     private static readonly object pagingFileCacheLock = new object();
     private static DateTime cachedPagingFileRowsUtc = DateTime.MinValue;
     private static PagingFileSummary cachedPagingFileSummary;
@@ -410,7 +412,9 @@ public sealed partial class SensorReadoutForm : Form
             double? peakUsage = null;
             string peakInstance = "";
             var sampledInstances = 0;
-            foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
+            var instances = category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)).ToList();
+            PruneCachedGpuEngineCounters(instances);
+            foreach (var instance in instances)
             {
                 var engineType = ExtractGpuEngineType(instance);
                 if (string.IsNullOrWhiteSpace(engineType))
@@ -419,7 +423,7 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 double value;
-                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value))
+                if (!TryReadGpuEnginePerformanceCounter(instance, out value))
                 {
                     continue;
                 }
@@ -460,6 +464,7 @@ public sealed partial class SensorReadoutForm : Form
                         { "Counter set", categoryName },
                         { "Counter", counterName },
                         { "Aggregation", "Highest GPU engine utilization across all adapters" },
+                        { "Sampling note", "Windows percentage counters are cached between refreshes so the value can be calculated from more than one sample." },
                         { "Sampled engine instances", sampledInstances.ToString(CultureInfo.InvariantCulture) },
                         { "Peak engine instance", peakInstance }
                     }
@@ -481,13 +486,75 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         { "Counter set", categoryName },
                         { "Counter", counterName },
-                        { "Aggregation", "Highest active engine of this type" }
+                        { "Aggregation", "Highest active engine of this type" },
+                        { "Sampling note", "Windows percentage counters are cached between refreshes so the value can be calculated from more than one sample." }
                     }
                 });
             }
         }
         catch
         {
+        }
+    }
+
+    private static void PruneCachedGpuEngineCounters(ICollection<string> liveInstances)
+    {
+        lock (gpuEngineCounterCacheLock)
+        {
+            var live = new HashSet<string>(liveInstances, StringComparer.OrdinalIgnoreCase);
+            foreach (var key in cachedGpuEngineCounters.Keys.Where(k => !live.Contains(k)).ToList())
+            {
+                try
+                {
+                    cachedGpuEngineCounters[key].Dispose();
+                }
+                catch
+                {
+                }
+
+                cachedGpuEngineCounters.Remove(key);
+            }
+        }
+    }
+
+    private static bool TryReadGpuEnginePerformanceCounter(string instanceName, out double value)
+    {
+        value = 0;
+        try
+        {
+            PerformanceCounter counter;
+            lock (gpuEngineCounterCacheLock)
+            {
+                if (!cachedGpuEngineCounters.TryGetValue(instanceName, out counter))
+                {
+                    counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName, true);
+                    cachedGpuEngineCounters[instanceName] = counter;
+                }
+            }
+
+            value = counter.NextValue();
+            return true;
+        }
+        catch
+        {
+            lock (gpuEngineCounterCacheLock)
+            {
+                PerformanceCounter counter;
+                if (cachedGpuEngineCounters.TryGetValue(instanceName, out counter))
+                {
+                    try
+                    {
+                        counter.Dispose();
+                    }
+                    catch
+                    {
+                    }
+
+                    cachedGpuEngineCounters.Remove(instanceName);
+                }
+            }
+
+            return false;
         }
     }
 

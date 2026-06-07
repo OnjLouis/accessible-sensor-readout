@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -49,6 +50,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
+            form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
@@ -147,6 +149,20 @@ public sealed partial class SensorReadoutForm : Form
         SetLatestRows(rows);
         Require(rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase)), "Performance rows missing.");
         Require(rows.Any(r => !string.IsNullOrWhiteSpace(r.Name)), "Collected rows have no names.");
+    }
+
+    private void SelfTestCrashLogWriting()
+    {
+        settings.LoggingLevel = "Off";
+        SaveSettings(settings);
+        var path = Program.WriteCrashLogForSelfTest();
+        Require(File.Exists(path), "Crash log was not written when regular logging was off.");
+        var text = File.ReadAllText(path);
+        Require(text.IndexOf("Self-test crash log", StringComparison.OrdinalIgnoreCase) >= 0, "Crash log missing self-test source.");
+        Require(text.IndexOf("Self-test crash log exception", StringComparison.OrdinalIgnoreCase) >= 0, "Crash log missing exception text.");
+        Require(text.IndexOf("crash logs are always attempted", StringComparison.OrdinalIgnoreCase) >= 0, "Crash log missing regular-log independence note.");
+        settings.LoggingLevel = "Debug";
+        SaveSettings(settings);
     }
 
     private void SelfTestWifiBssListBounds()
@@ -1250,6 +1266,27 @@ public sealed partial class SensorReadoutForm : Form
             var extra = keys.Except(englishKeys).OrderBy(k => k, StringComparer.Ordinal).Take(10).ToList();
             Require(missing.Count == 0, Path.GetFileName(languageFile) + " missing language keys: " + string.Join(", ", missing));
             Require(extra.Count == 0, Path.GetFileName(languageFile) + " has unknown language keys: " + string.Join(", ", extra));
+        }
+
+        var frenchLanguagePath = Path.Combine(GetLanguagesFolderPath(), "Francais.txt");
+        if (File.Exists(frenchLanguagePath))
+        {
+            var frenchText = File.ReadAllText(frenchLanguagePath, Encoding.UTF8);
+            Require(frenchText.IndexOf("mise à jour", StringComparison.OrdinalIgnoreCase) >= 0, "French language file lost accented update wording.");
+            Require(frenchText.IndexOf("télécharger", StringComparison.OrdinalIgnoreCase) >= 0, "French language file lost accented download wording.");
+            Require(frenchText.IndexOf("périph", StringComparison.OrdinalIgnoreCase) >= 0, "French language file lost accented device wording.");
+            Require(frenchText.IndexOf("lecteur d’écran", StringComparison.OrdinalIgnoreCase) >= 0 || frenchText.IndexOf("lecteur d'écran", StringComparison.OrdinalIgnoreCase) >= 0, "French language file lost accented screen-reader wording.");
+            Require(frenchText.IndexOf("Lecture ajoutée ? l", StringComparison.OrdinalIgnoreCase) < 0, "French language file still contains replacement characters in history wording.");
+            Require(frenchText.IndexOf("mises a jour", StringComparison.OrdinalIgnoreCase) < 0, "French language file still contains unaccented update wording.");
+        }
+
+        var italianLanguagePath = Path.Combine(GetLanguagesFolderPath(), "Italiano.txt");
+        if (File.Exists(italianLanguagePath))
+        {
+            var italianText = File.ReadAllText(italianLanguagePath, Encoding.UTF8);
+            Require(italianText.IndexOf("La lettura selezionata ? ", StringComparison.OrdinalIgnoreCase) < 0, "Italian language file still contains replacement question marks in selection status wording.");
+            Require(italianText.IndexOf("Sensor Readout è", StringComparison.OrdinalIgnoreCase) >= 0, "Italian language file lost accented essere wording.");
+            Require(italianText.IndexOf("più", StringComparison.OrdinalIgnoreCase) >= 0, "Italian language file lost accented piu wording.");
         }
 
         foreach (var manual in Directory.GetFiles(GetDocsFolderPath(), "README-*.html"))

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
@@ -446,7 +447,7 @@ public sealed partial class SensorReadoutForm : Form
                 return values;
             }
 
-            foreach (var rawLine in System.IO.File.ReadAllLines(path))
+            foreach (var rawLine in System.IO.File.ReadAllLines(path, Encoding.UTF8))
             {
                 var line = rawLine.Trim();
                 if (line.Length == 0 || line.StartsWith("#") || line.StartsWith(";"))
@@ -482,7 +483,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var lines = System.IO.File.Exists(path) ? System.IO.File.ReadAllLines(path).ToList() : new List<string>();
+        var lines = System.IO.File.Exists(path) ? System.IO.File.ReadAllLines(path, Encoding.UTF8).ToList() : new List<string>();
         var replacement = key.Trim() + "=" + (value ?? "").Replace(Environment.NewLine, "\\n");
         var updated = false;
         for (var i = 0; i < lines.Count; i++)
@@ -507,7 +508,7 @@ public sealed partial class SensorReadoutForm : Form
             lines.Add(replacement);
         }
 
-        System.IO.File.WriteAllLines(path, lines.ToArray());
+        System.IO.File.WriteAllLines(path, lines.ToArray(), Encoding.UTF8);
     }
 
     public static void OpenLanguagesFolderStatic(IWin32Window owner)

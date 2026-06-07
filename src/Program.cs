@@ -410,12 +410,12 @@ public static partial class Program
             {
                 var exception = e.ExceptionObject as Exception;
                 var restart = TryRestartAfterCrash("Unhandled application exception", exception);
-                WriteCrashLog("Unhandled application exception", exception, e.IsTerminating, restart);
+                WriteCrashLog("Unhandled application exception", exception, e.ExceptionObject, e.IsTerminating, restart);
             };
 
             TaskScheduler.UnobservedTaskException += (sender, e) =>
             {
-                WriteCrashLog("Unobserved background task exception", e.Exception, false, false);
+                WriteCrashLog("Unobserved background task exception", e.Exception, e.Exception, false, false);
             };
         }
         catch
@@ -425,11 +425,15 @@ public static partial class Program
 
     private static void WriteCrashLog(string source, Exception exception, bool terminating, bool restartRequested)
     {
+        WriteCrashLog(source, exception, exception, terminating, restartRequested);
+    }
+
+    private static void WriteCrashLog(string source, Exception exception, object exceptionObject, bool terminating, bool restartRequested)
+    {
         try
         {
-            var logsFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
-            System.IO.Directory.CreateDirectory(logsFolder);
-            var path = System.IO.Path.Combine(logsFolder, "Crash-" + SafeFileName(Environment.MachineName) + ".log");
+            var path = GetCrashLogPath();
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
             RotateCrashLogIfNeeded(path);
 
             var message =
@@ -445,22 +449,62 @@ public static partial class Program
                 "Executable: " +
                 Application.ExecutablePath +
                 Environment.NewLine +
+                "Base folder: " +
+                AppDomain.CurrentDomain.BaseDirectory +
+                Environment.NewLine +
+                "Current directory: " +
+                Environment.CurrentDirectory +
+                Environment.NewLine +
+                "Command line: " +
+                Environment.CommandLine +
+                Environment.NewLine +
                 "OS: " +
                 GetWindowsVersionText() +
+                Environment.NewLine +
+                "Regular log setting: ignored; crash logs are always attempted." +
                 Environment.NewLine +
                 "Restart requested: " +
                 restartRequested +
                 Environment.NewLine +
                 "Exception:" +
                 Environment.NewLine +
-                (exception == null ? "(No exception object was provided.)" : exception.ToString()) +
+                CrashExceptionText(exception, exceptionObject) +
                 Environment.NewLine +
                 Environment.NewLine;
 
-            System.IO.File.AppendAllText(path, message);
+            System.IO.File.AppendAllText(path, message, System.Text.Encoding.UTF8);
         }
         catch
         {
+        }
+    }
+
+    internal static string WriteCrashLogForSelfTest()
+    {
+        var path = GetCrashLogPath();
+        WriteCrashLog("Self-test crash log", new InvalidOperationException("Self-test crash log exception"), false, false);
+        return path;
+    }
+
+    private static string CrashExceptionText(Exception exception, object exceptionObject)
+    {
+        if (exception != null)
+        {
+            return exception.ToString();
+        }
+
+        if (exceptionObject == null)
+        {
+            return "(No exception object was provided.)";
+        }
+
+        try
+        {
+            return "Non-Exception object: " + exceptionObject;
+        }
+        catch
+        {
+            return "Non-Exception object was provided, but could not be converted to text.";
         }
     }
 
@@ -636,7 +680,8 @@ public static partial class Program
                 source +
                 ": " +
                 (exception == null ? "(no exception object)" : exception.GetType().Name + ": " + exception.Message) +
-                Environment.NewLine);
+                Environment.NewLine,
+                System.Text.Encoding.UTF8);
         }
         catch
         {

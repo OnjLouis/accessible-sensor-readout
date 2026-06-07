@@ -1,6 +1,6 @@
-# Sensor Readout
+﻿# Sensor Readout
 
-Current version: 4.7.1.
+Current version: 4.7.2.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -641,6 +641,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.7.2
+
+- Fixed: GPU usage readings now keep Windows GPU engine counters sampled between refreshes, so active GPU workloads can report non-zero usage instead of repeatedly restarting from a zero baseline.
+- Fixed: Crash logs are now explicitly written independently of the regular logging setting, making unexpected crashes easier to diagnose from the Logs folder even when normal logging is off.
+- Fixed: Bundled French and other language strings now keep accented characters more reliably, and the language loader/editor reads and writes language files as UTF-8, improving screen-reader pronunciation.
 
 ### 4.7.1
 

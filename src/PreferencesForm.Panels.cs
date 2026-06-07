@@ -1194,7 +1194,7 @@ public sealed partial class PreferencesForm : Form
             }
             else
             {
-                System.IO.File.WriteAllLines(path, new[] { "language.name=" + System.IO.Path.GetFileNameWithoutExtension(fileName) });
+                System.IO.File.WriteAllLines(path, new[] { "language.name=" + System.IO.Path.GetFileNameWithoutExtension(fileName) }, System.Text.Encoding.UTF8);
             }
 
             SensorReadoutForm.UpdateLanguageFileValue(path, "language.name", System.IO.Path.GetFileNameWithoutExtension(fileName));
