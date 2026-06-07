@@ -42,6 +42,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Settings save and reload", delegate { form.SelfTestSettingsRoundTrip(); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
+            form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
@@ -149,6 +150,18 @@ public sealed partial class SensorReadoutForm : Form
         SetLatestRows(rows);
         Require(rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase)), "Performance rows missing.");
         Require(rows.Any(r => !string.IsNullOrWhiteSpace(r.Name)), "Collected rows have no names.");
+    }
+
+    private void SelfTestPciSlotSummaryWording()
+    {
+        var unknownSummary = FormatExpansionSlotSummary(5, 1, 0, 4);
+        Require(unknownSummary.IndexOf("4 unknown usage", StringComparison.OrdinalIgnoreCase) >= 0, "Expansion slot summary omitted unknown usage.");
+        Require(unknownSummary.IndexOf("0 empty", StringComparison.OrdinalIgnoreCase) < 0, "Expansion slot summary still says 0 empty.");
+        Require(unknownSummary.IndexOf("reported empty", StringComparison.OrdinalIgnoreCase) < 0, "Expansion slot summary reported empty slots when no slot was reported empty.");
+
+        var emptySummary = FormatExpansionSlotSummary(5, 1, 4, 0);
+        Require(emptySummary.IndexOf("4 reported empty", StringComparison.OrdinalIgnoreCase) >= 0, "Expansion slot summary omitted reported empty slots.");
+        Require(emptySummary.IndexOf("unknown usage", StringComparison.OrdinalIgnoreCase) < 0, "Expansion slot summary reported unknown usage when all slots were classified.");
     }
 
     private void SelfTestCrashLogWriting()

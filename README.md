@@ -1,6 +1,6 @@
 ﻿# Sensor Readout
 
-Current version: 4.7.2.
+Current version: 4.7.3.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -641,6 +641,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.7.3
+
+- Fixed: Expansion-slot summaries now distinguish slots that Windows reports as empty from slots whose usage is unknown, avoiding confusing lines such as "5 slots; 1 in use; 0 empty" when firmware does not report every slot state.
 
 ### 4.7.2
 

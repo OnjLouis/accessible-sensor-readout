@@ -44,17 +44,19 @@ public sealed partial class SensorReadoutForm : Form
 
             var inUse = slots.Count(s => string.Equals(FormatSystemSlotCurrentUsage(GetWmiPropertyValue(s, "CurrentUsage")), "In use", StringComparison.OrdinalIgnoreCase));
             var empty = slots.Count(s => string.Equals(FormatSystemSlotCurrentUsage(GetWmiPropertyValue(s, "CurrentUsage")), "Empty", StringComparison.OrdinalIgnoreCase));
+            var unknown = Math.Max(0, slots.Count - inUse - empty);
             var summaryDetails = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             AddDetail(summaryDetails, "Expansion slot count", slots.Count.ToString());
             AddDetail(summaryDetails, "Expansion slots in use", inUse.ToString());
-            AddDetail(summaryDetails, "Expansion slots empty", empty.ToString());
-            AddDetail(summaryDetails, "Expansion slots unknown usage", Math.Max(0, slots.Count - inUse - empty).ToString());
+            AddDetail(summaryDetails, "Expansion slots reported empty", empty.ToString());
+            AddDetail(summaryDetails, "Expansion slots unknown usage", unknown.ToString());
+            AddDetail(summaryDetails, "Expansion slot usage note", "Windows SMBIOS slot data may report some slots without a clear in-use or empty state.");
             rows.Add(new SensorRow
             {
                 Type = "Performance",
                 Hardware = "PCIe and expansion slots",
                 Name = "Expansion slots",
-                DisplayValue = slots.Count + " slots; " + inUse + " in use; " + empty + " empty",
+                DisplayValue = FormatExpansionSlotSummary(slots.Count, inUse, empty, unknown),
                 Source = "Windows WMI",
                 Details = summaryDetails
             });
@@ -99,6 +101,31 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
         }
+    }
+
+    private static string FormatExpansionSlotSummary(int total, int inUse, int empty, int unknown)
+    {
+        var parts = new List<string>
+        {
+            total + " " + (total == 1 ? "slot" : "slots"),
+            inUse + " in use"
+        };
+
+        if (empty > 0)
+        {
+            parts.Add(empty + " reported empty");
+        }
+
+        if (unknown > 0)
+        {
+            parts.Add(unknown + " unknown usage");
+        }
+        else if (empty == 0)
+        {
+            parts.Add("0 reported empty");
+        }
+
+        return string.Join("; ", parts);
     }
 
     private static void AddPciLinkRows(List<SensorRow> rows)
