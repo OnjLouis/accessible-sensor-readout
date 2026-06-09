@@ -167,8 +167,22 @@ public sealed partial class SensorReadoutForm : Form
     private static void AddGpuMemoryRows(List<SensorRow> rows)
     {
         var dedicatedTotal = GetTotalGpuAdapterMemoryBytes();
-        var dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Local Adapter Memory", "Local Usage");
-        var sharedUsed = ReadGpuMemoryCounterTotal("GPU Non Local Adapter Memory", "Non Local Usage");
+        var dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Adapter Memory", "Dedicated Usage");
+        var dedicatedUsedSource = "GPU Adapter Memory dedicated usage performance counter";
+        if (dedicatedUsed <= 0)
+        {
+            dedicatedUsed = ReadGpuMemoryCounterTotal("GPU Local Adapter Memory", "Local Usage");
+            dedicatedUsedSource = "GPU Local Adapter Memory performance counter";
+        }
+
+        var sharedUsed = ReadGpuMemoryCounterTotal("GPU Adapter Memory", "Shared Usage");
+        var sharedUsedSource = "GPU Adapter Memory shared usage performance counter";
+        if (sharedUsed <= 0)
+        {
+            sharedUsed = ReadGpuMemoryCounterTotal("GPU Non Local Adapter Memory", "Non Local Usage");
+            sharedUsedSource = "GPU Non Local Adapter Memory performance counter";
+        }
+
         AddNvidiaSmiGpuMemoryRows(rows);
         if (dedicatedTotal > 0)
         {
@@ -182,7 +196,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             AddGpuMemoryRow(rows, "Dedicated GPU memory used", dedicatedUsed, "gpu|memory|dedicated-used", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { "Source", "GPU Local Adapter Memory performance counter" }
+                { "Source", dedicatedUsedSource }
             });
         }
 
@@ -193,7 +207,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 { "Calculated from", "Dedicated GPU memory total minus dedicated GPU memory used" },
                 { "Total source", "Win32_VideoController and display registry fallback" },
-                { "Used source", "GPU Local Adapter Memory performance counter" }
+                { "Used source", dedicatedUsedSource }
             });
         }
 
@@ -201,7 +215,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             AddGpuMemoryRow(rows, "Shared GPU memory used", sharedUsed, "gpu|memory|shared-used", "Windows GPU performance counters", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { "Source", "GPU Non Local Adapter Memory performance counter" }
+                { "Source", sharedUsedSource }
             });
         }
     }

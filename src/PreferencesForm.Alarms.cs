@@ -222,7 +222,9 @@ public sealed partial class PreferencesForm : Form
         AddPresetIfFound(result, "GPU memory free low", "Alert when dedicated GPU memory free drops below 1 GB.", FindRow("Performance", "Dedicated GPU memory free", "GPU memory"), "Below", 1, "GB");
         AddPresetIfFound(result, "Disk health low", "Alert when a disk health or remaining-life percentage drops below 90%.", FindDiskHealthRow(), "Below", 90, "%");
         AddPresetIfFound(result, "Disk free space low", "Alert when a drive reports 10% free space or less.", FindRow("Performance", "Free space", null), "Below", 10, "%");
+        AddPresetIfFound(result, "C drive free space low", "Alert when the Windows C drive reports 10% free space or less.", FindDriveRow("C:", "Free space"), "Below", 10, "%");
         AddPresetIfFound(result, "Disk activity high", "Alert when a drive reports 90% total activity.", FindRow("Performance", "Total activity", null), "Above", 90, "%");
+        AddPresetIfFound(result, "C drive activity high", "Alert when the Windows C drive reports 90% total activity.", FindDriveRow("C:", "Total activity"), "Above", 90, "%");
         AddPresetIfFound(result, "Printer issue", "Alert when a printer issue count or offline flag is reported.", FindPrinterIssueRow(), "Above", 0, "value");
         return result;
     }
@@ -253,6 +255,17 @@ public sealed partial class PreferencesForm : Form
             (string.IsNullOrWhiteSpace(type) || string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(name) || string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(hardwareContains) || (r.Hardware ?? "").IndexOf(hardwareContains, StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindDriveRow(string drivePrefix, string name)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            r.Value.HasValue &&
+            string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase) &&
+            ((r.Hardware ?? "").StartsWith(drivePrefix ?? "", StringComparison.OrdinalIgnoreCase) ||
+             SensorReadoutForm.RowSettingsKey(r).IndexOf("logicaldisk/" + (drivePrefix ?? "").TrimEnd(':'), StringComparison.OrdinalIgnoreCase) >= 0));
     }
 
     private SensorRow FindTemperatureRow(string hardwareOrName)

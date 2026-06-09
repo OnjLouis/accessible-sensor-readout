@@ -2,7 +2,7 @@
 
 Sensor Readout Plug-Ins let hardware-specific integrations live outside the main app. The goal is to keep Sensor Readout stable, accessible, and small while still making it possible to support machines whose fans, temperatures, batteries, or firmware data are exposed through vendor-specific tools.
 
-This document describes the 1.6.0 Plug-In model.
+This document describes the Plug-In model. Coding agents and contributors modifying existing bundled Plug-Ins should also read `Docs\Coding-agent-plug-in-rules.md` before editing. If the request is to improve an existing Plug-In, keep the work inside that Plug-In folder unless Andre explicitly approves a core Sensor Readout change.
 
 ## Design Goals
 

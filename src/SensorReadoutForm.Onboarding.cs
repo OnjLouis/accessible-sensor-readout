@@ -332,7 +332,9 @@ public sealed partial class SensorReadoutForm : Form
             L("tip.Tasks category", "The Tasks category shows compact highest-CPU, highest-memory, highest-GPU, and highest-GPU-memory process summaries without turning Sensor Readout into a full task manager."),
             L("tip.Spoken hotkeys category", "The Spoken Hotkeys category gives visual users one place to review what each configured spoken hotkey currently says."),
             L("tip.Category order", "Use Preferences > Categories, or Delete and Ctrl+Up/Ctrl+Down from the main category list, to hide or reorder whole categories."),
-            L("tip.NVIDIA SMI memory", "On NVIDIA systems, NVIDIA SMI memory readings may better match vendor tools than Windows GPU memory counters because they use driver-reported accounting.")
+            L("tip.NVIDIA SMI memory", "On NVIDIA systems, NVIDIA SMI memory readings may better match vendor tools than Windows GPU memory counters because they use driver-reported accounting."),
+            L("tip.Starter hotkeys", "Useful spoken hotkey starters include system status, memory status, C drive activity, network status, Tasks summary, and uptime."),
+            L("tip.Hotkey examples", "Ctrl+Shift+Function keys are a practical pattern for spoken hotkeys because they are easy to group and unlikely to conflict with normal app commands.")
         };
     }
 

@@ -264,6 +264,12 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Performance", "Memory available", "Memory"),
             FindPresetRow("Performance", "System uptime", null),
             FindPresetTemperatureRow("cpu"));
+        AddSpokenPresetIfAny(presets, "Memory status", "Memory used, memory available, and paging file usage where available.",
+            FindPresetRow("Performance", "Memory used", "Memory"),
+            FindPresetRow("Performance", "Memory used size", "Memory"),
+            FindPresetRow("Performance", "Memory available", "Memory"),
+            FindPresetRow("Performance", "Paging file used", "Paging file"),
+            FindPresetRow("Performance", "Paging file free", "Paging file"));
         AddSpokenPresetIfAny(presets, "CPU activity", "CPU usage with the currently highest CPU process where available.",
             FindPresetRow("Performance", "CPU usage", null),
             FindPresetRow("Tasks", "Highest CPU process", null));
@@ -279,6 +285,10 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Performance", "Read activity", null),
             FindPresetRow("Performance", "Write activity", null),
             FindPresetRow("Performance", "Free space", null));
+        AddSpokenPresetIfAny(presets, "C drive activity", "Read/write rates and free space for the Windows C drive where available.",
+            FindPresetDriveRow("C:", "Read rate"),
+            FindPresetDriveRow("C:", "Write rate"),
+            FindPresetDriveRow("C:", "Free space"));
         AddSpokenPresetIfAny(presets, "GPU status", "GPU usage, temperature, and memory where available.",
             FindPresetRow("Performance", "GPU usage", "GPU"),
             FindPresetTemperatureRow("gpu"),
@@ -304,6 +314,11 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Performance", "CPU usage", null));
         AddSpokenPresetIfAny(presets, "Uptime", "System uptime by itself.",
             FindPresetRow("Performance", "System uptime", null));
+        AddSpokenPresetIfAny(presets, "Tasks summary", "Highest CPU, memory, GPU, and GPU memory processes where available.",
+            FindPresetRow("Tasks", "Highest CPU process", null),
+            FindPresetRow("Tasks", "Highest memory process", null),
+            FindPresetRow("Tasks", "Highest GPU process", null),
+            FindPresetRow("Tasks", "Highest GPU memory process", null));
         return presets;
     }
 
@@ -335,6 +350,16 @@ public sealed partial class PreferencesForm : Form
             (string.IsNullOrWhiteSpace(type) || string.Equals(r.Type, type, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(name) || string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(hardwareContains) || (r.Hardware ?? "").IndexOf(hardwareContains, StringComparison.OrdinalIgnoreCase) >= 0));
+    }
+
+    private SensorRow FindPresetDriveRow(string drivePrefix, string name)
+    {
+        return rows.FirstOrDefault(r =>
+            r != null &&
+            string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase) &&
+            ((r.Hardware ?? "").StartsWith(drivePrefix ?? "", StringComparison.OrdinalIgnoreCase) ||
+             SensorReadoutForm.RowSettingsKey(r).IndexOf("logicaldisk/" + (drivePrefix ?? "").TrimEnd(':'), StringComparison.OrdinalIgnoreCase) >= 0));
     }
 
     private SensorRow FindPresetTemperatureRow(string hardwareOrName)

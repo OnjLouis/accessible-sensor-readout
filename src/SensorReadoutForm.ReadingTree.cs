@@ -101,7 +101,8 @@ public sealed partial class SensorReadoutForm : Form
             new CategoryChoice { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" },
             new CategoryChoice { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" },
             new CategoryChoice { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" },
-            new CategoryChoice { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" }
+            new CategoryChoice { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" },
+            new CategoryChoice { Key = "type|Firmware Security", DisplayName = T("type.Firmware Security", "Firmware Security"), Type = "Firmware Security" }
         };
     }
 
@@ -2126,12 +2127,17 @@ public sealed partial class SensorReadoutForm : Form
             return 12;
         }
 
+        if (type == "Firmware Security")
+        {
+            return 13;
+        }
+
         if (type == "Battery")
         {
             return 4;
         }
 
-        return 13;
+        return 14;
     }
 
     public static string DisplayTypeName(string type)
@@ -2201,6 +2207,11 @@ public sealed partial class SensorReadoutForm : Form
             return T("type.Devices", "Devices");
         }
 
+        if (type == "Firmware Security")
+        {
+            return T("type.Firmware Security", "Firmware Security");
+        }
+
         return string.IsNullOrWhiteSpace(type) ? T("type.Readings", "Readings") : type;
     }
 
@@ -2208,6 +2219,15 @@ public sealed partial class SensorReadoutForm : Form
     {
         var clean = CleanSensorName(name);
         if (clean.Equals("System uptime", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("Firmware mode", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (clean.Equals("Secure Boot", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (clean.Equals("UEFI database access", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (clean.Equals("UEFI certificate databases", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (clean.Equals("Earliest certificate expiry", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (clean.Equals("Expired certificates", StringComparison.OrdinalIgnoreCase)) return 5;
+        if (clean.Equals("Not-yet-valid certificates", StringComparison.OrdinalIgnoreCase)) return 6;
+        if (clean.Equals("Possible test certificates", StringComparison.OrdinalIgnoreCase)) return 7;
+        if (clean.Equals("Hash-only entries", StringComparison.OrdinalIgnoreCase)) return 8;
         if (clean.Equals("Manufacturer", StringComparison.OrdinalIgnoreCase)) return 1;
         if (clean.Equals("Model", StringComparison.OrdinalIgnoreCase)) return 2;
         if (clean.Equals("CPU usage", StringComparison.OrdinalIgnoreCase)) return 0;

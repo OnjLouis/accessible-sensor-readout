@@ -1,6 +1,6 @@
-﻿# Sensor Readout
+# Sensor Readout
 
-Current version: 4.7.3.
+Current version: 4.7.4.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -80,8 +80,8 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
 - Can run opt-in alarms for selected readings, speaking through the active screen reader and/or playing a chosen WAV file when a threshold is reached.
-- Includes alarm presets for common cases such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU/GPU temperature, disk health warnings, and printer problems when matching readings are available.
-- Includes spoken hotkey presets for common starter profiles such as system status, network status, disk activity, GPU status, battery status, and fan/temperature status. Spoken hotkey profiles are listed by assigned key so configured shortcuts stay easy to scan.
+- Includes alarm presets for common cases such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU/GPU temperature, disk health warnings, C drive free space or activity, and printer problems when matching readings are available.
+- Includes spoken hotkey presets for common starter profiles such as system status, memory status, network status, C drive activity, disk activity, GPU status, Tasks summary, battery status, and fan/temperature status. Spoken hotkey profiles are listed by assigned key so configured shortcuts stay easy to scan.
 - Includes a Help menu accessibility setup check for screen reader output, notification area speech, show/hide keys, report/log folder availability, and common startup-minimized pitfalls.
 - Can play optional startup and shutdown sounds from the `Sounds` folder.
 - Supports opt-in hardware plug-ins from the `Plug-Ins` folder for extra machine-specific hardware support. Installed plug-ins stay disabled until you enable them in Preferences.
@@ -161,6 +161,12 @@ Use `Help` > `Check accessibility setup...` after first run or after changing st
 If you use `Start minimized to notification area`, set a show/hide hotkey in `Options` > `Preferences` > `General`. Without that key, Sensor Readout can still be opened from its notification-area icon, but Windows may hide new tray icons until you allow them in Windows notification area or system tray settings. A show/hide hotkey gives keyboard and screen-reader users a reliable way to bring the main window back.
 
 The same Hotkeys tab can set a key for `Speak notification area status`. That key reads the configured notification-area readings without opening the main window, and it is often the fastest way to check important values such as memory, temperatures, uptime, network status, or GPU memory.
+
+## Recommended Hotkey Ideas
+
+Spoken hotkeys are personal, but a simple pattern helps. `Ctrl+Shift+Function key` combinations are usually easy to group and unlikely to conflict with ordinary app commands. For example, you might use `Ctrl+Shift+F1` for CPU and temperature, `Ctrl+Shift+F2` for Tasks, `Ctrl+Shift+F3` for network, `Ctrl+Shift+F4` for read/write activity, `Ctrl+Shift+F11` for notification-area status, and `Ctrl+Shift+F12` for show/hide.
+
+Good starter profiles are readings that exist on most Windows systems or remain useful across machines: system status, memory status, uptime, C drive activity, network send/receive rates, GPU status when present, Tasks summary, and fan/temperature status when sensors are available. Use `Ctrl+Shift+H` on any reading to add it quickly, or use `Options` > `Preferences` > `Hotkeys` > `Presets...` to create starter profiles and assign your own keys.
 
 ## Keyboard Shortcuts
 
@@ -312,7 +318,7 @@ The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Sp
 - Skip unavailable readings when speaking notification area status: omit configured tray readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.
 - Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
 - Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
-- Spoken hotkey presets: create starter profiles with useful reading groups. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
+- Spoken hotkey presets: create starter profiles with useful reading groups such as system status, memory status, C drive activity, Tasks summary, network, GPU, battery, or cooling readings. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
 - Copy, cut, and paste readings: use `Ctrl+C`, `Ctrl+X`, and `Ctrl+V`, or the matching buttons, to copy readings between notification area status and spoken hotkey profiles without rebuilding each list from scratch.
 
@@ -330,7 +336,7 @@ Fan profiles can be toggles. With that option enabled, pressing the profile hotk
 
 The Alarms tab lets you monitor readings without watching the main window.
 
-- Use `Presets...` to add common alarms for available readings, such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU or GPU temperature, disk health warnings, or printer problems.
+- Use `Presets...` to add common alarms for available readings, such as low battery, Wi-Fi disconnect, weak Wi-Fi signal, high CPU or GPU temperature, disk health warnings, C drive free space or activity, or printer problems.
 - Choose a reading.
 - Choose Above or equal, Below or equal, or Equal.
 - Set the threshold and unit.
@@ -426,6 +432,8 @@ The Audio section groups related endpoints under their device or interface name 
 
 The Display section shows graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.
 
+The Firmware Security section is read-only. It shows firmware mode, Secure Boot state, and, on UEFI systems where Windows permits access, summary information about Secure Boot certificate databases such as readable database count, certificate/hash counts, earliest certificate expiry, expired certificates, not-yet-valid certificates, and possible test certificates. Details group the certificate subjects, issuers, validity dates, thumbprints, serial numbers, and database read errors. Sensor Readout does not modify Secure Boot variables or EFI files.
+
 When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.
 
 Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
@@ -509,7 +517,7 @@ The first save creates the `Reports` folder if it does not already exist. Use `F
 
 Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name, masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them, and removes online public-IP lookup rows entirely.
 
-### Anonymous Community Stats
+### Submitting Community Stats
 
 Use `Help` > `Share anonymous community stats...` if you want to help improve Sensor Readout's hardware and accessibility coverage data without sending a report. This is explicit opt-in only: Sensor Readout builds the small JSON payload, shows you the exact text first, and uploads nothing unless you press `Upload`.
 
@@ -518,6 +526,12 @@ Community stats are not anonymized reports. They are a separate allow-listed pay
 Sensor Readout stores a random local anonymous client ID in its settings and sends only a SHA-256 hash of that ID. This lets one installation update its previous aggregate entry without using hardware-derived identity. Deleting the app settings or using a separate portable copy creates a new anonymous entry.
 
 After a successful upload, Sensor Readout opens the public aggregate page at [onj.me/srstats](https://onj.me/srstats/). You can also visit that page without submitting anything. For testing, `Sensor Readout.exe --community-stats-json [path]` writes the same allow-listed payload to a file and exits without uploading it.
+
+### Security Scanners and Privacy
+
+Sensor Readout reads hardware, driver, device, update, accessibility, and performance information because that is the purpose of the app. Some security sandboxes may describe this kind of behaviour broadly because Sensor Readout uses Windows APIs such as WMI and the registry, writes reports and diagnostics, loads bundled hardware plug-ins, and can update its own program files after you approve an update.
+
+Sensor Readout does not collect passwords, browser data, tokens, private documents, or installed-program lists, and it does not upload reports or diagnostics silently. Reports stay on your computer unless you choose to share them. Community stats are a separate opt-in feature, show the exact payload before upload, and send only the allow-listed aggregate fields described above.
 
 ### Opening Someone Else's Report
 
@@ -581,6 +595,8 @@ Configuration and logging created by the app:
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
 - Users can add third-party plug-ins in their own subfolders.
+- `Docs\Plug-In-development.md`: plug-in SDK and manifest guide.
+- `Docs\Coding-agent-plug-in-rules.md`: strict guidance for coding agents working on plug-ins. Existing plug-in work must stay inside the relevant plug-in folder unless a core app change is explicitly approved.
 
 Language files:
 
@@ -641,6 +657,14 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.7.4
+
+- Fixed: Dedicated GPU memory readings now use Windows' adapter dedicated-memory counter when available, making GPU memory used/free readings better match NVIDIA SMI, GPU-Z, and real GPU workloads such as Ollama.
+- Added: Spoken hotkey presets now include memory status, C drive activity, and a compact Tasks summary, and alarm presets now include C drive free-space and activity warnings when matching readings are available.
+- Improved: The manual and Hints and Tips now include practical spoken hotkey examples, including common `Ctrl+Shift+Function key` layouts and starter readings such as uptime, memory, C drive activity, network status, and Tasks summary.
+- Added: The manual now explains why hardware-inspection and updater behaviour can look broad to security sandboxes, and clarifies that Sensor Readout does not silently upload reports, diagnostics, credentials, browser data, private documents, or installed-program lists.
+- Added: A read-only Firmware Security category shows firmware mode, Secure Boot state, and UEFI Secure Boot certificate database summaries where Windows permits access, including certificate expiry and possible test-certificate warnings.
 
 ### 4.7.3
 

@@ -200,6 +200,16 @@ if (Test-Path $dataSource) {
     }
 }
 
+$docsSource = Join-Path $PSScriptRoot 'Docs'
+$docsTarget = Join-Path $portable 'Docs'
+if (Test-Path $docsSource) {
+    New-Item -ItemType Directory -Force -Path $docsTarget | Out-Null
+    $docsFiles = Get-ChildItem -LiteralPath $docsSource -Filter 'README-*.html' -File -Force
+    if ($docsFiles.Count -gt 0) {
+        Copy-Item -LiteralPath $docsFiles.FullName -Destination $docsTarget -Force
+    }
+}
+
 $langTarget = Join-Path $portable 'Langs'
 if (Test-Path $langTarget) {
     New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null

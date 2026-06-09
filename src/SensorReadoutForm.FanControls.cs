@@ -311,7 +311,7 @@ public sealed partial class SensorReadoutForm : Form
         rows = TimedTransformRows(rows, "FanLabels", ApplyFanLabelsToReadings, timings);
 
         var result = ConsolidateRelatedRows(rows
-            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "Bluetooth" || s.Type == "Tasks" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Devices" || s.Type == "Fan Control")
+            .Where(s => s.Type == "Temperature" || s.Type == "Fan" || s.Type == "SMART" || s.Type == "Performance" || s.Type == "Battery" || s.Type == "Network" || s.Type == "Bluetooth" || s.Type == "Tasks" || s.Type == "USB" || s.Type == "Audio" || s.Type == "Display" || s.Type == "Devices" || s.Type == "Firmware Security" || s.Type == "Fan Control")
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList());
@@ -451,6 +451,7 @@ public sealed partial class SensorReadoutForm : Form
             .Concat(GetAudioRows())
             .Concat(GetDisplayRows())
             .Concat(GetDeviceInventoryRows())
+            .Concat(GetFirmwareSecurityRows())
             .Concat(GetCpuDetailRows())
             .Concat(GetMemoryDetailRows())
             .Concat(GetPciExpansionRows())
