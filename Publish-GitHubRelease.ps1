@@ -99,7 +99,8 @@ if ($SkipReleaseCreate) {
 }
 
 $notesPath = Join-Path $env:TEMP "SensorReadout-$Version-release-notes.md"
-Set-Content -LiteralPath $notesPath -Value (Read-ChangelogEntry $Version) -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($notesPath, (Read-ChangelogEntry $Version), $utf8NoBom)
 
 Info "Creating GitHub release v$Version."
 & gh release create "v$Version" $programZip $sourceZip --repo $repo --title "Sensor Readout $Version" --notes-file $notesPath
