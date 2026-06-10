@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 internal static class NativeMethods
@@ -159,6 +162,20 @@ internal static class ScreenReaderOutput
     private static bool loadAttempted;
     private static bool loaded;
     private static string loadError = "Tolk screen reader library is not loaded.";
+    private static readonly object detectLock = new object();
+    private static List<string> cachedDetectedScreenReaders = new List<string>();
+    private static DateTime cachedDetectedScreenReadersUtc = DateTime.MinValue;
+    private static readonly TimeSpan DetectedScreenReadersCacheAge = TimeSpan.FromSeconds(2);
+    private static readonly Dictionary<string, string> SupportedScreenReaderProcessNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "nvda", "NVDA" },
+        { "jfw", "JAWS" },
+        { "narrator", "Narrator" },
+        { "supernova", "SuperNova" },
+        { "zoomtext", "ZoomText" },
+        { "fusion", "Fusion" },
+        { "systemaccess", "System Access" }
+    };
 
     [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
     private static extern void Tolk_Load();
@@ -190,6 +207,16 @@ internal static class ScreenReaderOutput
         return TryOutput(text, false, out error);
     }
 
+    public static bool TrySpeakForActiveScreenReader(string text, out string error)
+    {
+        return TryOutputForActiveScreenReader(text, true, out error);
+    }
+
+    public static bool TrySpeakPoliteForActiveScreenReader(string text, out string error)
+    {
+        return TryOutputForActiveScreenReader(text, false, out error);
+    }
+
     public static bool IsAvailable
     {
         get
@@ -197,6 +224,59 @@ internal static class ScreenReaderOutput
             string error;
             return EnsureLoaded(out error);
         }
+    }
+
+    public static bool IsActiveScreenReaderDetected
+    {
+        get { return DetectSupportedScreenReaders().Count > 0; }
+    }
+
+    public static bool IsActiveScreenReaderOutputAvailable
+    {
+        get
+        {
+            string error;
+            return IsActiveScreenReaderDetected && EnsureLoaded(out error);
+        }
+    }
+
+    public static List<string> DetectSupportedScreenReaders()
+    {
+        lock (detectLock)
+        {
+            if ((DateTime.UtcNow - cachedDetectedScreenReadersUtc) <= DetectedScreenReadersCacheAge)
+            {
+                return new List<string>(cachedDetectedScreenReaders);
+            }
+        }
+
+        var found = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    string label;
+                    if (SupportedScreenReaderProcessNames.TryGetValue(process.ProcessName ?? "", out label) && !string.IsNullOrWhiteSpace(label))
+                    {
+                        found.Add(label);
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        var result = found.ToList();
+        lock (detectLock)
+        {
+            cachedDetectedScreenReaders = new List<string>(result);
+            cachedDetectedScreenReadersUtc = DateTime.UtcNow;
+        }
+
+        return result;
     }
 
     public static void Shutdown()
@@ -215,6 +295,17 @@ internal static class ScreenReaderOutput
         }
 
         loaded = false;
+    }
+
+    private static bool TryOutputForActiveScreenReader(string text, bool interrupt, out string error)
+    {
+        if (!IsActiveScreenReaderDetected)
+        {
+            error = "No supported screen reader process is active.";
+            return false;
+        }
+
+        return TryOutput(text, interrupt, out error);
     }
 
     private static bool TryOutput(string text, bool interrupt, out string error)

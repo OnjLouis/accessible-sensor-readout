@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.7.4";
+    public const string AppVersion = "4.8.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -26,6 +26,9 @@ public sealed partial class SensorReadoutForm : Form
     public const string ReadingTreeExpansionExpanded = "Expanded";
     public const string ReadingTreeExpansionCollapsed = "Collapsed";
     public const string ReadingTreeExpansionRemember = "Remember";
+    public const string CategorySpeechFull = "Full";
+    public const string CategorySpeechBrief = "Brief";
+    public const string CategorySpeechOff = "Off";
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editUndoMenuItem;
@@ -333,6 +336,7 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(languageMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
+        optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem(T("ui.&Spoken feedback...", "Spoken and visual feed&back..."), "", delegate { ShowPreferences("Spoken feedback"); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
 
         hotkeysMenu = new ToolStripMenuItem("Hot&keys");

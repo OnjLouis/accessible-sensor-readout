@@ -52,6 +52,11 @@ public sealed class AppSettings
     public bool StartupSpeechEnabled = true;
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
+    public string CategorySpeechMode = "Full";
+    public bool FallbackCategorySpeechEnabled = false;
+    public bool VisualSpokenFeedbackEnabled = false;
+    public string VisualSpokenFeedbackPlacement = "BottomRight";
+    public int VisualSpokenFeedbackTimeoutSeconds = 6;
     public bool TrayStatusEnabled = true;
     public bool TrayTooltipShowsPartialReadings = true;
     public bool TraySpeechSkipsUnavailableReadings = true;
@@ -112,6 +117,11 @@ public sealed class SharedAppSettings
     public bool StartupSpeechEnabled = true;
     public string StartupSpeechMessage = "";
     public bool SpeechIncludesDeviceNames = true;
+    public string CategorySpeechMode = "Full";
+    public bool FallbackCategorySpeechEnabled = false;
+    public bool VisualSpokenFeedbackEnabled = false;
+    public string VisualSpokenFeedbackPlacement = "BottomRight";
+    public int VisualSpokenFeedbackTimeoutSeconds = 6;
     public bool TrayStatusEnabled = true;
     public bool TrayTooltipShowsPartialReadings = true;
     public bool TraySpeechSkipsUnavailableReadings = true;

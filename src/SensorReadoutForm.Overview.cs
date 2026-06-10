@@ -213,8 +213,8 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var details = GetAccessibilityDetails();
-        var detectedScreenReaders = DetectScreenReaders();
-        AddOverviewTextRow(rows, "Screen reader output", ScreenReaderOutput.IsAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"), "Sensor Readout", details);
+        var detectedScreenReaders = ScreenReaderOutput.DetectSupportedScreenReaders();
+        AddOverviewTextRow(rows, "Screen reader output", ScreenReaderOutput.IsActiveScreenReaderOutputAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"), "Sensor Readout", details);
         AddOverviewTextRow(rows, "Detected screen readers", detectedScreenReaders.Count == 0 ? T("ui.None detected", "None detected") : string.Join(", ", detectedScreenReaders.ToArray()), "Windows processes", details);
 
         bool enabled;
@@ -252,8 +252,8 @@ public sealed partial class SensorReadoutForm : Form
     private static Dictionary<string, string> GetAccessibilityDetails()
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddDetail(details, "Screen reader output available", ScreenReaderOutput.IsAvailable ? "Yes" : "No");
-        var detectedScreenReaders = DetectScreenReaders();
+        AddDetail(details, "Screen reader output available", ScreenReaderOutput.IsActiveScreenReaderOutputAvailable ? "Yes" : "No");
+        var detectedScreenReaders = ScreenReaderOutput.DetectSupportedScreenReaders();
         AddDetail(details, "Detected screen readers", detectedScreenReaders.Count == 0 ? "None detected" : string.Join(", ", detectedScreenReaders.ToArray()));
 
         uint flags;

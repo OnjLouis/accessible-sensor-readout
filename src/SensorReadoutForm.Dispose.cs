@@ -70,6 +70,16 @@ public sealed partial class SensorReadoutForm : Form
             visibleRefreshTimer.Dispose();
         }
 
+        if (disposing && visualSpokenFeedbackTimer != null)
+        {
+            visualSpokenFeedbackTimer.Dispose();
+        }
+
+        if (disposing && visualSpokenFeedbackForm != null)
+        {
+            visualSpokenFeedbackForm.Dispose();
+        }
+
         if (disposing && closeRequestEvent != null)
         {
             closeRequestEvent.Dispose();

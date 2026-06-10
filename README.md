@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.7.4.
+Current version: 4.8.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -34,7 +34,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 
 ## What It Does
 
-- Reads temperatures, fan RPM, storage health, storage capacity, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
+- Reads temperatures, fan RPM, storage health, storage capacity, NVMe PCIe link generation where Windows exposes it, BitLocker drive status where Windows exposes it, connected-device information, and selected hardware counters.
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, PCIe/expansion-slot information, connected-disk totals, accessibility status, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
@@ -219,7 +219,7 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | Details dialog | `Ctrl+C` / `Ctrl+Shift+C` | Copy the selected Details branch, or copy value-only lines from the selected branch. |
 | Details dialog | `F3` / `F4` | Find within Details, or review the selected Details branch in a read-only text box. |
 | Details dialog | `Ctrl+Shift+Right` / `Ctrl+Shift+Left` | Expand or collapse all Details groups. |
-| Preferences | `Ctrl+1` to `Ctrl+9` | Jump to General, Startup and Install, Hotkeys, Fan profiles, Alarms, Plug-Ins, Categories, Hidden items, or Language editor. |
+| Preferences | `Ctrl+1` to `Ctrl+0` | Jump to General, Startup and Install, Hotkeys, Spoken and visual feedback, Fan profiles, Alarms, Plug-Ins, Categories, Hidden items, or Language editor. |
 | Preferences | `F3` | Find a reading or fan control before adding it to notification area status, a spoken hotkey, or a fan profile. |
 | Preferences | `F2` | Jump to the name or rename field where applicable. |
 | Preferences > Hotkeys | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` | Copy, cut, or paste the selected reading between notification area status and spoken hotkey profiles. |
@@ -326,13 +326,22 @@ Spoken hotkey profiles can be imported from another machine's `Config\<ComputerN
 
 Each spoken hotkey profile also has `Skip unavailable readings for this hotkey`, so one profile can stay strict while another profile only announces active readings such as connected drives or adapters that are currently up.
 
-### Fan Profiles (`Ctrl+4`)
+### Spoken and Visual Feedback (`Ctrl+4`)
+
+The Spoken and visual feedback tab controls routine category speech and optional visual output for spoken hotkeys.
+
+- Category speech: choose full category guidance, brief category-and-shortcut announcements, or off.
+- Speak categories through Windows speech when no screen reader is detected: lets sighted or partially sighted users opt into category-change speech from Windows speech. That fallback speech interrupts itself so rapid category movement does not queue old messages.
+- Show visual spoken hotkey feedback: show spoken hotkey output in a temporary floating Sensor Readout window even when a screen reader is running.
+- Visual feedback placement and timeout: choose where the floating feedback window appears and how long it stays visible.
+
+### Fan Profiles (`Ctrl+5`)
 
 The Fan profiles tab builds named groups of fan actions. The layout matches the Hotkeys tab: create a profile, assign an optional global hotkey, add fan controls to the profile, then choose whether each fan should be set to a manual percentage or returned to automatic/default control.
 
 Fan profiles can be toggles. With that option enabled, pressing the profile hotkey once applies the profile, and pressing the same hotkey again returns those fans to automatic/default control. Each profile can speak a custom message and/or play a chosen sound when it is applied.
 
-### Alarms (`Ctrl+5`)
+### Alarms (`Ctrl+6`)
 
 The Alarms tab lets you monitor readings without watching the main window.
 
@@ -345,11 +354,11 @@ The Alarms tab lets you monitor readings without watching the main window.
 
 Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.
 
-### Plug-Ins (`Ctrl+6`)
+### Plug-Ins (`Ctrl+7`)
 
 The Plug-Ins tab lists installed hardware plug-ins and describes what each one does. Plug-ins are trusted code, so only enable plug-ins from people or projects you trust. Imported plug-in ZIP files are copied into the `Plug-Ins` folder but stay disabled until you enable them yourself.
 
-### Categories (`Ctrl+7`)
+### Categories (`Ctrl+8`)
 
 The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
@@ -357,11 +366,11 @@ Main categories stay visible unless you hide them yourself, even when the curren
 
 You can also manage categories directly from the main category list. Press `Delete` to hide the selected category, `Ctrl+Up` or `Ctrl+Down` to move it, or press the Application key/right-click for the category context menu. When the category list has focus, the status line and screen-reader output include the shortcut for the selected category.
 
-### Hidden Items (`Ctrl+8`)
+### Hidden Items (`Ctrl+9`)
 
 The Hidden items tab restores readings or categories hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.
 
-### Language Editor (`Ctrl+9`)
+### Language Editor (`Ctrl+0`)
 
 The Language editor tab edits installed language files without opening a separate text editor. English is the primary fallback language. Missing translated strings fall back to English, and corrupt language files are skipped rather than crashing the app.
 
@@ -414,7 +423,7 @@ Sensor Readout opens on Performance/Overview by default. There is no combined al
 
 If a category has no visible readings, Sensor Readout now gives a category-specific hint instead of a generic blank tree. Depending on the section, it may suggest refreshing, connecting hardware, enabling a plug-in, checking hidden items, or waiting for slow Windows-backed inventory data.
 
-The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device.
+The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device. NVMe drives can show an `NVMe link` row such as `PCIe Gen 4 x4 current; PCIe Gen 4 x4 maximum` when Windows exposes a matching NVMe controller and PCIe link data.
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
@@ -615,6 +624,8 @@ Optional screen-reader speech:
 
 - Spoken hotkeys and alarms use Tolk to talk to the active screen reader where possible.
 - `Tolk.dll`, `SAAPI64.dll`, and Tolk support DLLs are bundled beside `Sensor Readout.exe` for screen-reader and SAPI speech.
+- Routine spoken guidance is only sent when a supported screen reader is detected, so sighted users do not get slow fallback speech while browsing categories. Preferences > Spoken and visual feedback can opt non-screen-reader users back into Windows speech for category changes, and that fallback category speech interrupts itself so repeated category movement does not queue.
+- Preferences > Spoken and visual feedback lets you choose how much routine category speech Sensor Readout sends while you move through the category list: full guidance, a brief category-and-shortcut announcement, or off. It can also show explicit spoken hotkey output in a temporary visual feedback window with configurable placement and timeout whenever that visual option is enabled.
 - If Tolk is missing or no speech target accepts the message, the action fails safely and shows a status message when the main window is visible.
 - When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through the active screen reader. The default comes from `speech.startupActive` in the selected language file.
 - Preferences includes a simple language editor tab for editing existing language-file entries without opening a separate text editor.
@@ -657,6 +668,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.8.0
+
+- Added: NVMe drives can now show their PCIe link generation and width, including current and maximum link information where Windows exposes the matching controller data.
+- Added: Preferences now includes a Spoken and visual feedback tab where you can set category-change speech to full guidance, brief category-and-shortcut announcements, or off, optionally enable interrupting Windows speech for category changes when no screen reader is running, and show explicit spoken hotkey output in a temporary visual feedback window when that visual option is enabled.
+- Fixed: Sensor Readout now suppresses routine spoken guidance when no supported screen reader is detected, preventing Windows speech/SAPI from slowly reading every category or hint for sighted users unless that fallback category speech is explicitly enabled.
+- Improved: Community stats now count systems with no detected screen reader as "None detected" in the detected screen readers table, so sighted-user submissions are visible and the table total matches the machine count.
 
 ### 4.7.4
 

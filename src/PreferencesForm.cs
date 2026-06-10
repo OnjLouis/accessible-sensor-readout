@@ -44,6 +44,11 @@ public sealed partial class PreferencesForm : Form
     private readonly CheckBox startupSpeechEnabledCheckBox;
     private readonly TextBox startupSpeechMessageBox;
     private readonly CheckBox speechIncludesDeviceNamesCheckBox;
+    private readonly ComboBox categorySpeechModeBox;
+    private readonly CheckBox fallbackCategorySpeechCheckBox;
+    private readonly CheckBox visualSpokenFeedbackCheckBox;
+    private readonly ComboBox visualSpokenFeedbackPlacementBox;
+    private readonly NumericUpDown visualSpokenFeedbackTimeoutBox;
     private readonly ComboBox loggingLevelBox;
     private readonly TabControl preferencesTabs;
     private ComboBox languageEditorFileBox;
@@ -184,6 +189,11 @@ public sealed partial class PreferencesForm : Form
         }
     }
     public bool SpeechIncludesDeviceNames { get { return speechIncludesDeviceNamesCheckBox.Checked; } }
+    public string CategorySpeechMode { get { return CategorySpeechModeFromIndex(categorySpeechModeBox.SelectedIndex); } }
+    public bool FallbackCategorySpeechEnabled { get { return fallbackCategorySpeechCheckBox != null && fallbackCategorySpeechCheckBox.Checked; } }
+    public bool VisualSpokenFeedbackEnabled { get { return visualSpokenFeedbackCheckBox != null && visualSpokenFeedbackCheckBox.Checked; } }
+    public string VisualSpokenFeedbackPlacement { get { return VisualSpokenFeedbackPlacementFromIndex(visualSpokenFeedbackPlacementBox == null ? 0 : visualSpokenFeedbackPlacementBox.SelectedIndex); } }
+    public int VisualSpokenFeedbackTimeoutSeconds { get { return visualSpokenFeedbackTimeoutBox == null ? 6 : Convert.ToInt32(visualSpokenFeedbackTimeoutBox.Value); } }
     public string LoggingLevel
     {
         get
@@ -278,6 +288,7 @@ public sealed partial class PreferencesForm : Form
         var generalTab = new TabPage("General") { Name = "General" };
         var startupTab = new TabPage("Startup and Install") { Name = "Startup" };
         var hotKeysTab = new TabPage("Hotkeys") { Name = "Hotkeys" };
+        var spokenFeedbackTab = new TabPage(SensorReadoutForm.L("ui.Spoken feedback", "Spoken and visual feedback")) { Name = "Spoken feedback" };
         var fanProfilesTab = new TabPage("Fan profiles") { Name = "Fan profiles" };
         var alarmsTab = new TabPage("Alarms") { Name = "Alarms" };
         var plugInsTab = new TabPage("Plug-Ins") { Name = "Plug-Ins" };
@@ -725,6 +736,47 @@ public sealed partial class PreferencesForm : Form
             AutoSize = true,
             AccessibleName = "Include device names in spoken feedback",
             AccessibleDescription = "When checked, spoken status includes device names such as WiFi or CPU before each selected reading."
+        };
+        categorySpeechModeBox = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 280,
+            AccessibleName = SensorReadoutForm.L("a11y.Category speech", "Category speech"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Controls routine spoken feedback when moving through the category list.", "Controls routine spoken feedback when moving through the category list. Full says the category and shortcut, Brief says only the category and shortcut, and Off does not speak routine category changes.")
+        };
+        categorySpeechModeBox.Items.AddRange(CategorySpeechModeOptions().Cast<object>().ToArray());
+        categorySpeechModeBox.SelectedIndex = SafeComboIndex(categorySpeechModeBox, CategorySpeechModeIndex(settings.CategorySpeechMode));
+        fallbackCategorySpeechCheckBox = new CheckBox
+        {
+            Text = SensorReadoutForm.L("ui.Speak categories through &Windows speech when no screen reader is detected", "Speak categories through &Windows speech when no screen reader is detected"),
+            Checked = settings.FallbackCategorySpeechEnabled,
+            AutoSize = true,
+            AccessibleName = SensorReadoutForm.L("a11y.Speak categories through Windows speech", "Speak categories through Windows speech"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.When checked, category changes can use Windows speech if no supported screen reader is running. Category speech interrupts itself so repeated category changes do not queue.", "When checked, category changes can use Windows speech if no supported screen reader is running. Category speech interrupts itself so repeated category changes do not queue.")
+        };
+        visualSpokenFeedbackCheckBox = new CheckBox
+        {
+            Text = SensorReadoutForm.L("ui.Show &visual spoken hotkey feedback", "Show &visual spoken hotkey feedback"),
+            Checked = settings.VisualSpokenFeedbackEnabled,
+            AutoSize = true,
+            AccessibleName = SensorReadoutForm.L("a11y.Show visual spoken hotkey feedback", "Show visual spoken hotkey feedback"),
+            AccessibleDescription = SensorReadoutForm.L("a11y.When checked, spoken hotkeys also appear in a temporary visual feedback window.", "When checked, spoken hotkeys also appear in a temporary visual feedback window.")
+        };
+        visualSpokenFeedbackPlacementBox = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 180,
+            AccessibleName = SensorReadoutForm.L("a11y.Visual spoken feedback placement", "Visual spoken feedback placement")
+        };
+        visualSpokenFeedbackPlacementBox.Items.AddRange(VisualSpokenFeedbackPlacementOptions().Cast<object>().ToArray());
+        visualSpokenFeedbackPlacementBox.SelectedIndex = SafeComboIndex(visualSpokenFeedbackPlacementBox, VisualSpokenFeedbackPlacementIndex(settings.VisualSpokenFeedbackPlacement));
+        visualSpokenFeedbackTimeoutBox = new NumericUpDown
+        {
+            Minimum = 2,
+            Maximum = 30,
+            Value = SensorReadoutForm.NormalizeVisualSpokenFeedbackTimeoutSeconds(settings.VisualSpokenFeedbackTimeoutSeconds),
+            Width = 70,
+            AccessibleName = SensorReadoutForm.L("a11y.Visual spoken feedback timeout seconds", "Visual spoken feedback timeout seconds")
         };
         traySpeechSkipsUnavailableReadingsCheckBox = new CheckBox
         {
@@ -1339,6 +1391,74 @@ public sealed partial class PreferencesForm : Form
         hotKeysLayout.Controls.Add(BuildSpokenHotKeysPanel(), 0, 2);
         hotKeysTab.Controls.Add(hotKeysLayout);
         preferencesTabs.TabPages.Add(hotKeysTab);
+
+        var spokenFeedbackLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            Padding = new Padding(10)
+        };
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        spokenFeedbackLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var categorySpeechPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Dock = DockStyle.Fill
+        };
+        categorySpeechPanel.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.&Category speech:", "&Category speech:"),
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0),
+            AccessibleDescription = SensorReadoutForm.L("a11y.Controls what Sensor Readout sends to the screen reader while you move through categories.", "Controls what Sensor Readout sends to the screen reader while you move through categories.")
+        });
+        categorySpeechPanel.Controls.Add(categorySpeechModeBox);
+        spokenFeedbackLayout.Controls.Add(categorySpeechPanel, 0, 0);
+        spokenFeedbackLayout.Controls.Add(fallbackCategorySpeechCheckBox, 0, 1);
+        spokenFeedbackLayout.Controls.Add(visualSpokenFeedbackCheckBox, 0, 2);
+        var visualPlacementPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Dock = DockStyle.Fill
+        };
+        visualPlacementPanel.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.Visual feedback &placement:", "Visual feedback &placement:"),
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0)
+        });
+        visualPlacementPanel.Controls.Add(visualSpokenFeedbackPlacementBox);
+        spokenFeedbackLayout.Controls.Add(visualPlacementPanel, 0, 3);
+        var visualTimeoutPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Dock = DockStyle.Fill
+        };
+        visualTimeoutPanel.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.Visual feedback &timeout:", "Visual feedback &timeout:"),
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0)
+        });
+        visualTimeoutPanel.Controls.Add(visualSpokenFeedbackTimeoutBox);
+        visualTimeoutPanel.Controls.Add(new Label
+        {
+            Text = SensorReadoutForm.L("ui.seconds", "seconds"),
+            AutoSize = true,
+            Padding = new Padding(6, 6, 0, 0)
+        });
+        spokenFeedbackLayout.Controls.Add(visualTimeoutPanel, 0, 4);
+        spokenFeedbackTab.Controls.Add(spokenFeedbackLayout);
+        preferencesTabs.TabPages.Add(spokenFeedbackTab);
+
         fanProfilesTab.Controls.Add(BuildFanProfilesPanel());
         preferencesTabs.TabPages.Add(fanProfilesTab);
         alarmsTab.Controls.Add(BuildAlarmsPanel());
@@ -1405,6 +1525,11 @@ public sealed partial class PreferencesForm : Form
         showHideHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         speakTrayHotKeyBox.TextChanged += delegate { SaveLivePreferences(); };
         hotKeyCopyDoublePressBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        categorySpeechModeBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        fallbackCategorySpeechCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        visualSpokenFeedbackCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        visualSpokenFeedbackPlacementBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        visualSpokenFeedbackTimeoutBox.ValueChanged += delegate { SaveLivePreferences(); };
         startupSpeechEnabledCheckBox.CheckedChanged += delegate
         {
             startupSpeechMessageBox.Enabled = startupSpeechEnabledCheckBox.Checked;

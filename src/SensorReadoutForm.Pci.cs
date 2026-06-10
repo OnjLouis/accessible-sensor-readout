@@ -8,7 +8,9 @@ using System.Windows.Forms;
 public sealed partial class SensorReadoutForm : Form
 {
     private static readonly Guid PciDevicePropertyGuid = new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62");
+    private static readonly Guid DeviceRelationPropertyGuid = new Guid("4340a6c5-93fa-4706-972c-7b648008a5a7");
     private const uint DevPropTypeUInt32 = 0x00000007;
+    private const uint DevPropTypeStringList = 0x00002012;
     private const int CmCrSuccess = 0;
 
     private static IEnumerable<SensorRow> GetPciExpansionRows()
@@ -315,6 +317,70 @@ public sealed partial class SensorReadoutForm : Form
             case 5: return "32.0 GT/s";
             case 6: return "64.0 GT/s";
             default: return speed == 0 ? "" : "raw " + speed;
+        }
+    }
+
+    private static string FormatPciExpressGeneration(uint speed)
+    {
+        switch (speed)
+        {
+            case 1: return "PCIe Gen 1";
+            case 2: return "PCIe Gen 2";
+            case 3: return "PCIe Gen 3";
+            case 4: return "PCIe Gen 4";
+            case 5: return "PCIe Gen 5";
+            case 6: return "PCIe Gen 6";
+            default: return speed == 0 ? "" : "PCIe raw generation " + speed;
+        }
+    }
+
+    private static bool TryGetDeviceChildrenProperty(string deviceId, out List<string> children)
+    {
+        var key = new DevPropKey { FmtId = DeviceRelationPropertyGuid, Pid = 9 };
+        return TryGetDeviceStringListProperty(deviceId, key, out children);
+    }
+
+    private static bool TryGetDeviceStringListProperty(string deviceId, DevPropKey key, out List<string> values)
+    {
+        values = new List<string>();
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return false;
+        }
+
+        try
+        {
+            uint devInst;
+            if (CM_Locate_DevNode(out devInst, deviceId, 0) != CmCrSuccess)
+            {
+                return false;
+            }
+
+            var buffer = new byte[4096];
+            var size = buffer.Length;
+            uint propertyType;
+            var result = CM_Get_DevNode_Property(devInst, ref key, out propertyType, buffer, ref size, 0);
+            if (result != CmCrSuccess || propertyType != DevPropTypeStringList || size <= 2)
+            {
+                return false;
+            }
+
+            var text = System.Text.Encoding.Unicode.GetString(buffer, 0, size).TrimEnd('\0');
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            values = text.Split(new[] { '\0' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Select(v => v.Trim())
+                .ToList();
+            return values.Count > 0;
+        }
+        catch
+        {
+            values = new List<string>();
+            return false;
         }
     }
 

@@ -218,7 +218,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SpeakTrayStatus()
     {
-        SpeakTextWithScreenReader(BuildCurrentSpeechStatusText(), "tray status");
+        SpeakHotKeyTextWithScreenReader(BuildCurrentSpeechStatusText(), "tray status");
     }
 
     private void SpeakSpokenHotKey(SpokenHotKeySetting profile)
@@ -227,7 +227,7 @@ public sealed partial class SensorReadoutForm : Form
         var skipUnavailable = profile != null && profile.SkipUnavailableReadings;
         var text = BuildSpeechStatusText(rows, skipUnavailable);
         var description = profile == null || string.IsNullOrWhiteSpace(profile.Name) ? "spoken hotkey" : profile.Name.Trim();
-        SpeakTextWithScreenReader(text, description);
+        SpeakHotKeyTextWithScreenReader(text, description);
     }
 
     private void BuildHotkeysMenu()
@@ -349,7 +349,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        SpeakTextWithScreenReader(text, "tray status");
+        SpeakHotKeyTextWithScreenReader(text, "tray status");
         LogMessage("Debug", "Tray hotkey completed in " + stopwatch.ElapsedMilliseconds + " ms.");
     }
 
@@ -369,7 +369,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        SpeakTextWithScreenReader(text, description);
+        SpeakHotKeyTextWithScreenReader(text, description);
         LogMessage("Debug", "Spoken hotkey " + description + " completed in " + stopwatch.ElapsedMilliseconds + " ms.");
     }
 
@@ -428,7 +428,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         string error;
         var message = T("message.copiedToClipboard", "Copied to Clipboard.");
-        if (ScreenReaderOutput.TrySpeak(message, out error))
+        if (ScreenReaderOutput.TrySpeakForActiveScreenReader(message, out error))
         {
             LogMessage("Debug", "Announced clipboard copy with screen reader.");
         }
@@ -440,17 +440,23 @@ public sealed partial class SensorReadoutForm : Form
 
     private void SpeakTextWithScreenReader(string text, string description)
     {
-        SpeakTextWithScreenReader(text, description, false);
+        SpeakTextWithScreenReader(text, description, false, false);
+    }
+
+    private void SpeakHotKeyTextWithScreenReader(string text, string description)
+    {
+        SpeakTextWithScreenReader(text, description, false, true);
     }
 
     private void SpeakTextWithScreenReaderPolite(string text, string description)
     {
-        SpeakTextWithScreenReader(text, description, true);
+        SpeakTextWithScreenReader(text, description, true, false);
     }
 
-    private void SpeakTextWithScreenReader(string text, string description, bool polite)
+    private void SpeakTextWithScreenReader(string text, string description, bool polite, bool showVisualFallback)
     {
         string error;
+        var visualShown = showVisualFallback && ShowVisualSpokenFeedbackIfNeeded(text);
         var spoken = polite
             ? ScreenReaderOutput.TrySpeakPolite(text, out error)
             : ScreenReaderOutput.TrySpeak(text, out error);
@@ -461,6 +467,16 @@ public sealed partial class SensorReadoutForm : Form
                 statusLabel.Text = string.Format(T("status.Spoke with screen reader.", "Spoke {0} with screen reader."), description);
             }
             LogMessage("Normal", "Spoke " + description + " with screen reader: " + text);
+            return;
+        }
+
+        if (visualShown)
+        {
+            if (statusLabel != null)
+            {
+                statusLabel.Text = string.Format(T("status.Shown visual spoken feedback.", "Shown {0} in visual spoken feedback."), description);
+            }
+            LogMessage("Normal", "Showed visual spoken feedback for " + description + ": " + text);
             return;
         }
 
@@ -499,7 +515,7 @@ public sealed partial class SensorReadoutForm : Form
 
         var message = string.IsNullOrWhiteSpace(settings.StartupSpeechMessage) ? DefaultStartupSpeechMessage() : settings.StartupSpeechMessage.Trim();
         string error;
-        if (ScreenReaderOutput.TrySpeakPolite(message, out error))
+        if (ScreenReaderOutput.TrySpeakPoliteForActiveScreenReader(message, out error))
         {
             LogMessage("Normal", "Spoke startup active message with screen reader: " + message);
         }
@@ -686,7 +702,7 @@ public sealed partial class SensorReadoutForm : Form
         var lines = new List<string>();
         lines.Add(T("ui.Accessibility setup check", "Accessibility setup check"));
         lines.Add("");
-        AddCheckLine(lines, T("ui.Screen reader speech", "Screen reader speech"), ScreenReaderOutput.IsAvailable, ScreenReaderOutput.IsAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"));
+        AddCheckLine(lines, T("ui.Screen reader speech", "Screen reader speech"), ScreenReaderOutput.IsActiveScreenReaderOutputAvailable, ScreenReaderOutput.IsActiveScreenReaderOutputAvailable ? T("ui.Available", "Available") : T("ui.Not available", "Not available"));
         AddCheckLine(lines, T("ui.Notification area status", "Notification area status"), settings.TrayStatusEnabled, settings.TrayStatusEnabled ? T("ui.Enabled", "Enabled") : T("ui.Disabled", "Disabled"));
         AddCheckLine(lines, T("ui.Show/hide hotkey", "Show/hide hotkey"), !string.IsNullOrWhiteSpace(settings.ShowHideHotKey), string.IsNullOrWhiteSpace(settings.ShowHideHotKey) ? T("ui.Not set", "Not set") : settings.ShowHideHotKey);
         AddCheckLine(lines, T("ui.Speak tray status hotkey", "Speak tray status hotkey"), !string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey), string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey) ? T("ui.Not set", "Not set") : settings.SpeakTrayHotKey);

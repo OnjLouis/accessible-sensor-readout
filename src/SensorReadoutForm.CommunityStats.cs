@@ -172,7 +172,7 @@ public sealed partial class SensorReadoutForm : Form
     private static void SpeakCommunityStatsStatus(string text)
     {
         string error;
-        ScreenReaderOutput.TrySpeakPolite(text, out error);
+        ScreenReaderOutput.TrySpeakPoliteForActiveScreenReader(text, out error);
     }
 
     private List<SensorRow> CollectCommunityStatsRows()
@@ -318,8 +318,8 @@ public sealed partial class SensorReadoutForm : Form
         };
         payload["accessibility"] = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
-            { "screenReaderOutputAvailable", ScreenReaderOutput.IsAvailable },
-            { "detectedScreenReaders", DetectScreenReaders() },
+            { "screenReaderOutputAvailable", ScreenReaderOutput.IsActiveScreenReaderOutputAvailable },
+            { "detectedScreenReaders", ScreenReaderOutput.DetectSupportedScreenReaders() },
             { "highContrastEnabled", CommunityStatsAccessibilityFlag(TryGetHighContrastEnabled) },
             { "stickyKeysEnabled", CommunityStatsAccessibilityFlag(TryGetStickyKeysEnabled) },
             { "toggleKeysEnabled", CommunityStatsAccessibilityFlag(TryGetToggleKeysEnabled) },
@@ -627,40 +627,6 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return string.IsNullOrWhiteSpace(value) ? "" : "Other";
-    }
-
-    private static List<string> DetectScreenReaders()
-    {
-        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "nvda", "NVDA" },
-            { "jfw", "JAWS" },
-            { "narrator", "Narrator" },
-            { "supernova", "SuperNova" },
-            { "zoomtext", "ZoomText" },
-            { "fusion", "Fusion" },
-            { "systemaccess", "System Access" }
-        };
-        var found = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            foreach (var process in Process.GetProcesses())
-            {
-                using (process)
-                {
-                    string label;
-                    if (names.TryGetValue(process.ProcessName ?? "", out label) && !string.IsNullOrWhiteSpace(label))
-                    {
-                        found.Add(label);
-                    }
-                }
-            }
-        }
-        catch
-        {
-        }
-
-        return found.ToList();
     }
 
     private static int CountDistinctHardware(IEnumerable<SensorRow> rows, string type)

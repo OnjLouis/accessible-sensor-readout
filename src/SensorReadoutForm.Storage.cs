@@ -49,6 +49,12 @@ public sealed partial class SensorReadoutForm : Form
         public string InterfaceType;
     }
 
+    private sealed class NvmeLinkSummary
+    {
+        public string DisplayValue;
+        public Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
     private sealed class CachedDetailSnapshot
     {
         public DateTime TimestampUtc;
@@ -164,6 +170,7 @@ public sealed partial class SensorReadoutForm : Form
     private static IEnumerable<SensorRow> GetPhysicalDiskRows()
     {
         var rows = new List<SensorRow>();
+        var nvmeLinks = GetNvmeLinkSummariesByHardware();
         try
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
@@ -180,6 +187,7 @@ public sealed partial class SensorReadoutForm : Form
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Health", DisplayValue = DecodeHealthStatus(disk["HealthStatus"]), Source = "Windows Storage" });
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Media type", DisplayValue = DecodeMediaType(disk["MediaType"]), Source = "Windows Storage" });
                     AddPhysicalDiskTextRow(rows, name, "Bus type", FormatStorageBusType(GetWmiPropertyValue(disk, "BusType")), "Windows Storage");
+                    AddNvmeLinkRow(rows, name, nvmeLinks);
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Operational status", DisplayValue = DecodeOperationalStatus(disk["OperationalStatus"]), Source = "Windows Storage" });
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Size", DisplayValue = FormatBytes(disk["Size"]), Source = "Windows Storage" });
                     AddPhysicalDiskTextRow(rows, name, "Spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")), "Windows Storage");
@@ -639,6 +647,209 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static void AddNvmeLinkRow(List<SensorRow> rows, string hardware, Dictionary<string, NvmeLinkSummary> nvmeLinks)
+    {
+        if (rows == null || string.IsNullOrWhiteSpace(hardware) || nvmeLinks == null)
+        {
+            return;
+        }
+
+        NvmeLinkSummary summary;
+        if (!nvmeLinks.TryGetValue(NormalizeStorageHardwareName(hardware), out summary) ||
+            summary == null ||
+            string.IsNullOrWhiteSpace(summary.DisplayValue))
+        {
+            return;
+        }
+
+        rows.Add(new SensorRow
+        {
+            Type = "SMART",
+            Hardware = hardware,
+            Name = "NVMe link",
+            DisplayValue = summary.DisplayValue,
+            Source = "Windows PCI properties",
+            Details = CloneDetails(summary.Details)
+        });
+    }
+
+    private static Dictionary<string, NvmeLinkSummary> GetNvmeLinkSummariesByHardware()
+    {
+        var result = new Dictionary<string, NvmeLinkSummary>(StringComparer.OrdinalIgnoreCase);
+        var diskPnpToHardware = GetStorageHardwareByDiskPnpDeviceId();
+        if (diskPnpToHardware.Count == 0)
+        {
+            return result;
+        }
+
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Name, Caption, DeviceID, Manufacturer, Service, Status FROM Win32_PnPEntity WHERE DeviceID LIKE 'PCI\\\\%'"))
+            {
+                foreach (ManagementObject device in searcher.Get())
+                {
+                    using (device)
+                    {
+                        var service = GetWmiPropertyText(device, "Service");
+                        var deviceId = GetWmiPropertyText(device, "DeviceID");
+                        if (!LooksLikeNvmeController(deviceId, service))
+                        {
+                            continue;
+                        }
+
+                        List<string> children;
+                        if (!TryGetDeviceChildrenProperty(deviceId, out children) || children.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        uint currentSpeed;
+                        uint currentWidth;
+                        uint maxSpeed;
+                        uint maxWidth;
+                        var hasCurrentSpeed = TryGetPciDeviceUInt32Property(deviceId, 9, out currentSpeed);
+                        var hasCurrentWidth = TryGetPciDeviceUInt32Property(deviceId, 10, out currentWidth);
+                        var hasMaxSpeed = TryGetPciDeviceUInt32Property(deviceId, 11, out maxSpeed);
+                        var hasMaxWidth = TryGetPciDeviceUInt32Property(deviceId, 12, out maxWidth);
+                        if (!hasCurrentSpeed && !hasMaxSpeed)
+                        {
+                            continue;
+                        }
+
+                        var controllerName = FirstNonEmpty(GetWmiPropertyText(device, "Name"), GetWmiPropertyText(device, "Caption"), deviceId);
+                        foreach (var child in children)
+                        {
+                            string hardware;
+                            if (!diskPnpToHardware.TryGetValue(NormalizePnpDeviceId(child), out hardware) ||
+                                string.IsNullOrWhiteSpace(hardware))
+                            {
+                                continue;
+                            }
+
+                            var display = FormatNvmeLinkSummary(currentSpeed, currentWidth, hasCurrentSpeed, hasCurrentWidth, maxSpeed, maxWidth, hasMaxSpeed, hasMaxWidth);
+                            if (string.IsNullOrWhiteSpace(display))
+                            {
+                                continue;
+                            }
+
+                            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                            AddDetail(details, "NVMe controller", controllerName);
+                            AddDetail(details, "NVMe controller manufacturer", GetWmiPropertyText(device, "Manufacturer"));
+                            AddDetail(details, "NVMe controller status", GetWmiPropertyText(device, "Status"));
+                            AddDetail(details, "NVMe controller PNP device ID", deviceId);
+                            AddDetail(details, "NVMe disk PNP device ID", child);
+                            AddPciDetails(details, deviceId);
+                            if (hasCurrentSpeed)
+                            {
+                                AddDetail(details, "NVMe current PCIe generation", FormatPciExpressGeneration(currentSpeed));
+                                AddDetail(details, "NVMe current PCIe link speed", FormatPciExpressLinkSpeed(currentSpeed));
+                            }
+
+                            if (hasCurrentWidth)
+                            {
+                                AddDetail(details, "NVMe current PCIe link width", FormatPciExpressLinkWidth(currentWidth));
+                            }
+
+                            if (hasMaxSpeed)
+                            {
+                                AddDetail(details, "NVMe maximum PCIe generation", FormatPciExpressGeneration(maxSpeed));
+                                AddDetail(details, "NVMe maximum PCIe link speed", FormatPciExpressLinkSpeed(maxSpeed));
+                            }
+
+                            if (hasMaxWidth)
+                            {
+                                AddDetail(details, "NVMe maximum PCIe link width", FormatPciExpressLinkWidth(maxWidth));
+                            }
+
+                            result[NormalizeStorageHardwareName(hardware)] = new NvmeLinkSummary
+                            {
+                                DisplayValue = display,
+                                Details = details
+                            };
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string> GetStorageHardwareByDiskPnpDeviceId()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT Model, Caption, PNPDeviceID FROM Win32_DiskDrive"))
+            {
+                foreach (ManagementObject disk in searcher.Get())
+                {
+                    using (disk)
+                    {
+                        var pnp = NormalizePnpDeviceId(GetWmiPropertyText(disk, "PNPDeviceID"));
+                        if (string.IsNullOrWhiteSpace(pnp))
+                        {
+                            continue;
+                        }
+
+                        var hardware = NormalizeStorageHardwareName(FirstNonEmpty(GetWmiPropertyText(disk, "Model"), GetWmiPropertyText(disk, "Caption")));
+                        if (string.IsNullOrWhiteSpace(hardware))
+                        {
+                            continue;
+                        }
+
+                        result[pnp] = hardware;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
+    }
+
+    private static bool LooksLikeNvmeController(string deviceId, string service)
+    {
+        if (string.Equals(service, "stornvme", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(deviceId) &&
+            deviceId.IndexOf("CC_010802", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static string NormalizePnpDeviceId(string deviceId)
+    {
+        return string.IsNullOrWhiteSpace(deviceId) ? "" : deviceId.Trim().ToUpperInvariant();
+    }
+
+    private static string FormatNvmeLinkSummary(
+        uint currentSpeed,
+        uint currentWidth,
+        bool hasCurrentSpeed,
+        bool hasCurrentWidth,
+        uint maxSpeed,
+        uint maxWidth,
+        bool hasMaxSpeed,
+        bool hasMaxWidth)
+    {
+        var current = JoinNonEmpty(" ",
+            hasCurrentSpeed ? FormatPciExpressGeneration(currentSpeed) : "",
+            hasCurrentWidth ? FormatPciExpressLinkWidth(currentWidth) : "");
+        var maximum = JoinNonEmpty(" ",
+            hasMaxSpeed ? FormatPciExpressGeneration(maxSpeed) : "",
+            hasMaxWidth ? FormatPciExpressLinkWidth(maxWidth) : "");
+        return JoinNonEmpty("; ",
+            string.IsNullOrWhiteSpace(current) ? "" : current + " current",
+            string.IsNullOrWhiteSpace(maximum) ? "" : maximum + " maximum");
     }
 
     private static void AddConnectedDiskTotalRows(List<SensorRow> rows, IReadOnlyCollection<System.IO.DriveInfo> drives)

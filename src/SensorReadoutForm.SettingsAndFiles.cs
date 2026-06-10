@@ -397,6 +397,11 @@ public sealed partial class SensorReadoutForm : Form
             StartupSpeechEnabled = value.StartupSpeechEnabled,
             StartupSpeechMessage = value.StartupSpeechMessage,
             SpeechIncludesDeviceNames = value.SpeechIncludesDeviceNames,
+            CategorySpeechMode = value.CategorySpeechMode,
+            FallbackCategorySpeechEnabled = value.FallbackCategorySpeechEnabled,
+            VisualSpokenFeedbackEnabled = value.VisualSpokenFeedbackEnabled,
+            VisualSpokenFeedbackPlacement = value.VisualSpokenFeedbackPlacement,
+            VisualSpokenFeedbackTimeoutSeconds = value.VisualSpokenFeedbackTimeoutSeconds,
             TrayStatusEnabled = value.TrayStatusEnabled,
             TrayTooltipShowsPartialReadings = value.TrayTooltipShowsPartialReadings,
             TraySpeechSkipsUnavailableReadings = value.TraySpeechSkipsUnavailableReadings,
@@ -498,6 +503,11 @@ public sealed partial class SensorReadoutForm : Form
         target.StartupSpeechEnabled = shared.StartupSpeechEnabled;
         target.StartupSpeechMessage = shared.StartupSpeechMessage;
         target.SpeechIncludesDeviceNames = shared.SpeechIncludesDeviceNames;
+        target.CategorySpeechMode = NormalizeCategorySpeechMode(shared.CategorySpeechMode);
+        target.FallbackCategorySpeechEnabled = shared.FallbackCategorySpeechEnabled;
+        target.VisualSpokenFeedbackEnabled = shared.VisualSpokenFeedbackEnabled;
+        target.VisualSpokenFeedbackPlacement = NormalizeVisualSpokenFeedbackPlacement(shared.VisualSpokenFeedbackPlacement);
+        target.VisualSpokenFeedbackTimeoutSeconds = NormalizeVisualSpokenFeedbackTimeoutSeconds(shared.VisualSpokenFeedbackTimeoutSeconds);
         target.TrayStatusEnabled = shared.TrayStatusEnabled;
         target.TrayTooltipShowsPartialReadings = shared.TrayTooltipShowsPartialReadings;
         target.TraySpeechSkipsUnavailableReadings = shared.TraySpeechSkipsUnavailableReadings;
@@ -544,11 +554,43 @@ public sealed partial class SensorReadoutForm : Form
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
         value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
+        value.CategorySpeechMode = NormalizeCategorySpeechMode(value.CategorySpeechMode);
+        value.VisualSpokenFeedbackPlacement = NormalizeVisualSpokenFeedbackPlacement(value.VisualSpokenFeedbackPlacement);
+        value.VisualSpokenFeedbackTimeoutSeconds = NormalizeVisualSpokenFeedbackTimeoutSeconds(value.VisualSpokenFeedbackTimeoutSeconds);
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
         value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
+    }
+
+    public static string NormalizeCategorySpeechMode(string value)
+    {
+        if (string.Equals(value, CategorySpeechBrief, StringComparison.OrdinalIgnoreCase))
+        {
+            return CategorySpeechBrief;
+        }
+
+        if (string.Equals(value, CategorySpeechOff, StringComparison.OrdinalIgnoreCase))
+        {
+            return CategorySpeechOff;
+        }
+
+        return CategorySpeechFull;
+    }
+
+    public static string NormalizeVisualSpokenFeedbackPlacement(string value)
+    {
+        if (string.Equals(value, "TopLeft", StringComparison.OrdinalIgnoreCase)) return "TopLeft";
+        if (string.Equals(value, "TopRight", StringComparison.OrdinalIgnoreCase)) return "TopRight";
+        if (string.Equals(value, "BottomLeft", StringComparison.OrdinalIgnoreCase)) return "BottomLeft";
+        if (string.Equals(value, "Center", StringComparison.OrdinalIgnoreCase)) return "Center";
+        return "BottomRight";
+    }
+
+    public static int NormalizeVisualSpokenFeedbackTimeoutSeconds(int value)
+    {
+        return Math.Max(2, Math.Min(30, value <= 0 ? 6 : value));
     }
 
     private static void NormalizeSettings(AppSettings value)
@@ -633,6 +675,9 @@ public sealed partial class SensorReadoutForm : Form
         value.CheckForUpdatesAtStartup = !string.Equals(value.UpdateCheckFrequency, "Never", StringComparison.OrdinalIgnoreCase);
         value.LastAutomaticUpdateCheckUtc = NormalizeUtcDateString(value.LastAutomaticUpdateCheckUtc);
         value.StartupSpeechMessage = value.StartupSpeechMessage ?? "";
+        value.CategorySpeechMode = NormalizeCategorySpeechMode(value.CategorySpeechMode);
+        value.VisualSpokenFeedbackPlacement = NormalizeVisualSpokenFeedbackPlacement(value.VisualSpokenFeedbackPlacement);
+        value.VisualSpokenFeedbackTimeoutSeconds = NormalizeVisualSpokenFeedbackTimeoutSeconds(value.VisualSpokenFeedbackTimeoutSeconds);
         value.CommunityStatsClientId = (value.CommunityStatsClientId ?? "").Trim();
         if (!string.IsNullOrWhiteSpace(value.ShowHideHotKey) &&
             string.Equals(value.ShowHideHotKey, value.SpeakTrayHotKey, StringComparison.OrdinalIgnoreCase))

@@ -231,6 +231,31 @@ function aggregate_list(array $items, string $section, string $key): array {
     return $result;
 }
 
+function aggregate_screen_readers(array $items): array {
+    $result = [];
+    foreach ($items as $item) {
+        $accessibility = is_array($item['accessibility'] ?? null) ? $item['accessibility'] : [];
+        $list = $accessibility['detectedScreenReaders'] ?? [];
+        if (!is_array($list) || count($list) === 0) {
+            $result['None detected'] = ($result['None detected'] ?? 0) + 1;
+            continue;
+        }
+
+        foreach ($list as $name) {
+            $name = trim((string)$name);
+            if ($name === '') {
+                continue;
+            }
+            if (!isset($result[$name])) {
+                $result[$name] = 0;
+            }
+            $result[$name]++;
+        }
+    }
+    arsort($result, SORT_NUMERIC);
+    return $result;
+}
+
 function render_table(string $heading, string $firstColumn, string $secondColumn, array $rows): void {
     echo '<h2>' . h($heading) . '</h2>';
     echo '<table><tr><th>' . h($firstColumn) . '</th><th>' . h($secondColumn) . '</th></tr>';
@@ -246,7 +271,7 @@ function render_table(string $heading, string $firstColumn, string $secondColumn
 
 $machineCount = count($items);
 $plugins = aggregate_list($items, 'availability', 'enabledPlugIns');
-$screenReaders = aggregate_list($items, 'accessibility', 'detectedScreenReaders');
+$screenReaders = aggregate_screen_readers($items);
 $cpuVendors = aggregate_cpu_vendors($items);
 $cpuArchitectures = aggregate_value($items, 'hardwareSummary', 'cpuArchitecture', 'normalize_architecture_value');
 $cpuTypes = aggregate_cpu_processor_types($items);

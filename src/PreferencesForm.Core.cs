@@ -300,9 +300,17 @@ public sealed partial class PreferencesForm : Form
         {
             index = key - Keys.D1;
         }
+        else if (key == Keys.D0)
+        {
+            index = 9;
+        }
         else if (key >= Keys.NumPad1 && key <= Keys.NumPad9)
         {
             index = key - Keys.NumPad1;
+        }
+        else if (key == Keys.NumPad0)
+        {
+            index = 9;
         }
 
         if (index < 0 || index >= preferencesTabs.TabPages.Count)
@@ -617,6 +625,11 @@ public sealed partial class PreferencesForm : Form
         liveSettings.StartupSpeechEnabled = StartupSpeechEnabled;
         liveSettings.StartupSpeechMessage = StartupSpeechMessage;
         liveSettings.SpeechIncludesDeviceNames = SpeechIncludesDeviceNames;
+        liveSettings.CategorySpeechMode = CategorySpeechMode;
+        liveSettings.FallbackCategorySpeechEnabled = FallbackCategorySpeechEnabled;
+        liveSettings.VisualSpokenFeedbackEnabled = VisualSpokenFeedbackEnabled;
+        liveSettings.VisualSpokenFeedbackPlacement = VisualSpokenFeedbackPlacement;
+        liveSettings.VisualSpokenFeedbackTimeoutSeconds = VisualSpokenFeedbackTimeoutSeconds;
         liveSettings.TrayStatusEnabled = TrayStatusEnabled;
         liveSettings.TrayTooltipShowsPartialReadings = TrayTooltipShowsPartialReadings;
         liveSettings.TraySpeechSkipsUnavailableReadings = TraySpeechSkipsUnavailableReadings;
@@ -785,6 +798,72 @@ public sealed partial class PreferencesForm : Form
         if (index == 4) return 750;
         if (index == 5) return 1000;
         return 0;
+    }
+
+    private static string[] CategorySpeechModeOptions()
+    {
+        return new[]
+        {
+            SensorReadoutForm.L("ui.Full category guidance", "Full category guidance"),
+            SensorReadoutForm.L("ui.Brief category and shortcut", "Brief category and shortcut"),
+            SensorReadoutForm.L("ui.Off", "Off")
+        };
+    }
+
+    private static int CategorySpeechModeIndex(string value)
+    {
+        switch (SensorReadoutForm.NormalizeCategorySpeechMode(value))
+        {
+            case SensorReadoutForm.CategorySpeechBrief: return 1;
+            case SensorReadoutForm.CategorySpeechOff: return 2;
+            default: return 0;
+        }
+    }
+
+    private static string CategorySpeechModeFromIndex(int index)
+    {
+        switch (index)
+        {
+            case 1: return SensorReadoutForm.CategorySpeechBrief;
+            case 2: return SensorReadoutForm.CategorySpeechOff;
+            default: return SensorReadoutForm.CategorySpeechFull;
+        }
+    }
+
+    private static string[] VisualSpokenFeedbackPlacementOptions()
+    {
+        return new[]
+        {
+            SensorReadoutForm.L("ui.Bottom right", "Bottom right"),
+            SensorReadoutForm.L("ui.Bottom left", "Bottom left"),
+            SensorReadoutForm.L("ui.Top right", "Top right"),
+            SensorReadoutForm.L("ui.Top left", "Top left"),
+            SensorReadoutForm.L("ui.Center", "Center")
+        };
+    }
+
+    private static int VisualSpokenFeedbackPlacementIndex(string value)
+    {
+        switch (SensorReadoutForm.NormalizeVisualSpokenFeedbackPlacement(value))
+        {
+            case "BottomLeft": return 1;
+            case "TopRight": return 2;
+            case "TopLeft": return 3;
+            case "Center": return 4;
+            default: return 0;
+        }
+    }
+
+    private static string VisualSpokenFeedbackPlacementFromIndex(int index)
+    {
+        switch (index)
+        {
+            case 1: return "BottomLeft";
+            case 2: return "TopRight";
+            case 3: return "TopLeft";
+            case 4: return "Center";
+            default: return "BottomRight";
+        }
     }
 
     private static string[] UpdateCheckFrequencyOptions()

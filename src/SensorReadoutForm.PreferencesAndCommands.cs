@@ -215,6 +215,11 @@ public sealed partial class SensorReadoutForm : Form
         settings.StartupSpeechEnabled = dialog.StartupSpeechEnabled;
         settings.StartupSpeechMessage = dialog.StartupSpeechMessage;
         settings.SpeechIncludesDeviceNames = dialog.SpeechIncludesDeviceNames;
+        settings.CategorySpeechMode = NormalizeCategorySpeechMode(dialog.CategorySpeechMode);
+        settings.FallbackCategorySpeechEnabled = dialog.FallbackCategorySpeechEnabled;
+        settings.VisualSpokenFeedbackEnabled = dialog.VisualSpokenFeedbackEnabled;
+        settings.VisualSpokenFeedbackPlacement = NormalizeVisualSpokenFeedbackPlacement(dialog.VisualSpokenFeedbackPlacement);
+        settings.VisualSpokenFeedbackTimeoutSeconds = NormalizeVisualSpokenFeedbackTimeoutSeconds(dialog.VisualSpokenFeedbackTimeoutSeconds);
         settings.TrayStatusEnabled = dialog.TrayStatusEnabled;
         settings.TrayTooltipShowsPartialReadings = dialog.TrayTooltipShowsPartialReadings;
         settings.ReadingTreeExpansionMode = dialog.ReadingTreeExpansionMode;
@@ -956,22 +961,67 @@ public sealed partial class SensorReadoutForm : Form
         var shortcut = CategoryShortcutText(deviceList.SelectedIndex);
         if (string.IsNullOrWhiteSpace(shortcut))
         {
-            statusLabel.Text = string.Format(L("status.Category selected.", "{0} category selected."), filter.DisplayName);
+            var categoryOnlyMessage = string.Format(L("status.Category selected.", "{0} category selected."), filter.DisplayName);
+            statusLabel.Text = categoryOnlyMessage;
+            SpeakCategorySelection(filter.DisplayName, "", categoryOnlyMessage);
             return;
         }
 
         var message = string.Format(L("status.Category selected with shortcut.", "{0} category selected. Shortcut {1}."), filter.DisplayName, shortcut);
         statusLabel.Text = message;
+        SpeakCategorySelection(filter.DisplayName, shortcut, message);
+    }
+
+    private void SpeakCategorySelection(string categoryName, string shortcut, string fullMessage)
+    {
         if (!deviceList.ContainsFocus)
         {
             return;
         }
 
-        string error;
-        if (!ScreenReaderOutput.TrySpeakPolite(message, out error))
+        var mode = NormalizeCategorySpeechMode(settings == null ? "" : settings.CategorySpeechMode);
+        var message = BuildCategorySelectionSpeechText(mode, categoryName, shortcut, fullMessage);
+        if (string.IsNullOrWhiteSpace(message))
         {
-            LogMessage("Debug", "Category shortcut hint was not spoken. " + error);
+            return;
         }
+
+        string error;
+        if (ScreenReaderOutput.IsActiveScreenReaderDetected)
+        {
+            if (!ScreenReaderOutput.TrySpeakPoliteForActiveScreenReader(message, out error))
+            {
+                LogMessage("Debug", "Category shortcut hint was not spoken. " + error);
+            }
+            return;
+        }
+
+        if (settings != null && settings.FallbackCategorySpeechEnabled)
+        {
+            if (!ScreenReaderOutput.TrySpeak(message, out error))
+            {
+                LogMessage("Debug", "Fallback category speech was not spoken. " + error);
+            }
+            return;
+        }
+
+        LogMessage("Debug", "Category shortcut hint was not spoken because no supported screen reader is active and fallback category speech is disabled.");
+    }
+
+    private static string BuildCategorySelectionSpeechText(string mode, string categoryName, string shortcut, string fullMessage)
+    {
+        mode = NormalizeCategorySpeechMode(mode);
+        if (string.Equals(mode, CategorySpeechOff, StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        if (string.Equals(mode, CategorySpeechBrief, StringComparison.OrdinalIgnoreCase))
+        {
+            return JoinNonEmpty(" ", categoryName, shortcut);
+        }
+
+        return fullMessage ?? "";
     }
 
     private void RegisterUndo(string actionName, Action undoAction, Action redoAction)

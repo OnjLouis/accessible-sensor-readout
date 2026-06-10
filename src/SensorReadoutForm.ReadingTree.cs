@@ -563,7 +563,7 @@ public sealed partial class SensorReadoutForm : Form
 
         string error;
         var message = GetTreeNodeDetailsHint(new ReadingTreeItem { Row = row });
-        if (!ScreenReaderOutput.TrySpeakPolite(message, out error))
+        if (!ScreenReaderOutput.TrySpeakPoliteForActiveScreenReader(message, out error))
         {
             LogMessage("Debug", "Details availability hint was not spoken. " + error);
         }

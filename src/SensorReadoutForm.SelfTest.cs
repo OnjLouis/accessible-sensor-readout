@@ -45,6 +45,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
+            form.RunSelfTestStep(results, "Category speech modes", delegate { form.SelfTestCategorySpeechModes(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
             form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
@@ -118,6 +119,11 @@ public sealed partial class SensorReadoutForm : Form
         settings.CommunityStatsClientId = "self-test-client-id";
         settings.ReadingTreeExpansionMode = ReadingTreeExpansionRemember;
         settings.ReadingTreeLastExpanded = false;
+        settings.CategorySpeechMode = CategorySpeechBrief;
+        settings.FallbackCategorySpeechEnabled = true;
+        settings.VisualSpokenFeedbackEnabled = true;
+        settings.VisualSpokenFeedbackPlacement = "TopLeft";
+        settings.VisualSpokenFeedbackTimeoutSeconds = 9;
         SaveSettings(settings);
         var reloaded = LoadSettings();
         Require(string.Equals(reloaded.ShowHideHotKey, "Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase), "Show/hide hotkey did not round-trip.");
@@ -125,6 +131,11 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(reloaded.CommunityStatsClientId, "self-test-client-id", StringComparison.Ordinal), "Community stats client ID did not round-trip.");
         Require(string.Equals(reloaded.ReadingTreeExpansionMode, ReadingTreeExpansionRemember, StringComparison.OrdinalIgnoreCase), "Reading tree expansion mode did not round-trip.");
         Require(!reloaded.ReadingTreeLastExpanded, "Reading tree last expanded state did not round-trip.");
+        Require(string.Equals(reloaded.CategorySpeechMode, CategorySpeechBrief, StringComparison.Ordinal), "Category speech mode did not round-trip.");
+        Require(reloaded.FallbackCategorySpeechEnabled, "Fallback category speech setting did not round-trip.");
+        Require(reloaded.VisualSpokenFeedbackEnabled, "Visual spoken feedback setting did not round-trip.");
+        Require(string.Equals(reloaded.VisualSpokenFeedbackPlacement, "TopLeft", StringComparison.Ordinal), "Visual spoken feedback placement did not round-trip.");
+        Require(reloaded.VisualSpokenFeedbackTimeoutSeconds == 9, "Visual spoken feedback timeout did not round-trip.");
         var transferPackage = BuildSettingsTransferPackage(new HashSet<string>(new[] { TransferTray }, StringComparer.OrdinalIgnoreCase));
         Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.CommunityStatsClientId), "Settings transfer exported the local community stats client ID.");
     }
@@ -260,6 +271,26 @@ public sealed partial class SensorReadoutForm : Form
 
         settings.CategoryOrderKeys = new List<string>();
         settings.HiddenCategoryKeys = new List<string>();
+    }
+
+    private void SelfTestCategorySpeechModes()
+    {
+        var full = BuildCategorySelectionSpeechText(CategorySpeechFull, "Devices", "Ctrl+7", "Devices category selected. Shortcut Ctrl+7.");
+        Require(string.Equals(full, "Devices category selected. Shortcut Ctrl+7.", StringComparison.Ordinal), "Full category speech did not use the full localized message.");
+
+        var brief = BuildCategorySelectionSpeechText(CategorySpeechBrief, "Devices", "Ctrl+7", "Devices category selected. Shortcut Ctrl+7.");
+        Require(string.Equals(brief, "Devices Ctrl+7", StringComparison.Ordinal), "Brief category speech did not use the compact category and shortcut form.");
+
+        var off = BuildCategorySelectionSpeechText(CategorySpeechOff, "Devices", "Ctrl+7", "Devices category selected. Shortcut Ctrl+7.");
+        Require(string.IsNullOrEmpty(off), "Off category speech still produced speech text.");
+
+        Require(string.Equals(NormalizeCategorySpeechMode("Brief"), CategorySpeechBrief, StringComparison.Ordinal), "Brief category speech mode did not normalize.");
+        Require(string.Equals(NormalizeCategorySpeechMode("Off"), CategorySpeechOff, StringComparison.Ordinal), "Off category speech mode did not normalize.");
+        Require(string.Equals(NormalizeCategorySpeechMode("unexpected"), CategorySpeechFull, StringComparison.Ordinal), "Unknown category speech mode did not fall back to Full.");
+        Require(string.Equals(NormalizeVisualSpokenFeedbackPlacement("Center"), "Center", StringComparison.Ordinal), "Visual spoken feedback placement did not normalize Center.");
+        Require(string.Equals(NormalizeVisualSpokenFeedbackPlacement("unexpected"), "BottomRight", StringComparison.Ordinal), "Unknown visual spoken feedback placement did not fall back to BottomRight.");
+        Require(NormalizeVisualSpokenFeedbackTimeoutSeconds(0) == 6, "Zero visual spoken feedback timeout did not fall back to 6 seconds.");
+        Require(NormalizeVisualSpokenFeedbackTimeoutSeconds(99) == 30, "Visual spoken feedback timeout did not clamp to 30 seconds.");
     }
 
     private void SelfTestExpandCollapse()
