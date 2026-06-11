@@ -365,11 +365,11 @@ $windowsArchitectures = aggregate_windows_system_value($items, 'windowsArchitect
     <div><?php render_table('CPU processor types', 'Type', 'Machines', $cpuTypes); ?></div>
     <div><?php render_table('GPU vendors', 'Vendor', 'Display rows', $gpuVendors); ?></div>
     <div><?php render_table('Memory totals', 'Memory', 'Machines', $memoryTotals); ?></div>
+    <div><?php render_table('Dedicated GPU memory totals', 'Memory', 'Machines', $gpuMemoryTotals); ?></div>
     <div><?php render_table('Connected disk totals', 'Storage', 'Machines', $connectedDiskTotals); ?></div>
     <div><?php render_table('Connected disk used', 'Storage', 'Machines', $connectedDiskUsed); ?></div>
     <div><?php render_table('Connected disk free', 'Storage', 'Machines', $connectedDiskFree); ?></div>
     <div><?php render_table('Connected disk counts', 'Drives', 'Machines', $connectedDiskCounts); ?></div>
-    <div><?php render_table('Dedicated GPU memory totals', 'Memory', 'Machines', $gpuMemoryTotals); ?></div>
     <div><?php render_table('Languages', 'Language', 'Machines', $languages); ?></div>
     <div><?php render_table('Install mode', 'Mode', 'Machines', $installModes); ?></div>
   </div>
