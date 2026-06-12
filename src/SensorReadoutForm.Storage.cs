@@ -8,7 +8,6 @@ using System.Net.NetworkInformation;
 using System.IO.MemoryMappedFiles;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
@@ -171,6 +170,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         var rows = new List<SensorRow>();
         var nvmeLinks = GetNvmeLinkSummariesByHardware();
+        var sataLinks = GetSataLinkSummariesByHardware();
         try
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
@@ -188,6 +188,7 @@ public sealed partial class SensorReadoutForm : Form
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Media type", DisplayValue = DecodeMediaType(disk["MediaType"]), Source = "Windows Storage" });
                     AddPhysicalDiskTextRow(rows, name, "Bus type", FormatStorageBusType(GetWmiPropertyValue(disk, "BusType")), "Windows Storage");
                     AddNvmeLinkRow(rows, name, nvmeLinks);
+                    AddSataConnectionRow(rows, name, disk, sataLinks);
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Operational status", DisplayValue = DecodeOperationalStatus(disk["OperationalStatus"]), Source = "Windows Storage" });
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Size", DisplayValue = FormatBytes(disk["Size"]), Source = "Windows Storage" });
                     AddPhysicalDiskTextRow(rows, name, "Spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")), "Windows Storage");

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.8.0.
+Current version: 4.8.1.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -423,7 +423,7 @@ Sensor Readout opens on Performance/Overview by default. There is no combined al
 
 If a category has no visible readings, Sensor Readout now gives a category-specific hint instead of a generic blank tree. Depending on the section, it may suggest refreshing, connecting hardware, enabling a plug-in, checking hidden items, or waiting for slow Windows-backed inventory data.
 
-The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device. NVMe drives can show an `NVMe link` row such as `PCIe Gen 4 x4 current; PCIe Gen 4 x4 maximum` when Windows exposes a matching NVMe controller and PCIe link data.
+The Performance section summarizes live system counters and storage activity. It groups CPU usage with CPU model, vendor, core/thread count, clock, socket, architecture, instruction sets such as SSE and AVX, and virtualization information, then groups memory and storage activity by device. NVMe drives can show an `NVMe link` row such as `PCIe Gen 4 x4 current; PCIe Gen 4 x4 maximum` when Windows exposes a matching NVMe controller and PCIe link data. SATA drives can show a `SATA connection` row with Windows Storage location or port information, and current/maximum SATA generation when Windows exposes ATA identify link data.
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
@@ -668,6 +668,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.8.1
+- Fixed: Task GPU-memory summaries now ignore impossible Windows per-process GPU-memory counter samples, so one process cannot appear to use more dedicated GPU memory than the adapter is currently using.
+- Improved: SMART/Storage now adds a SATA connection row for SATA drives, showing Windows Storage location or port information and current/maximum SATA generation where Windows exposes ATA identify link data.
+- Improved: USB device Details now identify Windows USB hub connection data as the speed source and explain active-versus-capable speed differences when Windows reports both.
+- Improved: Source files have been split into smaller focused files, making Sensor Readout easier to review and maintain without changing how the app works.
 
 ### 4.8.0
 

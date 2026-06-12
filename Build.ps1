@@ -38,6 +38,59 @@ if ($Matches[1] -ne $buildVersion) {
     throw "Version mismatch: manifest assemblyIdentity version is $($Matches[1]) but AssemblyFileVersion is $buildVersion."
 }
 
+function Measure-SourceFileSize {
+    $warnAtLines = 2000
+    $failAtLines = 3000
+    $sourceRoots = @(
+        (Join-Path $PSScriptRoot 'src'),
+        (Join-Path $PSScriptRoot 'PlugIns'),
+        (Join-Path $PSScriptRoot 'server')
+    ) | Where-Object { Test-Path -LiteralPath $_ }
+    $sourceFiles = foreach ($root in $sourceRoots) {
+        Get-ChildItem -LiteralPath $root -Recurse -File -Include '*.cs', '*.ps1', '*.php' |
+            Where-Object { $_.FullName -notmatch '\\obj\\|\\bin\\|\\GeneratedAssemblyInfo\\' }
+    }
+
+    $stats = foreach ($file in $sourceFiles) {
+        $lineCount = 0
+        $blankCount = 0
+        foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
+            $lineCount++
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                $blankCount++
+            }
+        }
+
+        [pscustomobject]@{
+            Lines = $lineCount
+            Blank = $blankCount
+            Path = $file.FullName.Substring($PSScriptRoot.Length).TrimStart('\')
+        }
+    }
+
+    $largest = @($stats | Sort-Object Lines -Descending | Select-Object -First 10)
+    if ($largest.Count -gt 0) {
+        Write-Host "Source size audit, largest files:"
+        foreach ($item in $largest) {
+            Write-Host ("  {0,5} lines, {1,4} blank  {2}" -f $item.Lines, $item.Blank, $item.Path)
+        }
+    }
+
+    $tooLarge = @($stats | Where-Object { $_.Lines -ge $failAtLines } | Sort-Object Lines -Descending)
+    if ($tooLarge.Count -gt 0) {
+        $names = ($tooLarge | ForEach-Object { "$($_.Path) ($($_.Lines) lines)" }) -join '; '
+        throw "Source file size audit failed. Split files at or above $failAtLines lines: $names"
+    }
+
+    $warn = @($stats | Where-Object { $_.Lines -ge $warnAtLines } | Sort-Object Lines -Descending)
+    if ($warn.Count -gt 0) {
+        $names = ($warn | ForEach-Object { "$($_.Path) ($($_.Lines) lines)" }) -join '; '
+        Write-Warning "Large source files at or above $warnAtLines lines should be considered for future cleanup: $names"
+    }
+}
+
+Measure-SourceFileSize
+
 $generatedRoot = Join-Path $PSScriptRoot 'obj\GeneratedAssemblyInfo'
 New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
 

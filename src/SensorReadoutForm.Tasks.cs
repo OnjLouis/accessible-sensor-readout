@@ -307,7 +307,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         details["Original Windows dedicated GPU memory counter"] = FormatBytes(process.OriginalDedicatedBytes);
-        details["GPU memory counter note"] = "Windows reported more dedicated GPU process memory than the adapter's known dedicated memory, so Sensor Readout ignores impossible counter samples when choosing the highest GPU memory process.";
+        details["GPU memory counter note"] = "Windows reported more dedicated GPU process memory than the adapter's known total or current dedicated usage, so Sensor Readout ignores impossible counter samples when choosing the highest GPU memory process.";
     }
 
     private Dictionary<string, string> BuildProcessDetails(int processId, string processName)
@@ -415,6 +415,7 @@ public sealed partial class SensorReadoutForm : Form
 
             var category = new PerformanceCounterCategory(categoryName);
             var dedicatedTotal = dedicated ? GetTotalGpuAdapterMemoryBytes() : 0;
+            var dedicatedUsedTotal = dedicated ? ReadGpuMemoryCounterTotal("GPU Adapter Memory", "Dedicated Usage") : 0;
             foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
             {
                 var processId = ExtractPerformanceCounterProcessId(instance);
@@ -430,7 +431,7 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 var usage = EnsureGpuProcessUsage(result, processNames, processId);
-                if (dedicated && dedicatedTotal > 0 && value > dedicatedTotal)
+                if (dedicated && IsImpossibleDedicatedGpuProcessMemory(value, dedicatedTotal, dedicatedUsedTotal))
                 {
                     usage.OriginalDedicatedBytes = Math.Max(usage.OriginalDedicatedBytes, value);
                     continue;
@@ -449,6 +450,27 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
         }
+    }
+
+    private static bool IsImpossibleDedicatedGpuProcessMemory(double processBytes, double adapterTotalBytes, double adapterUsedBytes)
+    {
+        if (processBytes <= 0)
+        {
+            return false;
+        }
+
+        if (adapterTotalBytes > 0 && processBytes > adapterTotalBytes)
+        {
+            return true;
+        }
+
+        if (adapterUsedBytes <= 0)
+        {
+            return false;
+        }
+
+        var toleranceBytes = Math.Max(256d * 1024d * 1024d, adapterUsedBytes * 0.10);
+        return processBytes > adapterUsedBytes + toleranceBytes;
     }
 
     private static GpuProcessUsage EnsureGpuProcessUsage(Dictionary<int, GpuProcessUsage> result, Dictionary<int, string> processNames, int processId)
