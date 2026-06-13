@@ -641,6 +641,34 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        StartSelfUpdate(zipUrl, "", quiet);
+    }
+
+    private void StartSelfUpdateFromLocalZip(string zipPath)
+    {
+        if (string.IsNullOrWhiteSpace(zipPath) || !System.IO.File.Exists(zipPath))
+        {
+            MessageBox.Show(this, T("message.localUpdateZipMissing", "The selected update ZIP could not be found."), T("ui.Open update", "Open update"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (MessageBox.Show(
+                this,
+                T("message.localUpdateZipInstallPrompt", "This ZIP appears to contain a Sensor Readout update. Sensor Readout will close, install it, and restart. Do you want to continue?"),
+                T("ui.Open update", "Open update"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        StartSelfUpdate("", zipPath, true);
+    }
+
+    private void StartSelfUpdate(string zipUrl, string zipPath, bool quiet)
+    {
+        var hasLocalZip = !string.IsNullOrWhiteSpace(zipPath);
+
         if (!quiet)
         {
             if (!ConfirmSelfUpdateInstall())
@@ -663,7 +691,9 @@ public sealed partial class SensorReadoutForm : Form
                 FileName = updaterExe,
                 Arguments =
                     "--apply-update" +
-                    " --update-url " + CommandLineQuote(zipUrl) +
+                    (hasLocalZip
+                        ? " --update-zip " + CommandLineQuote(zipPath)
+                        : " --update-url " + CommandLineQuote(zipUrl)) +
                     " --update-target " + CommandLineQuote(appDir) +
                     " --update-exe " + CommandLineQuote(exePath) +
                     " --update-temp " + CommandLineQuote(updaterTempDir) +

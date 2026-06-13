@@ -953,8 +953,27 @@ public sealed partial class SensorReadoutForm : Form
         var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
         foreach (var fileName in new[]
         {
+            "BlackSharp.Core.dll",
+            "DiskInfoToolkit.dll",
+            "HidSharp.dll",
+            "Install-Prerequisites.cmd",
+            "Install-Prerequisites.ps1",
+            "LibreHardwareMonitorLib.dll",
+            "Newtonsoft.Json.dll",
             "nvdaControllerClient.dll",
-            "nvdaControllerClient.LICENSE.txt"
+            "nvdaControllerClient.LICENSE.txt",
+            "nvdaControllerClient64.dll",
+            "prism.dll",
+            "Prism.LICENSE.txt",
+            "RAMSPDToolkit-NDD.dll",
+            "SAAPI64.dll",
+            "SensorReadout.PluginSdk.dll",
+            "System.Buffers.dll",
+            "System.Memory.dll",
+            "System.Numerics.Vectors.dll",
+            "System.Runtime.CompilerServices.Unsafe.dll",
+            "Tolk.dll",
+            "Tolk.NVDA-LICENSE.txt"
         })
         {
             var path = System.IO.Path.Combine(baseDirectory, fileName);

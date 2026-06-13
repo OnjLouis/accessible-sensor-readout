@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.8.1";
+    public const string AppVersion = "4.9.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -205,7 +205,7 @@ public sealed partial class SensorReadoutForm : Form
         menuStrip = new MenuStrip();
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report or update...", Keys.Control | Keys.O, delegate { OpenReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Co&mpare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Save &anonymized report...", Keys.Control | Keys.Shift | Keys.A, delegate { SaveAnonymizedReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));

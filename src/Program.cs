@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -16,6 +17,7 @@ public static partial class Program
     public static void Main(string[] args)
     {
         startupArgs = args ?? new string[0];
+        ConfigureRuntimeDependencyPaths();
         InstallCrashLogging();
 
         if (HasArg(args, "--close"))
@@ -145,6 +147,42 @@ public static partial class Program
 
             Application.Run(new SensorReadoutForm(ShouldStartMinimized(args)));
         }
+    }
+
+    private static void ConfigureRuntimeDependencyPaths()
+    {
+        var resourcesFolder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
+        if (!System.IO.Directory.Exists(resourcesFolder))
+        {
+            return;
+        }
+
+        try
+        {
+            NativeMethods.SetDllDirectory(resourcesFolder);
+        }
+        catch
+        {
+        }
+
+        AppDomain.CurrentDomain.AssemblyResolve += delegate(object sender, ResolveEventArgs args)
+        {
+            try
+            {
+                var assemblyName = new System.Reflection.AssemblyName(args.Name).Name;
+                if (string.IsNullOrWhiteSpace(assemblyName))
+                {
+                    return null;
+                }
+
+                var path = System.IO.Path.Combine(resourcesFolder, assemblyName + ".dll");
+                return System.IO.File.Exists(path) ? System.Reflection.Assembly.LoadFrom(path) : null;
+            }
+            catch
+            {
+                return null;
+            }
+        };
     }
 
     private static void RepairBundledHashManifests()
@@ -1009,6 +1047,8 @@ public static partial class Program
             "Run internal non-interactive self-tests and write results to the chosen folder." + Environment.NewLine + Environment.NewLine +
             "--community-stats-json [path]" + Environment.NewLine +
             "Write the allow-listed anonymous community stats payload and exit. This does not upload it." + Environment.NewLine + Environment.NewLine +
+            "--apply-update --update-zip path --update-target folder --update-exe path" + Environment.NewLine +
+            "Install a local Sensor Readout update ZIP through the same updater used for online updates." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

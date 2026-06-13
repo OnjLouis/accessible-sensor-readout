@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.8.1.
+Current version: 4.9.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -75,7 +75,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
 - Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
 - Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.
-- Can speak the notification area status through the active screen reader using bundled 64-bit Tolk screen reader library DLLs.
+- Can speak the notification area status through the active screen reader using bundled 64-bit Prism and Tolk screen reader library DLLs.
 - Supports simple user-editable language files in the `Langs` folder.
 - Logging is off by default and can be enabled from Preferences when troubleshooting.
 - Can show selected readings in the notification area tooltip.
@@ -110,6 +110,7 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit)
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit)
 - [BlackSharp.Core on NuGet](https://www.nuget.org/packages/BlackSharp.Core/)
+- [Prism screen reader library](https://github.com/ethindp/prism)
 - [Tolk screen reader library](https://github.com/dkager/tolk)
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
@@ -131,12 +132,12 @@ For support, use `Help` > `Run diagnostics...`. It creates a diagnostic ZIP in t
 
 ## Prerequisite Installer
 
-Most users can start `Sensor Readout.exe` directly. If a required component is missing, Sensor Readout will offer to run the prerequisite installer. `Install-Prerequisites.cmd` is mainly for manual setup or troubleshooting; it calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.
+Most users can start `Sensor Readout.exe` directly. If a required component is missing, Sensor Readout will offer to run the prerequisite installer. `Install_Scripts\Install-Prerequisites.cmd` is mainly for manual setup or troubleshooting; it calls `Install-Prerequisites.ps1`, asks for administrator rights if needed, and installs PawnIO. It tries winget first, then Chocolatey if it is already installed, then downloads the official PawnIO.Setup release from GitHub if neither package manager is available. When winget exists, it can also install .NET Framework Runtime.
 
 To also install the standalone LibreHardwareMonitor app with winget for troubleshooting, run:
 
 ```powershell
-.\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
+.\Install_Scripts\Install-Prerequisites.ps1 -IncludeLibreHardwareMonitor
 ```
 
 ## Manual Install Commands
@@ -260,6 +261,7 @@ Sensor Readout can also be started with a few command-line options:
 | `--no-diagnostics-speech` | Run command-line diagnostics without spoken progress, while keeping diagnostic sounds enabled if preferences allow them. |
 | `--no-diagnostics-sounds` | Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it. |
 | `--community-stats-json [path]` | Write the allow-listed anonymous community stats payload and exit. This does not upload it. |
+| `--apply-update --update-zip path --update-target folder --update-exe path` | Install a local Sensor Readout update ZIP through the same updater used for online updates, useful for offline or managed copies. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
@@ -544,7 +546,7 @@ Sensor Readout does not collect passwords, browser data, tokens, private documen
 
 ### Opening Someone Else's Report
 
-Press `Ctrl+O` or use `File` > `Open report...` to load a saved Sensor Readout HTML report. If someone sends a diagnostics ZIP file, open the ZIP directly and Sensor Readout will use the first readable HTML report inside it.
+Press `Ctrl+O` or use `File` > `Open report or update...` to load a saved Sensor Readout HTML report. If someone sends a diagnostics ZIP file, open the ZIP directly and Sensor Readout will use the first readable HTML report inside it. If you open a Sensor Readout update ZIP, Sensor Readout offers to install it through the normal updater. This is useful for offline machines, managed copies, or support and testing workflows where the update ZIP has already been downloaded elsewhere.
 
 The report opens as a static snapshot in the normal category and tree layout, so you can inspect another user's machine as if it were your own current view. Static report mode does not refresh live values, run alarms, or control hardware. It is only a viewer for the data saved in the report.
 
@@ -622,11 +624,11 @@ Language files:
 
 Optional screen-reader speech:
 
-- Spoken hotkeys and alarms use Tolk to talk to the active screen reader where possible.
-- `Tolk.dll`, `SAAPI64.dll`, and Tolk support DLLs are bundled beside `Sensor Readout.exe` for screen-reader and SAPI speech.
+- Spoken hotkeys and alarms use Prism first on supported Windows 10 or later systems, then fall back to Tolk where needed.
+- `prism.dll`, `Tolk.dll`, `SAAPI64.dll`, and related support DLLs are bundled in the `Resources` folder for screen-reader and SAPI speech.
 - Routine spoken guidance is only sent when a supported screen reader is detected, so sighted users do not get slow fallback speech while browsing categories. Preferences > Spoken and visual feedback can opt non-screen-reader users back into Windows speech for category changes, and that fallback category speech interrupts itself so repeated category movement does not queue.
 - Preferences > Spoken and visual feedback lets you choose how much routine category speech Sensor Readout sends while you move through the category list: full guidance, a brief category-and-shortcut announcement, or off. It can also show explicit spoken hotkey output in a temporary visual feedback window with configurable placement and timeout whenever that visual option is enabled.
-- If Tolk is missing or no speech target accepts the message, the action fails safely and shows a status message when the main window is visible.
+- If no bundled speech backend or speech target accepts the message, the action fails safely and shows a status message when the main window is visible.
 - When Sensor Readout starts minimized to the notification area, it can speak a configurable startup message through the active screen reader. The default comes from `speech.startupActive` in the selected language file.
 - Preferences includes a simple language editor tab for editing existing language-file entries without opening a separate text editor.
 
@@ -668,6 +670,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.9.0
+- Added: Spoken output now tries the actively developed Prism screen-reader library first on supported Windows 10 or later systems, while keeping Tolk as a fallback so existing speech support remains available.
+- Added: Sensor Readout update ZIPs can now be installed from `File` > `Open report or update...` or with `--apply-update --update-zip`, using the same updater path as online updates. This helps with offline machines, managed deployments, or support and testing situations where a known update ZIP needs to be applied locally.
+- Improved: Accessibility Details now show which screen-reader speech backend is active when speech output is available.
+- Improved: The portable app folder is tidier, with support DLLs moved into `Resources` and optional prerequisite helper scripts moved into `Install_Scripts`.
 
 ### 4.8.1
 - Fixed: Task GPU-memory summaries now ignore impossible Windows per-process GPU-memory counter samples, so one process cannot appear to use more dedicated GPU memory than the adapter is currently using.
@@ -1235,6 +1243,7 @@ Sensor Readout uses or bundles components from these projects:
 - [DiskInfoToolkit](https://github.com/LibreHardwareMonitor/DiskInfoToolkit), used by LibreHardwareMonitor for storage data.
 - [RAMSPDToolkit](https://github.com/LibreHardwareMonitor/RAMSPDToolkit), used by LibreHardwareMonitor for memory SPD data.
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
+- [Prism screen reader library](https://github.com/ethindp/prism), used as the preferred optional speech output backend on supported systems.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
 - [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
 - [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus ROG plug-in.

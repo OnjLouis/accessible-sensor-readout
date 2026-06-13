@@ -11,7 +11,9 @@ if (-not (Test-Path $csc)) {
 }
 
 $portable = Join-Path $PSScriptRoot 'portable'
-$sdkOutput = Join-Path $portable 'SensorReadout.PluginSdk.dll'
+$resources = Join-Path $portable 'Resources'
+New-Item -ItemType Directory -Force -Path $resources | Out-Null
+$sdkOutput = Join-Path $resources 'SensorReadout.PluginSdk.dll'
 $sdkSources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src\PluginSdk') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $sources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $manifest = Join-Path $PSScriptRoot 'src\SensorReadoutApp.exe.manifest'
@@ -130,8 +132,8 @@ $references = @(
     'System.Management.dll',
     'System.IO.Compression.dll',
     'System.IO.Compression.FileSystem.dll',
-    (Join-Path $portable 'LibreHardwareMonitorLib.dll'),
-    (Join-Path $portable 'Newtonsoft.Json.dll'),
+    (Join-Path $resources 'LibreHardwareMonitorLib.dll'),
+    (Join-Path $resources 'Newtonsoft.Json.dll'),
     $sdkOutput
 ) -join ','
 
@@ -158,9 +160,9 @@ function Assert-ConfigBindingRedirectsMatchShippedAssemblies {
             continue
         }
 
-        $assemblyPath = Join-Path $portable ($assemblyName + '.dll')
+        $assemblyPath = Join-Path $resources ($assemblyName + '.dll')
         if (-not (Test-Path -LiteralPath $assemblyPath)) {
-            throw "Config binding redirect references $assemblyName $redirectVersion, but $assemblyName.dll is not shipped in the portable folder."
+            throw "Config binding redirect references $assemblyName $redirectVersion, but $assemblyName.dll is not shipped in the Resources folder."
         }
 
         $actualVersion = [System.Reflection.AssemblyName]::GetAssemblyName($assemblyPath).Version.ToString()
@@ -171,6 +173,60 @@ function Assert-ConfigBindingRedirectsMatchShippedAssemblies {
 }
 
 Assert-ConfigBindingRedirectsMatchShippedAssemblies
+
+function Assert-PortableHasNoStaleThirdPartyFiles {
+    $staleFiles = @(
+        @{
+            Path = Join-Path $portable 'Prism.LICENSE.txt'
+            Message = 'Prism.LICENSE.txt duplicates Prism-LICENSES\prism\mpl-2.0.txt. Keep the Prism-LICENSES copy and Prism.NOTICE.txt.'
+        },
+        @{
+            Path = Join-Path $portable 'Tolk.NVDA-LICENSE.txt'
+            Message = 'Tolk.NVDA-LICENSE.txt duplicates Tolk.LICENSE.txt. Keep the single Tolk.LICENSE.txt copy.'
+        }
+    )
+
+    foreach ($stale in $staleFiles) {
+        if (Test-Path -LiteralPath $stale.Path) {
+            throw "Stale portable file found: $($stale.Path). $($stale.Message)"
+        }
+    }
+}
+
+Assert-PortableHasNoStaleThirdPartyFiles
+
+function Assert-NoRootDependencyDlls {
+    $rootDlls = @(Get-ChildItem -LiteralPath $portable -Filter '*.dll' -File -ErrorAction SilentlyContinue)
+    if ($rootDlls.Count -gt 0) {
+        $names = ($rootDlls | ForEach-Object { $_.Name }) -join ', '
+        throw "Root dependency DLLs found beside Sensor Readout.exe: $names. Ship root DLLs from portable\Resources instead."
+    }
+}
+
+function Assert-RequiredResourceFiles {
+    foreach ($fileName in @(
+        'BlackSharp.Core.dll',
+        'DiskInfoToolkit.dll',
+        'HidSharp.dll',
+        'LibreHardwareMonitorLib.dll',
+        'Newtonsoft.Json.dll',
+        'nvdaControllerClient64.dll',
+        'prism.dll',
+        'RAMSPDToolkit-NDD.dll',
+        'SAAPI64.dll',
+        'SensorReadout.PluginSdk.dll',
+        'System.Buffers.dll',
+        'System.Memory.dll',
+        'System.Numerics.Vectors.dll',
+        'System.Runtime.CompilerServices.Unsafe.dll',
+        'Tolk.dll'
+    )) {
+        $path = Join-Path $resources $fileName
+        if (!(Test-Path -LiteralPath $path)) {
+            throw "Required Resource file is missing: $fileName"
+        }
+    }
+}
 
 & $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /out:$OutputPath /reference:$references $sources
 if ($LASTEXITCODE -ne 0) {
@@ -204,7 +260,7 @@ if (Test-Path $plugInRoot) {
                 'System.dll',
                 'System.Core.dll',
                 'System.Management.dll',
-                (Join-Path $portable 'Newtonsoft.Json.dll'),
+                (Join-Path $resources 'Newtonsoft.Json.dll'),
                 $sdkOutput
             ) -join ','
             $plugInAssemblyInfo = New-GeneratedAssemblyInfo -Title ("Sensor Readout " + $plugIn.Name + " Plug-In") -OutputName ($plugIn.Name + '.AssemblyInfo.cs')
@@ -263,6 +319,21 @@ if (Test-Path $docsSource) {
     }
 }
 
+$installScriptsTarget = Join-Path $portable 'Install_Scripts'
+New-Item -ItemType Directory -Force -Path $installScriptsTarget | Out-Null
+foreach ($scriptName in @('Install-Prerequisites.cmd', 'Install-Prerequisites.ps1')) {
+    $scriptSource = Join-Path $PSScriptRoot $scriptName
+    if (Test-Path -LiteralPath $scriptSource) {
+        Copy-Item -LiteralPath $scriptSource -Destination (Join-Path $installScriptsTarget $scriptName) -Force
+    }
+}
+foreach ($oldScript in @('Install-Prerequisites.cmd', 'Install-Prerequisites.ps1')) {
+    $oldScriptPath = Join-Path $portable $oldScript
+    if (Test-Path -LiteralPath $oldScriptPath) {
+        Remove-Item -LiteralPath $oldScriptPath -Force
+    }
+}
+
 $langTarget = Join-Path $portable 'Langs'
 if (Test-Path $langTarget) {
     New-Item -ItemType Directory -Force -Path $dataTarget | Out-Null
@@ -295,6 +366,15 @@ if (Test-Path $plugInOutputRoot) {
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $dataTarget 'BundledPlugInHashes.json') -Encoding UTF8
 }
+
+Assert-PortableHasNoStaleThirdPartyFiles
+
+foreach ($rootDll in Get-ChildItem -LiteralPath $portable -Filter '*.dll' -File -ErrorAction SilentlyContinue) {
+    Remove-Item -LiteralPath $rootDll.FullName -Force
+}
+
+Assert-NoRootDependencyDlls
+Assert-RequiredResourceFiles
 
 foreach ($preservedFolderName in @('Config', 'Logs', 'Reports')) {
     $preservedFolder = Join-Path $portable $preservedFolderName

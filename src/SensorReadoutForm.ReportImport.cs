@@ -58,6 +58,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         try
         {
+            if (IsSensorReadoutUpdateZip(path))
+            {
+                StartSelfUpdateFromLocalZip(path);
+                return;
+            }
+
             var snapshot = ReadReportSnapshot(path);
             if (snapshot == null || snapshot.Rows == null || snapshot.Rows.Count == 0)
             {
@@ -70,6 +76,29 @@ public sealed partial class SensorReadoutForm : Form
         catch (Exception ex)
         {
             MessageBox.Show(this, T("message.Could not open report:", "Could not open report:") + " " + ex.Message, T("ui.Open report", "Open report"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private static bool IsSensorReadoutUpdateZip(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) ||
+            !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            using (var archive = ZipFile.OpenRead(path))
+            {
+                return archive.Entries.Any(entry =>
+                    string.Equals(Path.GetFileName(entry.FullName), "Sensor Readout.exe", StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 

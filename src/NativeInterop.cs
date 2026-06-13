@@ -29,6 +29,12 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = false)]
     public static extern ulong GetTickCount64();
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool SetDllDirectory(string lpPathName);
+
+    [DllImport("ntdll.dll", SetLastError = false)]
+    public static extern int RtlGetVersion(ref OsVersionInfo versionInfo);
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool DestroyIcon(IntPtr hIcon);
 
@@ -155,13 +161,32 @@ internal static class NativeMethods
             return new FilterKeys { cbSize = (uint)Marshal.SizeOf(typeof(FilterKeys)) };
         }
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct OsVersionInfo
+    {
+        public uint dwOSVersionInfoSize;
+        public uint dwMajorVersion;
+        public uint dwMinorVersion;
+        public uint dwBuildNumber;
+        public uint dwPlatformId;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string szCSDVersion;
+
+        public static OsVersionInfo Create()
+        {
+            return new OsVersionInfo { dwOSVersionInfoSize = (uint)Marshal.SizeOf(typeof(OsVersionInfo)) };
+        }
+    }
 }
 
 internal static class ScreenReaderOutput
 {
     private static bool loadAttempted;
     private static bool loaded;
-    private static string loadError = "Tolk screen reader library is not loaded.";
+    private static ISpeechBackend activeBackend;
+    private static string loadError = "No screen reader speech backend is loaded.";
     private static readonly object detectLock = new object();
     private static List<string> cachedDetectedScreenReaders = new List<string>();
     private static DateTime cachedDetectedScreenReadersUtc = DateTime.MinValue;
@@ -196,6 +221,14 @@ internal static class ScreenReaderOutput
     [DllImport("Tolk.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     private static extern bool Tolk_Output([MarshalAs(UnmanagedType.LPWStr)] string text, [MarshalAs(UnmanagedType.I1)] bool interrupt);
+
+    public static string ActiveBackendName
+    {
+        get
+        {
+            return loaded && activeBackend != null ? activeBackend.Name : "";
+        }
+    }
 
     public static bool TrySpeak(string text, out string error)
     {
@@ -281,19 +314,23 @@ internal static class ScreenReaderOutput
 
     public static void Shutdown()
     {
-        if (!loaded)
+        if (!loaded && activeBackend == null)
         {
             return;
         }
 
         try
         {
-            Tolk_Unload();
+            if (activeBackend != null)
+            {
+                activeBackend.Shutdown();
+            }
         }
         catch
         {
         }
 
+        activeBackend = null;
         loaded = false;
     }
 
@@ -323,13 +360,51 @@ internal static class ScreenReaderOutput
 
         try
         {
-            if (!Tolk_Output(text, interrupt))
+            if (activeBackend == null || !activeBackend.Output(text, interrupt, out error))
             {
-                error = "No supported screen reader or SAPI voice accepted the message.";
+                if (activeBackend is PrismSpeechBackend && TrySwitchToTolk(text, interrupt, out error))
+                {
+                    return true;
+                }
+
+                if (string.IsNullOrWhiteSpace(error))
+                {
+                    error = "No supported screen reader or SAPI voice accepted the message.";
+                }
+
                 return false;
             }
 
             return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TrySwitchToTolk(string text, bool interrupt, out string error)
+    {
+        error = "";
+        try
+        {
+            string tolkError;
+            var tolk = TryLoadTolk(out tolkError);
+            if (tolk == null)
+            {
+                error = tolkError;
+                return false;
+            }
+
+            if (activeBackend != null)
+            {
+                activeBackend.Shutdown();
+            }
+
+            activeBackend = tolk;
+            loaded = true;
+            return activeBackend.Output(text, interrupt, out error);
         }
         catch (Exception ex)
         {
@@ -354,21 +429,47 @@ internal static class ScreenReaderOutput
 
         loadAttempted = true;
 
+        string prismError;
+        var prism = TryLoadPrism(out prismError);
+        if (prism != null)
+        {
+            activeBackend = prism;
+            loaded = true;
+            error = "";
+            return true;
+        }
+
+        string tolkError;
+        var tolk = TryLoadTolk(out tolkError);
+        if (tolk != null)
+        {
+            activeBackend = tolk;
+            loaded = true;
+            error = "";
+            return true;
+        }
+
+        loadError = FirstNonEmpty(prismError, tolkError, "No screen reader speech backend is available.");
+        error = loadError;
+        return false;
+    }
+
+    private static ISpeechBackend TryLoadTolk(out string error)
+    {
         try
         {
             Tolk_TrySAPI(true);
             Tolk_PreferSAPI(false);
             Tolk_Load();
-            loaded = Tolk_IsLoaded();
-            if (loaded)
+            if (Tolk_IsLoaded())
             {
                 error = "";
-                return true;
+                return new TolkSpeechBackend();
             }
         }
         catch (DllNotFoundException)
         {
-            loadError = "Place Tolk.dll beside Sensor Readout.exe to enable screen-reader speech.";
+            loadError = "Place Tolk.dll in the Resources folder to enable screen-reader speech.";
         }
         catch (BadImageFormatException)
         {
@@ -380,6 +481,319 @@ internal static class ScreenReaderOutput
         }
 
         error = loadError;
-        return false;
+        return null;
+    }
+
+    private static ISpeechBackend TryLoadPrism(out string error)
+    {
+        error = "";
+        if (!IsWindows10OrLater())
+        {
+            error = "Prism requires Windows 10 or later.";
+            return null;
+        }
+
+        PrismSpeechBackend backend = null;
+        try
+        {
+            backend = PrismSpeechBackend.TryCreate(DetectSupportedScreenReaders(), out error);
+            return backend;
+        }
+        catch (DllNotFoundException)
+        {
+            error = "Place prism.dll in the Resources folder to enable Prism screen-reader speech.";
+        }
+        catch (BadImageFormatException)
+        {
+            error = "The prism.dll beside Sensor Readout.exe is not a compatible 64-bit build.";
+        }
+        catch (EntryPointNotFoundException ex)
+        {
+            error = "The prism.dll beside Sensor Readout.exe is not compatible with this Sensor Readout build: " + ex.Message;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        if (backend != null)
+        {
+            backend.Shutdown();
+        }
+
+        return null;
+    }
+
+    private static bool IsWindows10OrLater()
+    {
+        try
+        {
+            var version = NativeMethods.OsVersionInfo.Create();
+            if (NativeMethods.RtlGetVersion(ref version) == 0)
+            {
+                return version.dwMajorVersion >= 10;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            return Environment.OSVersion.Version.Major >= 10;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        if (values == null)
+        {
+            return "";
+        }
+
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return "";
+    }
+
+    private interface ISpeechBackend
+    {
+        string Name { get; }
+        bool Output(string text, bool interrupt, out string error);
+        void Shutdown();
+    }
+
+    private sealed class TolkSpeechBackend : ISpeechBackend
+    {
+        public string Name { get { return "Tolk"; } }
+
+        public bool Output(string text, bool interrupt, out string error)
+        {
+            if (!Tolk_Output(text, interrupt))
+            {
+                error = "No supported screen reader or SAPI voice accepted the message.";
+                return false;
+            }
+
+            error = "";
+            return true;
+        }
+
+        public void Shutdown()
+        {
+            Tolk_Unload();
+        }
+    }
+
+    private sealed class PrismSpeechBackend : ISpeechBackend
+    {
+        private const ulong PrismBackendSapi = 0x1D6DF72422CEEE66;
+        private const ulong PrismBackendNvda = 0x89CC19C5C4AC1A56;
+        private const ulong PrismBackendJaws = 0xAC3D60E9BD84B53E;
+        private const ulong PrismBackendOneCore = 0x6797D32F0D994CB4;
+        private const ulong PrismBackendUia = 0x6238F019DB678F8E;
+        private const ulong PrismBackendZoomText = 0xAE439D62DC7B1479;
+        private const ulong PrismBackendSystemAccess = 0x8380F2A37B2C3EB6;
+
+        private readonly IntPtr context;
+        private readonly IntPtr backend;
+        private readonly string backendName;
+        private bool disposed;
+
+        private PrismSpeechBackend(IntPtr context, IntPtr backend, string backendName)
+        {
+            this.context = context;
+            this.backend = backend;
+            this.backendName = string.IsNullOrWhiteSpace(backendName) ? "Prism" : "Prism " + backendName;
+        }
+
+        public string Name { get { return backendName; } }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PrismConfig
+        {
+            public byte version;
+        }
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern PrismConfig prism_config_init();
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr prism_init(ref PrismConfig cfg);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void prism_shutdown(IntPtr ctx);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr prism_registry_create(IntPtr ctx, ulong id);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int prism_backend_initialize(IntPtr backend);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr prism_backend_name(IntPtr backend);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void prism_backend_free(IntPtr backend);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int prism_backend_output(IntPtr backend, byte[] text, [MarshalAs(UnmanagedType.I1)] bool interrupt);
+
+        [DllImport("prism.dll", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr prism_error_string(int error);
+
+        public static PrismSpeechBackend TryCreate(IEnumerable<string> detectedScreenReaders, out string error)
+        {
+            error = "";
+            var config = prism_config_init();
+            var context = prism_init(ref config);
+            if (context == IntPtr.Zero)
+            {
+                error = "Prism could not initialize.";
+                return null;
+            }
+
+            var errors = new List<string>();
+            foreach (var id in PreferredBackendIds(detectedScreenReaders))
+            {
+                var backend = IntPtr.Zero;
+                try
+                {
+                    backend = prism_registry_create(context, id);
+                    if (backend == IntPtr.Zero)
+                    {
+                        errors.Add("backend " + id.ToString("X16") + " was not available");
+                        continue;
+                    }
+
+                    var initError = prism_backend_initialize(backend);
+                    if (initError == 0)
+                    {
+                        return new PrismSpeechBackend(context, backend, PtrToUtf8(prism_backend_name(backend)));
+                    }
+
+                    errors.Add(PtrToUtf8(prism_error_string(initError)));
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(ex.Message);
+                }
+
+                if (backend != IntPtr.Zero)
+                {
+                    prism_backend_free(backend);
+                }
+            }
+
+            prism_shutdown(context);
+            error = "Prism did not initialize a usable backend." + (errors.Count == 0 ? "" : " " + string.Join("; ", errors.Distinct().ToArray()));
+            return null;
+        }
+
+        public bool Output(string text, bool interrupt, out string error)
+        {
+            var result = prism_backend_output(backend, Utf8NullTerminated(text), interrupt);
+            if (result == 0)
+            {
+                error = "";
+                return true;
+            }
+
+            error = PtrToUtf8(prism_error_string(result));
+            return false;
+        }
+
+        public void Shutdown()
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            if (backend != IntPtr.Zero)
+            {
+                prism_backend_free(backend);
+            }
+
+            if (context != IntPtr.Zero)
+            {
+                prism_shutdown(context);
+            }
+        }
+
+        private static IEnumerable<ulong> PreferredBackendIds(IEnumerable<string> detectedScreenReaders)
+        {
+            var ids = new List<ulong>();
+            if (detectedScreenReaders != null)
+            {
+                foreach (var reader in detectedScreenReaders)
+                {
+                    if (string.Equals(reader, "NVDA", StringComparison.OrdinalIgnoreCase)) AddUnique(ids, PrismBackendNvda);
+                    else if (string.Equals(reader, "JAWS", StringComparison.OrdinalIgnoreCase)) AddUnique(ids, PrismBackendJaws);
+                    else if (string.Equals(reader, "ZoomText", StringComparison.OrdinalIgnoreCase) || string.Equals(reader, "Fusion", StringComparison.OrdinalIgnoreCase)) AddUnique(ids, PrismBackendZoomText);
+                    else if (string.Equals(reader, "System Access", StringComparison.OrdinalIgnoreCase)) AddUnique(ids, PrismBackendSystemAccess);
+                    else if (string.Equals(reader, "Narrator", StringComparison.OrdinalIgnoreCase)) AddUnique(ids, PrismBackendUia);
+                }
+            }
+
+            AddUnique(ids, PrismBackendNvda);
+            AddUnique(ids, PrismBackendJaws);
+            AddUnique(ids, PrismBackendUia);
+            AddUnique(ids, PrismBackendOneCore);
+            AddUnique(ids, PrismBackendSapi);
+            return ids;
+        }
+
+        private static void AddUnique(List<ulong> ids, ulong id)
+        {
+            if (!ids.Contains(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        private static byte[] Utf8NullTerminated(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                text = "Sensor Readout";
+            }
+
+            return System.Text.Encoding.UTF8.GetBytes(text + "\0");
+        }
+
+        private static string PtrToUtf8(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero)
+            {
+                return "";
+            }
+
+            var bytes = new List<byte>();
+            var offset = 0;
+            while (true)
+            {
+                var value = Marshal.ReadByte(ptr, offset++);
+                if (value == 0)
+                {
+                    break;
+                }
+
+                bytes.Add(value);
+            }
+
+            return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
+        }
     }
 }

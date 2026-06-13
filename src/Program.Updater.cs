@@ -16,19 +16,29 @@ public static partial class Program
         try
         {
             string zipUrl;
+            string zipPath;
             string targetDir;
             string exePath;
             string tempBase;
             string pidText;
             TryGetOptionValue(args, "--update-url", out zipUrl);
+            TryGetOptionValue(args, "--update-zip", out zipPath);
             TryGetOptionValue(args, "--update-target", out targetDir);
             TryGetOptionValue(args, "--update-exe", out exePath);
             TryGetOptionValue(args, "--update-temp", out tempBase);
             TryGetOptionValue(args, "--update-wait-pid", out pidText);
 
-            if (string.IsNullOrWhiteSpace(zipUrl) || string.IsNullOrWhiteSpace(targetDir) || string.IsNullOrWhiteSpace(exePath))
+            if ((string.IsNullOrWhiteSpace(zipUrl) && string.IsNullOrWhiteSpace(zipPath)) ||
+                (!string.IsNullOrWhiteSpace(zipUrl) && !string.IsNullOrWhiteSpace(zipPath)) ||
+                string.IsNullOrWhiteSpace(targetDir) ||
+                string.IsNullOrWhiteSpace(exePath))
             {
                 throw new InvalidOperationException("The updater was not given enough information to install the update.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(zipPath) && !File.Exists(zipPath))
+            {
+                throw new FileNotFoundException("The local update ZIP could not be found.", zipPath);
             }
 
             int processId;
@@ -37,7 +47,7 @@ public static partial class Program
                 WaitForProcessExit(processId);
             }
 
-            ApplyUpdate(zipUrl, targetDir, exePath, string.IsNullOrWhiteSpace(tempBase) ? Path.GetTempPath() : tempBase, HasArg(args, "--update-no-restart"));
+            ApplyUpdate(zipUrl, zipPath, targetDir, exePath, string.IsNullOrWhiteSpace(tempBase) ? Path.GetTempPath() : tempBase, HasArg(args, "--update-no-restart"));
         }
         catch (Exception ex)
         {
@@ -50,7 +60,7 @@ public static partial class Program
         }
     }
 
-    private static void ApplyUpdate(string zipUrl, string targetDir, string exePath, string tempBase, bool noRestart)
+    private static void ApplyUpdate(string zipUrl, string zipPath, string targetDir, string exePath, string tempBase, bool noRestart)
     {
         Directory.CreateDirectory(tempBase);
         var root = Path.Combine(tempBase, "SensorReadoutUpdate_" + Guid.NewGuid().ToString("N"));
@@ -61,13 +71,21 @@ public static partial class Program
 
         try
         {
-            DownloadUpdateZip(zipUrl, zip);
+            if (!string.IsNullOrWhiteSpace(zipPath))
+            {
+                File.Copy(zipPath, zip, true);
+            }
+            else
+            {
+                DownloadUpdateZip(zipUrl, zip);
+            }
+
             ZipFile.ExtractToDirectory(zip, stage);
 
             var source = FindUpdateSourceFolder(stage);
             if (string.IsNullOrWhiteSpace(source))
             {
-                throw new InvalidOperationException("The downloaded ZIP does not contain Sensor Readout.exe.");
+                throw new InvalidOperationException("The update ZIP does not contain Sensor Readout.exe.");
             }
 
             Directory.CreateDirectory(targetDir);
@@ -124,8 +142,7 @@ public static partial class Program
             RemoveNestedDuplicateFolders(targetDir);
             RemoveEmptyDirectory(backupRoot);
             TryDeleteFile(Path.Combine(targetDir, "README.md"));
-            TryDeleteFile(Path.Combine(targetDir, "nvdaControllerClient.dll"));
-            TryDeleteFile(Path.Combine(targetDir, "nvdaControllerClient.LICENSE.txt"));
+            DeleteObsoleteRootFiles(targetDir);
             DeleteMarkdownFiles(Path.Combine(targetDir, "Docs"));
             DeleteMarkdownFiles(Path.Combine(targetDir, "docs"));
         }
@@ -137,6 +154,37 @@ public static partial class Program
         if (!noRestart)
         {
             TryRestartUpdatedApp(exePath, targetDir);
+        }
+    }
+
+    private static void DeleteObsoleteRootFiles(string targetDir)
+    {
+        foreach (var fileName in new[]
+        {
+            "BlackSharp.Core.dll",
+            "DiskInfoToolkit.dll",
+            "HidSharp.dll",
+            "Install-Prerequisites.cmd",
+            "Install-Prerequisites.ps1",
+            "LibreHardwareMonitorLib.dll",
+            "Newtonsoft.Json.dll",
+            "nvdaControllerClient.dll",
+            "nvdaControllerClient.LICENSE.txt",
+            "nvdaControllerClient64.dll",
+            "prism.dll",
+            "Prism.LICENSE.txt",
+            "RAMSPDToolkit-NDD.dll",
+            "SAAPI64.dll",
+            "SensorReadout.PluginSdk.dll",
+            "System.Buffers.dll",
+            "System.Memory.dll",
+            "System.Numerics.Vectors.dll",
+            "System.Runtime.CompilerServices.Unsafe.dll",
+            "Tolk.dll",
+            "Tolk.NVDA-LICENSE.txt"
+        })
+        {
+            TryDeleteFile(Path.Combine(targetDir, fileName));
         }
     }
 

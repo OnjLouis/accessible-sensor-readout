@@ -253,6 +253,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AddDetail(details, "Screen reader output available", ScreenReaderOutput.IsActiveScreenReaderOutputAvailable ? "Yes" : "No");
+        AddDetail(details, "Screen reader output backend", string.IsNullOrWhiteSpace(ScreenReaderOutput.ActiveBackendName) ? "Not loaded" : ScreenReaderOutput.ActiveBackendName);
         var detectedScreenReaders = ScreenReaderOutput.DetectSupportedScreenReaders();
         AddDetail(details, "Detected screen readers", detectedScreenReaders.Count == 0 ? "None detected" : string.Join(", ", detectedScreenReaders.ToArray()));
 

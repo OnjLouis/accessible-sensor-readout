@@ -37,10 +37,15 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RunPrerequisiteInstaller()
     {
-        var installerPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Install-Prerequisites.cmd");
+        var installerPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Install_Scripts", "Install-Prerequisites.cmd");
         if (!System.IO.File.Exists(installerPath))
         {
-            MessageBox.Show(this, "Install-Prerequisites.cmd could not be found beside Sensor Readout.", "Sensor Readout prerequisites", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            installerPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Install-Prerequisites.cmd");
+        }
+
+        if (!System.IO.File.Exists(installerPath))
+        {
+            MessageBox.Show(this, "Install-Prerequisites.cmd could not be found in the Install_Scripts folder.", "Sensor Readout prerequisites", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 

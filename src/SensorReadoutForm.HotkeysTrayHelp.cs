@@ -517,7 +517,10 @@ public sealed partial class SensorReadoutForm : Form
         string error;
         if (ScreenReaderOutput.TrySpeakPoliteForActiveScreenReader(message, out error))
         {
-            LogMessage("Normal", "Spoke startup active message with screen reader: " + message);
+            var backend = ScreenReaderOutput.ActiveBackendName;
+            LogMessage("Normal", "Spoke startup active message with screen reader"
+                + (string.IsNullOrWhiteSpace(backend) ? "" : " via " + backend)
+                + ": " + message);
         }
         else
         {
@@ -816,7 +819,7 @@ public sealed partial class SensorReadoutForm : Form
                     "Ideas by Andre Louis." + Environment.NewLine +
                     "A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better." + Environment.NewLine + Environment.NewLine +
                     "Bundled and referenced components:" + Environment.NewLine +
-                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries."
+                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Prism screen reader library, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries."
             };
 
             var buttons = new FlowLayoutPanel

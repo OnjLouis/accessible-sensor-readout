@@ -444,7 +444,7 @@ function Test-UntranslatedEnglishValue([string]$key, [string]$englishValue, [str
     }
 
     $allowedValuePatterns = @(
-        '^(Sensor Readout|Windows|GitHub|LibreHardwareMonitor|PawnIO|Tolk|NVDA|JAWS|JFW)$',
+        '^(Sensor Readout|Windows|GitHub|LibreHardwareMonitor|PawnIO|Prism|Tolk|NVDA|JAWS|JFW)$',
         '^(CPU|GPU|USB|SMART|NVMe|PCI|ACPI|BIOS|UEFI|TPM|WMI|OUI|MAC|IP|DNS|DHCP|SSID|RSSI)$',
         '^(OK|N/A|Auto|XTS-AES 128|XTS-AES 256|AES 128|AES 256|BitLocker)$',
         '^[A-Z0-9 _./:+%()&,-]+$',
@@ -559,6 +559,54 @@ function Assert-NoNestedPortableFolders {
     }
     if ($bad.Count -gt 0) {
         Fail "Nested duplicate portable folders found: $($bad -join ', ')"
+    }
+}
+
+function Assert-NoStalePortableFiles {
+    Info "Checking for stale duplicate portable files."
+    $staleFiles = @(
+        @{
+            Path = Join-Path $portable 'Prism.LICENSE.txt'
+            Message = 'Prism.LICENSE.txt duplicates Prism-LICENSES\prism\mpl-2.0.txt. Keep the Prism-LICENSES copy and Prism.NOTICE.txt.'
+        },
+        @{
+            Path = Join-Path $portable 'Tolk.NVDA-LICENSE.txt'
+            Message = 'Tolk.NVDA-LICENSE.txt duplicates Tolk.LICENSE.txt. Keep the single Tolk.LICENSE.txt copy.'
+        }
+    )
+
+    foreach ($stale in $staleFiles) {
+        if (Test-Path -LiteralPath $stale.Path) {
+            Fail "Stale portable file found: $($stale.Path). $($stale.Message)"
+        }
+    }
+
+    $rootDlls = @(Get-ChildItem -LiteralPath $portable -Filter '*.dll' -File -ErrorAction SilentlyContinue)
+    if ($rootDlls.Count -gt 0) {
+        $names = ($rootDlls | ForEach-Object { $_.Name }) -join ', '
+        Fail "Root dependency DLLs found beside Sensor Readout.exe: $names. Ship root DLLs from portable\Resources instead."
+    }
+
+    foreach ($fileName in @(
+        'BlackSharp.Core.dll',
+        'DiskInfoToolkit.dll',
+        'HidSharp.dll',
+        'LibreHardwareMonitorLib.dll',
+        'Newtonsoft.Json.dll',
+        'nvdaControllerClient64.dll',
+        'prism.dll',
+        'RAMSPDToolkit-NDD.dll',
+        'SAAPI64.dll',
+        'SensorReadout.PluginSdk.dll',
+        'System.Buffers.dll',
+        'System.Memory.dll',
+        'System.Numerics.Vectors.dll',
+        'System.Runtime.CompilerServices.Unsafe.dll',
+        'Tolk.dll'
+    )) {
+        if (!(Test-Path -LiteralPath (Join-Path (Join-Path $portable 'Resources') $fileName))) {
+            Fail "Required Resource file is missing: $fileName"
+        }
     }
 }
 
@@ -924,7 +972,7 @@ function Assert-ReleaseZipContents([string]$zipPath) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
-        $entries = @($zip.Entries | ForEach-Object { $_.FullName })
+        $entries = @($zip.Entries | ForEach-Object { ($_.FullName -replace '\\', '/') })
         foreach ($prefix in @('Config/','Logs/','Reports/','Backups/','Update Backups/','Update Temp/')) {
             if ($entries | Where-Object { $_.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) }) {
                 Fail "Release ZIP contains excluded path $prefix."
@@ -933,6 +981,36 @@ function Assert-ReleaseZipContents([string]$zipPath) {
         foreach ($nested in @('Langs/Langs/','Docs/Docs/','Sounds/Sounds/','Data/Data/','Plug-Ins/Plug-Ins/')) {
             if ($entries | Where-Object { $_.StartsWith($nested, [StringComparison]::OrdinalIgnoreCase) }) {
                 Fail "Release ZIP contains nested duplicate path $nested."
+            }
+        }
+        foreach ($stale in @('Prism.LICENSE.txt','Tolk.NVDA-LICENSE.txt')) {
+            if ($entries -contains $stale) {
+                Fail "Release ZIP contains stale duplicate file $stale."
+            }
+        }
+        $rootDlls = @($entries | Where-Object { $_ -match '^[^/\\]+\.dll$' })
+        if ($rootDlls.Count -gt 0) {
+            Fail "Release ZIP contains root dependency DLLs: $($rootDlls -join ', ')."
+        }
+        foreach ($fileName in @(
+            'BlackSharp.Core.dll',
+            'DiskInfoToolkit.dll',
+            'HidSharp.dll',
+            'LibreHardwareMonitorLib.dll',
+            'Newtonsoft.Json.dll',
+            'nvdaControllerClient64.dll',
+            'prism.dll',
+            'RAMSPDToolkit-NDD.dll',
+            'SAAPI64.dll',
+            'SensorReadout.PluginSdk.dll',
+            'System.Buffers.dll',
+            'System.Memory.dll',
+            'System.Numerics.Vectors.dll',
+            'System.Runtime.CompilerServices.Unsafe.dll',
+            'Tolk.dll'
+        )) {
+            if (!($entries -contains ('Resources/' + $fileName))) {
+                Fail "Release ZIP is missing required Resource file Resources/$fileName."
             }
         }
         if (-not ($entries -contains 'Sensor Readout.exe')) {
@@ -1219,17 +1297,24 @@ function Invoke-DotNetUpdaterSmoke([string]$releaseVersion, [string]$candidateZi
     Set-Content -LiteralPath (Join-Path $nestedPlugIn 'plugin.json') -Value '{"id":"release-smoke.bad-nested-plugin","name":"Bad nested plugin"}' -Encoding UTF8
 
     $exe = Join-Path $targetRoot 'Sensor Readout.exe'
-    $zipUrl = ([Uri]$candidateZip).AbsoluteUri
     $updater = Join-Path $portable 'Sensor Readout.exe'
-    $p = Start-Process -FilePath $updater -ArgumentList @(
+    $quote = {
+        param([string]$value)
+        if ($null -eq $value) {
+            $value = ''
+        }
+        '"' + ($value -replace '"', '\"') + '"'
+    }
+    $arguments = @(
         '--apply-update',
-        '--update-url', $zipUrl,
-        '--update-target', $targetRoot,
-        '--update-exe', $exe,
-        '--update-temp', $updateRoot,
+        '--update-zip', (& $quote $candidateZip),
+        '--update-target', (& $quote $targetRoot),
+        '--update-exe', (& $quote $exe),
+        '--update-temp', (& $quote $updateRoot),
         '--update-wait-pid', '0',
         '--update-no-restart'
-    ) -WorkingDirectory $repoRoot -WindowStyle Hidden -Wait -PassThru
+    ) -join ' '
+    $p = Start-Process -FilePath $updater -ArgumentList $arguments -WorkingDirectory $repoRoot -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0) {
         Fail ".NET updater smoke exited with code $($p.ExitCode)."
     }
@@ -1330,6 +1415,7 @@ if (!$SkipBuild) {
 
 Assert-LanguageParity
 Assert-NoNestedPortableFolders
+Assert-NoStalePortableFiles
 Invoke-GitDiffCheck
 Invoke-CommandLineReportSmoke $Version
 Invoke-CommandLineDiagnosticsSmoke $Version
