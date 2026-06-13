@@ -97,6 +97,8 @@ public static partial class Program
                 TryDeleteDirectory(legacyBackups);
             }
 
+            CleanupObsoleteRootUpdateFolders(targetDir, backupRoot);
+
             var previousLanguageHashes = ReadHashManifest(Path.Combine(Path.Combine(targetDir, "Data"), "BundledLanguageHashes.json"));
             var previousPlugInHashes = ReadHashManifest(Path.Combine(Path.Combine(targetDir, "Data"), "BundledPlugInHashes.json"));
 
@@ -111,7 +113,7 @@ public static partial class Program
 
             var preservedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "Config", "Logs", "Reports", "Backups", "Update Backups", "Update Temp",
+                "Config", "Logs", "Reports", "Backups",
                 "Docs", "Langs", "Data", "Plug-Ins", "Sounds"
             };
 
@@ -141,6 +143,7 @@ public static partial class Program
 
             RemoveNestedDuplicateFolders(targetDir);
             RemoveEmptyDirectory(backupRoot);
+            CleanupObsoleteBundledPlugInBackups(targetDir);
             TryDeleteFile(Path.Combine(targetDir, "README.md"));
             DeleteObsoleteRootFiles(targetDir);
             DeleteMarkdownFiles(Path.Combine(targetDir, "Docs"));
@@ -155,6 +158,26 @@ public static partial class Program
         {
             TryRestartUpdatedApp(exePath, targetDir);
         }
+    }
+
+    private static void CleanupObsoleteRootUpdateFolders(string targetDir, string backupRoot)
+    {
+        if (string.IsNullOrWhiteSpace(targetDir))
+        {
+            return;
+        }
+
+        var rootUpdateBackups = Path.Combine(targetDir, "Update Backups");
+        if (Directory.Exists(rootUpdateBackups))
+        {
+            var destination = string.IsNullOrWhiteSpace(backupRoot)
+                ? Path.Combine(Path.Combine(targetDir, "Backups\\Updates"), DateTime.Now.ToString("yyyyMMdd-HHmmss"))
+                : backupRoot;
+            NewBackupZip(rootUpdateBackups, destination, "Legacy-Root-Update-Backups");
+            TryDeleteDirectory(rootUpdateBackups);
+        }
+
+        TryDeleteDirectory(Path.Combine(targetDir, "Update Temp"));
     }
 
     private static void DeleteObsoleteRootFiles(string targetDir)
@@ -397,6 +420,11 @@ public static partial class Program
                 continue;
             }
 
+            if (IsBundledPlugInBinaryBackupCandidate(relative))
+            {
+                continue;
+            }
+
             var currentHash = GetFileSha256(file);
             var previousHash = previousPlugInHashes.ContainsKey(relative) ? previousPlugInHashes[relative] : "";
             var incomingHash = incomingPlugInHashes.ContainsKey(relative) ? incomingPlugInHashes[relative] : "";
@@ -416,6 +444,79 @@ public static partial class Program
         {
             NewBackupZip(customRoot, backupRoot, "Custom-Bundled-Plug-Ins");
             TryDeleteDirectory(customRoot);
+        }
+    }
+
+    private static bool IsBundledPlugInBinaryBackupCandidate(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(relativePath);
+        return string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".pdb", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CleanupObsoleteBundledPlugInBackups(string targetDir)
+    {
+        try
+        {
+            var backupRoot = Path.Combine(targetDir, "Backups\\Updates");
+            if (!Directory.Exists(backupRoot))
+            {
+                return;
+            }
+
+            foreach (var zipPath in Directory.GetFiles(backupRoot, "Custom-Bundled-Plug-Ins*.zip", SearchOption.AllDirectories))
+            {
+                if (BackupZipContainsOnlyBundledPlugInBinaries(zipPath))
+                {
+                    TryDeleteFile(zipPath);
+                    RemoveEmptyDirectory(Path.GetDirectoryName(zipPath));
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool BackupZipContainsOnlyBundledPlugInBinaries(string zipPath)
+    {
+        try
+        {
+            using (var zip = ZipFile.OpenRead(zipPath))
+            {
+                var sawFile = false;
+                foreach (var entry in zip.Entries)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.Name))
+                    {
+                        continue;
+                    }
+
+                    sawFile = true;
+                    var normalized = entry.FullName.Replace('\\', '/');
+                    if (normalized.StartsWith("custom-plug-ins/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        normalized = normalized.Substring("custom-plug-ins/".Length);
+                    }
+
+                    if (!IsBundledPlugInBinaryBackupCandidate(normalized))
+                    {
+                        return false;
+                    }
+                }
+
+                return sawFile;
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 

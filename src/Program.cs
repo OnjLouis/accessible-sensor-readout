@@ -32,6 +32,8 @@ public static partial class Program
             return;
         }
 
+        CleanupObsoleteRootStateAfterLegacyUpdate();
+
         var loggingLevel = GetRequestedLoggingLevel(args);
         if (!string.IsNullOrWhiteSpace(loggingLevel))
         {
@@ -183,6 +185,19 @@ public static partial class Program
                 return null;
             }
         };
+    }
+
+    private static void CleanupObsoleteRootStateAfterLegacyUpdate()
+    {
+        try
+        {
+            DeleteObsoleteRootFiles(AppDomain.CurrentDomain.BaseDirectory);
+            CleanupObsoleteRootUpdateFolders(AppDomain.CurrentDomain.BaseDirectory, null);
+            CleanupObsoleteBundledPlugInBackups(AppDomain.CurrentDomain.BaseDirectory);
+        }
+        catch
+        {
+        }
     }
 
     private static void RepairBundledHashManifests()

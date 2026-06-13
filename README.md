@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.9.0.
+Current version: 4.9.1.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -670,6 +670,9 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.9.1
+- Fixed: updates from older Sensor Readout copies now clean up old root-level support DLLs, scripts, duplicate speech-library files, legacy update-temp folders, and mistaken plug-in DLL backup zips after the new app starts, so dependencies moved into `Resources` do not remain live beside `Sensor Readout.exe` and unchanged shipped plug-ins do not keep accumulating in backups.
 
 ### 4.9.0
 - Added: Spoken output now tries the actively developed Prism screen-reader library first on supported Windows 10 or later systems, while keeping Tolk as a fallback so existing speech support remains available.
