@@ -601,6 +601,9 @@ public sealed partial class SensorReadoutForm : Form
         trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
         pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
         activeTemperatureUnit = settings.TemperatureUnit;
+        activeMemoryUnitMode = settings.MemoryUnitMode;
+        activeStorageUnitMode = settings.StorageUnitMode;
+        activeTransferUnitMode = settings.TransferUnitMode;
         activeDecimalSeparator = settings.DecimalSeparator;
         LoadSelectedLanguage();
         UpdateTemperatureUnitMenu();
@@ -609,6 +612,7 @@ public sealed partial class SensorReadoutForm : Form
         RegisterGlobalHotKeys();
         ApplyTimerSettings();
         StartAutomaticUpdateChecks();
-        RefreshSensors(false, false, "settings import");
+        ClearFormattedSensorRowCaches();
+        RefreshSensors(false, true, "settings import");
     }
 }

@@ -388,6 +388,9 @@ public sealed partial class SensorReadoutForm : Form
             ReadingTreeExpansionMode = value.ReadingTreeExpansionMode,
             ReadingTreeLastExpanded = value.ReadingTreeLastExpanded,
             TemperatureUnit = value.TemperatureUnit,
+            MemoryUnitMode = value.MemoryUnitMode,
+            StorageUnitMode = value.StorageUnitMode,
+            TransferUnitMode = value.TransferUnitMode,
             DecimalSeparator = value.DecimalSeparator,
             LanguageFile = value.LanguageFile,
             LanguagePreferenceInitialized = value.LanguagePreferenceInitialized,
@@ -494,6 +497,9 @@ public sealed partial class SensorReadoutForm : Form
         target.ReadingTreeExpansionMode = shared.ReadingTreeExpansionMode;
         target.ReadingTreeLastExpanded = shared.ReadingTreeLastExpanded;
         target.TemperatureUnit = shared.TemperatureUnit;
+        target.MemoryUnitMode = NormalizeByteUnitMode(shared.MemoryUnitMode);
+        target.StorageUnitMode = NormalizeByteUnitMode(shared.StorageUnitMode);
+        target.TransferUnitMode = NormalizeByteUnitMode(shared.TransferUnitMode);
         target.DecimalSeparator = shared.DecimalSeparator;
         target.LanguageFile = shared.LanguageFile;
         target.LanguagePreferenceInitialized = shared.LanguagePreferenceInitialized;
@@ -541,6 +547,9 @@ public sealed partial class SensorReadoutForm : Form
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds <= 0 ? 5 : value.RefreshIntervalSeconds));
         value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
+        value.MemoryUnitMode = NormalizeByteUnitMode(value.MemoryUnitMode);
+        value.StorageUnitMode = NormalizeByteUnitMode(value.StorageUnitMode);
+        value.TransferUnitMode = NormalizeByteUnitMode(value.TransferUnitMode);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator
             : "";
@@ -577,6 +586,27 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return CategorySpeechFull;
+    }
+
+    public static string NormalizeByteUnitMode(string value)
+    {
+        if (string.Equals(value, ByteUnitBinary, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "IEC", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "KiB", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "MiB", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "GiB", StringComparison.OrdinalIgnoreCase))
+        {
+            return ByteUnitBinary;
+        }
+
+        if (string.Equals(value, ByteUnitDecimal, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "SI", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "1000", StringComparison.OrdinalIgnoreCase))
+        {
+            return ByteUnitDecimal;
+        }
+
+        return ByteUnitClassic;
     }
 
     public static string NormalizeVisualSpokenFeedbackPlacement(string value)
@@ -662,6 +692,9 @@ public sealed partial class SensorReadoutForm : Form
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds));
         value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);
+        value.MemoryUnitMode = NormalizeByteUnitMode(value.MemoryUnitMode);
+        value.StorageUnitMode = NormalizeByteUnitMode(value.StorageUnitMode);
+        value.TransferUnitMode = NormalizeByteUnitMode(value.TransferUnitMode);
         value.DecimalSeparator = string.Equals(value.DecimalSeparator, ",", StringComparison.Ordinal) || string.Equals(value.DecimalSeparator, ".", StringComparison.Ordinal)
             ? value.DecimalSeparator
             : "";

@@ -20,6 +20,9 @@ public sealed partial class SensorReadoutForm : Form
         public string Title = "";
         public string MachineName = "";
         public string GeneratedLocal = "";
+        public string MemoryUnitMode = "";
+        public string StorageUnitMode = "";
+        public string TransferUnitMode = "";
         public List<ReportSnapshotRow> Rows = new List<ReportSnapshotRow>();
     }
 
@@ -109,6 +112,9 @@ public sealed partial class SensorReadoutForm : Form
         loadedReportTitle = string.IsNullOrWhiteSpace(snapshot.Title) ? Path.GetFileName(path) : snapshot.Title;
         loadedReportMachineName = ReportMachineName(snapshot);
         loadedReportGeneratedLocal = snapshot.GeneratedLocal ?? "";
+        loadedReportMemoryUnitMode = NormalizeByteUnitMode(snapshot.MemoryUnitMode);
+        loadedReportStorageUnitMode = NormalizeByteUnitMode(snapshot.StorageUnitMode);
+        loadedReportTransferUnitMode = NormalizeByteUnitMode(snapshot.TransferUnitMode);
         if (timer != null)
         {
             timer.Stop();
@@ -143,6 +149,9 @@ public sealed partial class SensorReadoutForm : Form
         loadedReportTitle = "";
         loadedReportMachineName = "";
         loadedReportGeneratedLocal = "";
+        loadedReportMemoryUnitMode = "";
+        loadedReportStorageUnitMode = "";
+        loadedReportTransferUnitMode = "";
         SetLatestRows(Enumerable.Empty<SensorRow>());
         readingTreeExpansionInitialized = false;
         lastReadingTreeSignature = "";
@@ -213,6 +222,9 @@ public sealed partial class SensorReadoutForm : Form
             Title = BuildReportTitle(),
             MachineName = CurrentReportMachineName(),
             GeneratedLocal = CurrentReportGeneratedLocal(),
+            MemoryUnitMode = CurrentReportMemoryUnitMode(),
+            StorageUnitMode = CurrentReportStorageUnitMode(),
+            TransferUnitMode = CurrentReportTransferUnitMode(),
             Rows = ReportTypeGroups()
                 .SelectMany(g => g)
                 .Select(ToReportSnapshotRow)
@@ -238,6 +250,27 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private string CurrentReportMemoryUnitMode()
+    {
+        return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportMemoryUnitMode)
+            ? loadedReportMemoryUnitMode
+            : activeMemoryUnitMode;
+    }
+
+    private string CurrentReportStorageUnitMode()
+    {
+        return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportStorageUnitMode)
+            ? loadedReportStorageUnitMode
+            : activeStorageUnitMode;
+    }
+
+    private string CurrentReportTransferUnitMode()
+    {
+        return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportTransferUnitMode)
+            ? loadedReportTransferUnitMode
+            : activeTransferUnitMode;
     }
 
     private static string ReportMachineName(ReportSnapshot snapshot)

@@ -1128,7 +1128,7 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = "Memory",
             Name = "Paging file total",
             Identifier = "memory|paging-file|total",
-            DisplayValue = FormatBytes(summary.TotalBytes),
+            DisplayValue = FormatStorageBytes(summary.TotalBytes),
             Source = "Windows WMI",
             Details = details
         });
@@ -1139,7 +1139,7 @@ public sealed partial class SensorReadoutForm : Form
             Name = "Paging file used",
             Identifier = "memory|paging-file|used",
             Value = (float)usedPercent,
-            DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+            DisplayValue = FormatStorageBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
             Source = "Windows WMI",
             Details = details
         });
@@ -1150,7 +1150,7 @@ public sealed partial class SensorReadoutForm : Form
             Name = "Paging file free",
             Identifier = "memory|paging-file|free",
             Value = (float)freePercent,
-            DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+            DisplayValue = FormatStorageBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
             Source = "Windows WMI",
             Details = details
         });

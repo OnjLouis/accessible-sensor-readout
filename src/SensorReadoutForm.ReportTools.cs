@@ -236,6 +236,9 @@ public sealed partial class SensorReadoutForm : Form
             Title = "Sensor Readout report for Computer",
             MachineName = "Computer",
             GeneratedLocal = source == null ? CurrentReportGeneratedLocal() : source.GeneratedLocal,
+            MemoryUnitMode = source == null ? CurrentReportMemoryUnitMode() : source.MemoryUnitMode,
+            StorageUnitMode = source == null ? CurrentReportStorageUnitMode() : source.StorageUnitMode,
+            TransferUnitMode = source == null ? CurrentReportTransferUnitMode() : source.TransferUnitMode,
             Rows = new List<ReportSnapshotRow>()
         };
 

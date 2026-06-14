@@ -43,6 +43,9 @@ public sealed class AppSettings
     public string ReadingTreeExpansionMode = "Expanded";
     public bool ReadingTreeLastExpanded = true;
     public string TemperatureUnit = "C";
+    public string MemoryUnitMode = "Classic";
+    public string StorageUnitMode = "Classic";
+    public string TransferUnitMode = "Classic";
     public string DecimalSeparator = "";
     public string LanguageFile = "";
     public bool LanguagePreferenceInitialized = false;
@@ -108,6 +111,9 @@ public sealed class SharedAppSettings
     public string ReadingTreeExpansionMode = "Expanded";
     public bool ReadingTreeLastExpanded = true;
     public string TemperatureUnit = "C";
+    public string MemoryUnitMode = "Classic";
+    public string StorageUnitMode = "Classic";
+    public string TransferUnitMode = "Classic";
     public string DecimalSeparator = "";
     public string LanguageFile = "";
     public bool LanguagePreferenceInitialized = false;

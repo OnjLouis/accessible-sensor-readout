@@ -603,11 +603,34 @@ public sealed partial class SensorReadoutForm : Form
             var tempPath = System.IO.Path.Combine(parent.FullName, canonicalName + "_case_tmp");
             if (System.IO.Directory.Exists(tempPath))
             {
+                if (!System.IO.Directory.Exists(canonicalPath))
+                {
+                    System.IO.Directory.Move(tempPath, canonicalPath);
+                    return;
+                }
+
+                TryDeleteEmptyDirectory(tempPath);
                 return;
             }
 
             System.IO.Directory.Move(existingPath, tempPath);
             System.IO.Directory.Move(tempPath, canonicalPath);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void TryDeleteEmptyDirectory(string path)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(path) &&
+                System.IO.Directory.Exists(path) &&
+                !System.IO.Directory.EnumerateFileSystemEntries(path).Any())
+            {
+                System.IO.Directory.Delete(path);
+            }
         }
         catch
         {

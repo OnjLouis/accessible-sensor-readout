@@ -190,10 +190,10 @@ public sealed partial class SensorReadoutForm : Form
                     AddNvmeLinkRow(rows, name, nvmeLinks);
                     AddSataConnectionRow(rows, name, disk, sataLinks);
                     rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Operational status", DisplayValue = DecodeOperationalStatus(disk["OperationalStatus"]), Source = "Windows Storage" });
-                    rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Size", DisplayValue = FormatBytes(disk["Size"]), Source = "Windows Storage" });
+                    rows.Add(new SensorRow { Type = "SMART", Hardware = name, Name = "Size", DisplayValue = FormatStorageBytes(disk["Size"]), Source = "Windows Storage" });
                     AddPhysicalDiskTextRow(rows, name, "Spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")), "Windows Storage");
-                    AddPhysicalDiskTextRow(rows, name, "Physical sector size", FormatBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")), "Windows Storage");
-                    AddPhysicalDiskTextRow(rows, name, "Logical sector size", FormatBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")), "Windows Storage");
+                    AddPhysicalDiskTextRow(rows, name, "Physical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")), "Windows Storage");
+                    AddPhysicalDiskTextRow(rows, name, "Logical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")), "Windows Storage");
                 }
             }
         }
@@ -323,7 +323,7 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = hardware,
             Name = name,
             Value = (float)(bytes / 1024.0 / 1024.0 / 1024.0),
-            DisplayValue = FormatBytes(bytes),
+            DisplayValue = FormatStorageBytes(bytes),
             Source = source
         });
     }
@@ -601,7 +601,7 @@ public sealed partial class SensorReadoutForm : Form
                     Type = "Performance",
                     Hardware = hardware,
                     Name = "Total space",
-                    DisplayValue = FormatBytes(drive.TotalSize),
+                    DisplayValue = FormatStorageBytes(drive.TotalSize),
                     Source = "Windows Logical Disk",
                     Details = CloneDetails(details)
                 });
@@ -612,7 +612,7 @@ public sealed partial class SensorReadoutForm : Form
                     Hardware = hardware,
                     Name = "Used space",
                     Value = (float)usedPercent,
-                    DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+                    DisplayValue = FormatStorageBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
                     Source = "Windows Logical Disk",
                     Details = CloneDetails(details)
                 });
@@ -623,7 +623,7 @@ public sealed partial class SensorReadoutForm : Form
                     Hardware = hardware,
                     Name = "Free space",
                     Value = (float)freePercent,
-                    DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+                    DisplayValue = FormatStorageBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
                     Source = "Windows Logical Disk",
                     Details = CloneDetails(details)
                 });
@@ -880,9 +880,9 @@ public sealed partial class SensorReadoutForm : Form
             totalBytes += drive.TotalSize;
             freeBytes += driveFreeBytes;
             var label = GetLogicalDiskHardwareName(drive);
-            AddDetail(details, label + " total", FormatBytes(drive.TotalSize));
-            AddDetail(details, label + " used", FormatBytes(driveUsedBytes));
-            AddDetail(details, label + " free", FormatBytes(driveFreeBytes));
+            AddDetail(details, label + " total", FormatStorageBytes(drive.TotalSize));
+            AddDetail(details, label + " used", FormatStorageBytes(driveUsedBytes));
+            AddDetail(details, label + " free", FormatStorageBytes(driveFreeBytes));
         }
 
         if (totalBytes <= 0)
@@ -900,7 +900,7 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = "Connected disks",
             Name = "Connected disks total space",
             Identifier = "logicaldisk|connected|total",
-            DisplayValue = FormatBytes(totalBytes),
+            DisplayValue = FormatStorageBytes(totalBytes),
             Source = "Windows Logical Disk",
             Details = CloneDetails(details)
         });
@@ -911,7 +911,7 @@ public sealed partial class SensorReadoutForm : Form
             Name = "Connected disks used space",
             Identifier = "logicaldisk|connected|used",
             Value = (float)usedPercent,
-            DisplayValue = FormatBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
+            DisplayValue = FormatStorageBytes(usedBytes) + " (" + FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%)",
             Source = "Windows Logical Disk",
             Details = CloneDetails(details)
         });
@@ -922,7 +922,7 @@ public sealed partial class SensorReadoutForm : Form
             Name = "Connected disks free space",
             Identifier = "logicaldisk|connected|free",
             Value = (float)freePercent,
-            DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
+            DisplayValue = FormatStorageBytes(freeBytes) + " (" + FormatNumber(Math.Round(freePercent, 1), "0.0") + "%)",
             Source = "Windows Logical Disk",
             Details = CloneDetails(details)
         });
@@ -1231,7 +1231,7 @@ public sealed partial class SensorReadoutForm : Form
         AddDetail(diskDetails, "Physical disk media type", GetWmiPropertyText(disk, "MediaType"));
         AddDetail(diskDetails, "Physical disk firmware", GetWmiPropertyText(disk, "FirmwareRevision"));
         AddDetail(diskDetails, "Physical disk serial number", GetWmiPropertyText(disk, "SerialNumber"));
-        AddDetail(diskDetails, "Physical disk size", FormatBytes(GetWmiPropertyValue(disk, "Size")));
+        AddDetail(diskDetails, "Physical disk size", FormatStorageBytes(GetWmiPropertyValue(disk, "Size")));
         AddDetail(diskDetails, "Physical disk partitions", GetWmiPropertyText(disk, "Partitions"));
         AddDetail(diskDetails, "Physical disk PNP device ID", GetWmiPropertyText(disk, "PNPDeviceID"));
         AddRawWmiDetails(diskDetails, "Physical disk WMI", disk);
@@ -1291,11 +1291,11 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Windows Storage operational details", FormatWmiDetailValue(GetWmiPropertyValue(disk, "OperationalDetails")));
                     AddDetail(details, "Windows Storage usage", FormatStorageUsage(GetWmiPropertyValue(disk, "Usage")));
                     AddDetail(details, "Windows Storage supported usages", FormatWmiDetailValue(GetWmiPropertyValue(disk, "SupportedUsages")));
-                    AddDetail(details, "Windows Storage size", FormatBytes(GetWmiPropertyValue(disk, "Size")));
-                    AddDetail(details, "Windows Storage allocated size", FormatBytes(GetWmiPropertyValue(disk, "AllocatedSize")));
-                    AddDetail(details, "Windows Storage virtual disk footprint", FormatBytes(GetWmiPropertyValue(disk, "VirtualDiskFootprint")));
-                    AddDetail(details, "Windows Storage logical sector size", FormatBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")));
-                    AddDetail(details, "Windows Storage physical sector size", FormatBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")));
+                    AddDetail(details, "Windows Storage size", FormatStorageBytes(GetWmiPropertyValue(disk, "Size")));
+                    AddDetail(details, "Windows Storage allocated size", FormatStorageBytes(GetWmiPropertyValue(disk, "AllocatedSize")));
+                    AddDetail(details, "Windows Storage virtual disk footprint", FormatStorageBytes(GetWmiPropertyValue(disk, "VirtualDiskFootprint")));
+                    AddDetail(details, "Windows Storage logical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")));
+                    AddDetail(details, "Windows Storage physical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")));
                     AddDetail(details, "Windows Storage spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")));
                     AddDetail(details, "Windows Storage physical location", GetWmiPropertyText(disk, "PhysicalLocation"));
                     AddDetail(details, "Windows Storage slot number", GetWmiPropertyText(disk, "SlotNumber"));
@@ -1326,8 +1326,8 @@ public sealed partial class SensorReadoutForm : Form
         AddDetail(diskDetails, label + " name", GetWmiPropertyText(partition, "Name"));
         AddDetail(diskDetails, label + " device ID", GetWmiPropertyText(partition, "DeviceID"));
         AddDetail(diskDetails, label + " type", GetWmiPropertyText(partition, "Type"));
-        AddDetail(diskDetails, label + " size", FormatBytes(GetWmiPropertyValue(partition, "Size")));
-        AddDetail(diskDetails, label + " starting offset", FormatBytes(GetWmiPropertyValue(partition, "StartingOffset")));
+        AddDetail(diskDetails, label + " size", FormatStorageBytes(GetWmiPropertyValue(partition, "Size")));
+        AddDetail(diskDetails, label + " starting offset", FormatStorageBytes(GetWmiPropertyValue(partition, "StartingOffset")));
         AddDetail(diskDetails, label + " boot partition", FormatYesNo(GetWmiPropertyValue(partition, "BootPartition")));
         AddDetail(diskDetails, label + " primary partition", FormatYesNo(GetWmiPropertyValue(partition, "PrimaryPartition")));
         AddDetail(diskDetails, label + " index", GetWmiPropertyText(partition, "Index"));
@@ -1342,21 +1342,21 @@ public sealed partial class SensorReadoutForm : Form
             AddDetail(diskDetails, volumeLabel + " drive letter", root);
             AddDetail(diskDetails, volumeLabel + " label", GetWmiPropertyText(volume, "VolumeName"));
             AddDetail(diskDetails, volumeLabel + " file system", GetWmiPropertyText(volume, "FileSystem"));
-            AddDetail(diskDetails, volumeLabel + " size", FormatBytes(GetWmiPropertyValue(volume, "Size")));
-            AddDetail(diskDetails, volumeLabel + " free space", FormatBytes(GetWmiPropertyValue(volume, "FreeSpace")));
+            AddDetail(diskDetails, volumeLabel + " size", FormatStorageBytes(GetWmiPropertyValue(volume, "Size")));
+            AddDetail(diskDetails, volumeLabel + " free space", FormatStorageBytes(GetWmiPropertyValue(volume, "FreeSpace")));
 
             if (!string.IsNullOrWhiteSpace(root))
             {
                 var volumeDetails = MergeDetails(inheritedDiskDetails, null);
                 AddDetail(volumeDetails, "Containing partition", GetWmiPropertyText(partition, "DeviceID"));
                 AddDetail(volumeDetails, "Partition type", GetWmiPropertyText(partition, "Type"));
-                AddDetail(volumeDetails, "Partition size", FormatBytes(GetWmiPropertyValue(partition, "Size")));
-                AddDetail(volumeDetails, "Partition starting offset", FormatBytes(GetWmiPropertyValue(partition, "StartingOffset")));
+                AddDetail(volumeDetails, "Partition size", FormatStorageBytes(GetWmiPropertyValue(partition, "Size")));
+                AddDetail(volumeDetails, "Partition starting offset", FormatStorageBytes(GetWmiPropertyValue(partition, "StartingOffset")));
                 AddDetail(volumeDetails, "Volume drive letter", root);
                 AddDetail(volumeDetails, "Volume label", GetWmiPropertyText(volume, "VolumeName"));
                 AddDetail(volumeDetails, "Volume file system", GetWmiPropertyText(volume, "FileSystem"));
-                AddDetail(volumeDetails, "Volume size", FormatBytes(GetWmiPropertyValue(volume, "Size")));
-                AddDetail(volumeDetails, "Volume free space", FormatBytes(GetWmiPropertyValue(volume, "FreeSpace")));
+                AddDetail(volumeDetails, "Volume size", FormatStorageBytes(GetWmiPropertyValue(volume, "Size")));
+                AddDetail(volumeDetails, "Volume free space", FormatStorageBytes(GetWmiPropertyValue(volume, "FreeSpace")));
                 AddRawWmiDetails(volumeDetails, "Volume WMI", volume);
                 logical[root.TrimEnd('\\')] = volumeDetails;
             }

@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
@@ -7,6 +8,13 @@ public sealed partial class SensorReadoutForm : Form
     private Form visualSpokenFeedbackForm;
     private Label visualSpokenFeedbackLabel;
     private Timer visualSpokenFeedbackTimer;
+
+    private static readonly IntPtr HwndTopMost = new IntPtr(-1);
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpShowWindow = 0x0040;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
 
     private bool ShowVisualSpokenFeedbackIfNeeded(string text)
     {
@@ -36,13 +44,29 @@ public sealed partial class SensorReadoutForm : Form
         visualSpokenFeedbackLabel.Text = text;
         visualSpokenFeedbackForm.Size = VisualSpokenFeedbackSize(text);
         PositionVisualSpokenFeedbackForm();
-        visualSpokenFeedbackForm.Show();
-        visualSpokenFeedbackForm.TopMost = true;
-        visualSpokenFeedbackForm.BringToFront();
+        ShowVisualSpokenFeedbackFormNoActivate();
 
         visualSpokenFeedbackTimer.Stop();
         visualSpokenFeedbackTimer.Interval = NormalizeVisualSpokenFeedbackTimeoutSeconds(settings.VisualSpokenFeedbackTimeoutSeconds) * 1000;
         visualSpokenFeedbackTimer.Start();
+    }
+
+    private void ShowVisualSpokenFeedbackFormNoActivate()
+    {
+        if (visualSpokenFeedbackForm == null || visualSpokenFeedbackForm.IsDisposed)
+        {
+            return;
+        }
+
+        var handle = visualSpokenFeedbackForm.Handle;
+        SetWindowPos(
+            handle,
+            HwndTopMost,
+            visualSpokenFeedbackForm.Left,
+            visualSpokenFeedbackForm.Top,
+            visualSpokenFeedbackForm.Width,
+            visualSpokenFeedbackForm.Height,
+            SwpNoActivate | SwpShowWindow);
     }
 
     private void EnsureVisualSpokenFeedbackForm()

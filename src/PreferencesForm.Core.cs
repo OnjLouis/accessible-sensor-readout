@@ -473,6 +473,9 @@ public sealed partial class PreferencesForm : Form
         try
         {
             SetComboItems(temperatureUnitBox, new[] { SensorReadoutForm.L("ui.Celsius (C)", "Celsius (C)"), SensorReadoutForm.L("ui.Fahrenheit (F)", "Fahrenheit (F)"), SensorReadoutForm.L("ui.Celsius, then Fahrenheit", "Celsius, then Fahrenheit"), SensorReadoutForm.L("ui.Fahrenheit, then Celsius", "Fahrenheit, then Celsius") });
+            SetComboItems(memoryUnitModeBox, ByteUnitModeOptions());
+            SetComboItems(storageUnitModeBox, ByteUnitModeOptions());
+            SetComboItems(transferUnitModeBox, ByteUnitModeOptions());
             SetComboItems(decimalSeparatorBox, new[] { SensorReadoutForm.L("ui.Language default", "Language default"), SensorReadoutForm.L("ui.Period (.)", "Period (.)"), SensorReadoutForm.L("ui.Comma (,)", "Comma (,)") });
             SetComboItems(loggingLevelBox, new[] { SensorReadoutForm.L("ui.Off", "Off"), SensorReadoutForm.L("ui.Error", "Error"), SensorReadoutForm.L("ui.Normal", "Normal"), SensorReadoutForm.L("ui.Debug", "Debug") });
             SetComboItems(hotKeyCopyDoublePressBox, HotKeyCopyDoublePressOptions());
@@ -527,6 +530,57 @@ public sealed partial class PreferencesForm : Form
         }
 
         box.Refresh();
+    }
+
+    private static ComboBox CreateByteUnitModeBox(string mode, string accessibleName)
+    {
+        var box = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 260,
+            AccessibleName = accessibleName,
+            AccessibleDescription = SensorReadoutForm.L("a11y.Choose whether this kind of byte value uses the classic 1024 scale with KB, MB, and GB labels, binary IEC units such as KiB and GiB, or decimal SI units such as KB and GB.", "Choose whether this kind of byte value uses the classic 1024 scale with KB, MB, and GB labels, binary IEC units such as KiB and GiB, or decimal SI units such as KB and GB.")
+        };
+        box.Items.AddRange(ByteUnitModeOptions().Cast<object>().ToArray());
+        box.SelectedIndex = ByteUnitModeIndex(mode);
+        return box;
+    }
+
+    private static void AddLabeledCombo(TableLayoutPanel panel, int row, string label, ComboBox box)
+    {
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.Controls.Add(new Label
+        {
+            Text = label,
+            AutoSize = true,
+            Padding = new Padding(0, 6, 8, 0)
+        }, 0, row);
+        panel.Controls.Add(box, 1, row);
+    }
+
+    private static string[] ByteUnitModeOptions()
+    {
+        return new[]
+        {
+            SensorReadoutForm.L("ui.Classic 1024 scale (KB, MB, GB)", "Classic 1024 scale (KB, MB, GB)"),
+            SensorReadoutForm.L("ui.Binary IEC 1024 scale (KiB, MiB, GiB)", "Binary IEC 1024 scale (KiB, MiB, GiB)"),
+            SensorReadoutForm.L("ui.Decimal SI 1000 scale (KB, MB, GB)", "Decimal SI 1000 scale (KB, MB, GB)")
+        };
+    }
+
+    private static int ByteUnitModeIndex(string mode)
+    {
+        var normalized = SensorReadoutForm.NormalizeByteUnitMode(mode);
+        if (string.Equals(normalized, SensorReadoutForm.ByteUnitBinary, StringComparison.OrdinalIgnoreCase)) return 1;
+        if (string.Equals(normalized, SensorReadoutForm.ByteUnitDecimal, StringComparison.OrdinalIgnoreCase)) return 2;
+        return 0;
+    }
+
+    private static string ByteUnitModeFromIndex(int index)
+    {
+        if (index == 1) return SensorReadoutForm.ByteUnitBinary;
+        if (index == 2) return SensorReadoutForm.ByteUnitDecimal;
+        return SensorReadoutForm.ByteUnitClassic;
     }
 
     private static int SafeComboIndex(ComboBox box, int index)
@@ -616,6 +670,9 @@ public sealed partial class PreferencesForm : Form
         liveSettings.RefreshWhileFocused = RefreshWhileFocused;
         liveSettings.RefreshIntervalSeconds = RefreshIntervalSeconds;
         liveSettings.TemperatureUnit = TemperatureUnit;
+        liveSettings.MemoryUnitMode = MemoryUnitMode;
+        liveSettings.StorageUnitMode = StorageUnitMode;
+        liveSettings.TransferUnitMode = TransferUnitMode;
         liveSettings.DecimalSeparator = DecimalSeparator;
         liveSettings.LanguageFile = LanguageFile;
         liveSettings.LanguagePreferenceInitialized = true;

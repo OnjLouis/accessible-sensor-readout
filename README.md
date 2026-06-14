@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.9.1.
+Current version: 4.9.2.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -74,6 +74,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Saves preference changes as they are made, so hotkey, tray, hidden-item, and similar setup work survives crashes better.
 - Writes diagnostic logs in `Logs` as `<ComputerName>.log` when logging is enabled.
 - Can show temperatures in Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
+- Can show memory/GPU memory, storage sizes, and transfer values with separate unit preferences, including binary IEC labels such as KiB, MiB, and GiB.
 - Supports optional user-defined global hotkeys for show/hide and speaking the notification area status.
 - Can speak the notification area status through the active screen reader using bundled 64-bit Prism and Tolk screen reader library DLLs.
 - Supports simple user-editable language files in the `Langs` folder.
@@ -281,6 +282,7 @@ The General tab controls the main reading experience.
 - Show/hide hotkey: configured from the Hotkeys tab, with a shortcut button here for convenience. It toggles the main window from anywhere and is especially useful if you start minimized or Windows hides the notification-area icon.
 - Reading tree expansion: choose whether categories open expanded, open collapsed, or follow your most recent expand/collapse action when switching categories.
 - Temperature unit: choose Celsius, Fahrenheit, Celsius then Fahrenheit, or Fahrenheit then Celsius.
+- Memory and GPU memory units, storage size units, and transfer units: use the classic 1024 scale with KB/MB/GB labels, switch to binary IEC 1024-scale labels such as KiB/MiB/GiB, or use decimal SI 1000-scale sizing separately for each kind of value.
 - Decimal separator: use the language default, period, or comma.
 - Logging level: Off, Error, Normal, or Debug.
 - Update checks: choose whether Sensor Readout checks GitHub Releases at startup, hourly, every 6 or 12 hours, daily, weekly, or never.
@@ -670,6 +672,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.9.2
+- Fixed: update cleanup now also removes old backup ZIPs that contain only shipped Sounds, Docs, Data, or bundled Plug-Ins, and removes empty Backups folders afterward so old update artifacts do not keep accumulating.
+- Improved: update attempts now write a step-by-step `Update.log` in the Logs folder, while detailed failures still write `Updater.log`, making one-off update problems easier to diagnose from support reports.
+- Added: Preferences > General now has separate unit choices for memory/GPU memory, storage sizes, and transfer values, including binary IEC labels such as KiB, MiB, and GiB for users who prefer them.
 
 ### 4.9.1
 - Fixed: updates from older Sensor Readout copies now clean up old root-level support DLLs, scripts, duplicate speech-library files, legacy update-temp folders, and mistaken plug-in DLL backup zips after the new app starts, so dependencies moved into `Resources` do not remain live beside `Sensor Readout.exe` and unchanged shipped plug-ins do not keep accumulating in backups.

@@ -50,6 +50,9 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
+            form.RunSelfTestStep(results, "Byte unit formatting modes", delegate { form.SelfTestByteUnitFormattingModes(); });
+            form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
+            form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
@@ -454,6 +457,98 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(BuildSpeechStatusText(GetSpokenHotKeyRows(profile), profile.SkipUnavailableReadings), T("speech.noActiveReadings", "No active readings to announce."), StringComparison.Ordinal), "Inactive row was not skipped for spoken hotkey profile.");
         settings.TrayItemKeys = previousTrayKeys;
         settings.TraySpeechSkipsUnavailableReadings = previousSkipUnavailable;
+    }
+
+    private void SelfTestByteUnitFormattingModes()
+    {
+        var previousMemoryUnitMode = activeMemoryUnitMode;
+        var previousStorageUnitMode = activeStorageUnitMode;
+        var previousTransferUnitMode = activeTransferUnitMode;
+        try
+        {
+            activeMemoryUnitMode = ByteUnitClassic;
+            activeStorageUnitMode = ByteUnitClassic;
+            activeTransferUnitMode = ByteUnitClassic;
+            Require(string.Equals(FormatBytes(1024.0 * 1024.0), "1.0 MB", StringComparison.Ordinal), "Classic memory formatting changed unexpectedly.");
+            Require(string.Equals(FormatStorageBytes(1000000000000.0), "931.3 GB", StringComparison.Ordinal), "Classic storage formatting should use 1024 scale with GB labels.");
+            Require(string.Equals(FormatBytesPerSecond(1000000.0), "976.6 KB/s", StringComparison.Ordinal), "Classic transfer formatting should use 1024 scale with KB/s labels.");
+
+            activeMemoryUnitMode = ByteUnitBinary;
+            activeStorageUnitMode = ByteUnitBinary;
+            activeTransferUnitMode = ByteUnitBinary;
+            Require(string.Equals(FormatBytes(1024.0 * 1024.0), "1.0 MiB", StringComparison.Ordinal), "Binary memory formatting should use IEC labels.");
+            Require(string.Equals(FormatStorageBytes(1000000000000.0), "931.3 GiB", StringComparison.Ordinal), "Binary storage formatting should use 1024 scale with GiB labels.");
+            Require(string.Equals(FormatBytesPerSecond(1000000.0), "976.6 KiB/s", StringComparison.Ordinal), "Binary transfer formatting should use IEC per-second labels.");
+
+            activeMemoryUnitMode = ByteUnitDecimal;
+            activeStorageUnitMode = ByteUnitDecimal;
+            activeTransferUnitMode = ByteUnitDecimal;
+            Require(string.Equals(FormatBytes(1000000.0), "1.0 MB", StringComparison.Ordinal), "Decimal memory formatting should use 1000 scale.");
+            Require(string.Equals(FormatStorageBytes(1000000000000.0), "1.0 TB", StringComparison.Ordinal), "Decimal storage formatting should use 1000 scale.");
+            Require(string.Equals(FormatBytesPerSecond(1000000.0), "1.0 MB/s", StringComparison.Ordinal), "Decimal transfer formatting should use 1000 scale per second.");
+        }
+        finally
+        {
+            activeMemoryUnitMode = previousMemoryUnitMode;
+            activeStorageUnitMode = previousStorageUnitMode;
+            activeTransferUnitMode = previousTransferUnitMode;
+        }
+    }
+
+    private void SelfTestPendingRefreshCoalescing()
+    {
+        refreshInProgress = true;
+        pendingRefreshRequested = false;
+        pendingRefreshUpdateInteractiveUi = false;
+        pendingRefreshSlowRows = false;
+        pendingRefreshReason = "";
+        QueuePendingRefresh(false, false, "auto");
+        QueuePendingRefresh(true, true, "unit preferences");
+        Require(pendingRefreshRequested, "Pending refresh was not queued.");
+        Require(pendingRefreshUpdateInteractiveUi, "Pending refresh did not preserve interactive UI request.");
+        Require(pendingRefreshSlowRows, "Pending refresh did not preserve slow-row request.");
+        Require(pendingRefreshReason.IndexOf("auto", StringComparison.OrdinalIgnoreCase) >= 0, "Pending refresh lost first reason.");
+        Require(pendingRefreshReason.IndexOf("unit preferences", StringComparison.OrdinalIgnoreCase) >= 0, "Pending refresh lost second reason.");
+        refreshInProgress = false;
+        pendingRefreshRequested = false;
+        pendingRefreshUpdateInteractiveUi = false;
+        pendingRefreshSlowRows = false;
+        pendingRefreshReason = "";
+    }
+
+    private void SelfTestFormattedRowCacheClearing()
+    {
+        lock (slowRowsLock)
+        {
+            cachedSlowRows = new List<SensorRow>
+            {
+                new SensorRow { Type = "SMART", Hardware = "Disk", Name = "Size", DisplayValue = "920.4 GiB" }
+            };
+            cachedSlowRowsUtc = DateTime.UtcNow;
+        }
+
+        lock (lhmRowsLock)
+        {
+            cachedLhmRows = new List<SensorRow>
+            {
+                new SensorRow { Type = "SMART", Hardware = "Disk", Name = "Total space", DisplayValue = "920.4 GiB" }
+            };
+            cachedLhmRowsUtc = DateTime.UtcNow;
+        }
+
+        ClearFormattedSensorRowCaches();
+
+        lock (slowRowsLock)
+        {
+            Require(cachedSlowRows.Count == 0, "Slow formatted rows were not cleared.");
+            Require(cachedSlowRowsUtc == DateTime.MinValue, "Slow row cache timestamp was not reset.");
+        }
+
+        lock (lhmRowsLock)
+        {
+            Require(cachedLhmRows.Count == 0, "LibreHardwareMonitor formatted rows were not cleared.");
+            Require(cachedLhmRowsUtc == DateTime.MinValue, "LibreHardwareMonitor row cache timestamp was not reset.");
+        }
     }
 
     private void SelfTestSpokenHotKeyMirrorOrder()
@@ -1035,6 +1130,7 @@ public sealed partial class SensorReadoutForm : Form
         Require(text.Contains("Sensor Readout"), label + " does not look like a Sensor Readout report.");
         Require(text.Contains("Generated by Sensor Readout"), label + " missing generated-by line.");
         Require(text.Contains("Download Sensor Readout:"), label + " missing Sensor Readout download link.");
+        Require(text.Contains("Unit preferences:"), label + " missing unit preference summary.");
         Require(!text.Contains("[SensorReadoutReportData]"), label + " should be human-readable and should not contain wrapped internal report data.");
         Require(!Regex.IsMatch(text, @"(?m)^.{600,}$"), label + " contains an unexpectedly long line.");
         Require(!Regex.IsMatch(text, @"(?im)^[ \t]*Printer[ \t]+[^\r\n]+[ \t]+(status|driver|port|offline|shared|jobs queued|paper size|resolution|color|duplex):"),
@@ -1059,6 +1155,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         Require(!string.IsNullOrWhiteSpace(html), label + " is empty.");
         Require(html.IndexOf("Sensor Readout", StringComparison.OrdinalIgnoreCase) >= 0, label + " does not look like a Sensor Readout report.");
+        Require(html.IndexOf("Unit preferences:", StringComparison.OrdinalIgnoreCase) >= 0, label + " missing unit preference summary.");
         Require(Regex.Matches(html, "id=[\"']sensor-readout-report-data[\"']", RegexOptions.IgnoreCase).Count == 1, label + " must contain exactly one structured report payload.");
         Require(!html.Contains("[SensorReadoutReportData]"), label + " contains legacy TXT report markers.");
         AssertSelfTestReportTextDoesNotContainUiNoise(html, label);
@@ -1296,6 +1393,8 @@ public sealed partial class SensorReadoutForm : Form
         Require(File.Exists(englishLanguagePath), "English language file missing.");
         Require(Directory.Exists(GetDocsFolderPath()), "Docs folder missing.");
         Require(File.Exists(Path.Combine(GetDocsFolderPath(), "README-en.html")), "English HTML manual missing.");
+        var caseTempFolders = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory, "*_case_tmp", SearchOption.TopDirectoryOnly);
+        Require(caseTempFolders.Length == 0, "Temporary folder case-repair leftovers found: " + string.Join(", ", caseTempFolders.Select(Path.GetFileName).ToArray()));
         RefreshLanguageChoices(true);
         Require(languageChoices.Count > 0, "No language choices loaded.");
 

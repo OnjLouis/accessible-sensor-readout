@@ -183,18 +183,38 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var previousReadingTreeExpansionMode = lastAppliedReadingTreeExpansionMode;
+        var previousMemoryUnitMode = activeMemoryUnitMode;
+        var previousStorageUnitMode = activeStorageUnitMode;
+        var previousTransferUnitMode = activeTransferUnitMode;
         ApplyPreferencesFromDialog(dialog, false, false);
+        var unitModeChanged =
+            !string.Equals(previousMemoryUnitMode, settings.MemoryUnitMode, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(previousStorageUnitMode, settings.StorageUnitMode, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(previousTransferUnitMode, settings.TransferUnitMode, StringComparison.OrdinalIgnoreCase);
         autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
         refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
         trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
         pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
         activeTemperatureUnit = settings.TemperatureUnit;
+        activeMemoryUnitMode = settings.MemoryUnitMode;
+        activeStorageUnitMode = settings.StorageUnitMode;
+        activeTransferUnitMode = settings.TransferUnitMode;
         activeDecimalSeparator = settings.DecimalSeparator;
         RegisterGlobalHotKeys();
         BuildHotkeysMenu();
-        UpdateTrayStatus();
         ApplyTimerSettings();
-        if (!string.Equals(previousReadingTreeExpansionMode, settings.ReadingTreeExpansionMode, StringComparison.OrdinalIgnoreCase))
+        if (unitModeChanged)
+        {
+            ClearFormattedSensorRowCaches();
+            lastReadingTreeSignature = "";
+            lastReadingTreeShapeSignature = "";
+            RefreshSensors(true, true, "unit preferences");
+        }
+        else
+        {
+            UpdateTrayStatus();
+        }
+        if (!unitModeChanged && !string.Equals(previousReadingTreeExpansionMode, settings.ReadingTreeExpansionMode, StringComparison.OrdinalIgnoreCase))
         {
             UpdateReadingList();
         }
@@ -206,6 +226,9 @@ public sealed partial class SensorReadoutForm : Form
         settings.RefreshWhileFocused = dialog.RefreshWhileFocused;
         settings.RefreshIntervalSeconds = dialog.RefreshIntervalSeconds;
         settings.TemperatureUnit = dialog.TemperatureUnit;
+        settings.MemoryUnitMode = dialog.MemoryUnitMode;
+        settings.StorageUnitMode = dialog.StorageUnitMode;
+        settings.TransferUnitMode = dialog.TransferUnitMode;
         settings.DecimalSeparator = dialog.DecimalSeparator;
         settings.LanguageFile = dialog.LanguageFile;
         settings.LanguagePreferenceInitialized = true;
@@ -285,6 +308,9 @@ public sealed partial class SensorReadoutForm : Form
         trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
         pauseCheckBox.Checked = !settings.AutoRefreshEnabled;
         activeTemperatureUnit = settings.TemperatureUnit;
+        activeMemoryUnitMode = settings.MemoryUnitMode;
+        activeStorageUnitMode = settings.StorageUnitMode;
+        activeTransferUnitMode = settings.TransferUnitMode;
         activeDecimalSeparator = settings.DecimalSeparator;
         LoadSelectedLanguage();
         UpdateTemperatureUnitMenu();

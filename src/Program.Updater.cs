@@ -41,9 +41,11 @@ public static partial class Program
                 throw new FileNotFoundException("The local update ZIP could not be found.", zipPath);
             }
 
+            WriteUpdateHistory(targetDir, "Update command received. Source=" + (string.IsNullOrWhiteSpace(zipPath) ? "online" : "local ZIP") + "; noRestart=" + HasArg(args, "--update-no-restart") + ".");
             int processId;
             if (int.TryParse(pidText, out processId) && processId > 0)
             {
+                WriteUpdateHistory(targetDir, "Waiting for Sensor Readout process " + processId + " to exit.");
                 WaitForProcessExit(processId);
             }
 
@@ -51,6 +53,7 @@ public static partial class Program
         }
         catch (Exception ex)
         {
+            WriteUpdateHistory(args, "ERROR: " + ex.Message);
             WriteUpdaterLog(args, ex);
             MessageBox.Show(
                 "Sensor Readout update failed:" + Environment.NewLine + Environment.NewLine + ex.Message,
@@ -73,13 +76,16 @@ public static partial class Program
         {
             if (!string.IsNullOrWhiteSpace(zipPath))
             {
+                WriteUpdateHistory(targetDir, "Copying local update ZIP into staging folder.");
                 File.Copy(zipPath, zip, true);
             }
             else
             {
+                WriteUpdateHistory(targetDir, "Downloading update ZIP.");
                 DownloadUpdateZip(zipUrl, zip);
             }
 
+            WriteUpdateHistory(targetDir, "Extracting update ZIP.");
             ZipFile.ExtractToDirectory(zip, stage);
 
             var source = FindUpdateSourceFolder(stage);
@@ -88,11 +94,13 @@ public static partial class Program
                 throw new InvalidOperationException("The update ZIP does not contain Sensor Readout.exe.");
             }
 
+            WriteUpdateHistory(targetDir, "Update source located. Applying files.");
             Directory.CreateDirectory(targetDir);
             var backupRoot = Path.Combine(Path.Combine(targetDir, "Backups\\Updates"), DateTime.Now.ToString("yyyyMMdd-HHmmss"));
             var legacyBackups = Path.Combine(targetDir, "Config\\Update Backups");
             if (Directory.Exists(legacyBackups))
             {
+                WriteUpdateHistory(targetDir, "Moving legacy Config\\Update Backups into top-level Backups.");
                 NewBackupZip(legacyBackups, backupRoot, "Legacy-Config-Update-Backups");
                 TryDeleteDirectory(legacyBackups);
             }
@@ -105,10 +113,13 @@ public static partial class Program
             RemoveNestedDuplicateFolders(targetDir);
             foreach (var name in new[] { "Docs", "Langs", "Data" })
             {
+                WriteUpdateHistory(targetDir, "Replacing shipped folder: " + name + ".");
                 ReplaceShippedFolder(source, targetDir, name, backupRoot, previousLanguageHashes);
             }
 
+            WriteUpdateHistory(targetDir, "Replacing shipped plug-ins.");
             ReplacePlugInsFolder(source, targetDir, backupRoot, previousPlugInHashes);
+            WriteUpdateHistory(targetDir, "Updating shipped sounds.");
             UpdateSoundsFolder(source, targetDir);
 
             var preservedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -141,9 +152,12 @@ public static partial class Program
                 }
             }
 
+            WriteUpdateHistory(targetDir, "Running post-update cleanup.");
             RemoveNestedDuplicateFolders(targetDir);
             RemoveEmptyDirectory(backupRoot);
             CleanupObsoleteBundledPlugInBackups(targetDir);
+            CleanupObsoleteShippedFolderBackups(targetDir);
+            CleanupEmptyBackupFolders(targetDir);
             TryDeleteFile(Path.Combine(targetDir, "README.md"));
             DeleteObsoleteRootFiles(targetDir);
             DeleteMarkdownFiles(Path.Combine(targetDir, "Docs"));
@@ -156,7 +170,12 @@ public static partial class Program
 
         if (!noRestart)
         {
+            WriteUpdateHistory(targetDir, "Update applied. Restarting Sensor Readout.");
             TryRestartUpdatedApp(exePath, targetDir);
+        }
+        else
+        {
+            WriteUpdateHistory(targetDir, "Update applied. Restart skipped by updater argument.");
         }
     }
 
@@ -520,6 +539,208 @@ public static partial class Program
         }
     }
 
+    private static void CleanupObsoleteShippedFolderBackups(string targetDir)
+    {
+        try
+        {
+            var backupRoot = Path.Combine(targetDir, "Backups\\Updates");
+            if (!Directory.Exists(backupRoot))
+            {
+                return;
+            }
+
+            foreach (var zipPath in Directory.GetFiles(backupRoot, "*.zip", SearchOption.AllDirectories))
+            {
+                if (BackupZipContainsOnlyObsoleteShippedFiles(zipPath))
+                {
+                    TryDeleteFile(zipPath);
+                    RemoveEmptyDirectory(Path.GetDirectoryName(zipPath));
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool BackupZipContainsOnlyObsoleteShippedFiles(string zipPath)
+    {
+        var fileName = Path.GetFileName(zipPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        if (fileName.StartsWith("Nested-Sounds", StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupZipContainsOnlyAllowedEntries(zipPath, IsBundledSoundBackupEntry);
+        }
+
+        if (fileName.StartsWith("Previous-Data", StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupZipContainsOnlyAllowedEntries(zipPath, IsBundledDataBackupEntry);
+        }
+
+        if (fileName.StartsWith("Previous-Docs", StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupZipContainsOnlyAllowedEntries(zipPath, IsBundledDocsBackupEntry);
+        }
+
+        if (fileName.StartsWith("Previous-Plug-Ins", StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupZipContainsOnlyAllowedEntries(zipPath, IsBundledPlugInBackupEntry);
+        }
+
+        return false;
+    }
+
+    private static bool BackupZipContainsOnlyAllowedEntries(string zipPath, Func<string, bool> allowed)
+    {
+        try
+        {
+            using (var zip = ZipFile.OpenRead(zipPath))
+            {
+                var sawFile = false;
+                foreach (var entry in zip.Entries)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.Name))
+                    {
+                        continue;
+                    }
+
+                    sawFile = true;
+                    var normalized = entry.FullName.Replace('\\', '/').TrimStart('/');
+                    if (!allowed(normalized))
+                    {
+                        return false;
+                    }
+                }
+
+                return sawFile;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsBundledSoundBackupEntry(string normalized)
+    {
+        if (!normalized.StartsWith("Sounds/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var name = FileNameFromZipPath(normalized);
+        return Regex.IsMatch(name ?? "", @"^SR(0[1-9]|1[0-2])\.wav$", RegexOptions.IgnoreCase);
+    }
+
+    private static bool IsBundledDataBackupEntry(string normalized)
+    {
+        if (!normalized.StartsWith("Data/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var name = FileNameFromZipPath(normalized);
+        return string.Equals(name, "BundledLanguageHashes.json", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "BundledPlugInHashes.json", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "oui.csv", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "oui.LICENSE.txt", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "usb.ids", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "usb.ids.LICENSE.txt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBundledDocsBackupEntry(string normalized)
+    {
+        if (!normalized.StartsWith("Docs/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var name = FileNameFromZipPath(normalized);
+        return Regex.IsMatch(name ?? "", @"^README-[a-z]{2}\.html$", RegexOptions.IgnoreCase) ||
+            Regex.IsMatch(name ?? "", @"^README-[a-z]{2}\.md$", RegexOptions.IgnoreCase) ||
+            string.Equals(name, "Plug-In-development.md", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "SOURCE-MAP.md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBundledPlugInBackupEntry(string normalized)
+    {
+        if (!normalized.StartsWith("Plug-Ins/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var parts = normalized.Split('/');
+        if (parts.Length < 3)
+        {
+            return false;
+        }
+
+        var plugInFolder = parts[1];
+        var name = parts[parts.Length - 1];
+        if (!IsBundledPlugInFolderName(plugInFolder))
+        {
+            return false;
+        }
+
+        return string.Equals(name, "plugin.json", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "NOTICE.txt", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "GPL-3.0.txt", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith("PlugIn.dll", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith("PlugIn.pdb", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FileNameFromZipPath(string normalized)
+    {
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "";
+        }
+
+        var parts = normalized.Split('/');
+        return parts.Length == 0 ? normalized : parts[parts.Length - 1];
+    }
+
+    private static bool IsBundledPlugInFolderName(string folderName)
+    {
+        foreach (var known in new[] { "AsusRog", "DellLatitude", "Framework", "HP", "LenovoThinkPad", "MsiLaptop" })
+        {
+            if (string.Equals(folderName, known, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void CleanupEmptyBackupFolders(string targetDir)
+    {
+        try
+        {
+            var backups = Path.Combine(targetDir, "Backups");
+            if (!Directory.Exists(backups))
+            {
+                return;
+            }
+
+            foreach (var folder in Directory.GetDirectories(backups, "*", SearchOption.AllDirectories)
+                .OrderByDescending(p => p.Length))
+            {
+                RemoveEmptyDirectory(folder);
+            }
+
+            RemoveEmptyDirectory(Path.Combine(backups, "Updates"));
+            RemoveEmptyDirectory(backups);
+        }
+        catch
+        {
+        }
+    }
+
     private static void UpdateSoundsFolder(string sourceRoot, string targetRoot)
     {
         var incoming = Path.Combine(sourceRoot, "Sounds");
@@ -730,6 +951,47 @@ public static partial class Program
                 Environment.NewLine +
                 (exception == null ? "(No exception object.)" : exception.ToString()) +
                 Environment.NewLine +
+                Environment.NewLine);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void WriteUpdateHistory(string[] args, string message)
+    {
+        try
+        {
+            string targetDir;
+            if (args == null || !TryGetOptionValue(args, "--update-target", out targetDir) || string.IsNullOrWhiteSpace(targetDir))
+            {
+                targetDir = AppDomain.CurrentDomain.BaseDirectory;
+            }
+
+            WriteUpdateHistory(targetDir, message);
+        }
+        catch
+        {
+        }
+    }
+
+    private static void WriteUpdateHistory(string targetDir, string message)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(targetDir))
+            {
+                targetDir = AppDomain.CurrentDomain.BaseDirectory;
+            }
+
+            var logRoot = Path.Combine(targetDir, "Logs");
+            Directory.CreateDirectory(logRoot);
+            var path = Path.Combine(logRoot, "Update.log");
+            File.AppendAllText(
+                path,
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") +
+                " " +
+                (string.IsNullOrWhiteSpace(message) ? "(no update message)" : message) +
                 Environment.NewLine);
         }
         catch

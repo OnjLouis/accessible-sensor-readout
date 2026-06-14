@@ -364,6 +364,7 @@ public sealed partial class SensorReadoutForm : Form
         lines.Add("64-bit process: " + Environment.Is64BitProcess);
         lines.Add("Administrator: " + (IsAdministrator() ? "yes" : "no"));
         lines.Add("Language file: " + (string.IsNullOrWhiteSpace(settings.LanguageFile) ? "automatic/default" : settings.LanguageFile));
+        lines.Add("Unit preferences: " + ReportUnitPreferencesText(null));
         AddDiagnosticPlugInSummary(lines);
         AddSupportReadinessSummary(lines, rows);
         lines.Add("Logging was temporarily set to Debug for this diagnostic run.");

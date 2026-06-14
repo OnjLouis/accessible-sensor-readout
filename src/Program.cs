@@ -194,6 +194,8 @@ public static partial class Program
             DeleteObsoleteRootFiles(AppDomain.CurrentDomain.BaseDirectory);
             CleanupObsoleteRootUpdateFolders(AppDomain.CurrentDomain.BaseDirectory, null);
             CleanupObsoleteBundledPlugInBackups(AppDomain.CurrentDomain.BaseDirectory);
+            CleanupObsoleteShippedFolderBackups(AppDomain.CurrentDomain.BaseDirectory);
+            CleanupEmptyBackupFolders(AppDomain.CurrentDomain.BaseDirectory);
         }
         catch
         {

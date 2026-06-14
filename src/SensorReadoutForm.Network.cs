@@ -104,8 +104,8 @@ public sealed partial class SensorReadoutForm : Form
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Link speed", DisplayValue = FormatBitsPerSecond(adapter.Speed), Source = "Windows Network", Details = CloneDetails(networkDetails) });
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Receive rate", Value = (float)receiveRate, DisplayValue = FormatBytesPerSecond(receiveRate), Source = "Windows Network", Details = CloneDetails(networkDetails) });
                 rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Send rate", Value = (float)sendRate, DisplayValue = FormatBytesPerSecond(sendRate), Source = "Windows Network", Details = CloneDetails(networkDetails) });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data received", DisplayValue = FormatBytes(stats.BytesReceived), Source = "Windows Network", Details = CloneDetails(networkDetails) });
-                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data sent", DisplayValue = FormatBytes(stats.BytesSent), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data received", DisplayValue = FormatTransferBytes(stats.BytesReceived), Source = "Windows Network", Details = CloneDetails(networkDetails) });
+                rows.Add(new SensorRow { Type = "Network", Hardware = name, Name = "Data sent", DisplayValue = FormatTransferBytes(stats.BytesSent), Source = "Windows Network", Details = CloneDetails(networkDetails) });
 
                 var addresses = ipProperties.UnicastAddresses
                     .Where(a => a.Address != null && a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
@@ -583,8 +583,8 @@ public sealed partial class SensorReadoutForm : Form
         AddDetail(details, "Supports IPv6", FormatYesNo(adapter.Supports(NetworkInterfaceComponent.IPv6)));
         if (stats != null)
         {
-            AddDetail(details, "Bytes received", FormatBytes(stats.BytesReceived));
-            AddDetail(details, "Bytes sent", FormatBytes(stats.BytesSent));
+            AddDetail(details, "Bytes received", FormatTransferBytes(stats.BytesReceived));
+            AddDetail(details, "Bytes sent", FormatTransferBytes(stats.BytesSent));
             AddDetail(details, "Incoming packets", stats.UnicastPacketsReceived.ToString(CultureInfo.InvariantCulture));
             AddDetail(details, "Outgoing packets", stats.UnicastPacketsSent.ToString(CultureInfo.InvariantCulture));
             AddDetail(details, "Incoming packets discarded", stats.IncomingPacketsDiscarded.ToString(CultureInfo.InvariantCulture));

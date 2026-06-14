@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.9.1";
+    public const string AppVersion = "4.9.2";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -29,6 +29,9 @@ public sealed partial class SensorReadoutForm : Form
     public const string CategorySpeechFull = "Full";
     public const string CategorySpeechBrief = "Brief";
     public const string CategorySpeechOff = "Off";
+    public const string ByteUnitClassic = "Classic";
+    public const string ByteUnitBinary = "Binary";
+    public const string ByteUnitDecimal = "Decimal";
     private readonly AppSettings settings;
     private readonly MenuStrip menuStrip;
     private readonly ToolStripMenuItem editUndoMenuItem;
@@ -146,6 +149,13 @@ public sealed partial class SensorReadoutForm : Form
     private string loadedReportTitle = "";
     private string loadedReportMachineName = "";
     private string loadedReportGeneratedLocal = "";
+    private string loadedReportMemoryUnitMode = "";
+    private string loadedReportStorageUnitMode = "";
+    private string loadedReportTransferUnitMode = "";
+    private bool pendingRefreshRequested;
+    private bool pendingRefreshUpdateInteractiveUi;
+    private bool pendingRefreshSlowRows;
+    private string pendingRefreshReason = "";
     private HashSet<string> hiddenReadingExpandedKeys = new HashSet<string>();
     private bool menuInteractionActive;
     private bool visibleRefreshPending;
@@ -159,6 +169,9 @@ public sealed partial class SensorReadoutForm : Form
     private string languageFolderSignature = "";
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
     private static string activeTemperatureUnit = "C";
+    private static string activeMemoryUnitMode = ByteUnitClassic;
+    private static string activeStorageUnitMode = ByteUnitClassic;
+    private static string activeTransferUnitMode = ByteUnitClassic;
     private static string activeDecimalSeparator = "";
     private static LanguageCatalog activeLanguage = LanguageCatalog.English();
     private readonly System.Threading.EventWaitHandle closeRequestEvent;
@@ -186,6 +199,9 @@ public sealed partial class SensorReadoutForm : Form
     {
         settings = LoadSettings();
         activeTemperatureUnit = settings.TemperatureUnit;
+        activeMemoryUnitMode = settings.MemoryUnitMode;
+        activeStorageUnitMode = settings.StorageUnitMode;
+        activeTransferUnitMode = settings.TransferUnitMode;
         activeDecimalSeparator = settings.DecimalSeparator;
         RefreshLanguageChoices(true);
         LoadSelectedLanguage();

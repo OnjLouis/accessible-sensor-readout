@@ -34,6 +34,9 @@ public sealed partial class PreferencesForm : Form
     private readonly ComboBox diagnosticsCompleteSoundBox;
     private readonly NumericUpDown refreshSecondsBox;
     private readonly ComboBox temperatureUnitBox;
+    private readonly ComboBox memoryUnitModeBox;
+    private readonly ComboBox storageUnitModeBox;
+    private readonly ComboBox transferUnitModeBox;
     private readonly ComboBox decimalSeparatorBox;
     private readonly ComboBox languageBox;
     private readonly Label languageFolderStatusLabel;
@@ -152,6 +155,9 @@ public sealed partial class PreferencesForm : Form
     public string DiagnosticsCompleteSoundFile { get { return SelectedSoundFile(diagnosticsCompleteSoundBox); } }
     public int RefreshIntervalSeconds { get { return Convert.ToInt32(refreshSecondsBox.Value); } }
     public string TemperatureUnit { get { return SensorReadoutForm.TemperatureUnitFromIndex(temperatureUnitBox.SelectedIndex); } }
+    public string MemoryUnitMode { get { return ByteUnitModeFromIndex(memoryUnitModeBox.SelectedIndex); } }
+    public string StorageUnitMode { get { return ByteUnitModeFromIndex(storageUnitModeBox.SelectedIndex); } }
+    public string TransferUnitMode { get { return ByteUnitModeFromIndex(transferUnitModeBox.SelectedIndex); } }
     public string DecimalSeparator
     {
         get
@@ -300,9 +306,10 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 14,
+            RowCount = 15,
             Padding = new Padding(10)
         };
+        main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         main.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -489,6 +496,25 @@ public sealed partial class PreferencesForm : Form
         temperatureUnitBox.SelectedIndex = SensorReadoutForm.TemperatureUnitIndex(settings.TemperatureUnit);
         temperaturePanel.Controls.Add(temperatureUnitBox);
         temperatureUnitBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+
+        var byteUnitPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 3,
+            Dock = DockStyle.Fill
+        };
+        byteUnitPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        byteUnitPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        memoryUnitModeBox = CreateByteUnitModeBox(settings.MemoryUnitMode, SensorReadoutForm.L("a11y.Memory and GPU memory units", "Memory and GPU memory units"));
+        storageUnitModeBox = CreateByteUnitModeBox(settings.StorageUnitMode, SensorReadoutForm.L("a11y.Storage size units", "Storage size units"));
+        transferUnitModeBox = CreateByteUnitModeBox(settings.TransferUnitMode, SensorReadoutForm.L("a11y.Transfer rate and transfer total units", "Transfer rate and transfer total units"));
+        AddLabeledCombo(byteUnitPanel, 0, SensorReadoutForm.L("ui.Memory and GPU memory units:", "Memory and GPU memory units:"), memoryUnitModeBox);
+        AddLabeledCombo(byteUnitPanel, 1, SensorReadoutForm.L("ui.Storage size units:", "Storage size units:"), storageUnitModeBox);
+        AddLabeledCombo(byteUnitPanel, 2, SensorReadoutForm.L("ui.Transfer units:", "Transfer units:"), transferUnitModeBox);
+        memoryUnitModeBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        storageUnitModeBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
+        transferUnitModeBox.SelectedIndexChanged += delegate { SaveLivePreferences(); };
 
         var decimalSeparatorPanel = new FlowLayoutPanel
         {
@@ -1298,10 +1324,11 @@ public sealed partial class PreferencesForm : Form
         main.Controls.Add(readingTreeExpansionGroup, 0, 7);
         main.Controls.Add(intervalPanel, 0, 8);
         main.Controls.Add(temperaturePanel, 0, 9);
-        main.Controls.Add(decimalSeparatorPanel, 0, 10);
-        main.Controls.Add(updatesPanel, 0, 11);
-        main.Controls.Add(diagnosticsPanel, 0, 12);
-        main.Controls.Add(loggingPanel, 0, 13);
+        main.Controls.Add(byteUnitPanel, 0, 10);
+        main.Controls.Add(decimalSeparatorPanel, 0, 11);
+        main.Controls.Add(updatesPanel, 0, 12);
+        main.Controls.Add(diagnosticsPanel, 0, 13);
+        main.Controls.Add(loggingPanel, 0, 14);
         generalTab.Controls.Add(main);
         preferencesTabs.TabPages.Add(generalTab);
 

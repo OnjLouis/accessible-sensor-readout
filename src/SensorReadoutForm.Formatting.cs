@@ -486,15 +486,52 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
-        var units = new[] { "bytes", "KB", "MB", "GB", "TB" };
-        var unit = 0;
-        while (bytes >= 1024 && unit < units.Length - 1)
+        return FormatByteCount(bytes, activeMemoryUnitMode, false);
+    }
+
+    private static string FormatStorageBytes(object value)
+    {
+        double bytes;
+        if (value == null || !double.TryParse(Convert.ToString(value), out bytes) || bytes <= 0)
         {
-            bytes /= 1024;
+            return "";
+        }
+
+        return FormatByteCount(bytes, activeStorageUnitMode, false);
+    }
+
+    private static string FormatTransferBytes(object value)
+    {
+        double bytes;
+        if (value == null || !double.TryParse(Convert.ToString(value), out bytes) || bytes <= 0)
+        {
+            return "";
+        }
+
+        return FormatByteCount(bytes, activeTransferUnitMode, false);
+    }
+
+    private static string FormatByteCount(double bytes, string mode, bool perSecond)
+    {
+        var normalized = NormalizeByteUnitMode(mode);
+        var scale = string.Equals(normalized, ByteUnitDecimal, StringComparison.OrdinalIgnoreCase) ? 1000.0 : 1024.0;
+        var units = string.Equals(normalized, ByteUnitBinary, StringComparison.OrdinalIgnoreCase)
+            ? new[] { "bytes", "KiB", "MiB", "GiB", "TiB" }
+            : new[] { "bytes", "KB", "MB", "GB", "TB" };
+        var unit = 0;
+        while (bytes >= scale && unit < units.Length - 1)
+        {
+            bytes /= scale;
             unit++;
         }
 
-        return FormatNumber(Math.Round(bytes, unit == 0 ? 0 : 1), unit == 0 ? "0" : "0.0") + " " + units[unit];
+        var suffix = units[unit];
+        if (perSecond)
+        {
+            suffix = unit == 0 ? "B/s" : suffix + "/s";
+        }
+
+        return FormatNumber(Math.Round(bytes, unit == 0 ? 0 : 1), unit == 0 ? "0" : "0.0") + " " + suffix;
     }
 
     private static string FormatBytesPerSecond(double bytesPerSecond)
@@ -504,15 +541,7 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
-        var units = new[] { "B/s", "KB/s", "MB/s", "GB/s" };
-        var unit = 0;
-        while (bytesPerSecond >= 1024 && unit < units.Length - 1)
-        {
-            bytesPerSecond /= 1024;
-            unit++;
-        }
-
-        return FormatNumber(Math.Round(bytesPerSecond, unit == 0 ? 0 : 1), unit == 0 ? "0" : "0.0") + " " + units[unit];
+        return FormatByteCount(bytesPerSecond, activeTransferUnitMode, true);
     }
 
     private static string FormatBitsPerSecond(long bitsPerSecond)
@@ -541,14 +570,7 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
-        if (gigabytes >= 1024)
-        {
-            var terabytes = gigabytes / 1024;
-            return FormatNumber(Math.Round(terabytes, 2), "0.##") + " TB";
-        }
-
-        var rounded = Math.Round(gigabytes, 1);
-        return FormatNumber(rounded, Math.Abs(rounded % 1) < 0.05 ? "0" : "0.0") + " GB";
+        return FormatByteCount(gigabytes * 1024.0 * 1024.0 * 1024.0, activeStorageUnitMode, false);
     }
 
     private static string FormatStorageDataCounterGigabytes(string hardwareName, string sensorName, double gigabytes)

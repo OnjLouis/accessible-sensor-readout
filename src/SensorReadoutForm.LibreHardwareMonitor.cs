@@ -300,7 +300,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     var totalBytes = freeBytes / (1.0 - (spaceUsedPercent / 100.0));
                     var usedBytes = Math.Max(0, totalBytes - freeBytes);
-                    display = FormatBytes(usedBytes) + " (" + usedSpace.DisplayValue + ")";
+                    display = FormatStorageBytes(usedBytes) + " (" + usedSpace.DisplayValue + ")";
                 }
 
                 output.Add(new SensorRow

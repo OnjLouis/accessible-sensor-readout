@@ -202,6 +202,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (refreshInProgress)
         {
+            QueuePendingRefresh(updateInteractiveUi, refreshSlowRows, reason);
             return;
         }
 
@@ -278,8 +279,62 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         ApplyFanCurvesAsync(task.Result);
                     }
+
+                    RunPendingRefreshIfNeeded();
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    private void QueuePendingRefresh(bool updateInteractiveUi, bool refreshSlowRows, string reason)
+    {
+        pendingRefreshRequested = true;
+        pendingRefreshUpdateInteractiveUi = pendingRefreshUpdateInteractiveUi || updateInteractiveUi;
+        pendingRefreshSlowRows = pendingRefreshSlowRows || refreshSlowRows;
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            pendingRefreshReason = string.IsNullOrWhiteSpace(pendingRefreshReason)
+                ? reason
+                : pendingRefreshReason + "+" + reason;
+        }
+    }
+
+    private void RunPendingRefreshIfNeeded()
+    {
+        if (!pendingRefreshRequested || IsDisposed || reportViewMode || refreshInProgress)
+        {
+            return;
+        }
+
+        var updateInteractiveUi = pendingRefreshUpdateInteractiveUi;
+        var refreshSlowRows = pendingRefreshSlowRows;
+        var reason = string.IsNullOrWhiteSpace(pendingRefreshReason) ? "pending" : "pending-" + pendingRefreshReason;
+        pendingRefreshRequested = false;
+        pendingRefreshUpdateInteractiveUi = false;
+        pendingRefreshSlowRows = false;
+        pendingRefreshReason = "";
+
+        BeginInvoke((MethodInvoker)delegate
+        {
+            if (!IsDisposed && !reportViewMode)
+            {
+                RefreshSensors(updateInteractiveUi, refreshSlowRows, reason);
+            }
+        });
+    }
+
+    private void ClearFormattedSensorRowCaches()
+    {
+        lock (slowRowsLock)
+        {
+            cachedSlowRows.Clear();
+            cachedSlowRowsUtc = DateTime.MinValue;
+        }
+
+        lock (lhmRowsLock)
+        {
+            cachedLhmRows.Clear();
+            cachedLhmRowsUtc = DateTime.MinValue;
+        }
     }
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows)

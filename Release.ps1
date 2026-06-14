@@ -1200,6 +1200,42 @@ function Assert-NoBundledPlugInDllBackups([string]$appDir, [string]$label) {
     }
 }
 
+function Assert-UpdateHistoryLog([string]$appDir, [string]$label) {
+    $path = Join-Path $appDir 'Logs\Update.log'
+    if (!(Test-Path -LiteralPath $path)) {
+        Fail "$label did not write Logs\Update.log."
+    }
+
+    $text = Get-Content -LiteralPath $path -Raw
+    foreach ($term in @('Update command received', 'Extracting update ZIP', 'Update applied')) {
+        if ($text.IndexOf($term, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            Fail "$label Logs\Update.log is missing expected update step: $term"
+        }
+    }
+}
+
+function Assert-NoObsoleteShippedFolderBackups([string]$appDir, [string]$label) {
+    $backupRoot = Join-Path $appDir 'Backups\Updates'
+    if (!(Test-Path -LiteralPath $backupRoot)) {
+        return
+    }
+
+    $patterns = @(
+        'Nested-Sounds*.zip',
+        'Previous-Data*.zip',
+        'Previous-Docs*.zip',
+        'Previous-Plug-Ins*.zip'
+    )
+    $leftovers = @()
+    foreach ($pattern in $patterns) {
+        $leftovers += @(Get-ChildItem -LiteralPath $backupRoot -Recurse -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    }
+
+    if ($leftovers.Count -gt 0) {
+        Fail "$label left obsolete shipped-folder backup ZIPs after cleanup: $($leftovers -join ', ')"
+    }
+}
+
 function Assert-NoLegacyRootDependencyFiles([string]$appDir, [string]$label) {
     $legacyRootFiles = @(
         'BlackSharp.Core.dll',
@@ -1260,6 +1296,44 @@ function Add-LegacyBundledPlugInDllBackupFixture([string]$appDir) {
     $backupRoot = Join-Path $appDir 'Backups\Updates\legacy-plugin-dll-backup'
     New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
     Compress-Archive -LiteralPath $fixturePlugIn -DestinationPath (Join-Path $backupRoot 'Custom-Bundled-Plug-Ins.zip') -Force
+    Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+function Add-ObsoleteShippedFolderBackupFixture([string]$appDir) {
+    $fixtureRoot = Join-Path $SmokeRoot ('obsolete-shipped-folder-backup-fixture-' + [guid]::NewGuid().ToString('N'))
+    $backupRoot = Join-Path $appDir 'Backups\Updates\legacy-shipped-folder-backups'
+    New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+
+    $sounds = Join-Path $fixtureRoot 'Sounds'
+    New-Item -ItemType Directory -Force -Path $sounds | Out-Null
+    foreach ($index in 1..12) {
+        Set-Content -LiteralPath (Join-Path $sounds ("SR{0:D2}.wav" -f $index)) -Value 'release smoke shipped sound backup' -Encoding UTF8
+    }
+    Compress-Archive -LiteralPath $sounds -DestinationPath (Join-Path $backupRoot 'Nested-Sounds.zip') -Force
+
+    $data = Join-Path $fixtureRoot 'Data'
+    New-Item -ItemType Directory -Force -Path $data | Out-Null
+    foreach ($name in @('BundledLanguageHashes.json','BundledPlugInHashes.json','oui.csv','oui.LICENSE.txt','usb.ids','usb.ids.LICENSE.txt')) {
+        Set-Content -LiteralPath (Join-Path $data $name) -Value 'release smoke shipped data backup' -Encoding UTF8
+    }
+    Compress-Archive -LiteralPath $data -DestinationPath (Join-Path $backupRoot 'Previous-Data.zip') -Force
+
+    $docs = Join-Path $fixtureRoot 'Docs'
+    New-Item -ItemType Directory -Force -Path $docs | Out-Null
+    foreach ($name in @('README-en.html','README-de.html','README-es.html','README-fr.html','README-it.html','README-pt.html','SOURCE-MAP.md','Plug-In-development.md')) {
+        Set-Content -LiteralPath (Join-Path $docs $name) -Value 'release smoke shipped docs backup' -Encoding UTF8
+    }
+    Compress-Archive -LiteralPath $docs -DestinationPath (Join-Path $backupRoot 'Previous-Docs.zip') -Force
+
+    $plugIns = Join-Path $fixtureRoot 'Plug-Ins'
+    foreach ($folder in @('AsusRog','DellLatitude','Framework','HP','LenovoThinkPad','MsiLaptop')) {
+        $plugInFolder = Join-Path $plugIns $folder
+        New-Item -ItemType Directory -Force -Path $plugInFolder | Out-Null
+        Set-Content -LiteralPath (Join-Path $plugInFolder 'plugin.json') -Value '{"id":"release-smoke"}' -Encoding UTF8
+        Set-Content -LiteralPath (Join-Path $plugInFolder ($folder + 'PlugIn.dll')) -Value 'release smoke shipped plugin backup' -Encoding UTF8
+    }
+    Compress-Archive -LiteralPath $plugIns -DestinationPath (Join-Path $backupRoot 'Previous-Plug-Ins.zip') -Force
+
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
@@ -1324,6 +1398,7 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
     New-Item -ItemType Directory -Force -Path $startupRepairLegacy | Out-Null
     Set-Content -LiteralPath (Join-Path $startupRepairLegacy 'legacy.txt') -Value 'startup repair legacy backup' -Encoding UTF8
     Add-LegacyBundledPlugInDllBackupFixture $upgradeRoot
+    Add-ObsoleteShippedFolderBackupFixture $upgradeRoot
     $report = Join-Path $upgradeRoot 'Reports\release-smoke-after-upgrade.txt'
     $p = Start-Process -FilePath (Join-Path $upgradeRoot 'Sensor Readout.exe') -ArgumentList @('--report-txt', $report) -WorkingDirectory $upgradeRoot -WindowStyle Hidden -Wait -PassThru
     if ($p.ExitCode -ne 0 -or !(Test-Path -LiteralPath $report)) {
@@ -1338,6 +1413,7 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
     Assert-NoLegacyRootDependencyFiles $upgradeRoot "Local upgrade smoke startup repair"
     Assert-NoLegacyRootUpdateFolders $upgradeRoot "Local upgrade smoke startup repair"
     Assert-NoBundledPlugInDllBackups $upgradeRoot "Local upgrade smoke startup repair"
+    Assert-NoObsoleteShippedFolderBackups $upgradeRoot "Local upgrade smoke startup repair"
 
     $legacyRootSource = Find-ProgramBuildZip '4.4.0'
     if ($legacyRootSource) {
@@ -1355,6 +1431,7 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
         New-Item -ItemType Directory -Force -Path (Join-Path $legacyRoot 'Update Temp\old') | Out-Null
         Set-Content -LiteralPath (Join-Path $legacyRoot 'Update Temp\old\temp.txt') -Value 'legacy root update temp' -Encoding UTF8
         Add-LegacyBundledPlugInDllBackupFixture $legacyRoot
+        Add-ObsoleteShippedFolderBackupFixture $legacyRoot
 
         $legacyReport = Join-Path $legacyRoot 'Reports\legacy-root-cleanup-report.txt'
         $p = Start-Process -FilePath (Join-Path $legacyRoot 'Sensor Readout.exe') -ArgumentList @('--report-txt', $legacyReport) -WorkingDirectory $legacyRoot -WindowStyle Hidden -Wait -PassThru
@@ -1365,6 +1442,7 @@ function Invoke-LocalUpgradeSmoke([string]$releaseVersion, [string]$candidateZip
         Assert-NoLegacyRootDependencyFiles $legacyRoot "Legacy 4.4 root cleanup smoke"
         Assert-NoLegacyRootUpdateFolders $legacyRoot "Legacy 4.4 root cleanup smoke"
         Assert-NoBundledPlugInDllBackups $legacyRoot "Legacy 4.4 root cleanup smoke"
+        Assert-NoObsoleteShippedFolderBackups $legacyRoot "Legacy 4.4 root cleanup smoke"
     }
 }
 
@@ -1392,6 +1470,7 @@ function Invoke-DotNetUpdaterSmoke([string]$releaseVersion, [string]$candidateZi
     New-Item -ItemType Directory -Force -Path (Join-Path $targetRoot 'Update Temp\old') | Out-Null
     Set-Content -LiteralPath (Join-Path $targetRoot 'Update Temp\old\temp.txt') -Value 'legacy root update temp' -Encoding UTF8
     Add-LegacyBundledPlugInDllBackupFixture $targetRoot
+    Add-ObsoleteShippedFolderBackupFixture $targetRoot
     $nestedPlugIn = Join-Path $targetRoot 'Plug-Ins\AsusRog\AsusRog'
     New-Item -ItemType Directory -Force -Path $nestedPlugIn | Out-Null
     Set-Content -LiteralPath (Join-Path $nestedPlugIn 'plugin.json') -Value '{"id":"release-smoke.bad-nested-plugin","name":"Bad nested plugin"}' -Encoding UTF8
@@ -1425,6 +1504,7 @@ function Invoke-DotNetUpdaterSmoke([string]$releaseVersion, [string]$candidateZi
     }
 
     Assert-SmokeConfigPreserved $targetRoot $sentinel $releaseVersion
+    Assert-UpdateHistoryLog $targetRoot ".NET updater smoke"
     foreach ($nested in @('Plug-Ins\AsusRog\AsusRog', 'Docs\Docs', 'Langs\Langs', 'Data\Data', 'Plug-Ins\Plug-Ins')) {
         if (Test-Path -LiteralPath (Join-Path $targetRoot $nested)) {
             Fail ".NET updater smoke left nested shipped folder live: $nested"
@@ -1437,6 +1517,7 @@ function Invoke-DotNetUpdaterSmoke([string]$releaseVersion, [string]$candidateZi
         Fail ".NET updater smoke did not move legacy update backups into top-level Backups."
     }
     Assert-NoBundledPlugInDllBackups $targetRoot ".NET updater smoke"
+    Assert-NoObsoleteShippedFolderBackups $targetRoot ".NET updater smoke"
     Assert-NoLegacyRootDependencyFiles $targetRoot ".NET updater smoke"
     Assert-NoLegacyRootUpdateFolders $targetRoot ".NET updater smoke"
 }
@@ -1459,6 +1540,7 @@ function Invoke-PostPublishUpdateSmoke([string]$releaseVersion) {
     New-Item -ItemType Directory -Force -Path (Join-Path $updateRoot 'Update Temp\old') | Out-Null
     Set-Content -LiteralPath (Join-Path $updateRoot 'Update Temp\old\temp.txt') -Value 'legacy root update temp' -Encoding UTF8
     Add-LegacyBundledPlugInDllBackupFixture $updateRoot
+    Add-ObsoleteShippedFolderBackupFixture $updateRoot
 
     $exe = Join-Path $updateRoot 'Sensor Readout.exe'
     Start-Process -FilePath $exe -WorkingDirectory $updateRoot -WindowStyle Hidden | Out-Null
@@ -1474,6 +1556,7 @@ function Invoke-PostPublishUpdateSmoke([string]$releaseVersion) {
     Start-Process -FilePath $exe -ArgumentList '--close' -WorkingDirectory $updateRoot -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
     Assert-SmokeConfigPreserved $updateRoot $sentinel $releaseVersion
     Assert-NoBundledPlugInDllBackups $updateRoot "Post-publish updater smoke"
+    Assert-NoObsoleteShippedFolderBackups $updateRoot "Post-publish updater smoke"
     Assert-NoLegacyRootDependencyFiles $updateRoot "Post-publish updater smoke"
     Assert-NoLegacyRootUpdateFolders $updateRoot "Post-publish updater smoke"
 }
