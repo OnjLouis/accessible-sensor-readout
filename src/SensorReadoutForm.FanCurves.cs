@@ -160,8 +160,7 @@ public sealed partial class SensorReadoutForm : Form
                 curve.EmergencyPercent = Convert.ToInt32(emergencyPercentBox.Value);
                 curve.MinimumChangePercent = Convert.ToInt32(minChangeBox.Value);
                 NormalizeFanCurve(curve);
-                refreshList();
-                curveList.SelectedItem = curve;
+                curveList.Refresh();
             };
 
             curveList.SelectedIndexChanged += delegate { loadCurve(curveList.SelectedItem as FanCurveSetting); };

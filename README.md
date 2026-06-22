@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.9.2.
+Current version: 4.9.3.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -372,7 +372,7 @@ You can also manage categories directly from the main category list. Press `Dele
 
 ### Hidden Items (`Ctrl+9`)
 
-The Hidden items tab restores readings or categories hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs and spoken hotkey profile removal, so you can bring those safety prompts back after choosing not to show them again.
+The Hidden items tab restores readings or categories hidden from the main window. Checked items are hidden. Clear a checkbox to make that item visible again. It also includes confirmation preferences for update installs, spoken hotkey profile removal, and fan profile removal, so you can bring those safety prompts back after choosing not to show them again.
 
 ### Language Editor (`Ctrl+0`)
 
@@ -672,6 +672,15 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.9.3
+
+- Fixed: Fan curve percent fields now keep typed values such as `100` without the curve list refreshing mid-entry.
+- Fixed: Hidden or minimized copies now keep normal refresh timing when notification-area status or spoken hotkeys are configured, so hotkeys such as uptime do not fall back to the slower background refresh cadence.
+- Improved: Removing a fan profile now asks for confirmation, can remember when you do not want that prompt, and can be restored immediately with `Ctrl+Z` while Preferences remains open.
+- Improved: Opening the same Sensor Readout executable again now brings the running window forward instead of closing it, which helps if no show/hide hotkey has been configured yet.
+- Fixed: Desktop shortcut creation during the install-to-this-PC flow now verifies that Windows actually created the shortcut and reports an error if it did not.
+- Fixed: Empty placeholder spoken-hotkey profiles named `New spoken hotkey` are now cleaned up instead of lingering in Preferences and reports.
 
 ### 4.9.2
 - Fixed: update cleanup now also removes old backup ZIPs that contain only shipped Sounds, Docs, Data, or bundled Plug-Ins, and removes empty Backups folders afterward so old update artifacts do not keep accumulating.

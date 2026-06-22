@@ -9,7 +9,8 @@ param(
     [int[]]$ReviewedOpenIssue = @(),
     [string]$Version = "",
     [string]$PreviousVersion = "",
-    [string]$SmokeRoot = "D:\projects\Codex\sensor-readout\release-smoke"
+    [string]$SmokeRoot = "D:\projects\Codex\sensor-readout\release-smoke",
+    [string]$DiagnosticsCorpusPath = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -904,6 +905,136 @@ function Invoke-CommandLineDiagnosticsSmoke([string]$releaseVersion) {
     }
 }
 
+function Invoke-DiagnosticsCorpusAudit([string]$path) {
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return
+    }
+
+    if (!(Test-Path -LiteralPath $path)) {
+        Fail "Diagnostics corpus path does not exist: $path"
+    }
+
+    $archives = @(Get-ChildItem -LiteralPath $path -Filter '*.zip' -File)
+    if ($archives.Count -eq 0) {
+        Fail "Diagnostics corpus path contains no ZIP files: $path"
+    }
+
+    Info "Auditing diagnostics corpus: $path ($($archives.Count) ZIP files)."
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $auditRows = New-Object System.Collections.Generic.List[object]
+    foreach ($zipPath in $archives) {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath.FullName)
+        try {
+            $summary = ""
+            $report = ""
+            $debug = ""
+            foreach ($entry in $archive.Entries) {
+                if ($entry.FullName.Equals('Diagnostics-summary.txt', [StringComparison]::OrdinalIgnoreCase) -or
+                    $entry.FullName.Equals('SensorReadout-report.txt', [StringComparison]::OrdinalIgnoreCase) -or
+                    $entry.FullName.Equals('SensorReadout-debug.log', [StringComparison]::OrdinalIgnoreCase)) {
+                    $reader = New-Object System.IO.StreamReader($entry.Open())
+                    try {
+                        $text = $reader.ReadToEnd()
+                    } finally {
+                        $reader.Dispose()
+                    }
+
+                    if ($entry.FullName.Equals('Diagnostics-summary.txt', [StringComparison]::OrdinalIgnoreCase)) {
+                        $summary = $text
+                    } elseif ($entry.FullName.Equals('SensorReadout-report.txt', [StringComparison]::OrdinalIgnoreCase)) {
+                        $report = $text
+                    } else {
+                        $debug = $text
+                    }
+                }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($summary)) {
+                Info "Diagnostics corpus warning: $($zipPath.Name) has no Diagnostics-summary.txt."
+                continue
+            }
+
+            $version = ""
+            if ($summary -match 'App version:\s*([0-9.]+)') {
+                $version = $matches[1]
+            }
+
+            $machine = $zipPath.BaseName
+            if ($summary -match '(?m)^Machine:\s*(.+)$') {
+                $machine = $matches[1].Trim()
+            }
+
+            $duration = 0.0
+            if ($summary -match 'Duration:\s*([0-9.]+)\s*seconds') {
+                $duration = [double]$matches[1]
+            }
+
+            $initial = 0.0
+            if ($summary -match 'Initial sensor collection:\s*\d+ rows in ([0-9.]+) seconds') {
+                $initial = [double]$matches[1]
+            }
+
+            $final = 0.0
+            if ($summary -match 'Final sensor collection:\s*\d+ rows in ([0-9.]+) seconds') {
+                $final = [double]$matches[1]
+            }
+
+            $rows = 0
+            if ($summary -match 'Total rows:\s*(\d+)') {
+                $rows = [int]$matches[1]
+            } elseif ($summary -match 'Initial sensor collection:\s*(\d+) rows') {
+                $rows = [int]$matches[1]
+            }
+
+            $emptyCategories = ""
+            if ($summary -match 'Empty key categories:\s*(.+)') {
+                $emptyCategories = $matches[1].Trim()
+            }
+
+            $debugWarnings = @($debug -split "`n" | Where-Object { $_ -match '(?i)\b(error|exception|failed|crash|timeout)\b' } | Select-Object -First 3)
+            $hasEmptyDefaultProfile = $report -match 'New spoken hotkey' -and $report -match 'Configured readings\s*[:=]?\s*None'
+            $auditRows.Add([pscustomobject]@{
+                File = $zipPath.Name
+                Machine = $machine
+                Version = $version
+                Rows = $rows
+                Duration = $duration
+                Initial = $initial
+                Final = $final
+                EmptyCategories = $emptyCategories
+                EmptyDefaultHotKey = $hasEmptyDefaultProfile
+                DebugWarnings = $debugWarnings
+            }) | Out-Null
+        } finally {
+            $archive.Dispose()
+        }
+    }
+
+    $slow = @($auditRows | Where-Object { $_.Duration -ge 30 } | Sort-Object Duration -Descending)
+    foreach ($row in $slow) {
+        Info ("Diagnostics corpus timing note: {0} {1} took {2:N2}s total, initial {3:N2}s, final {4:N2}s." -f $row.Machine, $row.Version, $row.Duration, $row.Initial, $row.Final)
+    }
+
+    $emptyProfiles = @($auditRows | Where-Object { $_.EmptyDefaultHotKey })
+    foreach ($row in $emptyProfiles) {
+        Info "Diagnostics corpus config note: $($row.Machine) $($row.Version) contains an empty default spoken hotkey profile."
+    }
+
+    foreach ($row in $auditRows) {
+        foreach ($warning in $row.DebugWarnings) {
+            Info "Diagnostics corpus debug note: $($row.Machine) $($row.Version): $($warning.Trim())"
+        }
+    }
+
+    $outDir = Join-Path $SmokeRoot 'diagnostics-corpus'
+    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+    $csv = Join-Path $outDir 'DiagnosticsCorpusAudit.csv'
+    $auditRows |
+        Select-Object File,Machine,Version,Rows,Duration,Initial,Final,EmptyCategories,EmptyDefaultHotKey |
+        Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8
+    Info "Diagnostics corpus audit wrote $csv."
+}
+
 function New-ReleaseZip([string]$releaseVersion) {
     Info "Creating release ZIP."
     New-Item -ItemType Directory -Force -Path $programBuilds | Out-Null
@@ -1611,6 +1742,7 @@ Assert-NoStalePortableFiles
 Invoke-GitDiffCheck
 Invoke-CommandLineReportSmoke $Version
 Invoke-CommandLineDiagnosticsSmoke $Version
+Invoke-DiagnosticsCorpusAudit $DiagnosticsCorpusPath
 Set-LegacyUpdaterPlugInHashManifest $Version
 $zipPath = New-ReleaseZip $Version
 $sourceZipPath = New-SourceSnapshot $Version

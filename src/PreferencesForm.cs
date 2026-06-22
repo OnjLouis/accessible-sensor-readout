@@ -26,6 +26,7 @@ public sealed partial class PreferencesForm : Form
     private readonly CheckBox installUpdatesQuietlyCheckBox;
     private readonly CheckBox showUpdateInstallConfirmationCheckBox;
     private readonly CheckBox confirmSpokenHotKeyProfileRemovalCheckBox;
+    private readonly CheckBox confirmFanProfileRemovalCheckBox;
     private readonly CheckBox showTipsOnStartupCheckBox;
     private readonly ComboBox updateAvailableSoundBox;
     private readonly CheckBox diagnosticsSpeakProgressCheckBox;
@@ -125,6 +126,8 @@ public sealed partial class PreferencesForm : Form
     private bool syncingCategoryVisibility;
     private bool fanProfileStarterProfilesInitialized;
     private string lastAlarmReadingKey = "";
+    private FanProfileSetting lastRemovedFanProfile;
+    private int lastRemovedFanProfileIndex = -1;
 
     public bool AutoRefreshEnabled { get { return autoRefreshCheckBox.Checked; } }
     public bool RefreshWhileFocused { get { return refreshWhileFocusedCheckBox.Checked; } }
@@ -147,6 +150,7 @@ public sealed partial class PreferencesForm : Form
     public bool InstallUpdatesQuietly { get { return installUpdatesQuietlyCheckBox != null && installUpdatesQuietlyCheckBox.Checked; } }
     public bool ShowUpdateInstallConfirmation { get { return showUpdateInstallConfirmationCheckBox == null || showUpdateInstallConfirmationCheckBox.Checked; } }
     public bool ConfirmSpokenHotKeyProfileRemoval { get { return confirmSpokenHotKeyProfileRemovalCheckBox == null || confirmSpokenHotKeyProfileRemovalCheckBox.Checked; } }
+    public bool ConfirmFanProfileRemoval { get { return confirmFanProfileRemovalCheckBox == null || confirmFanProfileRemovalCheckBox.Checked; } }
     public bool ShowTipsOnStartup { get { return showTipsOnStartupCheckBox != null && showTipsOnStartupCheckBox.Checked; } }
     public string UpdateAvailableSoundFile { get { return SelectedSoundFile(updateAvailableSoundBox); } }
     public bool DiagnosticsSpeakProgress { get { return diagnosticsSpeakProgressCheckBox == null || diagnosticsSpeakProgressCheckBox.Checked; } }
@@ -1109,6 +1113,16 @@ public sealed partial class PreferencesForm : Form
         };
         fanProfileActionBox.SelectedIndexChanged += delegate { SaveSelectedFanProfileAction(); };
         fanProfilePercentBox.ValueChanged += delegate { SaveSelectedFanProfileAction(); };
+        fanProfilePercentBox.Validated += delegate { SaveSelectedFanProfileAction(); };
+        fanProfilePercentBox.KeyDown += delegate(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                SaveSelectedFanProfileAction();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+            }
+        };
         fanProfileSelectedList.SelectedIndexChanged += delegate { LoadSelectedFanProfileAction(); };
         alarmList.SelectedIndexChanged += delegate { LoadSelectedAlarm(); };
         alarmEnabledCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(false); };
@@ -1202,6 +1216,14 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = "Confirm spoken hotkey profile removal",
             AccessibleDescription = "When checked, Sensor Readout asks before removing a spoken hotkey profile."
         };
+        confirmFanProfileRemovalCheckBox = new CheckBox
+        {
+            Text = "Confirm fan profile remo&val",
+            Checked = settings.ConfirmFanProfileRemoval,
+            AutoSize = true,
+            AccessibleName = "Confirm fan profile removal",
+            AccessibleDescription = "When checked, Sensor Readout asks before removing a fan profile."
+        };
         showTipsOnStartupCheckBox = new CheckBox
         {
             Text = "Show &tips on startup",
@@ -1246,9 +1268,10 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Padding = new Padding(10)
         };
+        hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1258,8 +1281,9 @@ public sealed partial class PreferencesForm : Form
         hiddenLayout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hidden readings and categories. Checked items are hidden. Uncheck items to show them again.", "Hidden readings and categories. Checked items are hidden. Uncheck items to show them again."), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
         hiddenLayout.Controls.Add(confirmSpokenHotKeyProfileRemovalCheckBox, 0, 2);
-        hiddenLayout.Controls.Add(showTipsOnStartupCheckBox, 0, 3);
-        hiddenLayout.Controls.Add(hiddenItemsList, 0, 4);
+        hiddenLayout.Controls.Add(confirmFanProfileRemovalCheckBox, 0, 3);
+        hiddenLayout.Controls.Add(showTipsOnStartupCheckBox, 0, 4);
+        hiddenLayout.Controls.Add(hiddenItemsList, 0, 5);
         var hiddenButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill };
         var unhideSelectedButton = new Button { Text = "&Show selected", AutoSize = true };
         unhideSelectedButton.Click += delegate
@@ -1294,7 +1318,7 @@ public sealed partial class PreferencesForm : Form
             }
         };
         hiddenButtons.Controls.Add(resetSettingsButton);
-        hiddenLayout.Controls.Add(hiddenButtons, 0, 5);
+        hiddenLayout.Controls.Add(hiddenButtons, 0, 6);
         hiddenTab.Controls.Add(hiddenLayout);
 
         var dialogButtons = new FlowLayoutPanel
@@ -1526,6 +1550,7 @@ public sealed partial class PreferencesForm : Form
         installUpdatesQuietlyCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         showUpdateInstallConfirmationCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         confirmSpokenHotKeyProfileRemovalCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
+        confirmFanProfileRemovalCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         showTipsOnStartupCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         updateAvailableSoundBox.SelectedIndexChanged += delegate
         {
@@ -1578,6 +1603,7 @@ public sealed partial class PreferencesForm : Form
         Shown += delegate
         {
             loadingPreferences = false;
+            FinishInitialPreferenceLoad();
             SaveLivePreferences();
         };
         FormClosing += delegate

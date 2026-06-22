@@ -531,7 +531,7 @@ public sealed partial class PreferencesForm : Form
         speechPanel.Controls.Add(fanProfileSpeechMessageBox, 1, 0);
 
         var actionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-        actionPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Action for selected fan:", "Action for selected fan:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
+        actionPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Action for profile fans:", "Action for profile fans:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfileActionBox);
         actionPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Percent:", "Percent:"), AutoSize = true, Padding = new Padding(12, 6, 8, 0) });
         actionPanel.Controls.Add(fanProfilePercentBox);

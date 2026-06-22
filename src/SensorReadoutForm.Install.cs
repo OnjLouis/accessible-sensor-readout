@@ -313,7 +313,17 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        var shortcutFolder = Path.GetDirectoryName(shortcutPath);
+        if (!string.IsNullOrWhiteSpace(shortcutFolder))
+        {
+            Directory.CreateDirectory(shortcutFolder);
+        }
+
         CreateShortcut(shortcutPath, targetExe, "", workingDirectory, "Sensor Readout");
+        if (!File.Exists(shortcutPath))
+        {
+            throw new IOException("The desktop shortcut was not created.");
+        }
     }
 
     private static string GetDesktopShortcutPath()

@@ -175,6 +175,12 @@ public sealed partial class PreferencesForm : Form
             return true;
         }
 
+        if (keyData == (Keys.Control | Keys.Z) && IsSelectedPreferencesTab("Fan profiles"))
+        {
+            RestoreLastRemovedFanProfile();
+            return true;
+        }
+
         if (keyData == Keys.Enter)
         {
             if (alarmList != null && alarmList.Focused)
@@ -698,6 +704,7 @@ public sealed partial class PreferencesForm : Form
         liveSettings.InstallUpdatesQuietly = InstallUpdatesQuietly;
         liveSettings.ShowUpdateInstallConfirmation = ShowUpdateInstallConfirmation;
         liveSettings.ConfirmSpokenHotKeyProfileRemoval = ConfirmSpokenHotKeyProfileRemoval;
+        liveSettings.ConfirmFanProfileRemoval = ConfirmFanProfileRemoval;
         liveSettings.ShowTipsOnStartup = ShowTipsOnStartup;
         liveSettings.UpdateAvailableSoundFile = UpdateAvailableSoundFile;
         liveSettings.DiagnosticsSpeakProgress = DiagnosticsSpeakProgress;
@@ -774,6 +781,7 @@ public sealed partial class PreferencesForm : Form
 
     private void CommitPreferences()
     {
+        SaveSelectedFanProfileAction();
         TrayItemKeys = CurrentTrayItemKeys();
         SpokenHotKeys = CurrentSpokenHotKeys();
         FanProfiles = CurrentFanProfiles();
@@ -784,6 +792,11 @@ public sealed partial class PreferencesForm : Form
         ReadingSpeechLabels = CurrentReadingSpeechLabels();
         liveSettings.PlugInsEnabled = CurrentPlugInSettings();
         SaveLivePreferences();
+    }
+
+    private void FinishInitialPreferenceLoad()
+    {
+        UpdateFanProfileEditor();
     }
 
     private static string DecimalSeparatorChoiceText(string value)

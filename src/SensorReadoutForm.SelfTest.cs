@@ -52,6 +52,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
             form.RunSelfTestStep(results, "Byte unit formatting modes", delegate { form.SelfTestByteUnitFormattingModes(); });
             form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
+            form.RunSelfTestStep(results, "Background hotkey refresh cadence", delegate { form.SelfTestBackgroundHotKeyRefreshCadence(); });
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
@@ -516,6 +517,65 @@ public sealed partial class SensorReadoutForm : Form
         pendingRefreshReason = "";
     }
 
+    private void SelfTestBackgroundHotKeyRefreshCadence()
+    {
+        var previousSpeakTrayHotKey = settings.SpeakTrayHotKey;
+        var previousTrayItemKeys = settings.TrayItemKeys;
+        var previousSpokenHotKeys = settings.SpokenHotKeys;
+        var previousTrendLogging = settings.TrendLoggingEnabled;
+        var previousAlarms = settings.Alarms;
+        var previousFanCurves = settings.FanCurves;
+        try
+        {
+            settings.SpeakTrayHotKey = "";
+            settings.TrayItemKeys = new List<string>();
+            settings.SpokenHotKeys = new List<SpokenHotKeySetting>();
+            settings.TrendLoggingEnabled = false;
+            settings.Alarms = new List<AlarmSetting>();
+            settings.FanCurves = new List<FanCurveSetting>();
+            Require(!RequiresRealtimeBackgroundRefresh(), "Empty background configuration should not force realtime refresh.");
+
+            settings.SpeakTrayHotKey = "Ctrl+Shift+F11";
+            settings.TrayItemKeys = new List<string> { "self-test-reading" };
+            Require(RequiresRealtimeBackgroundRefresh(), "Tray hotkey readings should keep hidden refresh at the user interval.");
+
+            settings.SpeakTrayHotKey = "";
+            settings.TrayItemKeys = new List<string>();
+            settings.SpokenHotKeys = new List<SpokenHotKeySetting>
+            {
+                new SpokenHotKeySetting
+                {
+                    Name = "Self-test",
+                    HotKey = "Ctrl+Shift+F1",
+                    ReadingKeys = new List<string> { "self-test-reading" }
+                }
+            };
+            Require(RequiresRealtimeBackgroundRefresh(), "Spoken hotkey readings should keep hidden refresh at the user interval.");
+
+            var normalizationSettings = new AppSettings
+            {
+                SpokenHotKeys = new List<SpokenHotKeySetting>
+                {
+                    new SpokenHotKeySetting { Name = "New spoken hotkey", HotKey = "", ReadingKeys = new List<string>() },
+                    new SpokenHotKeySetting { Name = "Intentional empty profile", HotKey = "", ReadingKeys = new List<string>() },
+                    new SpokenHotKeySetting { Name = "Useful profile", HotKey = "Ctrl+Shift+F1", ReadingKeys = new List<string> { "self-test-reading" } }
+                }
+            };
+            NormalizeSettings(normalizationSettings);
+            Require(normalizationSettings.SpokenHotKeys.Count == 2, "Settings normalization did not prune the empty default spoken hotkey placeholder.");
+            Require(!normalizationSettings.SpokenHotKeys.Any(p => string.Equals(p.Name, "New spoken hotkey", StringComparison.OrdinalIgnoreCase)), "Settings normalization kept an empty default spoken hotkey placeholder.");
+        }
+        finally
+        {
+            settings.SpeakTrayHotKey = previousSpeakTrayHotKey;
+            settings.TrayItemKeys = previousTrayItemKeys;
+            settings.SpokenHotKeys = previousSpokenHotKeys;
+            settings.TrendLoggingEnabled = previousTrendLogging;
+            settings.Alarms = previousAlarms;
+            settings.FanCurves = previousFanCurves;
+        }
+    }
+
     private void SelfTestFormattedRowCacheClearing()
     {
         lock (slowRowsLock)
@@ -772,6 +832,37 @@ public sealed partial class SensorReadoutForm : Form
             Require(string.Equals(tabs.SelectedTab.Name, "Fan profiles", StringComparison.OrdinalIgnoreCase), "Preferences did not open on Fan profiles.");
             InvokeProcessCmdKey(preferences, Keys.Alt | Keys.D2);
             Require(string.Equals(tabs.SelectedTab.Name, "Fan profiles", StringComparison.OrdinalIgnoreCase), "Alt+2 on Fan profiles incorrectly switched to Hotkeys.");
+        }
+
+        settings.FanProfiles = new List<FanProfileSetting>
+        {
+            new FanProfileSetting
+            {
+                Name = "Self-test all fans",
+                Actions = new List<FanProfileActionSetting>
+                {
+                    new FanProfileActionSetting { FanControlKey = "self-test-fan-a", Manual = true, Percent = 100 },
+                    new FanProfileActionSetting { FanControlKey = "self-test-fan-b", Manual = true, Percent = 100 }
+                }
+            }
+        };
+
+        using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Fan profiles"))
+        {
+            preferences.CreateControl();
+            SetPrivateField(preferences, "loadingPreferences", false);
+            InvokePrivate(preferences, "FinishInitialPreferenceLoad");
+            var percentBox = FindControls<NumericUpDown>(preferences.Controls)
+                .FirstOrDefault(box => string.Equals(box.AccessibleName, "Fan profile percent", StringComparison.OrdinalIgnoreCase));
+            Require(percentBox != null, "Fan profile percent box was not found.");
+            Require(Convert.ToInt32(percentBox.Value) == 100, "Fan profile editor did not load a saved 100 percent value.");
+
+            percentBox.Text = "25";
+            percentBox.Value = 25;
+            InvokePrivate(preferences, "CommitPreferences");
+            var actions = settings.FanProfiles == null || settings.FanProfiles.Count == 0 ? new List<FanProfileActionSetting>() : settings.FanProfiles[0].Actions;
+            Require(actions != null && actions.Count == 2, "Fan profile self-test actions were lost.");
+            Require(actions.All(a => a.Percent == 25), "Fan profile percent edit did not apply to all profile fan actions.");
         }
     }
 
@@ -1098,7 +1189,25 @@ public sealed partial class SensorReadoutForm : Form
                 LowTemperatureC = 30,
                 HighTemperatureC = 70,
                 LowPercent = 20,
-                HighPercent = 80
+                HighPercent = 100,
+                EmergencyTemperatureC = 85,
+                EmergencyPercent = 100
+            }
+        };
+        settings.FanProfiles = new List<FanProfileSetting>
+        {
+            new FanProfileSetting
+            {
+                Name = "Self-test fan profile",
+                Actions = new List<FanProfileActionSetting>
+                {
+                    new FanProfileActionSetting
+                    {
+                        FanControlKey = "self-test-fan-control",
+                        Manual = true,
+                        Percent = 100
+                    }
+                }
             }
         };
         SaveSettings(settings);
@@ -1106,6 +1215,8 @@ public sealed partial class SensorReadoutForm : Form
         Require(reloaded.Alarms.Any(a => string.Equals(a.Name, "Self-test alarm", StringComparison.Ordinal)), "Alarm did not persist.");
         Require(reloaded.Alarms.Any(a => string.Equals(a.SpokenMessage, "Self-test spoken alarm message", StringComparison.Ordinal)), "Alarm spoken message did not persist.");
         Require(reloaded.FanCurves.Any(c => string.Equals(c.Name, "Self-test disabled fan curve", StringComparison.Ordinal)), "Fan curve did not persist.");
+        Require(reloaded.FanCurves.Any(c => c.HighPercent == 100 && c.EmergencyPercent == 100), "Fan curve 100 percent values did not persist.");
+        Require(reloaded.FanProfiles.Any(p => p.Actions != null && p.Actions.Any(a => a.Percent == 100)), "Fan profile action 100 percent value did not persist.");
         CheckAlarms(latestRows);
     }
 

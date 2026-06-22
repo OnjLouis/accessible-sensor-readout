@@ -85,6 +85,11 @@ public sealed partial class SensorReadoutForm : Form
             closeRequestEvent.Dispose();
         }
 
+        if (disposing && showRequestEvent != null)
+        {
+            showRequestEvent.Dispose();
+        }
+
         if (disposing)
         {
             ScreenReaderOutput.Shutdown();
@@ -97,6 +102,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         try
         {
+            if (showRequestEvent != null && showRequestEvent.WaitOne(0))
+            {
+                showRequestEvent.Reset();
+                BringToFrontForUserPrompt();
+            }
+
             if (closeRequestEvent == null || !closeRequestEvent.WaitOne(0))
             {
                 return;

@@ -36,6 +36,13 @@ public sealed partial class PreferencesForm : Form
         }
 
         var index = fanProfileList.SelectedIndex;
+        if (!ConfirmRemoveFanProfile(profile))
+        {
+            return;
+        }
+
+        lastRemovedFanProfile = CloneFanProfile(profile);
+        lastRemovedFanProfileIndex = index;
         fanProfiles.Remove(profile);
         fanProfileList.Items.Remove(profile);
         if (fanProfileList.Items.Count > 0)
@@ -48,6 +55,106 @@ public sealed partial class PreferencesForm : Form
         }
 
         UpdateFanProfileStatus("Removed fan profile.");
+        SaveLivePreferences();
+    }
+
+    private bool ConfirmRemoveFanProfile(FanProfileSetting profile)
+    {
+        if (profile == null || liveSettings == null || !liveSettings.ConfirmFanProfileRemoval)
+        {
+            return true;
+        }
+
+        using (var dialog = new Form())
+        {
+            dialog.Text = SensorReadoutForm.L("ui.Remove fan profile", "Remove fan profile");
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(520, 210);
+            dialog.MinimumSize = new Size(420, 190);
+            dialog.ShowInTaskbar = false;
+            dialog.KeyPreview = true;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(12)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var name = string.IsNullOrWhiteSpace(profile.Name) ? SensorReadoutForm.L("ui.Fan profile", "Fan profile") : profile.Name.Trim();
+            var message = string.Format(
+                SensorReadoutForm.L("message.Remove fan profile?", "Remove the fan profile \"{0}\"?"),
+                name);
+            layout.Controls.Add(new Label
+            {
+                Text = message,
+                AutoSize = true,
+                Dock = DockStyle.Fill
+            }, 0, 0);
+
+            var dontShowAgainBox = new CheckBox
+            {
+                Text = SensorReadoutForm.L("ui.Do not show this &message again", "Do not show this &message again"),
+                AutoSize = true,
+                AccessibleName = SensorReadoutForm.L("a11y.Do not show this message again", "Do not show this message again")
+            };
+            layout.Controls.Add(dontShowAgainBox, 0, 1);
+
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+            var removeButton = new Button { Text = SensorReadoutForm.L("ui.&Remove", "&Remove"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = SensorReadoutForm.L("ui.&Cancel", "&Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+            buttons.Controls.Add(removeButton);
+            buttons.Controls.Add(cancelButton);
+            layout.Controls.Add(buttons, 0, 2);
+
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = removeButton;
+            dialog.CancelButton = cancelButton;
+            dialog.KeyDown += delegate(object sender, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    dialog.DialogResult = DialogResult.Cancel;
+                    dialog.Close();
+                }
+            };
+
+            var confirmed = dialog.ShowDialog(this) == DialogResult.OK;
+            if (confirmed && dontShowAgainBox.Checked)
+            {
+                liveSettings.ConfirmFanProfileRemoval = false;
+                if (confirmFanProfileRemovalCheckBox != null)
+                {
+                    confirmFanProfileRemovalCheckBox.Checked = false;
+                }
+                SaveLivePreferences();
+            }
+
+            return confirmed;
+        }
+    }
+
+    private void RestoreLastRemovedFanProfile()
+    {
+        if (lastRemovedFanProfile == null)
+        {
+            UpdateFanProfileStatus("No fan profile removal to undo.");
+            System.Media.SystemSounds.Beep.Play();
+            return;
+        }
+
+        var profile = CloneFanProfile(lastRemovedFanProfile);
+        var index = Math.Max(0, Math.Min(lastRemovedFanProfileIndex, fanProfiles.Count));
+        fanProfiles.Insert(index, profile);
+        fanProfileList.Items.Insert(index, profile);
+        fanProfileList.SelectedItem = profile;
+        lastRemovedFanProfile = null;
+        lastRemovedFanProfileIndex = -1;
+        UpdateFanProfileStatus("Restored fan profile.");
         SaveLivePreferences();
     }
 
@@ -86,13 +193,13 @@ public sealed partial class PreferencesForm : Form
             fanProfileSpeechMessageBox.Text = profile == null ? "" : profile.SpeechMessage ?? "";
             PopulateSoundCombo(fanProfileSoundBox, profile == null ? "" : profile.SoundFile ?? "");
             PopulateFanProfileLists(profile);
-            LoadSelectedFanProfileAction();
         }
         finally
         {
             loadingPreferences = previousLoading;
         }
 
+        LoadSelectedFanProfileAction();
         UpdateFanProfileStatus();
     }
 
@@ -139,6 +246,10 @@ public sealed partial class PreferencesForm : Form
         if (fanProfileSelectedList.Items.Count > 0)
         {
             SelectFanControlChoiceByKey(fanProfileSelectedList, selectedProfileKey);
+            if (fanProfileSelectedList.SelectedIndex < 0)
+            {
+                fanProfileSelectedList.SelectedIndex = 0;
+            }
         }
     }
 
@@ -186,7 +297,7 @@ public sealed partial class PreferencesForm : Form
 
         var index = fanProfileAvailableList.SelectedIndex;
         fanProfileAvailableList.Items.Remove(item);
-        item.Action = new FanProfileActionSetting { FanControlKey = item.Key, Manual = fanProfileActionBox.SelectedIndex != 1, Percent = (int)fanProfilePercentBox.Value };
+        item.Action = new FanProfileActionSetting { FanControlKey = item.Key, Manual = fanProfileActionBox.SelectedIndex != 1, Percent = CurrentFanProfilePercentValue() };
         fanProfileSelectedList.Items.Add(item);
         fanProfileSelectedList.SelectedItem = item;
         if (fanProfileAvailableList.Items.Count > 0)
@@ -245,20 +356,40 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
-        var item = fanProfileSelectedList == null ? null : fanProfileSelectedList.SelectedItem as FanControlChoice;
         var previousLoading = loadingPreferences;
         loadingPreferences = true;
         try
         {
-            var action = item == null ? null : item.Action;
+            var action = FirstFanProfileAction();
+            var hasActions = fanProfileSelectedList != null && fanProfileSelectedList.Items.Count > 0;
             fanProfileActionBox.SelectedIndex = action != null && !action.Manual ? 1 : 0;
             fanProfilePercentBox.Value = Math.Max(fanProfilePercentBox.Minimum, Math.Min(fanProfilePercentBox.Maximum, action == null ? 50 : action.Percent));
-            fanProfilePercentBox.Enabled = item != null && fanProfileActionBox.SelectedIndex == 0;
+            fanProfileActionBox.Enabled = hasActions;
+            fanProfilePercentBox.Enabled = hasActions && fanProfileActionBox.SelectedIndex == 0;
         }
         finally
         {
             loadingPreferences = previousLoading;
         }
+    }
+
+    private FanProfileActionSetting FirstFanProfileAction()
+    {
+        if (fanProfileSelectedList == null)
+        {
+            return null;
+        }
+
+        foreach (var entry in fanProfileSelectedList.Items)
+        {
+            var choice = entry as FanControlChoice;
+            if (choice != null && choice.Action != null)
+            {
+                return choice.Action;
+            }
+        }
+
+        return null;
     }
 
     private void SaveSelectedFanProfileAction()
@@ -268,21 +399,39 @@ public sealed partial class PreferencesForm : Form
             return;
         }
 
-        var item = fanProfileSelectedList == null ? null : fanProfileSelectedList.SelectedItem as FanControlChoice;
-        if (item == null)
+        SaveFanProfileActionPercentForAllSelectedControls();
+    }
+
+    private void SaveFanProfileActionPercentForAllSelectedControls()
+    {
+        if (fanProfileSelectedList == null || fanProfileSelectedList.Items.Count == 0)
         {
-            fanProfilePercentBox.Enabled = fanProfileActionBox.SelectedIndex == 0;
+            fanProfileActionBox.Enabled = false;
+            fanProfilePercentBox.Enabled = false;
+            UpdateFanProfileStatus("Add a fan action to this profile before setting a percent.");
             return;
         }
 
-        item.Action = new FanProfileActionSetting
+        var percent = CurrentFanProfilePercentValue();
+        var manual = fanProfileActionBox.SelectedIndex != 1;
+        foreach (var entry in fanProfileSelectedList.Items)
         {
-            FanControlKey = item.Key,
-            Manual = fanProfileActionBox.SelectedIndex != 1,
-            Percent = (int)fanProfilePercentBox.Value
-        };
-        fanProfilePercentBox.Enabled = item.Action.Manual;
+            var choice = entry as FanControlChoice;
+            if (choice == null || string.IsNullOrWhiteSpace(choice.Key))
+            {
+                continue;
+            }
+
+            choice.Action = new FanProfileActionSetting
+            {
+                FanControlKey = choice.Key,
+                Manual = manual,
+                Percent = percent
+            };
+        }
+
         fanProfileSelectedList.Refresh();
+        fanProfilePercentBox.Enabled = manual;
         SaveSelectedFanProfileActions();
     }
 
@@ -302,6 +451,23 @@ public sealed partial class PreferencesForm : Form
         RefreshSelectedFanProfileListItem();
         SaveLivePreferences();
         UpdateFanProfileStatus();
+    }
+
+    private int CurrentFanProfilePercentValue()
+    {
+        decimal parsed;
+        if (!decimal.TryParse(fanProfilePercentBox.Text, out parsed))
+        {
+            parsed = fanProfilePercentBox.Value;
+        }
+
+        parsed = Math.Max(fanProfilePercentBox.Minimum, Math.Min(fanProfilePercentBox.Maximum, parsed));
+        if (fanProfilePercentBox.Value != parsed)
+        {
+            fanProfilePercentBox.Value = parsed;
+        }
+
+        return Convert.ToInt32(parsed);
     }
 
     private void AddAvailableFanControlChoiceSorted(FanControlChoice choice)

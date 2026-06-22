@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.9.2";
+    public const string AppVersion = "4.9.3";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -175,6 +175,7 @@ public sealed partial class SensorReadoutForm : Form
     private static string activeDecimalSeparator = "";
     private static LanguageCatalog activeLanguage = LanguageCatalog.English();
     private readonly System.Threading.EventWaitHandle closeRequestEvent;
+    private readonly System.Threading.EventWaitHandle showRequestEvent;
 
     public SensorReadoutForm()
         : this(false)
@@ -207,6 +208,7 @@ public sealed partial class SensorReadoutForm : Form
         LoadSelectedLanguage();
         hotKeyWindow = new HotKeyWindow(this);
         closeRequestEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, Program.CloseRequestEventName);
+        showRequestEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, Program.ShowRequestEventName);
         startMinimizedRequested = startMinimized;
         if ((startMinimizedRequested || settings.StartMinimizedToTray) && !settings.TrayStatusEnabled)
         {
@@ -1028,7 +1030,24 @@ public sealed partial class SensorReadoutForm : Form
     {
         return settings.TrendLoggingEnabled ||
             (settings.Alarms != null && settings.Alarms.Any(a => a != null && a.Enabled)) ||
-            (settings.FanCurves != null && settings.FanCurves.Any(c => c != null && c.Enabled));
+            (settings.FanCurves != null && settings.FanCurves.Any(c => c != null && c.Enabled)) ||
+            HasConfiguredBackgroundHotKeyReadouts();
+    }
+
+    private bool HasConfiguredBackgroundHotKeyReadouts()
+    {
+        if (!string.IsNullOrWhiteSpace(settings.SpeakTrayHotKey) &&
+            settings.TrayItemKeys != null &&
+            settings.TrayItemKeys.Any(k => !string.IsNullOrWhiteSpace(k)))
+        {
+            return true;
+        }
+
+        return settings.SpokenHotKeys != null &&
+            settings.SpokenHotKeys.Any(p => p != null &&
+                !string.IsNullOrWhiteSpace(p.HotKey) &&
+                p.ReadingKeys != null &&
+                p.ReadingKeys.Any(k => !string.IsNullOrWhiteSpace(k)));
     }
 
     private void SetTemperatureUnit(string unit)

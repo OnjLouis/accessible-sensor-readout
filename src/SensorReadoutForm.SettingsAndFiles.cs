@@ -414,6 +414,7 @@ public sealed partial class SensorReadoutForm : Form
             InstallUpdatesQuietly = value.InstallUpdatesQuietly,
             ShowUpdateInstallConfirmation = value.ShowUpdateInstallConfirmation,
             ConfirmSpokenHotKeyProfileRemoval = value.ConfirmSpokenHotKeyProfileRemoval,
+            ConfirmFanProfileRemoval = value.ConfirmFanProfileRemoval,
             InitialSetupWizardDismissed = value.InitialSetupWizardDismissed,
             ShowTipsOnStartup = value.ShowTipsOnStartup,
             LastLanguageEditorFile = value.LastLanguageEditorFile,
@@ -523,6 +524,7 @@ public sealed partial class SensorReadoutForm : Form
         target.InstallUpdatesQuietly = shared.InstallUpdatesQuietly;
         target.ShowUpdateInstallConfirmation = shared.ShowUpdateInstallConfirmation;
         target.ConfirmSpokenHotKeyProfileRemoval = shared.ConfirmSpokenHotKeyProfileRemoval;
+        target.ConfirmFanProfileRemoval = shared.ConfirmFanProfileRemoval;
         target.InitialSetupWizardDismissed = shared.InitialSetupWizardDismissed;
         target.ShowTipsOnStartup = shared.ShowTipsOnStartup;
         target.LastLanguageEditorFile = shared.LastLanguageEditorFile;
@@ -643,6 +645,7 @@ public sealed partial class SensorReadoutForm : Form
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList()
             })
+            .Where(p => !IsEmptyPlaceholderSpokenHotKeyProfile(p))
             .Where(p => !string.IsNullOrWhiteSpace(p.Name) || !string.IsNullOrWhiteSpace(p.HotKey) || p.ReadingKeys.Count > 0)
             .ToList();
         value.HiddenReadingKeys = value.HiddenReadingKeys ?? new List<string>();
@@ -762,6 +765,18 @@ public sealed partial class SensorReadoutForm : Form
         {
             value.TrayStatusEnabled = true;
         }
+    }
+
+    private static bool IsEmptyPlaceholderSpokenHotKeyProfile(SpokenHotKeySetting profile)
+    {
+        if (profile == null)
+        {
+            return true;
+        }
+
+        return string.Equals((profile.Name ?? "").Trim(), "New spoken hotkey", StringComparison.OrdinalIgnoreCase) &&
+            string.IsNullOrWhiteSpace(profile.HotKey) &&
+            (profile.ReadingKeys == null || profile.ReadingKeys.Count == 0);
     }
 
     private static List<string> NormalizeCategoryKeyList(IEnumerable<string> keys, bool keepKnownOrderOnly)

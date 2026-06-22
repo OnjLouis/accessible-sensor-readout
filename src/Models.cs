@@ -70,6 +70,7 @@ public sealed class AppSettings
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
+    public bool ConfirmFanProfileRemoval = true;
     public bool InitialSetupWizardDismissed = false;
     public bool ShowTipsOnStartup = false;
     public string LastLanguageEditorFile = "";
@@ -137,6 +138,7 @@ public sealed class SharedAppSettings
     public bool InstallUpdatesQuietly = false;
     public bool ShowUpdateInstallConfirmation = true;
     public bool ConfirmSpokenHotKeyProfileRemoval = true;
+    public bool ConfirmFanProfileRemoval = true;
     public bool InitialSetupWizardDismissed = false;
     public bool ShowTipsOnStartup = false;
     public string LastLanguageEditorFile = "";

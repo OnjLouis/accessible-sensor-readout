@@ -9,6 +9,7 @@ using System.Windows.Forms;
 public static partial class Program
 {
     public const string CloseRequestEventName = @"Local\OnjSensorReadoutCloseRequest";
+    public const string ShowRequestEventName = @"Local\OnjSensorReadoutShowRequest";
     private const int CrashRestartLimit = 3;
     private static readonly TimeSpan CrashRestartWindow = TimeSpan.FromMinutes(10);
     private static string[] startupArgs = new string[0];
@@ -132,6 +133,11 @@ public static partial class Program
             return;
         }
 
+        if (ShowExistingInstanceFromSameExecutable())
+        {
+            return;
+        }
+
         CloseOtherInstances();
 
         bool createdNew;
@@ -139,11 +145,7 @@ public static partial class Program
         {
             if (!createdNew)
             {
-                MessageBox.Show(
-                    "Sensor Readout is already running.",
-                    "Sensor Readout",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                SignalShowRequest();
                 return;
             }
 
@@ -1006,6 +1008,56 @@ public static partial class Program
         ResetCloseRequest();
     }
 
+    private static bool ShowExistingInstanceFromSameExecutable()
+    {
+        var current = Process.GetCurrentProcess();
+        var currentPath = SafeFullPath(Application.ExecutablePath);
+        if (string.IsNullOrWhiteSpace(currentPath))
+        {
+            return false;
+        }
+
+        var processName = System.IO.Path.GetFileNameWithoutExtension(Application.ExecutablePath);
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (process.Id == current.Id)
+                    {
+                        continue;
+                    }
+
+                    var otherPath = SafeFullPath(process.MainModule == null ? "" : process.MainModule.FileName);
+                    if (!string.IsNullOrWhiteSpace(otherPath) &&
+                        string.Equals(currentPath, otherPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SignalShowRequest();
+                        return true;
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string SafeFullPath(string path)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(path) ? "" : System.IO.Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path ?? "";
+        }
+    }
+
     private static void SignalCloseRequest()
     {
         try
@@ -1013,6 +1065,20 @@ public static partial class Program
             using (var closeRequest = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, CloseRequestEventName))
             {
                 closeRequest.Set();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void SignalShowRequest()
+    {
+        try
+        {
+            using (var showRequest = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, ShowRequestEventName))
+            {
+                showRequest.Set();
             }
         }
         catch
