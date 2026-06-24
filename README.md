@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.9.3.
+Current version: 4.9.4.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -672,6 +672,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.9.4
+
+- Fixed: Bluetooth now also uses Windows PnP data to show present Bluetooth devices that Windows does not return through the classic Bluetooth list, such as some keyboards and headphones.
+- Fixed: Battery hides zero-value raw Microsoft power-meter entries that do not represent a useful battery reading.
 
 ### 4.9.3
 

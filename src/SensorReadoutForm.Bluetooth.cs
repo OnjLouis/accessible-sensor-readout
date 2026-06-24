@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Management;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -27,6 +28,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        rows.AddRange(GetBluetoothPnpDeviceRows(seenDeviceAddresses));
         return rows;
     }
 
@@ -235,6 +237,114 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return devices;
+    }
+
+    private static IEnumerable<SensorRow> GetBluetoothPnpDeviceRows(HashSet<string> seenDeviceAddresses)
+    {
+        var rows = new List<SensorRow>();
+        try
+        {
+            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Present = TRUE"))
+            {
+                foreach (ManagementObject device in searcher.Get())
+                {
+                    var details = ReadManagementObjectDetails(device);
+                    var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "Caption"), GetDictionaryValue(details, "Description"));
+                    var deviceId = GetDictionaryValue(details, "PNPDeviceID");
+                    var pnpClass = GetDictionaryValue(details, "PNPClass");
+                    if (!IsBluetoothPnpDeviceCandidate(name, deviceId, pnpClass))
+                    {
+                        continue;
+                    }
+
+                    if (IsGenericBluetoothPnpName(name))
+                    {
+                        continue;
+                    }
+
+                    string address;
+                    if (TryExtractBluetoothAddressFromPnpId(deviceId, out address) && !seenDeviceAddresses.Add(address))
+                    {
+                        continue;
+                    }
+
+                    var hardware = string.IsNullOrWhiteSpace(name) ? FirstNonEmpty(deviceId, "Bluetooth device") : name;
+                    AddDetail(details, "Bluetooth PnP note", "This row comes from Windows Plug and Play because some Bluetooth LE or HID devices are not returned by the classic Bluetooth device list.");
+                    if (!string.IsNullOrWhiteSpace(address))
+                    {
+                        AddDetail(details, "Device address", address);
+                    }
+
+                    rows.Add(new SensorRow
+                    {
+                        Type = "Bluetooth",
+                        Hardware = hardware,
+                        Name = "Status",
+                        DisplayValue = FirstNonEmpty(GetDictionaryValue(details, "Status"), "Present"),
+                        Value = 1,
+                        Source = "Windows Bluetooth PnP",
+                        Details = details,
+                        Identifier = "bluetooth.pnp." + StableDeviceIdentifier(deviceId, hardware) + ".status"
+                    });
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return rows;
+    }
+
+    private static bool IsBluetoothPnpDeviceCandidate(string name, string deviceId, string pnpClass)
+    {
+        var combined = ((name ?? "") + " " + (deviceId ?? "") + " " + (pnpClass ?? "")).ToLowerInvariant();
+        if (combined.Contains("bluetooth") || combined.Contains("bthenum") || combined.Contains("bthle") || combined.Contains("bthmini"))
+        {
+            return true;
+        }
+
+        return string.Equals(pnpClass, "HIDClass", StringComparison.OrdinalIgnoreCase) &&
+            (combined.Contains("bth") || combined.Contains("bluetooth"));
+    }
+
+    private static bool IsGenericBluetoothPnpName(string name)
+    {
+        var normalized = (name ?? "").Trim();
+        if (normalized.Length == 0)
+        {
+            return true;
+        }
+
+        var genericNames = new[]
+        {
+            "Microsoft Bluetooth Enumerator",
+            "Microsoft Bluetooth LE Enumerator",
+            "Bluetooth Device (RFCOMM Protocol TDI)",
+            "Bluetooth Device (Personal Area Network)"
+        };
+        if (genericNames.Any(g => normalized.Equals(g, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return normalized.IndexOf("Bluetooth Radio", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            normalized.IndexOf("Bluetooth USB Module", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            normalized.IndexOf("Bluetooth Adapter", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool TryExtractBluetoothAddressFromPnpId(string deviceId, out string address)
+    {
+        address = "";
+        var match = System.Text.RegularExpressions.Regex.Match(deviceId ?? "", @"(?:DEV_|_DEV_|BTHLEDEVICE\{?|BTHENUM\\DEV_)([0-9A-Fa-f]{12})");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var raw = match.Groups[1].Value.ToUpperInvariant();
+        address = string.Join(":", Enumerable.Range(0, 6).Select(i => raw.Substring(i * 2, 2)).ToArray());
+        return true;
     }
 
     private static string FormatBluetoothAddress(ulong address)

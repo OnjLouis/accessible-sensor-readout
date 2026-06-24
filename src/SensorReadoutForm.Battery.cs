@@ -300,6 +300,12 @@ public sealed partial class SensorReadoutForm : Form
                     var unitModifier = ToNullableInt(GetDictionaryValue(details, "UnitModifier"));
                     var watts = ApplyUnitModifier(reading.Value, unitModifier);
                     var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "ElementName"), GetDictionaryValue(details, "DeviceID"), "Power meter " + (index + 1));
+                    if (!IsUsefulWindowsPowerMeterReading(name, baseUnits, watts))
+                    {
+                        index++;
+                        continue;
+                    }
+
                     var display = IsWattBaseUnit(baseUnits)
                         ? FormatNumber(Math.Round(watts, 2), "0.00") + " W"
                         : FormatNumber(Math.Round(watts, 2), "0.00") + " raw";
@@ -324,6 +330,21 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static bool IsUsefulWindowsPowerMeterReading(string name, int? baseUnits, double reading)
+    {
+        if (IsWattBaseUnit(baseUnits))
+        {
+            return true;
+        }
+
+        if (Math.Abs(reading) > double.Epsilon)
+        {
+            return true;
+        }
+
+        return !(name ?? "").Equals("Microsoft Power Meter Device", StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<SensorRow> ReadWindowsPowerSupplies()

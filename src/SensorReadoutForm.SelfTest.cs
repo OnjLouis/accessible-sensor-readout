@@ -44,6 +44,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
+            form.RunSelfTestStep(results, "Bluetooth and battery filtering", delegate { form.SelfTestBluetoothAndBatteryFiltering(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Category speech modes", delegate { form.SelfTestCategorySpeechModes(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
@@ -200,6 +201,19 @@ public sealed partial class SensorReadoutForm : Form
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2, itemSize) == 2, "WLAN BSS list count did not use dwNumberOfItems.");
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2000, itemSize) == 2, "WLAN BSS list count was not capped by buffer size.");
         Require(SafeWlanBssEntryCount(4, 1, itemSize) == 0, "WLAN BSS list accepted a header smaller than the entry offset.");
+    }
+
+    private void SelfTestBluetoothAndBatteryFiltering()
+    {
+        Require(IsBluetoothPnpDeviceCandidate("Logitech Pebble K380s", @"BTHLEDEVICE\{00001812-0000-1000-8000-00805F9B34FB}_DEV_AABBCCDDEEFF", "HIDClass"), "Bluetooth PnP fallback rejected a Bluetooth LE HID keyboard.");
+        Require(IsBluetoothPnpDeviceCandidate("JBL Live 670NC", @"BTHENUM\DEV_AABBCCDDEEFF\7&123&0&BLUETOOTHDEVICE_AABBCCDDEEFF", "Bluetooth"), "Bluetooth PnP fallback rejected a Bluetooth audio device.");
+        Require(!IsBluetoothPnpDeviceCandidate("USB Input Device", @"USB\VID_046D&PID_C548", "HIDClass"), "Bluetooth PnP fallback accepted a non-Bluetooth HID device.");
+        Require(IsGenericBluetoothPnpName("Microsoft Bluetooth LE Enumerator"), "Bluetooth PnP fallback did not reject a generic enumerator.");
+        string address;
+        Require(TryExtractBluetoothAddressFromPnpId(@"BTHENUM\DEV_AABBCCDDEEFF", out address) && address == "AA:BB:CC:DD:EE:FF", "Bluetooth PnP fallback did not extract a Bluetooth address.");
+        Require(!IsUsefulWindowsPowerMeterReading("Microsoft Power Meter Device", 0, 0), "Battery filtering accepted a zero-value raw Microsoft power meter.");
+        Require(IsUsefulWindowsPowerMeterReading("Microsoft Power Meter Device", 0, 1), "Battery filtering rejected a non-zero raw Microsoft power meter.");
+        Require(IsUsefulWindowsPowerMeterReading("AC adapter", 7, 0), "Battery filtering rejected a watt-based power meter.");
     }
 
     private void SelfTestCategoryNavigation()
