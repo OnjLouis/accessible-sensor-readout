@@ -706,14 +706,12 @@ public sealed partial class SensorReadoutForm : Form
         var visibleMatches = allChoices
             .Where(i => SearchTextMatches(displayText == null ? "" : displayText(i), terms))
             .ToList();
-        if (visibleMatches.Count > 0)
-        {
-            return visibleMatches;
-        }
-
-        return allChoices
+        var visibleSet = new HashSet<object>(visibleMatches);
+        var detailMatches = allChoices
+            .Where(i => !visibleSet.Contains(i))
             .Where(i => SearchChoiceMatches(i, terms, displayText, searchText))
             .ToList();
+        return visibleMatches.Concat(detailMatches).ToList();
     }
 
     private static bool SearchTextMatches(string text, string[] terms)
@@ -971,6 +969,51 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private void SelectCategoryPrefix(char keyChar)
+    {
+        if (deviceList == null || deviceList.Items.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.Now;
+        if ((now - categorySearchLastKey).TotalMilliseconds > 1200)
+        {
+            categorySearchPrefix = "";
+        }
+        categorySearchLastKey = now;
+        categorySearchPrefix += keyChar.ToString();
+
+        if (SelectCategorySearchMatch(categorySearchPrefix))
+        {
+            return;
+        }
+
+        categorySearchPrefix = keyChar.ToString();
+        SelectCategorySearchMatch(categorySearchPrefix);
+    }
+
+    private bool SelectCategorySearchMatch(string searchText)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return false;
+        }
+
+        for (var i = 0; i < deviceList.Items.Count; i++)
+        {
+            var filter = deviceList.Items[i] as DeviceFilter;
+            var text = filter == null ? Convert.ToString(deviceList.Items[i]) : filter.DisplayName;
+            if (!string.IsNullOrWhiteSpace(text) && text.StartsWith(searchText, StringComparison.CurrentCultureIgnoreCase))
+            {
+                deviceList.SelectedIndex = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void UpdateSelectedCategoryStatus()
     {
         if (deviceList == null || statusLabel == null)
@@ -1208,6 +1251,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             treeWindowsSettingMenuItem.Visible = windowsSettingVisible;
             treeWindowsSettingMenuItem.Text = windowsSettingText;
+        }
+
+        if (treeWatchProcessMenuItem != null)
+        {
+            treeWatchProcessMenuItem.Visible = CanWatchSelectedProcessFromTree();
+            treeWatchProcessMenuItem.Enabled = !IsProcessWatchActive();
         }
 
         if (treeSpokenHotKeyMenuItem != null)

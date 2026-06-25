@@ -81,6 +81,13 @@ public sealed class AppSettings
     public bool DiagnosticsPlaySounds = true;
     public string DiagnosticsStartSoundFile = "";
     public string DiagnosticsCompleteSoundFile = "";
+    public string ProcessWatchOutputFormat = "html";
+    public int ProcessWatchDurationValue = 0;
+    public string ProcessWatchDurationUnit = "minutes";
+    public bool ProcessWatchSpeakWhenStopped = true;
+    public bool ProcessWatchPlaySoundWhenStopped = false;
+    public string ProcessWatchSoundFile = "";
+    public string ProcessWatchCompletionMessage = "";
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -149,6 +156,13 @@ public sealed class SharedAppSettings
     public bool DiagnosticsPlaySounds = true;
     public string DiagnosticsStartSoundFile = "";
     public string DiagnosticsCompleteSoundFile = "";
+    public string ProcessWatchOutputFormat = "html";
+    public int ProcessWatchDurationValue = 0;
+    public string ProcessWatchDurationUnit = "minutes";
+    public bool ProcessWatchSpeakWhenStopped = true;
+    public bool ProcessWatchPlaySoundWhenStopped = false;
+    public string ProcessWatchSoundFile = "";
+    public string ProcessWatchCompletionMessage = "";
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
 }

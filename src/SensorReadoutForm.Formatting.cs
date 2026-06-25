@@ -24,7 +24,12 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var type = row.Type ?? "";
-        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery" || type == "Tasks")
+        if (type == "Tasks")
+        {
+            return !IsTaskProcessInventoryRow(row);
+        }
+
+        if (type == "Temperature" || type == "Fan" || type == "SMART" || type == "Network" || type == "Battery")
         {
             return true;
         }

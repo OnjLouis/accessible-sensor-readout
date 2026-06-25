@@ -57,6 +57,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
+            form.RunSelfTestStep(results, "Process watch report", delegate { form.SelfTestProcessWatchReport(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
@@ -727,6 +728,52 @@ public sealed partial class SensorReadoutForm : Form
                 cachedTaskRowsUtc = previousUtc;
             }
         }
+    }
+
+    private void SelfTestProcessWatchReport()
+    {
+        var session = new ProcessWatchSession
+        {
+            ProcessId = 1234,
+            ProcessName = "SelfTestProcess",
+            ProcessPath = @"C:\SelfTest\SelfTestProcess.exe",
+            StartedLocal = new DateTime(2026, 1, 1, 12, 0, 0),
+            StoppedLocal = new DateTime(2026, 1, 1, 12, 0, 5),
+            StopReason = "Self-test"
+        };
+        session.Samples.Add(new ProcessWatchSample
+        {
+            LocalTime = session.StartedLocal,
+            ElapsedSeconds = 0,
+            ProcessRunning = true,
+            CpuPercent = 1.5,
+            WorkingSetBytes = 100 * 1024 * 1024,
+            PrivateMemoryBytes = 80 * 1024 * 1024,
+            ThreadCount = 10,
+            HandleCount = 100
+        });
+        session.Samples.Add(new ProcessWatchSample
+        {
+            LocalTime = session.StartedLocal.AddSeconds(5),
+            ElapsedSeconds = 5,
+            ProcessRunning = true,
+            CpuPercent = 3.0,
+            WorkingSetBytes = 120 * 1024 * 1024,
+            PrivateMemoryBytes = 95 * 1024 * 1024,
+            DedicatedGpuBytes = 20 * 1024 * 1024,
+            SharedGpuBytes = 5 * 1024 * 1024,
+            GpuUsagePercent = 2.5,
+            ThreadCount = 11,
+            HandleCount = 105
+        });
+
+        var report = BuildProcessWatchHtmlReport(session);
+        Require(report.IndexOf("Sensor Readout process watch report", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing title.");
+        Require(report.IndexOf("<table", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing HTML table.");
+        Require(report.IndexOf("SelfTestProcess", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing process name.");
+        Require(report.IndexOf("Working set change", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing growth summary.");
+        Require(report.IndexOf("does not include keystrokes", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing privacy boundary.");
+        Require(report.IndexOf("network payloads", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing network privacy boundary.");
     }
 
     private void SelfTestHotkeysMenu()

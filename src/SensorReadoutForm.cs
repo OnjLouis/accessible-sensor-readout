@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.9.5";
+    public const string AppVersion = "4.10.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -18,6 +18,8 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly TimeSpan HiddenAutoRefreshMinimumInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ForegroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan BackgroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ForegroundProcessInventoryMinimumInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan BackgroundProcessInventoryMinimumInterval = TimeSpan.FromSeconds(60);
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
     private const int SpokenHotKeyBaseId = 2100;
@@ -43,6 +45,7 @@ public sealed partial class SensorReadoutForm : Form
     private ToolStripMenuItem hotkeysSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeDetailsMenuItem;
     private readonly ToolStripMenuItem treeWindowsSettingMenuItem;
+    private readonly ToolStripMenuItem treeWatchProcessMenuItem;
     private readonly ToolStripMenuItem treeRenameMenuItem;
     private readonly ToolStripMenuItem treeSpokenHotKeyMenuItem;
     private readonly ToolStripMenuItem treeTrendLogMenuItem;
@@ -52,6 +55,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem refreshWhileFocusedMenuItem;
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ToolStripMenuItem trendLoggingMenuItem;
+    private readonly ToolStripMenuItem processWatchMenuItem;
     private readonly ToolStripMenuItem celsiusMenuItem;
     private readonly ToolStripMenuItem fahrenheitMenuItem;
     private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
@@ -84,6 +88,8 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object lhmLock = new object();
     private Computer lhmComputer;
     private string selectedFilterKey = "type|Performance";
+    private string categorySearchPrefix = "";
+    private DateTime categorySearchLastKey = DateTime.MinValue;
     private bool updatingFanControlBox;
     private bool refreshInProgress;
     private bool minimizingToTray;
@@ -137,6 +143,8 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object taskRowsCacheLock = new object();
     private List<SensorRow> cachedTaskRows = new List<SensorRow>();
     private DateTime cachedTaskRowsUtc = DateTime.MinValue;
+    private List<SensorRow> cachedProcessInventoryRows = new List<SensorRow>();
+    private DateTime cachedProcessInventoryRowsUtc = DateTime.MinValue;
     private readonly object slowRowsLock = new object();
     private List<SensorRow> cachedSlowRows = new List<SensorRow>();
     private DateTime cachedSlowRowsUtc = DateTime.MinValue;
@@ -352,10 +360,13 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(trendLoggingMenuItem);
         optionsMenu.DropDownItems.Add(temperatureMenu);
         optionsMenu.DropDownItems.Add(languageMenuItem);
+        processWatchMenuItem = CreateShortcutMenuItem("&Watch process...", Keys.Control | Keys.Shift | Keys.W, delegate { ToggleProcessWatchCommand(); });
+        optionsMenu.DropDownItems.Add(processWatchMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem(T("ui.&Spoken feedback...", "Spoken and visual feed&back..."), "", delegate { ShowPreferences("Spoken feedback"); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
+        optionsMenu.DropDownOpening += delegate { UpdateProcessWatchMenuItem(); };
 
         hotkeysMenu = new ToolStripMenuItem("Hot&keys");
         BuildHotkeysMenu();
@@ -486,6 +497,14 @@ public sealed partial class SensorReadoutForm : Form
                 e.SuppressKeyPress = true;
             }
         };
+        deviceList.KeyPress += delegate(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar))
+            {
+                SelectCategoryPrefix(e.KeyChar);
+                e.Handled = true;
+            }
+        };
         readingTree = new TreeView
         {
             Dock = DockStyle.Fill,
@@ -509,6 +528,8 @@ public sealed partial class SensorReadoutForm : Form
         readingTree.ContextMenuStrip.Items.Add(treeDetailsMenuItem);
         treeWindowsSettingMenuItem = CreateDisplayShortcutMenuItem(T("ui.Open &Windows setting...", "Open &Windows setting..."), "Alt+Enter", delegate { OpenSelectedWindowsSetting(); });
         readingTree.ContextMenuStrip.Items.Add(treeWindowsSettingMenuItem);
+        treeWatchProcessMenuItem = CreateDisplayShortcutMenuItem(T("ui.Watch &process", "Watch &process"), "", delegate { WatchSelectedProcessFromTree(); });
+        readingTree.ContextMenuStrip.Items.Add(treeWatchProcessMenuItem);
         treeSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove from hot&key or tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
         readingTree.ContextMenuStrip.Items.Add(treeSpokenHotKeyMenuItem);
         treeTrendLogMenuItem = CreateShortcutMenuItem(T("ui.Add to history &log", "Add to history &log"), Keys.Control | Keys.Shift | Keys.G, delegate { ToggleSelectedReadingTrendLogging(); });

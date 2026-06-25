@@ -425,6 +425,13 @@ public sealed partial class SensorReadoutForm : Form
             DiagnosticsPlaySounds = value.DiagnosticsPlaySounds,
             DiagnosticsStartSoundFile = value.DiagnosticsStartSoundFile,
             DiagnosticsCompleteSoundFile = value.DiagnosticsCompleteSoundFile,
+            ProcessWatchOutputFormat = value.ProcessWatchOutputFormat,
+            ProcessWatchDurationValue = value.ProcessWatchDurationValue,
+            ProcessWatchDurationUnit = value.ProcessWatchDurationUnit,
+            ProcessWatchSpeakWhenStopped = value.ProcessWatchSpeakWhenStopped,
+            ProcessWatchPlaySoundWhenStopped = value.ProcessWatchPlaySoundWhenStopped,
+            ProcessWatchSoundFile = value.ProcessWatchSoundFile,
+            ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage,
             StartupSoundFile = value.StartupSoundFile,
             ShutdownSoundFile = value.ShutdownSoundFile
         };
@@ -535,6 +542,13 @@ public sealed partial class SensorReadoutForm : Form
         target.DiagnosticsPlaySounds = shared.DiagnosticsPlaySounds;
         target.DiagnosticsStartSoundFile = shared.DiagnosticsStartSoundFile;
         target.DiagnosticsCompleteSoundFile = shared.DiagnosticsCompleteSoundFile;
+        target.ProcessWatchOutputFormat = NormalizeProcessWatchOutputFormat(shared.ProcessWatchOutputFormat);
+        target.ProcessWatchDurationValue = NormalizeProcessWatchDurationValue(shared.ProcessWatchDurationValue);
+        target.ProcessWatchDurationUnit = NormalizeProcessWatchDurationUnit(shared.ProcessWatchDurationUnit);
+        target.ProcessWatchSpeakWhenStopped = shared.ProcessWatchSpeakWhenStopped;
+        target.ProcessWatchPlaySoundWhenStopped = shared.ProcessWatchPlaySoundWhenStopped;
+        target.ProcessWatchSoundFile = System.IO.Path.GetFileName(shared.ProcessWatchSoundFile ?? "");
+        target.ProcessWatchCompletionMessage = shared.ProcessWatchCompletionMessage ?? "";
         target.StartupSoundFile = shared.StartupSoundFile;
         target.ShutdownSoundFile = shared.ShutdownSoundFile;
     }
@@ -571,6 +585,11 @@ public sealed partial class SensorReadoutForm : Form
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
         value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
+        value.ProcessWatchOutputFormat = NormalizeProcessWatchOutputFormat(value.ProcessWatchOutputFormat);
+        value.ProcessWatchDurationValue = NormalizeProcessWatchDurationValue(value.ProcessWatchDurationValue);
+        value.ProcessWatchDurationUnit = NormalizeProcessWatchDurationUnit(value.ProcessWatchDurationUnit);
+        value.ProcessWatchSoundFile = System.IO.Path.GetFileName(value.ProcessWatchSoundFile ?? "");
+        value.ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage ?? "";
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
     }
@@ -623,6 +642,29 @@ public sealed partial class SensorReadoutForm : Form
     public static int NormalizeVisualSpokenFeedbackTimeoutSeconds(int value)
     {
         return Math.Max(2, Math.Min(30, value <= 0 ? 6 : value));
+    }
+
+    public static string NormalizeProcessWatchOutputFormat(string value)
+    {
+        return string.Equals(value, "csv", StringComparison.OrdinalIgnoreCase) ? "csv" : "html";
+    }
+
+    public static int NormalizeProcessWatchDurationValue(int value)
+    {
+        return Math.Max(0, Math.Min(1440, value));
+    }
+
+    public static string NormalizeProcessWatchDurationUnit(string value)
+    {
+        if (string.Equals(value, "seconds", StringComparison.OrdinalIgnoreCase))
+        {
+            return "seconds";
+        }
+        if (string.Equals(value, "hours", StringComparison.OrdinalIgnoreCase))
+        {
+            return "hours";
+        }
+        return "minutes";
     }
 
     private static void NormalizeSettings(AppSettings value)
@@ -692,6 +734,11 @@ public sealed partial class SensorReadoutForm : Form
         value.UpdateAvailableSoundFile = System.IO.Path.GetFileName(value.UpdateAvailableSoundFile ?? "");
         value.DiagnosticsStartSoundFile = System.IO.Path.GetFileName(value.DiagnosticsStartSoundFile ?? "");
         value.DiagnosticsCompleteSoundFile = System.IO.Path.GetFileName(value.DiagnosticsCompleteSoundFile ?? "");
+        value.ProcessWatchOutputFormat = NormalizeProcessWatchOutputFormat(value.ProcessWatchOutputFormat);
+        value.ProcessWatchDurationValue = NormalizeProcessWatchDurationValue(value.ProcessWatchDurationValue);
+        value.ProcessWatchDurationUnit = NormalizeProcessWatchDurationUnit(value.ProcessWatchDurationUnit);
+        value.ProcessWatchSoundFile = System.IO.Path.GetFileName(value.ProcessWatchSoundFile ?? "");
+        value.ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage ?? "";
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds));
         value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);

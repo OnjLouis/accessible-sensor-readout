@@ -48,7 +48,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        var freshRows = GetTaskRows().ToList();
+        var freshRows = GetTaskRows(refreshSlowRows, backgroundRefresh).ToList();
         lock (taskRowsCacheLock)
         {
             cachedTaskRows = freshRows.ToList();
@@ -58,7 +58,7 @@ public sealed partial class SensorReadoutForm : Form
         return freshRows;
     }
 
-    private IEnumerable<SensorRow> GetTaskRows()
+    private IEnumerable<SensorRow> GetTaskRows(bool refreshSlowRows, bool backgroundRefresh)
     {
         var rows = new List<SensorRow>();
         var currentSnapshots = CaptureTaskProcessSnapshots();
@@ -105,7 +105,30 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(BuildHighestGpuMemoryProcessRow(highestGpuMemory));
         }
 
+        rows.AddRange(GetCachedRunningProcessRows(refreshSlowRows, backgroundRefresh));
         return rows;
+    }
+
+    private IEnumerable<SensorRow> GetCachedRunningProcessRows(bool refreshSlowRows, bool backgroundRefresh)
+    {
+        var now = DateTime.UtcNow;
+        var minimumAge = backgroundRefresh ? BackgroundProcessInventoryMinimumInterval : ForegroundProcessInventoryMinimumInterval;
+        lock (taskRowsCacheLock)
+        {
+            if (!refreshSlowRows && cachedProcessInventoryRows.Count > 0 && now - cachedProcessInventoryRowsUtc < minimumAge)
+            {
+                return cachedProcessInventoryRows.ToList();
+            }
+        }
+
+        var freshRows = BuildRunningProcessRows().ToList();
+        lock (taskRowsCacheLock)
+        {
+            cachedProcessInventoryRows = freshRows.ToList();
+            cachedProcessInventoryRowsUtc = now;
+        }
+
+        return freshRows;
     }
 
     private List<TaskProcessSnapshot> CaptureTaskProcessSnapshots()
@@ -351,6 +374,123 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return details;
+    }
+
+    private IEnumerable<SensorRow> BuildRunningProcessRows()
+    {
+        var processUsages = CaptureProcessInventoryUsages();
+        var gpuUsages = GetGpuProcessUsages(processUsages);
+        var processUsageById = processUsages
+            .GroupBy(p => p.ProcessId)
+            .ToDictionary(g => g.Key, g => g.First());
+        var gpuUsageById = gpuUsages
+            .GroupBy(p => p.ProcessId)
+            .ToDictionary(g => g.Key, g => g.First());
+        foreach (var target in EnumerateProcessWatchTargets())
+        {
+            TaskProcessUsage processUsage;
+            processUsageById.TryGetValue(target.ProcessId, out processUsage);
+            GpuProcessUsage gpuUsage;
+            gpuUsageById.TryGetValue(target.ProcessId, out gpuUsage);
+            var details = BuildProcessInventoryDetails(target, processUsage, gpuUsage);
+            yield return new SensorRow
+            {
+                Type = "Tasks",
+                Hardware = T("ui.Running processes", "Running processes"),
+                Name = target.ToString(),
+                Identifier = "tasks|process|" + target.ProcessId.ToString(CultureInfo.InvariantCulture) + "|" + ProcessStartIdentifier(target.StartedLocal),
+                DisplayValue = target.ToString(),
+                Source = "Windows processes",
+                Details = details
+            };
+        }
+    }
+
+    private List<TaskProcessUsage> CaptureProcessInventoryUsages()
+    {
+        var currentSnapshots = CaptureTaskProcessSnapshots();
+        return currentSnapshots.Select(snapshot => new TaskProcessUsage
+        {
+            ProcessId = snapshot.ProcessId,
+            Name = snapshot.Name,
+            CpuPercent = 0,
+            WorkingSetBytes = snapshot.WorkingSetBytes,
+            PrivateMemoryBytes = snapshot.PrivateMemoryBytes
+        }).ToList();
+    }
+
+    private Dictionary<string, string> BuildProcessInventoryDetails(ProcessWatchTarget target, TaskProcessUsage processUsage, GpuProcessUsage gpuUsage)
+    {
+        var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (target == null)
+        {
+            return details;
+        }
+
+        details["Process name"] = FirstNonEmpty(target.Name, "Process");
+        details["Process ID"] = target.ProcessId.ToString(CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(target.WindowTitle))
+        {
+            details["Window title"] = target.WindowTitle;
+        }
+        if (!string.IsNullOrWhiteSpace(target.Role))
+        {
+            details["Process role"] = target.Role;
+        }
+        if (!string.IsNullOrWhiteSpace(target.ParentName))
+        {
+            details["Parent process"] = target.ParentName;
+        }
+        if (target.StartedLocal != DateTime.MinValue)
+        {
+            details["Started"] = FormatDateTimeWithAge(target.StartedLocal, true);
+        }
+        if (!string.IsNullOrWhiteSpace(target.Path))
+        {
+            details["Executable path"] = target.Path;
+        }
+        if (gpuUsage != null && gpuUsage.UsagePercent > 0)
+        {
+            details["Current GPU usage"] = FormatNumber(Math.Round(gpuUsage.UsagePercent, 1), "0.0") + "%";
+        }
+        if (gpuUsage != null && gpuUsage.DedicatedBytes > 0)
+        {
+            details["Dedicated GPU memory used"] = FormatBytes(gpuUsage.DedicatedBytes);
+        }
+        if (gpuUsage != null && gpuUsage.SharedBytes > 0)
+        {
+            details["Shared GPU memory used"] = FormatBytes(gpuUsage.SharedBytes);
+        }
+        if (gpuUsage != null)
+        {
+            AddGpuMemoryCapDetail(details, gpuUsage);
+        }
+
+        try
+        {
+            using (var process = Process.GetProcessById(target.ProcessId))
+            {
+                var workingSet = processUsage == null ? SafeProcessMemoryValue(() => process.WorkingSet64) : processUsage.WorkingSetBytes;
+                var privateMemory = processUsage == null ? SafeProcessMemoryValue(() => process.PrivateMemorySize64) : processUsage.PrivateMemoryBytes;
+                details["Working set"] = FormatBytes(workingSet);
+                details["Private memory"] = FormatBytes(privateMemory);
+                details["Threads"] = SafeProcessIntValue(() => process.Threads.Count).ToString(CultureInfo.InvariantCulture);
+                details["Handles"] = SafeProcessIntValue(() => process.HandleCount).ToString(CultureInfo.InvariantCulture);
+            }
+        }
+        catch
+        {
+            details["Status"] = "Process no longer running";
+        }
+
+        return details;
+    }
+
+    private static string ProcessStartIdentifier(DateTime startedLocal)
+    {
+        return startedLocal == DateTime.MinValue
+            ? "unknown"
+            : startedLocal.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);
     }
 
     private static List<GpuProcessUsage> GetGpuProcessUsages(List<TaskProcessUsage> processUsages)

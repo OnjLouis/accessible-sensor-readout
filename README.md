@@ -1,6 +1,6 @@
-# Sensor Readout
+﻿# Sensor Readout
 
-Current version: 4.9.5.
+Current version: 4.10.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -193,6 +193,7 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | File commands | `Ctrl+S` | Save a report. |
 | File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
 | File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
+| Options commands | `Ctrl+Shift+W` | Start or stop watching one running process in the background, then save a resource report when stopped. |
 | File commands | `Ctrl+Shift+A` | Save an anonymized report for sharing. |
 | File commands | `Ctrl+R` | Return from a static report to live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
@@ -435,7 +436,13 @@ The Network section shows each adapter under one common tree, including status, 
 
 The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
-The Tasks section shows a small current-activity summary rather than a full task manager. It can show the process currently using the most CPU, the most memory, the most GPU engine time, and the most GPU process memory where Windows exposes those counters. These summary rows can be added to notification-area status or spoken hotkeys, but Sensor Readout does not create a hotkey candidate for every running process. When a Tasks row has an executable path, `Alt+Enter`, the reading context menu, or Details can open that file location in Explorer. Normal reports can include Tasks rows for troubleshooting. Anonymized reports remove Tasks rows because process names can reveal program usage.
+The Tasks section shows a small current-activity summary and a read-only running-process list rather than a full task manager. It can show the process currently using the most CPU, the most memory, the most GPU engine time, and the most GPU process memory where Windows exposes those counters. These summary rows can be added to notification-area status or spoken hotkeys, but Sensor Readout does not create a hotkey candidate for every running process. The running-process list uses the same friendly context as the process watcher, such as window title, start time, helper-process role, and parent process where Windows exposes those fields. Press Enter on a process for details, use `Alt+Enter` or the context menu to open its file location when available, or choose `Watch process` from the process row's context menu to start a background watch with your saved watch options. If those saved options include a timed watch, Sensor Readout says how long it will watch for; if the duration is zero, it watches until you stop it. Normal reports can include Tasks rows for troubleshooting. Anonymized reports remove Tasks rows because process names can reveal program usage.
+
+Use `Options` > `Watch process...` or `Ctrl+Shift+W` when you want to monitor one running app for a short period. Choose a process, output format, and optional duration, then start watching. The process list includes extra context such as window title, start time, helper-process role, and parent process where Windows exposes those fields, helping distinguish apps that run several same-named processes. The dialog closes and Sensor Readout samples in the background so you can use the PC normally. Press `Ctrl+Shift+W` again, or use `Options` > `Stop process watch`, to stop and save the report automatically in the `Reports` folder. Timed watches also save automatically when the duration ends. HTML is the default because it gives screen-reader users structured tables; CSV is available when you want raw samples for a spreadsheet. Sensor Readout remembers your last watch duration, format, completion speech, and sound choices for the next watch.
+
+When you start watching from a Tasks process row, Sensor Readout uses those remembered watch settings immediately. This is useful when you repeatedly use the same watch format or duration. If you want to change the duration, report format, completion speech, or completion sound first, open `Options` > `Watch process...` instead and start the watch from that dialog.
+
+This is intended for support and optimization conversations, such as checking whether an app's memory grows over time. It records resource counters only; it does not inspect app contents, keystrokes, file contents, registry contents, or network payloads. Saved process watch reports may include the selected process name and executable path.
 
 The Spoken Hotkeys section mirrors the notification-area status and each spoken hotkey profile in the main tree, so sighted users can review what those hotkeys currently contain. Hiding a row from this section only hides the mirror row in the tree; it does not remove the reading from the actual spoken hotkey or notification-area status profile.
 
@@ -449,7 +456,7 @@ The Firmware Security section is read-only. It shows firmware mode, Secure Boot 
 
 When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.
 
-Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window.
+Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window. Search checks visible reading text first, then details such as process role, executable path, parent process, device identifiers, and other detail fields, so a support clue that is not visible in the main tree can still be found.
 
 Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page or task file location where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. When a Tasks row has an executable path, the same flow offers `Open file location...`. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
@@ -514,6 +521,10 @@ For unattended testing, run `Sensor Readout.exe --diagnostics [path]`. If `[path
 ## Reports
 
 Reports are useful in two different situations: keeping a snapshot of your own machine, or sending a snapshot to someone else so they can inspect it in Sensor Readout.
+
+### Process Watch Reports
+
+Process watch reports are separate support reports created by `Options` > `Watch process...`. They save automatically in the `Reports` folder when the watch stops. HTML reports summarize CPU, memory, GPU counters where available, handles, threads, and growth over the watch period in tables for easier navigation; CSV output keeps the raw samples for spreadsheet analysis. They are meant for developer or support conversations about a running app's resource use. They may include the selected process name and executable path, but they do not inspect private app contents.
 
 ### Saving A Report
 
@@ -672,6 +683,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.10.0
+
+- Added: `Options` > `Watch process...` (`Ctrl+Shift+W`) can monitor one running process in the background until you stop it, or for a timed duration, then automatically save an HTML table report or CSV sample log showing CPU, memory, GPU counters where available, thread and handle counts, growth, and samples over time. The Tasks category also now includes a read-only running-process list with Details, file-location opening where available, and a context-menu action to start watching a selected process. This closes [issue #21](https://github.com/OnjLouis/accessible-sensor-readout/issues/21).
+- Improved: The process picker now shows helpful context such as window title, start time, helper-process role, and parent process where Windows exposes it, while keeping process IDs in Details, and remembers your last watch format, duration, speech, and sound choices.
+- Improved: `F3` search now includes detail-only matches after visible matches, making it easier to find process roles, executable paths, parent processes, device identifiers, and other support details without opening each Details view by hand.
+- Privacy: Process watch reports contain resource counters for the selected process only. They may include the selected process name and executable path, but they do not inspect keystrokes, private app contents, file contents, registry contents, or network payloads.
 
 ### 4.9.5
 

@@ -973,10 +973,27 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(new ReadingTreeItem
             {
                 Key = "row|" + RowSettingsKey(row),
-                Text = IsDeviceSummaryType(row.Type) ? ShortHardwareName(row.Hardware) + ": " + FormatValue(row) : DisplayReadingName(row.Name) + ": " + FormatValue(row),
+                Text = ReadingTreeRowText(row),
                 Row = row
             });
         }
+    }
+
+    private static string ReadingTreeRowText(SensorRow row)
+    {
+        if (row == null)
+        {
+            return "";
+        }
+
+        if (IsTaskProcessInventoryRow(row))
+        {
+            return FirstNonEmpty(row.DisplayValue, row.Name);
+        }
+
+        return IsDeviceSummaryType(row.Type)
+            ? ShortHardwareName(row.Hardware) + ": " + FormatValue(row)
+            : DisplayReadingName(row.Name) + ": " + FormatValue(row);
     }
 
     private static bool IsDeviceSummaryType(string type)
@@ -984,6 +1001,13 @@ public sealed partial class SensorReadoutForm : Form
         return string.Equals(type, "USB", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "Display", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTaskProcessInventoryRow(SensorRow row)
+    {
+        return row != null &&
+            string.Equals(row.Type, "Tasks", StringComparison.OrdinalIgnoreCase) &&
+            (row.Identifier ?? "").StartsWith("tasks|process|", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DisplayReadingName(string name)
