@@ -258,7 +258,7 @@ public sealed partial class SensorReadoutForm
         AddDeviceDetail(details, "Availability", CleanWmiText(Convert.ToString(GetWmiPropertyValue(device, "Availability"))));
         AddDeviceDetail(details, "Error cleared", FormatYesNo(GetWmiPropertyValue(device, "ErrorCleared")));
         AddDeviceDetail(details, "Error description", CleanWmiText(GetWmiPropertyText(device, "ErrorDescription")));
-        AddDeviceDetail(details, "Install date", FormatWmiDate(GetWmiPropertyValue(device, "InstallDate")));
+        AddDeviceDetail(details, "Install date", FormatWmiDateWithAge(GetWmiPropertyValue(device, "InstallDate")));
         AddDeviceDetail(details, "Last error code", CleanWmiText(Convert.ToString(GetWmiPropertyValue(device, "LastErrorCode"))));
         AddDeviceDetail(details, "Power management supported", FormatYesNo(GetWmiPropertyValue(device, "PowerManagementSupported")));
         AddDeviceDetail(details, "Power management capabilities", StringArrayWmiValue(GetWmiPropertyValue(device, "PowerManagementCapabilities")));

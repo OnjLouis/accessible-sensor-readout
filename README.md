@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.9.4.
+Current version: 4.9.5.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -673,6 +673,11 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 4.9.5
+
+- Improved: Bluetooth filters out low-value service rows that only said things such as Status: OK, while useful child/profile rows such as A2DP or AVRCP are grouped under their parent Bluetooth device.
+- Improved: Bluetooth adapter and device addresses now show OUI vendor names where the bundled vendor database recognises the address prefix.
+- Improved: Bluetooth Last seen and Last used timestamps, Windows boot time, device install dates, and task start times now include a friendly age, such as how many hours, days, weeks, or months ago the event happened.
 ### 4.9.4
 
 - Fixed: Bluetooth now also uses Windows PnP data to show present Bluetooth devices that Windows does not return through the classic Bluetooth list, such as some keyboards and headphones.

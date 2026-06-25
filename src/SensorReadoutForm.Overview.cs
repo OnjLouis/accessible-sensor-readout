@@ -35,7 +35,7 @@ public sealed partial class SensorReadoutForm : Form
                     var bootTime = string.IsNullOrWhiteSpace(bootTimeText) ? DateTime.MinValue : ManagementDateTimeConverter.ToDateTime(bootTimeText);
                     if (bootTime > DateTime.MinValue)
                     {
-                        AddOverviewTextRow(rows, "Windows boot time", FormatDateTime(bootTime), "Windows WMI", windowsDetails);
+                        AddOverviewTextRow(rows, "Windows boot time", FormatDateTimeWithAge(bootTime, true), "Windows WMI", windowsDetails);
                         rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(DateTime.Now - bootTime), Source = "Windows WMI", Details = CloneDetails(windowsDetails) });
                     }
                     break;

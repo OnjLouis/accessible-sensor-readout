@@ -326,7 +326,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     if (process.StartTime != DateTime.MinValue)
                     {
-                        details["Started"] = process.StartTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
+                        details["Started"] = FormatDateTimeWithAge(process.StartTime, true);
                     }
                 }
                 catch

@@ -165,6 +165,63 @@ public sealed partial class SensorReadoutForm : Form
         return TryParseWmiDate(value, out parsed) ? parsed.ToString("yyyy-MM-dd") : "";
     }
 
+    private static string FormatWmiDateWithAge(object value)
+    {
+        DateTime parsed;
+        return TryParseWmiDate(value, out parsed) ? FormatDateTimeWithAge(parsed, false) : "";
+    }
+
+    private static string FormatDateTimeWithAge(DateTime value, bool includeTime)
+    {
+        var text = includeTime
+            ? value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            : value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var now = DateTime.Now;
+        if (value > now.AddMinutes(1))
+        {
+            return text;
+        }
+
+        var age = FormatRecentElapsedAge(value, now);
+        return string.IsNullOrWhiteSpace(age) ? text : text + " (" + age + ")";
+    }
+
+    private static string FormatRecentElapsedAge(DateTime value, DateTime now)
+    {
+        if (value > now)
+        {
+            return "just now";
+        }
+
+        var elapsed = now - value;
+        if (elapsed.TotalMinutes < 1)
+        {
+            var seconds = Math.Max(0, (int)Math.Round(elapsed.TotalSeconds));
+            return seconds <= 1 ? "just now" : seconds + " seconds ago";
+        }
+
+        if (elapsed.TotalHours < 1)
+        {
+            var minutes = Math.Max(1, (int)Math.Floor(elapsed.TotalMinutes));
+            return minutes + " minute" + (minutes == 1 ? "" : "s") + " ago";
+        }
+
+        if (elapsed.TotalDays < 1)
+        {
+            var hours = Math.Max(1, (int)Math.Floor(elapsed.TotalHours));
+            var minutes = elapsed.Minutes;
+            var parts = new List<string>();
+            AddAgePart(parts, hours, "hour");
+            AddAgePart(parts, minutes, "minute");
+            return string.Join(", ", parts.ToArray()) + " ago";
+        }
+
+        var startDate = value.Date;
+        var endDate = now.Date;
+        var totalDays = Math.Max(0, (endDate - startDate).Days);
+        return FormatElapsedDateAge(startDate, endDate, totalDays);
+    }
+
     private static bool TryParseWmiDate(object value, out DateTime parsed)
     {
         parsed = DateTime.MinValue;

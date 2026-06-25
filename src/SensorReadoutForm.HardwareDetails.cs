@@ -253,7 +253,7 @@ public sealed partial class SensorReadoutForm : Form
                     AddDetail(details, "Windows build type", GetWmiPropertyText(os, "BuildType"));
                     AddDetail(details, "Windows architecture", GetWmiPropertyText(os, "OSArchitecture"));
                     AddDetail(details, "Windows install date", FormatWindowsInstallDate(GetWmiPropertyValue(os, "InstallDate")));
-                    AddDetail(details, "Windows last boot time", FormatWmiDate(GetWmiPropertyValue(os, "LastBootUpTime")));
+                    AddDetail(details, "Windows last boot time", FormatWmiDateWithAge(GetWmiPropertyValue(os, "LastBootUpTime")));
                     AddDetail(details, "Windows directory", GetWmiPropertyText(os, "WindowsDirectory"));
                     AddDetail(details, "Windows system directory", GetWmiPropertyText(os, "SystemDirectory"));
                     AddDetail(details, "Windows system drive", GetWmiPropertyText(os, "SystemDrive"));

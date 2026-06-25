@@ -12,10 +12,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         var rows = new List<SensorRow>();
         var seenDeviceAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deviceNamesByAddress = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var oui = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"));
 
         foreach (var radio in GetBluetoothRadios())
         {
-            rows.AddRange(BuildBluetoothRadioRows(radio));
+            rows.AddRange(BuildBluetoothRadioRows(radio, oui));
 
             foreach (var device in radio.Devices)
             {
@@ -24,23 +26,30 @@ public sealed partial class SensorReadoutForm : Form
                     continue;
                 }
 
-                rows.AddRange(BuildBluetoothDeviceRows(device));
+                if (!string.IsNullOrWhiteSpace(device.AddressText) && !string.IsNullOrWhiteSpace(device.Name))
+                {
+                    deviceNamesByAddress[device.AddressText] = device.Name.Trim();
+                }
+
+                rows.AddRange(BuildBluetoothDeviceRows(device, oui));
             }
         }
 
-        rows.AddRange(GetBluetoothPnpDeviceRows(seenDeviceAddresses));
+        rows.AddRange(GetBluetoothPnpDeviceRows(seenDeviceAddresses, deviceNamesByAddress, oui));
         return rows;
     }
 
-    private static IEnumerable<SensorRow> BuildBluetoothRadioRows(BluetoothRadioDetails radio)
+    private static IEnumerable<SensorRow> BuildBluetoothRadioRows(BluetoothRadioDetails radio, MacVendorDatabase oui)
     {
         var hardware = string.IsNullOrWhiteSpace(radio.Name) ? "Bluetooth radio" : radio.Name;
-        var details = BuildBluetoothRadioDetails(radio);
+        var addressVendor = oui == null ? "" : oui.Lookup(radio.AddressText);
+        var details = BuildBluetoothRadioDetails(radio, addressVendor);
 
         yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Status", DisplayValue = "Available", Value = 1, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".status" };
         if (!string.IsNullOrWhiteSpace(radio.AddressText))
         {
             yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter address", DisplayValue = radio.AddressText, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".address" };
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Adapter address vendor", DisplayValue = string.IsNullOrWhiteSpace(addressVendor) ? "Unknown" : addressVendor, Source = "OUI database", Details = CloneDetails(details), Identifier = "bluetooth.radio." + radio.AddressText + ".address-vendor" };
         }
         if (!string.IsNullOrWhiteSpace(radio.DeviceClass))
         {
@@ -60,10 +69,11 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static IEnumerable<SensorRow> BuildBluetoothDeviceRows(BluetoothDeviceDetails device)
+    private static IEnumerable<SensorRow> BuildBluetoothDeviceRows(BluetoothDeviceDetails device, MacVendorDatabase oui)
     {
         var hardware = string.IsNullOrWhiteSpace(device.Name) ? "Bluetooth device " + device.AddressText : device.Name;
-        var details = BuildBluetoothDeviceDetails(device);
+        var addressVendor = oui == null ? "" : oui.Lookup(device.AddressText);
+        var details = BuildBluetoothDeviceDetails(device, addressVendor);
         var connected = device.Connected ? 1 : 0;
         var paired = device.Authenticated ? 1 : 0;
 
@@ -73,6 +83,7 @@ public sealed partial class SensorReadoutForm : Form
         if (!string.IsNullOrWhiteSpace(device.AddressText))
         {
             yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Device address", DisplayValue = device.AddressText, Source = "Windows Bluetooth", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".address" };
+            yield return new SensorRow { Type = "Bluetooth", Hardware = hardware, Name = "Device address vendor", DisplayValue = string.IsNullOrWhiteSpace(addressVendor) ? "Unknown" : addressVendor, Source = "OUI database", Details = CloneDetails(details), Identifier = "bluetooth.device." + device.AddressText + ".address-vendor" };
         }
         if (!string.IsNullOrWhiteSpace(device.DeviceClass))
         {
@@ -92,11 +103,12 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static Dictionary<string, string> BuildBluetoothRadioDetails(BluetoothRadioDetails radio)
+    private static Dictionary<string, string> BuildBluetoothRadioDetails(BluetoothRadioDetails radio, string addressVendor)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AddDetail(details, "Radio name", radio.Name);
         AddDetail(details, "Radio address", radio.AddressText);
+        AddDetail(details, "Radio address vendor", addressVendor);
         AddDetail(details, "Radio class", radio.DeviceClass);
         AddDetail(details, "Radio service classes", radio.ServiceClasses);
         AddDetail(details, "Radio class code", radio.ClassCode);
@@ -107,11 +119,12 @@ public sealed partial class SensorReadoutForm : Form
         return details;
     }
 
-    private static Dictionary<string, string> BuildBluetoothDeviceDetails(BluetoothDeviceDetails device)
+    private static Dictionary<string, string> BuildBluetoothDeviceDetails(BluetoothDeviceDetails device, string addressVendor)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AddDetail(details, "Device name", device.Name);
         AddDetail(details, "Device address", device.AddressText);
+        AddDetail(details, "Device address vendor", addressVendor);
         AddDetail(details, "Connected", FormatYesNo(device.Connected));
         AddDetail(details, "Paired", FormatYesNo(device.Authenticated));
         AddDetail(details, "Remembered", FormatYesNo(device.Remembered));
@@ -239,9 +252,10 @@ public sealed partial class SensorReadoutForm : Form
         return devices;
     }
 
-    private static IEnumerable<SensorRow> GetBluetoothPnpDeviceRows(HashSet<string> seenDeviceAddresses)
+    private static IEnumerable<SensorRow> GetBluetoothPnpDeviceRows(HashSet<string> seenDeviceAddresses, Dictionary<string, string> deviceNamesByAddress, MacVendorDatabase oui)
     {
         var rows = new List<SensorRow>();
+        var emittedChildRows = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Present = TRUE"))
@@ -257,34 +271,52 @@ public sealed partial class SensorReadoutForm : Form
                         continue;
                     }
 
-                    if (IsGenericBluetoothPnpName(name))
-                    {
-                        continue;
-                    }
-
                     string address;
-                    if (TryExtractBluetoothAddressFromPnpId(deviceId, out address) && !seenDeviceAddresses.Add(address))
+                    var hasAddress = TryExtractBluetoothAddressFromPnpId(deviceId, out address);
+                    string parentName = "";
+                    var hasParent = TryResolveBluetoothParentName(name, hasAddress ? address : "", deviceNamesByAddress, out parentName);
+                    string childName = "";
+                    var isChild = hasParent && TryBluetoothChildDeviceName(name, parentName, out childName);
+                    if (!isChild && IsGenericBluetoothPnpName(name))
                     {
                         continue;
                     }
 
-                    var hardware = string.IsNullOrWhiteSpace(name) ? FirstNonEmpty(deviceId, "Bluetooth device") : name;
+                    if (hasAddress && !isChild && seenDeviceAddresses != null && !seenDeviceAddresses.Add(address))
+                    {
+                        continue;
+                    }
+
+                    var hardware = isChild ? parentName.Trim() : (string.IsNullOrWhiteSpace(name) ? FirstNonEmpty(deviceId, "Bluetooth device") : name);
+                    var rowName = isChild ? childName : "Present";
+                    if (isChild && !emittedChildRows.Add(hardware + "|" + rowName))
+                    {
+                        continue;
+                    }
+
                     AddDetail(details, "Bluetooth PnP note", "This row comes from Windows Plug and Play because some Bluetooth LE or HID devices are not returned by the classic Bluetooth device list.");
+                    if (isChild)
+                    {
+                        AddDetail(details, "Parent Bluetooth device", parentName);
+                        AddDetail(details, "Bluetooth child device", name);
+                    }
                     if (!string.IsNullOrWhiteSpace(address))
                     {
                         AddDetail(details, "Device address", address);
+                        var addressVendor = oui == null ? "" : oui.Lookup(address);
+                        AddDetail(details, "Device address vendor", string.IsNullOrWhiteSpace(addressVendor) ? "Unknown" : addressVendor);
                     }
 
                     rows.Add(new SensorRow
                     {
                         Type = "Bluetooth",
                         Hardware = hardware,
-                        Name = "Status",
-                        DisplayValue = FirstNonEmpty(GetDictionaryValue(details, "Status"), "Present"),
+                        Name = rowName,
+                        DisplayValue = "Yes",
                         Value = 1,
                         Source = "Windows Bluetooth PnP",
                         Details = details,
-                        Identifier = "bluetooth.pnp." + StableDeviceIdentifier(deviceId, hardware) + ".status"
+                        Identifier = "bluetooth.pnp." + StableDeviceIdentifier(deviceId, hardware + "." + rowName) + ".present"
                     });
                 }
             }
@@ -294,6 +326,55 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private static bool TryResolveBluetoothParentName(string name, string address, Dictionary<string, string> deviceNamesByAddress, out string parentName)
+    {
+        parentName = "";
+        if (deviceNamesByAddress == null || deviceNamesByAddress.Count == 0)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(address) &&
+            deviceNamesByAddress.TryGetValue(address, out parentName) &&
+            !string.IsNullOrWhiteSpace(parentName))
+        {
+            return true;
+        }
+
+        var cleanName = (name ?? "").Trim();
+        foreach (var candidate in deviceNamesByAddress.Values.Where(v => !string.IsNullOrWhiteSpace(v)).OrderByDescending(v => v.Length))
+        {
+            if (cleanName.StartsWith(candidate.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                parentName = candidate.Trim();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryBluetoothChildDeviceName(string name, string parentName, out string childName)
+    {
+        childName = "";
+        var cleanName = (name ?? "").Trim();
+        var cleanParent = (parentName ?? "").Trim();
+        if (cleanName.Length <= cleanParent.Length || cleanParent.Length == 0 ||
+            !cleanName.StartsWith(cleanParent, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffix = cleanName.Substring(cleanParent.Length).Trim(new[] { ' ', '-', ':', '_' });
+        if (suffix.Length == 0)
+        {
+            return false;
+        }
+
+        childName = suffix;
+        return true;
     }
 
     private static bool IsBluetoothPnpDeviceCandidate(string name, string deviceId, string pnpClass)
@@ -318,10 +399,29 @@ public sealed partial class SensorReadoutForm : Form
 
         var genericNames = new[]
         {
+            "AAP Client",
+            "AMA SPP Server",
+            "Bluetooth",
+            "Bluetooth LE Generic Attribute Service",
+            "Bluetooth Peripheral Device",
+            "Device Information Service",
+            "GATT",
+            "Generic Access Profile",
+            "Generic Attribute Profile",
+            "Headset Audio Gateway Service",
+            "IcService_New",
+            "MAP MAS-iOS",
+            "NearbySharing",
+            "Object Push Service",
+            "Personal Area Network NAP Service",
+            "Personal Area Network Service",
+            "Phonebook Access Pse Service",
             "Microsoft Bluetooth Enumerator",
             "Microsoft Bluetooth LE Enumerator",
             "Bluetooth Device (RFCOMM Protocol TDI)",
-            "Bluetooth Device (Personal Area Network)"
+            "Bluetooth Device (Personal Area Network)",
+            "Service Discovery Service",
+            "Sim Access Service"
         };
         if (genericNames.Any(g => normalized.Equals(g, StringComparison.OrdinalIgnoreCase)))
         {
@@ -330,13 +430,15 @@ public sealed partial class SensorReadoutForm : Form
 
         return normalized.IndexOf("Bluetooth Radio", StringComparison.OrdinalIgnoreCase) >= 0 ||
             normalized.IndexOf("Bluetooth USB Module", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            normalized.IndexOf("Bluetooth Adapter", StringComparison.OrdinalIgnoreCase) >= 0;
+            normalized.IndexOf("Bluetooth Adapter", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            normalized.EndsWith(" Service", StringComparison.OrdinalIgnoreCase) ||
+            normalized.EndsWith(" Profile", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryExtractBluetoothAddressFromPnpId(string deviceId, out string address)
     {
         address = "";
-        var match = System.Text.RegularExpressions.Regex.Match(deviceId ?? "", @"(?:DEV_|_DEV_|BTHLEDEVICE\{?|BTHENUM\\DEV_)([0-9A-Fa-f]{12})");
+        var match = System.Text.RegularExpressions.Regex.Match(deviceId ?? "", @"(?:DEV_|_DEV_|BTHLEDEVICE\{?|BTHENUM\\DEV_|&0&)([0-9A-Fa-f]{12})(?:_|\\|$)");
         if (!match.Success)
         {
             return false;
@@ -424,7 +526,7 @@ public sealed partial class SensorReadoutForm : Form
 
         try
         {
-            return new DateTime(time.Year, time.Month, time.Day, time.Hour, time.Minute, time.Second, DateTimeKind.Local).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            return FormatDateTimeWithAge(new DateTime(time.Year, time.Month, time.Day, time.Hour, time.Minute, time.Second, DateTimeKind.Local), true);
         }
         catch
         {
