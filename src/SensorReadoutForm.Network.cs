@@ -487,7 +487,9 @@ public sealed partial class SensorReadoutForm : Form
                 .ThenBy(e => e.Address == null ? "" : e.Address.ToString())
                 .ToList();
 
-            var details = BuildListeningPortDetails(tcp, udp);
+            var tcpOwners = GetTcpListeningPortOwners();
+            var udpOwners = GetUdpListeningPortOwners();
+            var details = BuildListeningPortDetails(tcp, udp, tcpOwners, udpOwners);
             rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "TCP listening ports", Value = tcp.Count, DisplayValue = FormatPortCount(tcp.Count), Source = "Windows Network", Details = CloneDetails(details) });
             rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "UDP listening ports", Value = udp.Count, DisplayValue = FormatPortCount(udp.Count), Source = "Windows Network", Details = CloneDetails(details) });
         }
@@ -498,20 +500,20 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static Dictionary<string, string> BuildListeningPortDetails(List<IPEndPoint> tcp, List<IPEndPoint> udp)
+    private static Dictionary<string, string> BuildListeningPortDetails(List<IPEndPoint> tcp, List<IPEndPoint> udp, Dictionary<string, List<ListeningPortOwner>> tcpOwners, Dictionary<string, List<ListeningPortOwner>> udpOwners)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AddDetail(details, "TCP listening port count", tcp == null ? "" : tcp.Count.ToString(CultureInfo.InvariantCulture));
         AddDetail(details, "UDP listening port count", udp == null ? "" : udp.Count.ToString(CultureInfo.InvariantCulture));
         AddDetail(details, "TCP listening port numbers", FormatPortNumbers(tcp));
         AddDetail(details, "UDP listening port numbers", FormatPortNumbers(udp));
-        AddEndpointDetails(details, "TCP listening endpoint", tcp);
-        AddEndpointDetails(details, "UDP listening endpoint", udp);
+        AddEndpointDetails(details, "TCP listening endpoint", tcp, tcpOwners);
+        AddEndpointDetails(details, "UDP listening endpoint", udp, udpOwners);
         AddDetail(details, "Listening port note", "These are local endpoints Windows reports as listening. Sensor Readout does not scan remote hosts or test firewall exposure.");
         return details;
     }
 
-    private static void AddEndpointDetails(Dictionary<string, string> details, string prefix, List<IPEndPoint> endpoints)
+    private static void AddEndpointDetails(Dictionary<string, string> details, string prefix, List<IPEndPoint> endpoints, Dictionary<string, List<ListeningPortOwner>> owners)
     {
         if (details == null || endpoints == null)
         {
@@ -521,7 +523,7 @@ public sealed partial class SensorReadoutForm : Form
         var index = 1;
         foreach (var endpoint in endpoints.Take(200))
         {
-            AddDetail(details, prefix + " " + index.ToString(CultureInfo.InvariantCulture), FormatEndpoint(endpoint));
+            AddDetail(details, prefix + " " + index.ToString(CultureInfo.InvariantCulture), FormatEndpointWithOwner(endpoint, owners));
             index++;
         }
 
@@ -562,6 +564,438 @@ public sealed partial class SensorReadoutForm : Form
         var address = endpoint.Address == null ? "" : endpoint.Address.ToString();
         return address + ":" + endpoint.Port.ToString(CultureInfo.InvariantCulture);
     }
+
+    private static string FormatEndpointWithOwner(IPEndPoint endpoint, Dictionary<string, List<ListeningPortOwner>> owners)
+    {
+        var endpointText = FormatEndpoint(endpoint);
+        if (string.IsNullOrWhiteSpace(endpointText) || owners == null)
+        {
+            return endpointText;
+        }
+
+        List<ListeningPortOwner> matches;
+        if (!owners.TryGetValue(ListeningPortKey(endpoint), out matches) || matches == null || matches.Count == 0)
+        {
+            return endpointText;
+        }
+
+        var ownerText = string.Join("; ", matches
+            .Select(FormatListeningPortOwner)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray());
+        return string.IsNullOrWhiteSpace(ownerText) ? endpointText : endpointText + " - " + ownerText;
+    }
+
+    private static string FormatListeningPortOwner(ListeningPortOwner owner)
+    {
+        if (owner == null)
+        {
+            return "";
+        }
+
+        var processName = FirstNonEmpty(owner.ProcessName, "PID " + owner.ProcessId.ToString(CultureInfo.InvariantCulture));
+        if (owner.ProcessId > 0 && processName.IndexOf("PID ", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            processName += " (PID " + owner.ProcessId.ToString(CultureInfo.InvariantCulture) + ")";
+        }
+
+        return processName;
+    }
+
+    private static Dictionary<string, List<ListeningPortOwner>> GetTcpListeningPortOwners()
+    {
+        var result = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
+        var owners = new List<ListeningPortOwner>();
+        owners.AddRange(ReadTcp4ListeningPortOwners());
+        owners.AddRange(ReadTcp6ListeningPortOwners());
+        PopulateListeningPortProcessNames(owners);
+        foreach (var owner in owners)
+        {
+            AddListeningPortOwner(result, owner);
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, List<ListeningPortOwner>> GetUdpListeningPortOwners()
+    {
+        var result = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
+        var owners = new List<ListeningPortOwner>();
+        owners.AddRange(ReadUdp4ListeningPortOwners());
+        owners.AddRange(ReadUdp6ListeningPortOwners());
+        PopulateListeningPortProcessNames(owners);
+        foreach (var owner in owners)
+        {
+            AddListeningPortOwner(result, owner);
+        }
+
+        return result;
+    }
+
+    private static void AddListeningPortOwner(Dictionary<string, List<ListeningPortOwner>> result, ListeningPortOwner owner)
+    {
+        if (result == null || owner == null || owner.Endpoint == null)
+        {
+            return;
+        }
+
+        var key = ListeningPortKey(owner.Endpoint);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        List<ListeningPortOwner> owners;
+        if (!result.TryGetValue(key, out owners))
+        {
+            owners = new List<ListeningPortOwner>();
+            result[key] = owners;
+        }
+
+        if (!owners.Any(o => o != null && o.ProcessId == owner.ProcessId))
+        {
+            owners.Add(owner);
+        }
+    }
+
+    private static string ListeningPortKey(IPEndPoint endpoint)
+    {
+        if (endpoint == null || endpoint.Address == null || endpoint.Port <= 0)
+        {
+            return "";
+        }
+
+        return endpoint.Address.ToString().ToLowerInvariant() + "|" + endpoint.Port.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static void PopulateListeningPortProcessNames(List<ListeningPortOwner> owners)
+    {
+        if (owners == null || owners.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var processId in owners.Select(o => o == null ? 0 : o.ProcessId).Where(id => id > 0).Distinct().ToList())
+        {
+            var name = "";
+            var path = "";
+            try
+            {
+                using (var process = Process.GetProcessById(processId))
+                {
+                    path = SafeProcessMainModulePath(process);
+                    name = string.IsNullOrWhiteSpace(path)
+                        ? FirstNonEmpty(process.ProcessName, "")
+                        : System.IO.Path.GetFileName(path);
+                }
+            }
+            catch
+            {
+            }
+
+            if (!string.IsNullOrWhiteSpace(name) && name.IndexOf('.', 0) < 0)
+            {
+                name += ".exe";
+            }
+
+            foreach (var owner in owners.Where(o => o != null && o.ProcessId == processId))
+            {
+                owner.ProcessName = name;
+                owner.ExecutablePath = path;
+            }
+        }
+    }
+
+    private static List<ListeningPortOwner> ReadTcp4ListeningPortOwners()
+    {
+        var result = new List<ListeningPortOwner>();
+        var buffer = IntPtr.Zero;
+        try
+        {
+            var bufferLength = 0;
+            var status = GetExtendedTcpTable(IntPtr.Zero, ref bufferLength, true, AfInet, TcpTableClass.TcpTableOwnerPidAll, 0);
+            if (status != ErrorInsufficientBuffer || bufferLength <= 0)
+            {
+                return result;
+            }
+
+            buffer = Marshal.AllocHGlobal(bufferLength);
+            status = GetExtendedTcpTable(buffer, ref bufferLength, true, AfInet, TcpTableClass.TcpTableOwnerPidAll, 0);
+            if (status != NoError)
+            {
+                return result;
+            }
+
+            var count = Marshal.ReadInt32(buffer);
+            var rowPtr = IntPtr.Add(buffer, 4);
+            var rowSize = Marshal.SizeOf(typeof(MibTcpRowOwnerPid));
+            for (var i = 0; i < count; i++)
+            {
+                var row = (MibTcpRowOwnerPid)Marshal.PtrToStructure(rowPtr, typeof(MibTcpRowOwnerPid));
+                if (row.State == MibTcpStateListen)
+                {
+                    var endpoint = new IPEndPoint(new IPAddress(row.LocalAddr), NetworkPortToHostPort(row.LocalPort));
+                    AddOwnerIfValid(result, "TCP", endpoint, unchecked((int)row.OwningPid));
+                }
+
+                rowPtr = IntPtr.Add(rowPtr, rowSize);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        return result;
+    }
+
+    private static List<ListeningPortOwner> ReadUdp4ListeningPortOwners()
+    {
+        var result = new List<ListeningPortOwner>();
+        var buffer = IntPtr.Zero;
+        try
+        {
+            var bufferLength = 0;
+            var status = GetExtendedUdpTable(IntPtr.Zero, ref bufferLength, true, AfInet, UdpTableClass.UdpTableOwnerPid, 0);
+            if (status != ErrorInsufficientBuffer || bufferLength <= 0)
+            {
+                return result;
+            }
+
+            buffer = Marshal.AllocHGlobal(bufferLength);
+            status = GetExtendedUdpTable(buffer, ref bufferLength, true, AfInet, UdpTableClass.UdpTableOwnerPid, 0);
+            if (status != NoError)
+            {
+                return result;
+            }
+
+            var count = Marshal.ReadInt32(buffer);
+            var rowPtr = IntPtr.Add(buffer, 4);
+            var rowSize = Marshal.SizeOf(typeof(MibUdpRowOwnerPid));
+            for (var i = 0; i < count; i++)
+            {
+                var row = (MibUdpRowOwnerPid)Marshal.PtrToStructure(rowPtr, typeof(MibUdpRowOwnerPid));
+                var endpoint = new IPEndPoint(new IPAddress(row.LocalAddr), NetworkPortToHostPort(row.LocalPort));
+                AddOwnerIfValid(result, "UDP", endpoint, unchecked((int)row.OwningPid));
+                rowPtr = IntPtr.Add(rowPtr, rowSize);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        return result;
+    }
+
+    private static List<ListeningPortOwner> ReadTcp6ListeningPortOwners()
+    {
+        var result = new List<ListeningPortOwner>();
+        var buffer = IntPtr.Zero;
+        try
+        {
+            var bufferLength = 0;
+            var status = GetExtendedTcpTable(IntPtr.Zero, ref bufferLength, true, AfInet6, TcpTableClass.TcpTableOwnerPidAll, 0);
+            if (status != ErrorInsufficientBuffer || bufferLength <= 0)
+            {
+                return result;
+            }
+
+            buffer = Marshal.AllocHGlobal(bufferLength);
+            status = GetExtendedTcpTable(buffer, ref bufferLength, true, AfInet6, TcpTableClass.TcpTableOwnerPidAll, 0);
+            if (status != NoError)
+            {
+                return result;
+            }
+
+            var count = Marshal.ReadInt32(buffer);
+            var rowPtr = IntPtr.Add(buffer, 4);
+            var rowSize = Marshal.SizeOf(typeof(MibTcp6RowOwnerPid));
+            for (var i = 0; i < count; i++)
+            {
+                var row = (MibTcp6RowOwnerPid)Marshal.PtrToStructure(rowPtr, typeof(MibTcp6RowOwnerPid));
+                if (row.State == MibTcpStateListen)
+                {
+                    var endpoint = new IPEndPoint(new IPAddress(row.LocalAddr, row.LocalScopeId), NetworkPortToHostPort(row.LocalPort));
+                    AddOwnerIfValid(result, "TCP", endpoint, unchecked((int)row.OwningPid));
+                }
+
+                rowPtr = IntPtr.Add(rowPtr, rowSize);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        return result;
+    }
+
+    private static List<ListeningPortOwner> ReadUdp6ListeningPortOwners()
+    {
+        var result = new List<ListeningPortOwner>();
+        var buffer = IntPtr.Zero;
+        try
+        {
+            var bufferLength = 0;
+            var status = GetExtendedUdpTable(IntPtr.Zero, ref bufferLength, true, AfInet6, UdpTableClass.UdpTableOwnerPid, 0);
+            if (status != ErrorInsufficientBuffer || bufferLength <= 0)
+            {
+                return result;
+            }
+
+            buffer = Marshal.AllocHGlobal(bufferLength);
+            status = GetExtendedUdpTable(buffer, ref bufferLength, true, AfInet6, UdpTableClass.UdpTableOwnerPid, 0);
+            if (status != NoError)
+            {
+                return result;
+            }
+
+            var count = Marshal.ReadInt32(buffer);
+            var rowPtr = IntPtr.Add(buffer, 4);
+            var rowSize = Marshal.SizeOf(typeof(MibUdp6RowOwnerPid));
+            for (var i = 0; i < count; i++)
+            {
+                var row = (MibUdp6RowOwnerPid)Marshal.PtrToStructure(rowPtr, typeof(MibUdp6RowOwnerPid));
+                var endpoint = new IPEndPoint(new IPAddress(row.LocalAddr, row.LocalScopeId), NetworkPortToHostPort(row.LocalPort));
+                AddOwnerIfValid(result, "UDP", endpoint, unchecked((int)row.OwningPid));
+                rowPtr = IntPtr.Add(rowPtr, rowSize);
+            }
+        }
+        catch
+        {
+        }
+        finally
+        {
+            if (buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        return result;
+    }
+
+    private static void AddOwnerIfValid(List<ListeningPortOwner> result, string protocol, IPEndPoint endpoint, int processId)
+    {
+        if (result == null || endpoint == null || endpoint.Port <= 0 || processId <= 0)
+        {
+            return;
+        }
+
+        result.Add(new ListeningPortOwner
+        {
+            Protocol = protocol,
+            Endpoint = endpoint,
+            ProcessId = processId
+        });
+    }
+
+    private static int NetworkPortToHostPort(uint networkPort)
+    {
+        return (ushort)IPAddress.NetworkToHostOrder((short)networkPort);
+    }
+
+    private sealed class ListeningPortOwner
+    {
+        public string Protocol = "";
+        public IPEndPoint Endpoint;
+        public int ProcessId;
+        public string ProcessName = "";
+        public string ExecutablePath = "";
+    }
+
+    private const int AfInet = 2;
+    private const int AfInet6 = 23;
+    private const uint NoError = 0;
+    private const uint ErrorInsufficientBuffer = 122;
+    private const uint MibTcpStateListen = 2;
+
+    private enum TcpTableClass
+    {
+        TcpTableBasicListener = 0,
+        TcpTableBasicConnections = 1,
+        TcpTableBasicAll = 2,
+        TcpTableOwnerPidListener = 3,
+        TcpTableOwnerPidConnections = 4,
+        TcpTableOwnerPidAll = 5
+    }
+
+    private enum UdpTableClass
+    {
+        UdpTableBasic = 0,
+        UdpTableOwnerPid = 1,
+        UdpTableOwnerModule = 2
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MibTcpRowOwnerPid
+    {
+        public uint State;
+        public uint LocalAddr;
+        public uint LocalPort;
+        public uint RemoteAddr;
+        public uint RemotePort;
+        public uint OwningPid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MibUdpRowOwnerPid
+    {
+        public uint LocalAddr;
+        public uint LocalPort;
+        public uint OwningPid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MibTcp6RowOwnerPid
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        public byte[] LocalAddr;
+        public uint LocalScopeId;
+        public uint LocalPort;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        public byte[] RemoteAddr;
+        public uint RemoteScopeId;
+        public uint RemotePort;
+        public uint State;
+        public uint OwningPid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MibUdp6RowOwnerPid
+    {
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+        public byte[] LocalAddr;
+        public uint LocalScopeId;
+        public uint LocalPort;
+        public uint OwningPid;
+    }
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedTcpTable(IntPtr pTcpTable, ref int dwOutBufLen, bool sort, int ipVersion, TcpTableClass tblClass, uint reserved);
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedUdpTable(IntPtr pUdpTable, ref int dwOutBufLen, bool sort, int ipVersion, UdpTableClass tblClass, uint reserved);
 
     private Dictionary<string, string> BuildNetworkAdapterDetails(NetworkInterface adapter, string macAddress, string macVendor, IPv4InterfaceStatistics stats, IPInterfaceProperties properties)
     {
