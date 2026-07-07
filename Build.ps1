@@ -417,4 +417,5 @@ if ($SelfTest) {
     }
 
     Write-Host "Self-test passed. Results: $selfTestOutput"
+    Remove-Item -LiteralPath $selfTestRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

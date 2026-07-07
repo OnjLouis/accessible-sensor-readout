@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.1.
+Current version: 4.10.2.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -683,6 +683,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.10.2
+
+- Fixed: Network listening-port Details are now split by protocol, so the TCP listening ports row only shows TCP counts and endpoints, while the UDP listening ports row only shows UDP counts and endpoints.
+- Improved: Storage Details now label Win32 `BytesPerSector` as logical sector size, while keeping Windows Storage logical and physical sector-size values separate where Windows exposes both.
 
 ### 4.10.1
 

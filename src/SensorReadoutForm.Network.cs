@@ -489,9 +489,10 @@ public sealed partial class SensorReadoutForm : Form
 
             var tcpOwners = GetTcpListeningPortOwners();
             var udpOwners = GetUdpListeningPortOwners();
-            var details = BuildListeningPortDetails(tcp, udp, tcpOwners, udpOwners);
-            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "TCP listening ports", Value = tcp.Count, DisplayValue = FormatPortCount(tcp.Count), Source = "Windows Network", Details = CloneDetails(details) });
-            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "UDP listening ports", Value = udp.Count, DisplayValue = FormatPortCount(udp.Count), Source = "Windows Network", Details = CloneDetails(details) });
+            var tcpDetails = BuildListeningPortDetails("TCP", tcp, tcpOwners);
+            var udpDetails = BuildListeningPortDetails("UDP", udp, udpOwners);
+            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "TCP listening ports", Value = tcp.Count, DisplayValue = FormatPortCount(tcp.Count), Source = "Windows Network", Details = CloneDetails(tcpDetails) });
+            rows.Add(new SensorRow { Type = "Network", Hardware = "Local listening ports", Name = "UDP listening ports", Value = udp.Count, DisplayValue = FormatPortCount(udp.Count), Source = "Windows Network", Details = CloneDetails(udpDetails) });
         }
         catch
         {
@@ -500,16 +501,14 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static Dictionary<string, string> BuildListeningPortDetails(List<IPEndPoint> tcp, List<IPEndPoint> udp, Dictionary<string, List<ListeningPortOwner>> tcpOwners, Dictionary<string, List<ListeningPortOwner>> udpOwners)
+    private static Dictionary<string, string> BuildListeningPortDetails(string protocol, List<IPEndPoint> endpoints, Dictionary<string, List<ListeningPortOwner>> owners)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddDetail(details, "TCP listening port count", tcp == null ? "" : tcp.Count.ToString(CultureInfo.InvariantCulture));
-        AddDetail(details, "UDP listening port count", udp == null ? "" : udp.Count.ToString(CultureInfo.InvariantCulture));
-        AddDetail(details, "TCP listening port numbers", FormatPortNumbers(tcp));
-        AddDetail(details, "UDP listening port numbers", FormatPortNumbers(udp));
-        AddEndpointDetails(details, "TCP listening endpoint", tcp, tcpOwners);
-        AddEndpointDetails(details, "UDP listening endpoint", udp, udpOwners);
-        AddDetail(details, "Listening port note", "These are local endpoints Windows reports as listening. Sensor Readout does not scan remote hosts or test firewall exposure.");
+        var label = string.Equals(protocol, "UDP", StringComparison.OrdinalIgnoreCase) ? "UDP" : "TCP";
+        AddDetail(details, label + " listening port count", endpoints == null ? "" : endpoints.Count.ToString(CultureInfo.InvariantCulture));
+        AddDetail(details, label + " listening port numbers", FormatPortNumbers(endpoints));
+        AddEndpointDetails(details, label + " listening endpoint", endpoints, owners);
+        AddDetail(details, "Listening port note", "These are local " + label + " endpoints Windows reports as listening. Sensor Readout does not scan remote hosts or test firewall exposure.");
         return details;
     }
 
@@ -562,7 +561,80 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var address = endpoint.Address == null ? "" : endpoint.Address.ToString();
-        return address + ":" + endpoint.Port.ToString(CultureInfo.InvariantCulture);
+        var port = endpoint.Port.ToString(CultureInfo.InvariantCulture);
+        var host = FormatEndpointHost(endpoint.Address);
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return address + ":" + port;
+        }
+
+        if (string.Equals(host, address, StringComparison.OrdinalIgnoreCase))
+        {
+            return host + ":" + port;
+        }
+
+        return host + ":" + port + " (" + address + ")";
+    }
+
+    private static readonly Dictionary<string, string> ListeningPortHostCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    private static string FormatEndpointHost(IPAddress address)
+    {
+        if (address == null)
+        {
+            return "";
+        }
+
+        if (IPAddress.IsLoopback(address))
+        {
+            return "localhost";
+        }
+
+        if (address.Equals(IPAddress.Any))
+        {
+            return "all IPv4 addresses";
+        }
+
+        if (address.Equals(IPAddress.IPv6Any))
+        {
+            return "all IPv6 addresses";
+        }
+
+        var addressText = address.ToString();
+        if (string.IsNullOrWhiteSpace(addressText))
+        {
+            return "";
+        }
+
+        lock (ListeningPortHostCache)
+        {
+            string cached;
+            if (ListeningPortHostCache.TryGetValue(addressText, out cached))
+            {
+                return cached;
+            }
+        }
+
+        var host = addressText;
+        try
+        {
+            var task = Dns.GetHostEntryAsync(address);
+            if (task.Wait(75) && task.Result != null && !string.IsNullOrWhiteSpace(task.Result.HostName))
+            {
+                host = task.Result.HostName.Trim();
+            }
+        }
+        catch
+        {
+            host = addressText;
+        }
+
+        lock (ListeningPortHostCache)
+        {
+            ListeningPortHostCache[addressText] = host;
+        }
+
+        return host;
     }
 
     private static string FormatEndpointWithOwner(IPEndPoint endpoint, Dictionary<string, List<ListeningPortOwner>> owners)

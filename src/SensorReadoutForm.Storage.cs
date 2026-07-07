@@ -1232,6 +1232,7 @@ public sealed partial class SensorReadoutForm : Form
         AddDetail(diskDetails, "Physical disk firmware", GetWmiPropertyText(disk, "FirmwareRevision"));
         AddDetail(diskDetails, "Physical disk serial number", GetWmiPropertyText(disk, "SerialNumber"));
         AddDetail(diskDetails, "Physical disk size", FormatStorageBytes(GetWmiPropertyValue(disk, "Size")));
+        AddDetail(diskDetails, "Win32 logical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "BytesPerSector")));
         AddDetail(diskDetails, "Physical disk partitions", GetWmiPropertyText(disk, "Partitions"));
         AddDetail(diskDetails, "Physical disk PNP device ID", GetWmiPropertyText(disk, "PNPDeviceID"));
         AddRawWmiDetails(diskDetails, "Physical disk WMI", disk);

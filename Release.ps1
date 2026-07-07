@@ -12,7 +12,8 @@ param(
     [string]$SmokeRoot = "",
     [string]$DiagnosticsCorpusPath = "",
     [string]$InstalledCopyPath = "",
-    [string]$ShareCopyPath = ""
+    [string]$ShareCopyPath = "",
+    [int]$MaxSensorReadoutTempItems = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +48,78 @@ function Fail($message) {
 
 function Info($message) {
     Write-Host "[release-check] $message"
+}
+
+function Get-SensorReadoutTempArtifacts {
+    $tempRoot = [IO.Path]::GetTempPath()
+    if ([string]::IsNullOrWhiteSpace($tempRoot) -or !(Test-Path -LiteralPath $tempRoot)) {
+        return @()
+    }
+
+    $patterns = @(
+        '^SensorReadout-SelfTest-\d{8}-\d{6}$',
+        '^sensor-readout-release-smoke$',
+        '^SensorReadoutUpdater-[0-9a-fA-F]{32}$',
+        '^SensorReadout-BackupCleanupTest-\d{8}-\d{6}$',
+        '^SensorReadout-\d+\.\d+(?:\.\d+)?-release-notes\.md$',
+        '^SensorReadout-\d+\.\d+(?:\.\d+)?-release-notes-[^.]+\.md$',
+        '^SensorReadout-port-owner-check\.html$',
+        '^SensorReadout-PortableCopy-[0-9a-fA-F]{32}\.zip$',
+        '^SRDiag(?:Inspect)?-[A-Za-z0-9_-]+$',
+        '^SR-Diag-[A-Za-z0-9_-]+$',
+        '^sr-direct-(?:diag|smoke)-[0-9a-fA-F]{32}$',
+        '^sr-prism-(?:inspect|test)$',
+        '^sr_reports_[0-9a-fA-F]{32}$',
+        '^sr-selftest-[A-Za-z0-9_-]+$',
+        '^sr-gpu-[A-Za-z0-9_-]+\.(?:txt|html)$',
+        '^sr-sata-test\.html$',
+        '^sr-issue-\d+-close-comment\.md$',
+        '^CloseSr\.cs$'
+    )
+
+    @(Get-ChildItem -LiteralPath $tempRoot -Force -ErrorAction SilentlyContinue | Where-Object {
+        $name = $_.Name
+        $matched = $false
+        foreach ($pattern in $patterns) {
+            if ($name -match $pattern) {
+                $matched = $true
+                break
+            }
+        }
+        $matched
+    })
+}
+
+function Remove-SensorReadoutTempArtifacts {
+    param([string]$Reason)
+
+    $artifacts = @(Get-SensorReadoutTempArtifacts)
+    if ($artifacts.Count -eq 0) {
+        Info "No stale Sensor Readout temp artifacts found for $Reason."
+        return
+    }
+
+    Info "Cleaning $($artifacts.Count) Sensor Readout temp artifact(s) for $Reason."
+    foreach ($artifact in $artifacts) {
+        try {
+            Remove-Item -LiteralPath $artifact.FullName -Recurse -Force -ErrorAction Stop
+        } catch {
+            Info "Could not remove temp artifact $($artifact.FullName): $($_.Exception.Message)"
+        }
+    }
+}
+
+function Assert-SensorReadoutTempClean {
+    param([int]$Maximum)
+
+    $remaining = @(Get-SensorReadoutTempArtifacts)
+    if ($remaining.Count -le $Maximum) {
+        Info "Sensor Readout temp artifact check passed: $($remaining.Count) item(s), maximum $Maximum."
+        return
+    }
+
+    $sample = ($remaining | Select-Object -First 20 | ForEach-Object { $_.FullName }) -join "`n"
+    Fail "Sensor Readout temp cleanup left $($remaining.Count) item(s), maximum $Maximum. Clean these before publishing:`n$sample"
 }
 
 function Write-PromptInjectionSafetyReminder {
@@ -1718,6 +1791,8 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 $Version = $Version.Trim().TrimStart('v','V')
 
+Remove-SensorReadoutTempArtifacts 'release start'
+Assert-SensorReadoutTempClean $MaxSensorReadoutTempItems
 New-Item -ItemType Directory -Force -Path $SmokeRoot,$programBuilds,$sourceSnapshots | Out-Null
 
 Write-PromptInjectionSafetyReminder
@@ -1774,6 +1849,10 @@ if ($RunPostPublishUpdateSmoke -and !$SkipPostPublishUpdateSmoke) {
 if (!$KeepSmokeFolder) {
     Info "Cleaning smoke folder."
     Remove-Item -LiteralPath $SmokeRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-SensorReadoutTempArtifacts 'release finish'
+    Assert-SensorReadoutTempClean $MaxSensorReadoutTempItems
+} else {
+    Info "Skipping final Sensor Readout temp cleanup because KeepSmokeFolder was set."
 }
 
 Info "Release checks passed for $Version."

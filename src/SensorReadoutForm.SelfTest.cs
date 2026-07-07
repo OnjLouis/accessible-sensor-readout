@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -44,6 +45,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
+            form.RunSelfTestStep(results, "Listening port details split", delegate { form.SelfTestListeningPortDetailsSplit(); });
             form.RunSelfTestStep(results, "Bluetooth and battery filtering", delegate { form.SelfTestBluetoothAndBatteryFiltering(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Category speech modes", delegate { form.SelfTestCategorySpeechModes(); });
@@ -202,6 +204,35 @@ public sealed partial class SensorReadoutForm : Form
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2, itemSize) == 2, "WLAN BSS list count did not use dwNumberOfItems.");
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2000, itemSize) == 2, "WLAN BSS list count was not capped by buffer size.");
         Require(SafeWlanBssEntryCount(4, 1, itemSize) == 0, "WLAN BSS list accepted a header smaller than the entry offset.");
+    }
+
+    private void SelfTestListeningPortDetailsSplit()
+    {
+        var tcpEndpoint = new IPEndPoint(IPAddress.Loopback, 12345);
+        var udpEndpoint = new IPEndPoint(IPAddress.Loopback, 23456);
+        var wildcardEndpoint = new IPEndPoint(IPAddress.Any, 34567);
+        var tcp = new List<IPEndPoint> { tcpEndpoint };
+        var udp = new List<IPEndPoint> { udpEndpoint };
+        var tcpOwners = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
+        var udpOwners = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
+        AddListeningPortOwner(tcpOwners, new ListeningPortOwner { Protocol = "TCP", Endpoint = tcpEndpoint, ProcessId = 111, ProcessName = "tcp-test.exe" });
+        AddListeningPortOwner(udpOwners, new ListeningPortOwner { Protocol = "UDP", Endpoint = udpEndpoint, ProcessId = 222, ProcessName = "udp-test.exe" });
+
+        var tcpDetails = BuildListeningPortDetails("TCP", tcp, tcpOwners);
+        var udpDetails = BuildListeningPortDetails("UDP", udp, udpOwners);
+        var tcpEndpointText = FormatEndpoint(tcpEndpoint);
+        var wildcardEndpointText = FormatEndpoint(wildcardEndpoint);
+
+        Require(tcpDetails.ContainsKey("TCP listening port count"), "TCP listening details did not include TCP count.");
+        Require(!tcpDetails.ContainsKey("UDP listening port count"), "TCP listening details included UDP count.");
+        Require(tcpDetails.Values.Any(v => v.IndexOf("tcp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "TCP listening details did not include TCP owner.");
+        Require(!tcpDetails.Values.Any(v => v.IndexOf("udp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "TCP listening details included UDP owner.");
+        Require(tcpEndpointText.StartsWith("localhost:12345", StringComparison.OrdinalIgnoreCase), "Loopback listening endpoint did not start with localhost and port.");
+        Require(wildcardEndpointText.StartsWith("all IPv4 addresses:34567", StringComparison.OrdinalIgnoreCase), "Wildcard IPv4 listening endpoint did not use a friendly host label.");
+        Require(udpDetails.ContainsKey("UDP listening port count"), "UDP listening details did not include UDP count.");
+        Require(!udpDetails.ContainsKey("TCP listening port count"), "UDP listening details included TCP count.");
+        Require(udpDetails.Values.Any(v => v.IndexOf("udp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details did not include UDP owner.");
+        Require(!udpDetails.Values.Any(v => v.IndexOf("tcp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details included TCP owner.");
     }
 
     private void SelfTestBluetoothAndBatteryFiltering()
