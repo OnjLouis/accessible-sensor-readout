@@ -1,7 +1,7 @@
 {
   "id": "sensorreadout.lenovo.laptop.experimental",
   "name": "Lenovo Laptop Support (experimental)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "Sensor Readout",
   "description": "Experimental, opt-in Lenovo laptop probe. Reads ThinkPad fan WMI, ACPI fan presence, ACPI thermal zones, ACPI battery WMI, IdeaPad Lenovo_BatteryInformation, thermal throttle state, system thermal state, storage health/temperature/wear, Lenovo thermal driver presence, and Lenovo vendor WMI details.",
   "assembly": "LenovoThinkPadPlugIn.dll",

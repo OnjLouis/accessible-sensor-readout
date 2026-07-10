@@ -1089,11 +1089,15 @@ public sealed partial class PreferencesForm : Form
                 return;
             }
 
-            BeginInvoke((MethodInvoker)delegate
+            SavePlugInCheckChange(e.Index, e.NewValue == CheckState.Checked);
+            if (IsHandleCreated)
             {
-                SaveLivePreferences();
+                BeginInvoke((MethodInvoker)delegate { UpdatePlugInDetails(); });
+            }
+            else
+            {
                 UpdatePlugInDetails();
-            });
+            }
         };
         spokenHotKeyList.SelectedIndexChanged += delegate { LoadSelectedSpokenHotKey(); };
         spokenHotKeyNameBox.TextChanged += delegate { SaveSelectedSpokenHotKeyHeader(); };

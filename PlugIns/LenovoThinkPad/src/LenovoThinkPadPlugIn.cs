@@ -14,7 +14,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             Id = "sensorreadout.lenovo.laptop.experimental",
             Name = "Lenovo Laptop Support (experimental)",
-            Version = "0.2.0",
+            Version = "0.2.1",
             Author = "Sensor Readout",
             Description = "Experimental read-only probe for Lenovo laptops. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery health (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state, design capacity, chemistry, manufacturer), IdeaPad Lenovo_BatteryInformation (manufacturer, hardware ID, manufacture date), thermal throttle reasons and passive limits, system thermal state, storage health/temperature/wear for NVMe and SATA drives, and reports presence of Lenovo vendor WMI interfaces."
         };

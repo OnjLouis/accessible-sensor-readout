@@ -956,6 +956,31 @@ public sealed partial class PreferencesForm : Form
         return result;
     }
 
+    private void SavePlugInCheckChange(int index, bool isChecked)
+    {
+        if (plugInList == null || index < 0 || index >= plugInList.Items.Count)
+        {
+            return;
+        }
+
+        var plugIn = plugInList.Items[index] as PlugInPreferenceInfo;
+        if (plugIn == null || string.IsNullOrWhiteSpace(plugIn.Id))
+        {
+            return;
+        }
+
+        var current = CurrentPlugInSettings();
+        current[plugIn.Id] = isChecked;
+        plugIn.Enabled = isChecked;
+        liveSettings.PlugInsEnabled = current;
+        SensorReadoutForm.SaveSettings(liveSettings);
+        var handler = LivePreferencesSaved;
+        if (handler != null)
+        {
+            handler(this, EventArgs.Empty);
+        }
+    }
+
     private Control BuildLanguageEditorPanel(List<LanguageChoice> languageChoices)
     {
         var layout = new TableLayoutPanel

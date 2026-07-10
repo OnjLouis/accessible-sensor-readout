@@ -118,17 +118,30 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     {
                         var count = 0;
                         var snapshots = new List<string>();
+                        var currentSettings = new List<string>();
+                        var relevantCurrentSettings = new List<string>();
                         foreach (ManagementObject instance in instances)
                         {
                             using (instance)
                             {
                                 count++;
+                                var details = ReadDetails(instance);
+                                string currentSetting;
+                                if (details.TryGetValue("CurrentSetting", out currentSetting) && !string.IsNullOrWhiteSpace(currentSetting))
+                                {
+                                    var cleanCurrentSetting = currentSetting.Trim();
+                                    currentSettings.Add("#" + count.ToString(CultureInfo.InvariantCulture) + " " + cleanCurrentSetting);
+                                    if (ContainsAny(cleanCurrentSetting, "Fan", "Cooling", "Cool", "Thermal", "Temperature", "Temp", "Performance", "Power", "Throttle"))
+                                    {
+                                        relevantCurrentSettings.Add("#" + count.ToString(CultureInfo.InvariantCulture) + " " + cleanCurrentSetting);
+                                    }
+                                }
+
                                 if (snapshots.Count >= 5)
                                 {
                                     continue;
                                 }
 
-                                var details = ReadDetails(instance);
                                 var parts = new List<string>();
                                 AddSnapshotPart(parts, details, "InstanceName");
                                 AddSnapshotPart(parts, details, "Active");
@@ -154,6 +167,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         {
                             summaryDetails[keyPrefix + " snapshot"] = string.Join(" | ", snapshots.ToArray());
                         }
+
+                        if (currentSettings.Count > 0 && ContainsAny(candidate.ClassName, "FunctionRequest"))
+                        {
+                            summaryDetails[keyPrefix + " CurrentSetting values"] = JoinLimited(currentSettings, 6000);
+                            if (relevantCurrentSettings.Count > 0)
+                            {
+                                summaryDetails[keyPrefix + " thermal/fan candidates"] = JoinLimited(relevantCurrentSettings, 3000);
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -165,6 +187,17 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     }
                 }
             }
+        }
+
+        private static string JoinLimited(IEnumerable<string> values, int maxLength)
+        {
+            var joined = string.Join(" | ", values.Where(v => !string.IsNullOrWhiteSpace(v)).ToArray());
+            if (joined.Length <= maxLength)
+            {
+                return joined;
+            }
+
+            return joined.Substring(0, Math.Max(0, maxLength - 20)).TrimEnd() + " ... [truncated]";
         }
 
         private static void AddSnapshotPart(List<string> parts, Dictionary<string, string> details, string key)

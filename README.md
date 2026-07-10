@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.2.
+Current version: 4.10.4.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -684,6 +684,9 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 4.10.4
+- Fixed: Plug-In enable choices now save the intended checked state immediately, so checking a hardware Plug-In and closing Preferences cannot accidentally leave it disabled.
+- Improved: Lenovo Laptop Support diagnostics now include all Lenovo function-request settings and highlight thermal and fan-related candidates, making support reports more useful when a model does not expose fan speed through standard Windows or Lenovo WMI.
 ### 4.10.2
 
 - Fixed: Network listening-port Details are now split by protocol, so the TCP listening ports row only shows TCP counts and endpoints, while the UDP listening ports row only shows UDP counts and endpoints.
