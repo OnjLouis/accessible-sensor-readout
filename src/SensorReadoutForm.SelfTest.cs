@@ -46,6 +46,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Listening port details split", delegate { form.SelfTestListeningPortDetailsSplit(); });
+            form.RunSelfTestStep(results, "USB SuperSpeedPlus speed decoding", delegate { form.SelfTestUsbSuperSpeedPlusSpeedDecoding(); });
             form.RunSelfTestStep(results, "Bluetooth and battery filtering", delegate { form.SelfTestBluetoothAndBatteryFiltering(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Category speech modes", delegate { form.SelfTestCategorySpeechModes(); });
@@ -233,6 +234,16 @@ public sealed partial class SensorReadoutForm : Form
         Require(!udpDetails.ContainsKey("TCP listening port count"), "UDP listening details included TCP count.");
         Require(udpDetails.Values.Any(v => v.IndexOf("udp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details did not include UDP owner.");
         Require(!udpDetails.Values.Any(v => v.IndexOf("tcp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details included TCP owner.");
+    }
+
+    private void SelfTestUsbSuperSpeedPlusSpeedDecoding()
+    {
+        const uint gen1Raw = (5u << 16) | (3u << 4);
+        const uint gen2Raw = (10u << 16) | (3u << 4);
+
+        Require(Math.Abs(DecodeSuperSpeedPlusBitsPerSecond(gen1Raw) - 5000000000.0) < 1.0, "USB Gen 1 SuperSpeedPlus speed did not decode to 5 Gbps.");
+        Require(Math.Abs(DecodeSuperSpeedPlusBitsPerSecond(gen2Raw) - 10000000000.0) < 1.0, "USB Gen 2 SuperSpeedPlus speed did not decode to 10 Gbps.");
+        Require(DecodeSuperSpeedPlusBitsPerSecond(0x000040b5) == 0, "Malformed SuperSpeedPlus speed must not be treated as 181000 bps.");
     }
 
     private void SelfTestBluetoothAndBatteryFiltering()

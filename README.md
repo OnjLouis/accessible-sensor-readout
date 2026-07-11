@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.6.
+Current version: 4.10.7.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -683,6 +683,9 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.10.7
+- Fixed: USB SuperSpeedPlus link speeds now decode Windows lane-speed data correctly, avoiding impossible raw values such as `181000 bps` for USB 3.x devices.
 
 ### 4.10.6
 - Fixed: Lenovo Laptop Support now checks whether optional Lenovo WMI classes exist before querying them, further reducing provider load on laptops that do not expose those interfaces.

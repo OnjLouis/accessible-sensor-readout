@@ -802,8 +802,8 @@ public sealed partial class SensorReadoutForm : Form
 
     private static double DecodeSuperSpeedPlusBitsPerSecond(uint raw)
     {
-        var mantissa = raw & 0x3fff;
-        var exponent = (raw >> 14) & 0x3;
+        var exponent = (raw >> 4) & 0x3;
+        var mantissa = (raw >> 16) & 0xffff;
         if (mantissa == 0)
         {
             return 0;
