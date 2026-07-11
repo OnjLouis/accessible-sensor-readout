@@ -15,7 +15,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             try
             {
                 // SELECT * is required so the disk object carries its full key path (ObjectId) — GetRelated needs it to traverse the storage reliability association.
-                using (var searcher = new ManagementObjectSearcher(storageNamespace, "SELECT * FROM MSFT_PhysicalDisk"))
+                using (var searcher = CreateSearcher(storageNamespace, "SELECT * FROM MSFT_PhysicalDisk"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;

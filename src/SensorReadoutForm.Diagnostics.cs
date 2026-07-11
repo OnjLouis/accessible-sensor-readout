@@ -126,7 +126,7 @@ public sealed partial class SensorReadoutForm : Form
             LogMessage("Debug", "Diagnostics started.");
             AnnounceDiagnosticStep(T("status.diagnosticsCollectingSensors", "Collecting sensor data."), announce);
             var collectStopwatch = Stopwatch.StartNew();
-            var initialRows = CollectSensorRows(true);
+            var initialRows = CollectSensorRows(true, false, true);
             collectStopwatch.Stop();
             summaryLines.Add("Initial sensor collection: " + initialRows.Count + " rows in " + FormatElapsed(collectStopwatch.Elapsed) + ".");
             AddRowSummary(summaryLines, initialRows);
@@ -138,7 +138,7 @@ public sealed partial class SensorReadoutForm : Form
 
             AnnounceDiagnosticStep(T("status.diagnosticsCollectingFinalSensors", "Collecting final sensor data."), announce);
             var finalCollectStopwatch = Stopwatch.StartNew();
-            finalRows = CollectSensorRows(true);
+            finalRows = CollectSensorRows(true, false, true);
             finalCollectStopwatch.Stop();
             summaryLines.Add("");
             summaryLines.Add("Final sensor collection: " + finalRows.Count + " rows in " + FormatElapsed(finalCollectStopwatch.Elapsed) + ".");

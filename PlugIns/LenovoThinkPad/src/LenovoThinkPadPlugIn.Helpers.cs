@@ -10,11 +10,132 @@ namespace SensorReadout.LenovoThinkPadPlugIn
 {
     public sealed partial class LenovoThinkPadPlugIn
     {
+        private static readonly object wmiProbeBackoffLock = new object();
+        private static readonly Dictionary<string, DateTime> wmiProbeBackoffUntilUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan MissingWmiProbeBackoff = TimeSpan.FromHours(6);
+
+        private static ManagementObjectSearcher CreateSearcher(string query)
+        {
+            var searcher = new ManagementObjectSearcher(query);
+            searcher.Options.Timeout = TimeSpan.FromSeconds(5);
+            return searcher;
+        }
+
+        private static ManagementObjectSearcher CreateSearcher(string scopePath, string query)
+        {
+            var searcher = new ManagementObjectSearcher(scopePath, query);
+            searcher.Options.Timeout = TimeSpan.FromSeconds(5);
+            return searcher;
+        }
+
+        private static bool ShouldSkipWmiProbe(string key, Dictionary<string, string> summaryDetails)
+        {
+            lock (wmiProbeBackoffLock)
+            {
+                DateTime untilUtc;
+                if (wmiProbeBackoffUntilUtc.TryGetValue(key, out untilUtc) && DateTime.UtcNow < untilUtc)
+                {
+                    if (summaryDetails != null)
+                    {
+                        summaryDetails[key + " skipped"] = "Known unavailable until " + untilUtc.ToString("u", CultureInfo.InvariantCulture);
+                    }
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void BackOffMissingWmiProbe(string key, Exception ex, Dictionary<string, string> summaryDetails)
+        {
+            if (!IsMissingWmiClassError(ex))
+            {
+                return;
+            }
+
+            BackOffWmiProbe(key, "Known unavailable", summaryDetails);
+        }
+
+        private static void BackOffWmiProbe(string key, string reason, Dictionary<string, string> summaryDetails)
+        {
+            var untilUtc = DateTime.UtcNow.Add(MissingWmiProbeBackoff);
+            lock (wmiProbeBackoffLock)
+            {
+                wmiProbeBackoffUntilUtc[key] = untilUtc;
+            }
+
+            if (summaryDetails != null)
+            {
+                summaryDetails[key + " backoff"] = reason + "; will retry after " + untilUtc.ToString("u", CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static bool IsWmiClassUnavailable(string scopePath, string className, string probeKey, Dictionary<string, string> summaryDetails)
+        {
+            if (ShouldSkipWmiProbe(probeKey, summaryDetails))
+            {
+                return true;
+            }
+
+            try
+            {
+                var escapedClass = (className ?? "").Replace("'", "''");
+                using (var searcher = CreateSearcher(scopePath, "SELECT * FROM meta_class WHERE __CLASS = '" + escapedClass + "'"))
+                using (var classes = searcher.Get())
+                {
+                    foreach (ManagementObject ignored in classes)
+                    {
+                        using (ignored)
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                if (summaryDetails != null)
+                {
+                    summaryDetails[className + " class"] = "Not present";
+                }
+
+                BackOffWmiProbe(probeKey, "Class is not present", summaryDetails);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (summaryDetails != null)
+                {
+                    summaryDetails[className + " class check error"] = ex.Message;
+                }
+
+                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                return IsMissingWmiClassError(ex);
+            }
+        }
+
+        private static bool IsMissingWmiClassError(Exception ex)
+        {
+            if (ex == null)
+            {
+                return false;
+            }
+
+            var management = ex as ManagementException;
+            if (management != null && (management.ErrorCode == ManagementStatus.InvalidClass || management.ErrorCode == ManagementStatus.NotFound))
+            {
+                return true;
+            }
+
+            var message = ex.Message ?? "";
+            return message.IndexOf("Invalid class", StringComparison.OrdinalIgnoreCase) >= 0
+                || message.IndexOf("Not found", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         private static bool QueryWmiContains(string scopePath, string query, params string[] needles)
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var searcher = CreateSearcher(scopePath, query))
                 using (var instances = searcher.Get())
                 {
                     foreach (ManagementObject instance in instances)
@@ -59,7 +180,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var searcher = CreateSearcher(scopePath, query))
                 using (var instances = searcher.Get())
                 {
                     foreach (ManagementObject instance in instances)

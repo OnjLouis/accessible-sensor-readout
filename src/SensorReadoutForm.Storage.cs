@@ -61,6 +61,7 @@ public sealed partial class SensorReadoutForm : Form
     }
 
     private static DateTime bitLockerQueryDisabledUntilUtc = DateTime.MinValue;
+    private static DateTime storageReliabilityQueryDisabledUntilUtc = DateTime.MinValue;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct StoragePropertyQueryWithProtocol
@@ -506,10 +507,16 @@ public sealed partial class SensorReadoutForm : Form
     private static IEnumerable<SensorRow> GetStorageReliabilityRows()
     {
         var rows = new List<SensorRow>();
+        if (DateTime.UtcNow < storageReliabilityQueryDisabledUntilUtc)
+        {
+            return rows;
+        }
+
         try
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_StorageReliabilityCounter"))
             {
+                searcher.Options.Timeout = TimeSpan.FromSeconds(5);
                 foreach (ManagementObject counter in searcher.Get())
                 {
                     var name = Convert.ToString(counter["DeviceId"]);
@@ -530,6 +537,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
+            storageReliabilityQueryDisabledUntilUtc = DateTime.UtcNow.AddMinutes(30);
         }
 
         return rows;

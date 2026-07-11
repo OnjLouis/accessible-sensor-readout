@@ -19,7 +19,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 {
                     try
                     {
-                        using (var searcher = new ManagementObjectSearcher(scopePath, "SELECT * FROM meta_class WHERE __CLASS LIKE '" + pattern + "'"))
+                        using (var searcher = CreateSearcher(scopePath, "SELECT * FROM meta_class WHERE __CLASS LIKE '" + pattern + "'"))
                         using (var classes = searcher.Get())
                         {
                             foreach (ManagementObject managementClass in classes)
@@ -113,7 +113,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
 
                 try
                 {
-                    using (var searcher = new ManagementObjectSearcher(candidate.ScopePath, "SELECT * FROM " + candidate.ClassName))
+                    using (var searcher = CreateSearcher(candidate.ScopePath, "SELECT * FROM " + candidate.ClassName))
                     using (var instances = searcher.Get())
                     {
                         var count = 0;
@@ -214,7 +214,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(scopePath, "SELECT * FROM " + className))
+                using (var searcher = CreateSearcher(scopePath, "SELECT * FROM " + className))
                 using (var instances = searcher.Get())
                 {
                     var index = 0;

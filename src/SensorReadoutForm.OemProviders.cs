@@ -5,6 +5,11 @@ public sealed partial class SensorReadoutForm : Form
 {
     private IEnumerable<SensorRow> GetOemProviderRows()
     {
-        return GetPlugInRows();
+        return GetOemProviderRows(false);
+    }
+
+    private IEnumerable<SensorRow> GetOemProviderRows(bool diagnosticsMode)
+    {
+        return GetPlugInRows(diagnosticsMode);
     }
 }

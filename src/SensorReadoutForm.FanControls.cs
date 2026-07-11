@@ -339,10 +339,15 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows)
     {
-        return CollectSensorRows(refreshSlowRows, false);
+        return CollectSensorRows(refreshSlowRows, false, false);
     }
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows, bool backgroundRefresh)
+    {
+        return CollectSensorRows(refreshSlowRows, backgroundRefresh, false);
+    }
+
+    private List<SensorRow> CollectSensorRows(bool refreshSlowRows, bool backgroundRefresh, bool diagnosticsMode)
     {
         var totalStopwatch = Stopwatch.StartNew();
         var timings = new List<string>();
@@ -350,7 +355,7 @@ public sealed partial class SensorReadoutForm : Form
 
         AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 20000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
-        AddTimedRows(rows, "OemProviders", GetOemProviderRows, timings);
+        AddTimedRows(rows, "OemProviders", () => GetOemProviderRows(diagnosticsMode), timings);
         AddTimedRows(rows, "Battery", GetBatteryRows, timings);
         AddTimedRows(rows, "SystemUptime", GetSystemUptimeRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);

@@ -19,6 +19,7 @@ namespace SensorReadout.PluginSdk
     {
         MachineInfo Machine { get; }
         string PluginDirectory { get; }
+        bool DiagnosticsMode { get; }
         void Log(string level, string message);
     }
 

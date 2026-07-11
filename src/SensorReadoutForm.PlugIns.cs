@@ -15,8 +15,13 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetPlugInRows()
     {
+        return GetPlugInRows(false);
+    }
+
+    private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode)
+    {
         EnsurePlugInManager();
-        return plugInManager.GetRows();
+        return plugInManager.GetRows(diagnosticsMode);
     }
 
     private bool TryPlugInFanControl(string identifier, int percent, bool manual)
@@ -74,13 +79,18 @@ public sealed partial class SensorReadoutForm : Form
 
         public IEnumerable<SensorRow> GetRows()
         {
+            return GetRows(false);
+        }
+
+        public IEnumerable<SensorRow> GetRows(bool diagnosticsMode)
+        {
             EnsureLoaded();
             var rows = new List<SensorRow>();
             foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance != null))
             {
                 try
                 {
-                    var context = new PlugInContext(machine, plugIn.Directory, log);
+                    var context = new PlugInContext(machine, plugIn.Directory, diagnosticsMode, log);
                     var before = rows.Count;
                     rows.AddRange((plugIn.Instance.GetReadings(context) ?? Enumerable.Empty<SensorReading>())
                         .Where(r => r != null)
@@ -423,15 +433,17 @@ public sealed partial class SensorReadoutForm : Form
     {
         private readonly Action<string, string> log;
 
-        public PlugInContext(MachineInfo machine, string pluginDirectory, Action<string, string> log)
+        public PlugInContext(MachineInfo machine, string pluginDirectory, bool diagnosticsMode, Action<string, string> log)
         {
             Machine = machine ?? new MachineInfo();
             PluginDirectory = pluginDirectory ?? "";
+            DiagnosticsMode = diagnosticsMode;
             this.log = log ?? delegate { };
         }
 
         public MachineInfo Machine { get; private set; }
         public string PluginDirectory { get; private set; }
+        public bool DiagnosticsMode { get; private set; }
 
         public void Log(string level, string message)
         {

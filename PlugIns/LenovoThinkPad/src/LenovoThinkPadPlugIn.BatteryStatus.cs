@@ -14,7 +14,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM BatteryStatus"))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM BatteryStatus"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -118,7 +118,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM BatteryRuntime"))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM BatteryRuntime"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -191,7 +191,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT PowerOnline, Charging, Discharging, Critical, Tag FROM BatteryStatus"))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT PowerOnline, Charging, Discharging, Critical, Tag FROM BatteryStatus"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -266,10 +266,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             const string scopePath = @"root\WMI";
             const string className = "Lenovo_BatteryInformation";
+            const string probeKey = @"root\WMI\Lenovo_BatteryInformation";
+            if (IsWmiClassUnavailable(scopePath, className, probeKey, summaryDetails))
+            {
+                return rows;
+            }
 
             try
             {
-                using (var searcher = new ManagementObjectSearcher(scopePath, "SELECT * FROM " + className))
+                using (var searcher = CreateSearcher(scopePath, "SELECT * FROM " + className))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -376,9 +381,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var active = new List<string>();
             foreach (var className in new[] { "LENOVO_UTILITY_DATA", "LENOVO_SR_DATA" })
             {
+                var probeKey = @"root\WMI\" + className;
+                if (IsWmiClassUnavailable(@"root\WMI", className, probeKey, summaryDetails))
+                {
+                    continue;
+                }
+
                 try
                 {
-                    using (var searcher = new ManagementObjectSearcher(@"root\WMI", "SELECT InstanceName, Active FROM " + className))
+                    using (var searcher = CreateSearcher(@"root\WMI", "SELECT InstanceName, Active FROM " + className))
                     using (var instances = searcher.Get())
                     {
                         foreach (ManagementObject instance in instances)

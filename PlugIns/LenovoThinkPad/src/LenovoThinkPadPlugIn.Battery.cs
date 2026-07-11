@@ -116,7 +116,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM " + className))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM " + className))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -155,7 +155,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT Tag, DesignCapacity FROM Win32_PortableBattery"))
+                using (var searcher = CreateSearcher(@"root\cimv2", "SELECT Tag, DesignCapacity FROM Win32_PortableBattery"))
                 using (var instances = searcher.Get())
                 {
                     foreach (ManagementObject instance in instances)
@@ -187,7 +187,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM BatteryStaticData"))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM BatteryStaticData"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;

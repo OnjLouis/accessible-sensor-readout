@@ -13,7 +13,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT * FROM Win32_PnPEntity WHERE Name LIKE '%Lenovo%Thermal%' OR Description LIKE '%Lenovo%Thermal%' OR Caption LIKE '%Lenovo%Thermal%'"))
+                using (var searcher = CreateSearcher(@"root\cimv2", "SELECT * FROM Win32_PnPEntity WHERE Name LIKE '%Lenovo%Thermal%' OR Description LIKE '%Lenovo%Thermal%' OR Caption LIKE '%Lenovo%Thermal%'"))
                 using (var instances = searcher.Get())
                 {
                     var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -52,7 +52,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM MSAcpi_ThermalZoneTemperature"))
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM MSAcpi_ThermalZoneTemperature"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -116,7 +116,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT Name, PercentPassiveLimit, ThrottleReasons, HighPrecisionTemperature FROM Win32_PerfFormattedData_Counters_ThermalZoneInformation"))
+                using (var searcher = CreateSearcher(@"root\cimv2", "SELECT Name, PercentPassiveLimit, ThrottleReasons, HighPrecisionTemperature FROM Win32_PerfFormattedData_Counters_ThermalZoneInformation"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
@@ -211,7 +211,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             var rows = new List<SensorReading>();
             try
             {
-                using (var searcher = new ManagementObjectSearcher(@"root\cimv2", "SELECT ThermalState FROM Win32_ComputerSystem"))
+                using (var searcher = CreateSearcher(@"root\cimv2", "SELECT ThermalState FROM Win32_ComputerSystem"))
                 using (var instances = searcher.Get())
                 {
                     foreach (ManagementObject instance in instances)

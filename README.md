@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.4.
+Current version: 4.10.6.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -683,6 +683,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.10.6
+- Fixed: Lenovo Laptop Support now checks whether optional Lenovo WMI classes exist before querying them, further reducing provider load on laptops that do not expose those interfaces.
+- Fixed: Windows Storage reliability-counter queries now back off temporarily after provider failures, reducing repeated WMI load on systems whose storage provider exposes the class but cannot enumerate it.
+
+### 4.10.5
+- Fixed: Lenovo Laptop Support now avoids repeating failed Lenovo/Vantage WMI probes during normal refreshes. Deeper Lenovo class discovery is still included in diagnostics and support reports, but live polling is more conservative to reduce WMI-provider load on affected laptops.
 
 ### 4.10.4
 - Fixed: Plug-In enable choices now save the intended checked state immediately, so checking a hardware Plug-In and closing Preferences cannot accidentally leave it disabled.

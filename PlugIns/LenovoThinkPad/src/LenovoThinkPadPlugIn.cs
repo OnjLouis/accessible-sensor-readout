@@ -14,13 +14,18 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             Id = "sensorreadout.lenovo.laptop.experimental",
             Name = "Lenovo Laptop Support (experimental)",
-            Version = "0.2.1",
+            Version = "0.2.3",
             Author = "Sensor Readout",
             Description = "Experimental read-only probe for Lenovo laptops. Reads ThinkPad fan WMI, ACPI thermal zones, ACPI battery health (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state, design capacity, chemistry, manufacturer), IdeaPad Lenovo_BatteryInformation (manufacturer, hardware ID, manufacture date), thermal throttle reasons and passive limits, system thermal state, storage health/temperature/wear for NVMe and SATA drives, and reports presence of Lenovo vendor WMI interfaces."
         };
 
+        private static readonly TimeSpan NormalCacheDuration = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan DiagnosticCacheDuration = TimeSpan.FromMinutes(2);
+
         private DateTime cachedRowsUtc = DateTime.MinValue;
         private List<SensorReading> cachedRows = new List<SensorReading>();
+        private DateTime cachedDiagnosticRowsUtc = DateTime.MinValue;
+        private List<SensorReading> cachedDiagnosticRows = new List<SensorReading>();
 
         public PluginInfo Info { get { return info; } }
 
@@ -44,14 +49,27 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 };
             }
 
-            if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < TimeSpan.FromSeconds(30))
+            var diagnosticsMode = context != null && context.DiagnosticsMode;
+            var cacheDuration = diagnosticsMode ? DiagnosticCacheDuration : NormalCacheDuration;
+            var cacheRows = diagnosticsMode ? cachedDiagnosticRows : cachedRows;
+            var cacheUtc = diagnosticsMode ? cachedDiagnosticRowsUtc : cachedRowsUtc;
+            if (cacheRows.Count > 0 && DateTime.UtcNow - cacheUtc < cacheDuration)
             {
-                return cachedRows.Select(CloneReading).ToList();
+                return cacheRows.Select(CloneReading).ToList();
             }
 
-            var rows = ProbeLenovo(context).ToList();
-            cachedRows = rows.Select(CloneReading).ToList();
-            cachedRowsUtc = DateTime.UtcNow;
+            var rows = ProbeLenovo(context, diagnosticsMode).ToList();
+            if (diagnosticsMode)
+            {
+                cachedDiagnosticRows = rows.Select(CloneReading).ToList();
+                cachedDiagnosticRowsUtc = DateTime.UtcNow;
+            }
+            else
+            {
+                cachedRows = rows.Select(CloneReading).ToList();
+                cachedRowsUtc = DateTime.UtcNow;
+            }
+
             return rows;
         }
 
@@ -71,7 +89,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 || QueryWmiContains(@"root\cimv2", "SELECT Manufacturer, Product, Version FROM Win32_BaseBoard", "Lenovo", "ThinkPad", "ThinkBook", "IdeaPad", "Yoga", "Legion", "LOQ");
         }
 
-        private static IEnumerable<SensorReading> ProbeLenovo(IPluginContext context)
+        private static IEnumerable<SensorReading> ProbeLenovo(IPluginContext context, bool diagnosticsMode)
         {
             var rows = new List<SensorReading>();
             var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -94,23 +112,30 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             rows.AddRange(ReadLenovoVendorPresence(context, details));
             rows.AddRange(ReadThermalThrottling(context, details));
             rows.AddRange(ReadSystemThermalState(context, details));
-            rows.AddRange(ReadStorageHealth(context, details));
-
-            var candidateClasses = DiscoverCandidateClasses(context).ToList();
-            details["Candidate WMI classes found"] = candidateClasses.Count == 0
-                ? "None"
-                : string.Join(", ", candidateClasses.Select(c => c.ScopePath + "\\" + c.ClassName).ToArray());
-            AddInterestingClassSchemas(context, candidateClasses, details);
-            AddInterestingClassInstanceSnapshots(context, candidateClasses, details);
-
-            foreach (var candidate in candidateClasses)
+            if (diagnosticsMode)
             {
-                if (IsBuiltInClass(candidate.ClassName))
-                {
-                    continue;
-                }
+                rows.AddRange(ReadStorageHealth(context, details));
 
-                rows.AddRange(ReadGenericSensorClass(context, candidate.ScopePath, candidate.ClassName));
+                var candidateClasses = DiscoverCandidateClasses(context).ToList();
+                details["Candidate WMI classes found"] = candidateClasses.Count == 0
+                    ? "None"
+                    : string.Join(", ", candidateClasses.Select(c => c.ScopePath + "\\" + c.ClassName).ToArray());
+                AddInterestingClassSchemas(context, candidateClasses, details);
+                AddInterestingClassInstanceSnapshots(context, candidateClasses, details);
+
+                foreach (var candidate in candidateClasses)
+                {
+                    if (IsBuiltInClass(candidate.ClassName))
+                    {
+                        continue;
+                    }
+
+                    rows.AddRange(ReadGenericSensorClass(context, candidate.ScopePath, candidate.ClassName));
+                }
+            }
+            else
+            {
+                details["Lenovo diagnostic discovery"] = "Skipped during live refresh to avoid repeated Lenovo/Vantage WMI provider polling. Run diagnostics for full Lenovo class discovery.";
             }
 
             if (rows.Count == 0)
