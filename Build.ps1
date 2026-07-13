@@ -269,6 +269,21 @@ if (Test-Path $plugInRoot) {
         throw "Plug-In build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
     }
         }
+
+        $helperSourceFolder = Join-Path $plugIn.FullName 'helper'
+        $helperSources = @()
+        if (Test-Path $helperSourceFolder) {
+            $helperSources = Get-ChildItem -Path $helperSourceFolder -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
+        }
+
+        if ($helperSources.Count -gt 0) {
+            $helperOutput = Join-Path $plugInTarget ($plugIn.Name + 'Helper.exe')
+            $helperAssemblyInfo = New-GeneratedAssemblyInfo -Title ("Sensor Readout " + $plugIn.Name + " Helper") -OutputName ($plugIn.Name + '.Helper.AssemblyInfo.cs')
+            & $csc /nologo /target:exe /platform:x64 /out:$helperOutput @(@($helperSources) + @($helperAssemblyInfo))
+            if ($LASTEXITCODE -ne 0) {
+                throw "Plug-In helper build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
+            }
+        }
     }
 }
 
@@ -293,7 +308,9 @@ function Assert-BinaryVersion {
 $sensorBinaries = @($OutputPath, $sdkOutput)
 $plugInOutputRoot = Join-Path $portable 'Plug-Ins'
 if (Test-Path -LiteralPath $plugInOutputRoot) {
-    $sensorBinaries += Get-ChildItem -LiteralPath $plugInOutputRoot -Filter '*PlugIn.dll' -Recurse -File | ForEach-Object { $_.FullName }
+    $sensorBinaries += Get-ChildItem -LiteralPath $plugInOutputRoot -Recurse -File |
+        Where-Object { $_.Name -like '*PlugIn.dll' -or $_.Name -like '*Helper.exe' } |
+        ForEach-Object { $_.FullName }
 }
 foreach ($binary in $sensorBinaries | Where-Object { Test-Path -LiteralPath $_ }) {
     Assert-BinaryVersion -Path $binary -ExpectedVersion $buildVersion

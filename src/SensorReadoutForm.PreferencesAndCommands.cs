@@ -186,11 +186,13 @@ public sealed partial class SensorReadoutForm : Form
         var previousMemoryUnitMode = activeMemoryUnitMode;
         var previousStorageUnitMode = activeStorageUnitMode;
         var previousTransferUnitMode = activeTransferUnitMode;
+        var previousPlugInSignature = GetOemProviderRowsCacheSignature(settings);
         ApplyPreferencesFromDialog(dialog, false, false);
         var unitModeChanged =
             !string.Equals(previousMemoryUnitMode, settings.MemoryUnitMode, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(previousStorageUnitMode, settings.StorageUnitMode, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(previousTransferUnitMode, settings.TransferUnitMode, StringComparison.OrdinalIgnoreCase);
+        var plugInsChanged = !string.Equals(previousPlugInSignature, GetOemProviderRowsCacheSignature(settings), StringComparison.Ordinal);
         autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
         refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
         trayStatusMenuItem.Checked = settings.TrayStatusEnabled;
@@ -210,11 +212,17 @@ public sealed partial class SensorReadoutForm : Form
             lastReadingTreeShapeSignature = "";
             RefreshSensors(true, true, "unit preferences");
         }
+        else if (plugInsChanged)
+        {
+            lastReadingTreeSignature = "";
+            lastReadingTreeShapeSignature = "";
+            RefreshSensors(false, false, "plug-in preferences");
+        }
         else
         {
             UpdateTrayStatus();
         }
-        if (!unitModeChanged && !string.Equals(previousReadingTreeExpansionMode, settings.ReadingTreeExpansionMode, StringComparison.OrdinalIgnoreCase))
+        if (!unitModeChanged && !plugInsChanged && !string.Equals(previousReadingTreeExpansionMode, settings.ReadingTreeExpansionMode, StringComparison.OrdinalIgnoreCase))
         {
             UpdateReadingList();
         }
@@ -273,6 +281,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
         settings.PlugInsEnabled = dialog.PlugInsEnabled;
         plugInManager = null;
+        ClearOemProviderRowsCache();
         SaveSettings(settings);
 
         if (updateStartupShortcut)
@@ -333,6 +342,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         plugInManager = null;
+        ClearOemProviderRowsCache();
         statusLabel.Text = L("status.Plug-In imported. Enable it from Options, Preferences, Plug-Ins.", "Plug-In imported. Enable it from Options, Preferences, Plug-Ins.");
         RefreshSensors(false, false, "plug-in import");
     }

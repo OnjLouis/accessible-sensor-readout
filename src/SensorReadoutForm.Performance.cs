@@ -26,6 +26,9 @@ public sealed partial class SensorReadoutForm : Form
     private static readonly object gpuTotalMemoryCacheLock = new object();
     private static DateTime cachedGpuTotalMemoryUtc = DateTime.MinValue;
     private static double cachedGpuTotalMemoryBytes = -1;
+    private static readonly object gpuStatusRowsCacheLock = new object();
+    private static DateTime cachedGpuStatusRowsUtc = DateTime.MinValue;
+    private static List<SensorRow> cachedGpuStatusRows = new List<SensorRow>();
     private static readonly object gpuEngineCounterCacheLock = new object();
     private static readonly Dictionary<string, PerformanceCounter> cachedGpuEngineCounters = new Dictionary<string, PerformanceCounter>(StringComparer.OrdinalIgnoreCase);
     private static readonly object pagingFileCacheLock = new object();
@@ -40,11 +43,11 @@ public sealed partial class SensorReadoutForm : Form
         public readonly Dictionary<string, string> Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    private IEnumerable<SensorRow> GetSystemPerformanceRows()
+    private IEnumerable<SensorRow> GetSystemPerformanceRows(bool backgroundRefresh)
     {
         var rows = new List<SensorRow>();
         var fastRows = new List<SensorRow>();
-        if (TryAddFastCpuUsageRow(fastRows) & TryAddFastMemoryRows(fastRows))
+        if (TryAddFastCpuUsageRow(fastRows) & TryAddFastMemoryRows(fastRows, backgroundRefresh))
         {
             return fastRows;
         }
@@ -53,7 +56,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor"))
             {
-                var values = searcher.Get().Cast<ManagementObject>()
+                var values = ExecuteWmiQuery(searcher, "WMI").Cast<ManagementObject>()
                     .Select(cpu => Convert.ToDouble(cpu["LoadPercentage"] ?? 0))
                     .ToList();
                 if (values.Count > 0)
@@ -78,7 +81,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem"))
             {
-                foreach (ManagementObject os in searcher.Get())
+                foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var totalKb = Convert.ToDouble(os["TotalVisibleMemorySize"] ?? 0);
                     var freeKb = Convert.ToDouble(os["FreePhysicalMemory"] ?? 0);
@@ -95,8 +98,8 @@ public sealed partial class SensorReadoutForm : Form
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
                     rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
-                    AddPhysicalAndVirtualMemoryRows(rows, totalKb * 1024.0, usedKb * 1024.0, freeKb * 1024.0);
-                    AddPagingFileRows(rows);
+                    AddPhysicalAndVirtualMemoryRows(rows, totalKb * 1024.0, usedKb * 1024.0, freeKb * 1024.0, backgroundRefresh);
+                    AddPagingFileRows(rows, backgroundRefresh);
                     break;
                 }
             }
@@ -108,10 +111,10 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static IEnumerable<SensorRow> GetGpuPerformanceRows()
+    private static IEnumerable<SensorRow> GetGpuPerformanceRows(bool backgroundRefresh)
     {
         var rows = new List<SensorRow>();
-        AddGpuMemoryStatusRows(rows);
+        AddGpuMemoryStatusRows(rows, backgroundRefresh);
         AddGpuMemoryRows(rows);
         AddGpuEngineRows(rows);
         return rows;
@@ -119,16 +122,32 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddGpuMemoryStatusRows(List<SensorRow> rows)
     {
+        AddGpuMemoryStatusRows(rows, false);
+    }
+
+    private static void AddGpuMemoryStatusRows(List<SensorRow> rows, bool backgroundRefresh)
+    {
         if (rows == null)
         {
             return;
         }
 
+        var minimumAge = backgroundRefresh ? BackgroundGpuStatusRowsMinimumInterval : ForegroundGpuStatusRowsMinimumInterval;
+        lock (gpuStatusRowsCacheLock)
+        {
+            if (cachedGpuStatusRowsUtc != DateTime.MinValue && DateTime.UtcNow - cachedGpuStatusRowsUtc < minimumAge)
+            {
+                rows.AddRange(cachedGpuStatusRows.Select(CloneSensorRow));
+                return;
+            }
+        }
+
+        var statusRows = new List<SensorRow>();
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM, ConfigManagerErrorCode, Status FROM Win32_VideoController"))
             {
-                foreach (ManagementObject gpu in searcher.Get())
+                foreach (ManagementObject gpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = FirstNonEmpty(Convert.ToString(gpu["Name"]), "Display adapter");
                     var problem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
@@ -146,7 +165,7 @@ public sealed partial class SensorReadoutForm : Form
                         { "Note", "Windows reports a display adapter problem, so GPU memory totals and free memory may be unreliable until the driver/device issue is resolved." }
                     };
 
-                    rows.Add(new SensorRow
+                    statusRows.Add(new SensorRow
                     {
                         Type = "Performance",
                         Hardware = "GPU memory",
@@ -162,6 +181,14 @@ public sealed partial class SensorReadoutForm : Form
         catch
         {
         }
+
+        lock (gpuStatusRowsCacheLock)
+        {
+            cachedGpuStatusRows = statusRows.Select(CloneSensorRow).ToList();
+            cachedGpuStatusRowsUtc = DateTime.UtcNow;
+        }
+
+        rows.AddRange(statusRows);
     }
 
     private static void AddGpuMemoryRows(List<SensorRow> rows)
@@ -338,7 +365,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, AdapterRAM FROM Win32_VideoController"))
             {
-                foreach (ManagementObject gpu in searcher.Get())
+                foreach (ManagementObject gpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     double bytes;
                     if (TryConvertToDouble(GetGpuAdapterMemoryBytes(Convert.ToString(gpu["Name"]), gpu["AdapterRAM"]), out bytes) && bytes > 0)
@@ -672,7 +699,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
             {
-                foreach (ManagementObject cpu in searcher.Get())
+                foreach (ManagementObject cpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddCpuDetailRow(rows, "CPU name", Convert.ToString(cpu["Name"]), cpuDetails);
                     AddCpuDetailRow(rows, "CPU vendor", Convert.ToString(cpu["Manufacturer"]), cpuDetails);
@@ -709,7 +736,7 @@ public sealed partial class SensorReadoutForm : Form
             var modules = new List<MemoryModuleSummary>();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
             {
-                foreach (ManagementObject module in searcher.Get())
+                foreach (ManagementObject module in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     modules.Add(new MemoryModuleSummary
                     {
@@ -741,7 +768,7 @@ public sealed partial class SensorReadoutForm : Form
             var totalSlots = 0;
             using (var searcher = new ManagementObjectSearcher("SELECT MemoryDevices FROM Win32_PhysicalMemoryArray"))
             {
-                foreach (ManagementObject array in searcher.Get())
+                foreach (ManagementObject array in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     int slots;
                     if (int.TryParse(Convert.ToString(GetWmiPropertyValue(array, "MemoryDevices")), out slots) && slots > 0)
@@ -833,7 +860,7 @@ public sealed partial class SensorReadoutForm : Form
             var cacheSizes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             using (var searcher = new ManagementObjectSearcher("SELECT Level, Purpose, InstalledSize, MaxCacheSize FROM Win32_CacheMemory"))
             {
-                foreach (ManagementObject cache in searcher.Get())
+                foreach (ManagementObject cache in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var level = CpuCacheLevelName(cache["Level"], cache["Purpose"]);
                     if (string.IsNullOrWhiteSpace(level))
@@ -1080,6 +1107,11 @@ public sealed partial class SensorReadoutForm : Form
 
     private static bool TryAddFastMemoryRows(List<SensorRow> rows)
     {
+        return TryAddFastMemoryRows(rows, false);
+    }
+
+    private static bool TryAddFastMemoryRows(List<SensorRow> rows, bool backgroundRefresh)
+    {
         try
         {
             var status = NativeMethods.MemoryStatusEx.Create();
@@ -1098,8 +1130,8 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedBytes), Source = "Windows" });
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeBytes) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows" });
-            AddPhysicalAndVirtualMemoryRows(rows, totalBytes, usedBytes, freeBytes);
-            AddPagingFileRows(rows);
+            AddPhysicalAndVirtualMemoryRows(rows, totalBytes, usedBytes, freeBytes, backgroundRefresh);
+            AddPagingFileRows(rows, backgroundRefresh);
             return true;
         }
         catch
@@ -1110,7 +1142,12 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddPagingFileRows(List<SensorRow> rows)
     {
-        var summary = GetPagingFileSummary();
+        AddPagingFileRows(rows, false);
+    }
+
+    private static void AddPagingFileRows(List<SensorRow> rows, bool backgroundRefresh)
+    {
+        var summary = GetPagingFileSummary(backgroundRefresh);
         if (summary == null || summary.TotalBytes <= 0)
         {
             return;
@@ -1158,12 +1195,17 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddPhysicalAndVirtualMemoryRows(List<SensorRow> rows, double physicalTotalBytes, double physicalUsedBytes, double physicalFreeBytes)
     {
+        AddPhysicalAndVirtualMemoryRows(rows, physicalTotalBytes, physicalUsedBytes, physicalFreeBytes, false);
+    }
+
+    private static void AddPhysicalAndVirtualMemoryRows(List<SensorRow> rows, double physicalTotalBytes, double physicalUsedBytes, double physicalFreeBytes, bool backgroundRefresh)
+    {
         if (rows == null || physicalTotalBytes <= 0)
         {
             return;
         }
 
-        var paging = GetPagingFileSummary();
+        var paging = GetPagingFileSummary(backgroundRefresh);
         if (paging == null || paging.TotalBytes <= 0)
         {
             return;
@@ -1226,9 +1268,15 @@ public sealed partial class SensorReadoutForm : Form
 
     private static PagingFileSummary GetPagingFileSummary()
     {
+        return GetPagingFileSummary(false);
+    }
+
+    private static PagingFileSummary GetPagingFileSummary(bool backgroundRefresh)
+    {
+        var minimumAge = backgroundRefresh ? BackgroundPagingFileMinimumInterval : ForegroundPagingFileMinimumInterval;
         lock (pagingFileCacheLock)
         {
-            if (cachedPagingFileSummary != null && (DateTime.UtcNow - cachedPagingFileRowsUtc).TotalSeconds < 30)
+            if (cachedPagingFileSummary != null && DateTime.UtcNow - cachedPagingFileRowsUtc < minimumAge)
             {
                 return cachedPagingFileSummary;
             }
@@ -1253,7 +1301,7 @@ public sealed partial class SensorReadoutForm : Form
                 double usedBytes = 0;
                 double peakBytes = 0;
                 int index = 0;
-                foreach (ManagementObject pageFile in searcher.Get())
+                foreach (ManagementObject pageFile in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     index++;
                     var name = CleanWmiText(Convert.ToString(pageFile["Name"]));

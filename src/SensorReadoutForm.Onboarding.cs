@@ -328,7 +328,7 @@ public sealed partial class SensorReadoutForm : Form
             L("tip.Support report", "Use Help > Prepare support report to create a diagnostic ZIP with the report and summary files needed for troubleshooting."),
             L("tip.Anonymized reports", "Use File > Save anonymized report before sharing a report publicly; private identifiers such as IP and MAC addresses are masked."),
             L("tip.Report comparison", "Use File > Compare reports to compare two reports from before and after a hardware, driver, or settings change."),
-            L("tip.Plug-ins", "Laptop-specific plug-ins can expose extra fan and temperature data on supported Dell, Lenovo, MSI, Asus, HP, OMEN, Victus, and Framework systems."),
+            L("tip.Plug-ins", "Laptop-specific plug-ins can expose extra fan and temperature data on supported Dell, Huawei, Lenovo, MSI, Asus, HP, OMEN, Victus, and Framework systems."),
             L("tip.Tasks category", "The Tasks category shows compact highest-CPU, highest-memory, highest-GPU, and highest-GPU-memory process summaries without turning Sensor Readout into a full task manager."),
             L("tip.Spoken hotkeys category", "The Spoken Hotkeys category gives visual users one place to review what each configured spoken hotkey currently says."),
             L("tip.Category order", "Use Preferences > Categories, or Delete and Ctrl+Up/Ctrl+Down from the main category list, to hide or reorder whole categories."),

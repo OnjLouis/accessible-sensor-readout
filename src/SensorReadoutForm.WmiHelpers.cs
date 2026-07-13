@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -8,12 +8,155 @@ using System.Net.NetworkInformation;
 using System.IO.MemoryMappedFiles;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private static void ConfigureWmiTelemetry(bool enabled, Action<string> logger)
+    {
+        lock (WmiTelemetryLock)
+        {
+            wmiTelemetryEnabled = enabled && logger != null;
+            wmiTelemetryLogger = wmiTelemetryEnabled ? logger : null;
+        }
+    }
+
+    private static ManagementObjectCollection ExecuteWmiQuery(ManagementObjectSearcher searcher, string context, [CallerMemberName] string caller = "")
+    {
+        if (searcher == null)
+        {
+            return null;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        var effectiveContext = string.IsNullOrWhiteSpace(context) || string.Equals(context, "WMI", StringComparison.OrdinalIgnoreCase)
+            ? caller
+            : context;
+        var scope = GetWmiScopeText(searcher);
+        var query = GetWmiQueryText(searcher);
+        try
+        {
+            var result = searcher.Get();
+            stopwatch.Stop();
+            LogWmiTelemetry(effectiveContext, scope, query, stopwatch.ElapsedMilliseconds, null);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            LogWmiTelemetry(effectiveContext, scope, query, stopwatch.ElapsedMilliseconds, ex);
+            throw;
+        }
+    }
+
+    private static void LogWmiTelemetry(string context, string scope, string query, long elapsedMs, Exception failure)
+    {
+        Action<string> logger;
+        lock (WmiTelemetryLock)
+        {
+            if (!wmiTelemetryEnabled || wmiTelemetryLogger == null)
+            {
+                return;
+            }
+
+            logger = wmiTelemetryLogger;
+        }
+
+        var message = "WMI query " + (failure == null ? "completed" : "failed") +
+            ": context=" + SanitizeWmiLogPart(context) +
+            "; scope=" + SanitizeWmiLogPart(scope) +
+            "; query=" + SanitizeWmiLogPart(query) +
+            "; elapsed=" + elapsedMs + " ms";
+        if (failure != null)
+        {
+            message += "; error=" + failure.GetType().Name + ": " + SanitizeWmiLogPart(failure.Message);
+        }
+
+        logger(message);
+    }
+
+    private static string GetWmiScopeText(ManagementObjectSearcher searcher)
+    {
+        try
+        {
+            return searcher.Scope == null || searcher.Scope.Path == null
+                ? ""
+                : Convert.ToString(searcher.Scope.Path);
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string GetWmiQueryText(ManagementObjectSearcher searcher)
+    {
+        try
+        {
+            return searcher.Query == null ? "" : searcher.Query.QueryString;
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static string SanitizeWmiLogPart(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        var text = Regex.Replace(value.Trim(), "\\s+", " ");
+        return text.Length <= 500 ? text : text.Substring(0, 500) + "...";
+    }
+
+    private void LogWmiProviderProcessSnapshot()
+    {
+        if (!ShouldLog("Debug"))
+        {
+            return;
+        }
+
+        try
+        {
+            var providers = Process.GetProcessesByName("WmiPrvSE");
+            if (providers == null || providers.Length == 0)
+            {
+                LogMessage("Debug", "WMI provider processes: none running.");
+                return;
+            }
+
+            var snapshots = providers.Select(p =>
+            {
+                long privateBytes = 0;
+                try
+                {
+                    privateBytes = p.PrivateMemorySize64;
+                }
+                catch
+                {
+                }
+
+                return new { p.Id, PrivateBytes = privateBytes };
+            }).ToList();
+            var largest = snapshots.OrderByDescending(p => p.PrivateBytes).First();
+            var totalBytes = snapshots.Sum(p => p.PrivateBytes);
+            LogMessage("Debug", "WMI provider processes: count=" + snapshots.Count +
+                "; largestPid=" + largest.Id +
+                "; largestPrivate=" + FormatBytes(largest.PrivateBytes) +
+                "; totalPrivate=" + FormatBytes(totalBytes) + ".");
+        }
+        catch (Exception ex)
+        {
+            LogMessage("Debug", "WMI provider process snapshot failed: " + ex.GetType().Name + ": " + ex.Message);
+        }
+    }
+
     private static string CleanWmiText(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "" : value.Trim();

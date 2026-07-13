@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -43,7 +43,7 @@ public sealed partial class SensorReadoutForm
             var resources = GetAllocatedResourcesByDeviceId();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var deviceId = CleanWmiText(GetWmiPropertyText(device, "PNPDeviceID"));
                     var name = CleanWmiText(GetWmiPropertyText(device, "Name"));
@@ -105,7 +105,7 @@ public sealed partial class SensorReadoutForm
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPSignedDriver"))
             {
-                foreach (ManagementObject driver in searcher.Get())
+                foreach (ManagementObject driver in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var deviceId = CleanWmiText(GetWmiPropertyText(driver, "DeviceID"));
                     if (string.IsNullOrWhiteSpace(deviceId) || drivers.ContainsKey(deviceId))
@@ -155,7 +155,7 @@ public sealed partial class SensorReadoutForm
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Antecedent, Dependent FROM Win32_PNPAllocatedResource"))
             {
-                foreach (ManagementObject resource in searcher.Get())
+                foreach (ManagementObject resource in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var deviceId = DeviceIdFromAllocatedResourcePath(Convert.ToString(GetWmiPropertyValue(resource, "Dependent")));
                     var antecedent = Convert.ToString(GetWmiPropertyValue(resource, "Antecedent"));

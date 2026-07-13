@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -409,7 +409,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem"))
                 {
-                    foreach (ManagementObject system in searcher.Get())
+                    foreach (ManagementObject system in ExecuteWmiQuery(searcher, "WMI"))
                     {
                         machine.Manufacturer = Convert.ToString(system["Manufacturer"]) ?? "";
                         machine.Model = Convert.ToString(system["Model"]) ?? "";

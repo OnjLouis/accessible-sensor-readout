@@ -706,7 +706,7 @@ public static partial class Program
 
     private static bool IsBundledPlugInFolderName(string folderName)
     {
-        foreach (var known in new[] { "AsusRog", "DellLatitude", "Framework", "HP", "LenovoThinkPad", "MsiLaptop" })
+        foreach (var known in new[] { "AsusRog", "DellLatitude", "Framework", "HP", "HuaweiMateBook", "LenovoThinkPad", "MsiLaptop" })
         {
             if (string.Equals(folderName, known, StringComparison.OrdinalIgnoreCase))
             {

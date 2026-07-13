@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Management;
@@ -15,7 +15,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Manufacturer, ProductName, DeviceID, PNPDeviceID, Status FROM Win32_SoundDevice"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = FirstNonEmpty(Convert.ToString(device["Name"]), Convert.ToString(device["ProductName"]), "Audio device");
                     var manufacturer = Convert.ToString(device["Manufacturer"]);

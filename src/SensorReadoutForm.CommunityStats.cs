@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -395,7 +395,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture FROM Win32_OperatingSystem"))
             {
-                foreach (ManagementObject os in searcher.Get())
+                foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     info.Caption = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["Caption"])));
                     info.Version = SafeCommunityStatsValue(CleanWmiText(Convert.ToString(os["Version"])));

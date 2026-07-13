@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Management;
 
@@ -64,7 +64,7 @@ public sealed partial class SensorReadoutForm
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_ComputerSystem"))
-            using (var results = searcher.Get())
+            using (var results = ExecuteWmiQuery(searcher, "WMI"))
             {
                 foreach (ManagementObject ignored in results)
                 {

@@ -8,18 +8,34 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.10.7";
+    public const string AppVersion = "4.10.8";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
+    private const long MaxDebugLogBytes = 16777216;
     public const int MaxTrayStatusReadings = 8;
     private const int RefreshIntervalMs = 5000;
     private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
     private static readonly TimeSpan HiddenAutoRefreshMinimumInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ForegroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan BackgroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan BackgroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ForegroundProcessInventoryMinimumInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan BackgroundProcessInventoryMinimumInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan BackgroundProcessInventoryMinimumInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan ForegroundOemProviderRowsMinimumInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan BackgroundOemProviderRowsMinimumInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan WmiBatteryInfoMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan WindowsPowerRowsMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan DeviceBatteryRowsMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan NetworkWmiDetailsMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ForegroundGpuStatusRowsMinimumInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan BackgroundGpuStatusRowsMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ForegroundPagingFileMinimumInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan BackgroundPagingFileMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ForegroundProcessMetadataMinimumInterval = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan BackgroundProcessMetadataMinimumInterval = TimeSpan.FromMinutes(15);
+    private static readonly object WmiTelemetryLock = new object();
+    private static Action<string> wmiTelemetryLogger;
+    private static bool wmiTelemetryEnabled;
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
     private const int SpokenHotKeyBaseId = 2100;
@@ -148,6 +164,10 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object slowRowsLock = new object();
     private List<SensorRow> cachedSlowRows = new List<SensorRow>();
     private DateTime cachedSlowRowsUtc = DateTime.MinValue;
+    private readonly object oemProviderRowsLock = new object();
+    private List<SensorRow> cachedOemProviderRows = new List<SensorRow>();
+    private DateTime cachedOemProviderRowsUtc = DateTime.MinValue;
+    private string cachedOemProviderRowsSignature = "";
     private readonly object lhmRowsLock = new object();
     private List<SensorRow> cachedLhmRows = new List<SensorRow>();
     private DateTime cachedLhmRowsUtc = DateTime.MinValue;
@@ -690,6 +710,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             ApplyTimerSettings();
             RepairRunAtStartupRegistration();
+            RefreshInstalledAppRegistration();
             CheckPrerequisitesOnFirstRun();
             LogMessage("Normal", "Sensor Readout " + AppVersion + " started. Log file: " + GetLogFilePath());
             RefreshSensors();

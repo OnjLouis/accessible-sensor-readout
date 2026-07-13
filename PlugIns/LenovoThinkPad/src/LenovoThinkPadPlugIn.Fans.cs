@@ -414,5 +414,36 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             return rows;
         }
 
+        private static void AddLenovoFanTelemetryStatus(List<SensorReading> rows, Dictionary<string, string> summaryDetails)
+        {
+            if (rows.Any(row => string.Equals(row.Type, "Fan", StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Fan speed source", "No Lenovo or Windows WMI fan-speed source was exposed on this model." },
+                { "Checked WMI classes", "LENOVO_FAN_METHOD, LENOVO_FAN_TEST_DATA, Win32_Fan, ACPI fan PnP devices" },
+                { "Safety note", "Sensor Readout does not call undocumented Lenovo opcode or embedded-controller commands unless a stable read-only interface is identified." }
+            };
+
+            foreach (var detail in summaryDetails)
+            {
+                details["Probe " + detail.Key] = detail.Value;
+            }
+
+            rows.Add(new SensorReading
+            {
+                Type = "Performance",
+                Hardware = "Thermal",
+                Name = "Lenovo fan speed",
+                Identifier = StableIdentifier("lenovo/fan/telemetry-status"),
+                DisplayValue = "Not exposed by this model",
+                Source = "Lenovo Laptop Support Plug-In",
+                Details = details
+            });
+        }
+
     }
 }

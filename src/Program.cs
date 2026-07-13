@@ -85,6 +85,7 @@ public static partial class Program
         var runSelfTest = TryGetOptionValue(args, "--self-test", out selfTestPath);
         string communityStatsPath;
         var saveCommunityStatsPayload = TryGetOptionValue(args, "--community-stats-json", out communityStatsPath);
+        var runUninstall = HasArg(args, "--uninstall");
 
         if (HasArg(args, "--help") || HasArg(args, "-?") || HasArg(args, "/?"))
         {
@@ -96,6 +97,12 @@ public static partial class Program
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+        if (runUninstall)
+        {
+            SensorReadoutForm.RunUninstallFromCommandLine();
+            return;
+        }
+
         if (saveReport)
         {
             SaveCommandLineReport(reportPath, reportHtml);
@@ -295,6 +302,7 @@ public static partial class Program
             "DellLatitude",
             "Framework",
             "HP",
+            "HuaweiMateBook",
             "LenovoThinkPad",
             "MsiLaptop"
         };
@@ -669,6 +677,7 @@ public static partial class Program
                !HasOption(startupArgs, "--run-diagnostics") &&
                !HasOption(startupArgs, "--self-test") &&
                !HasOption(startupArgs, "--community-stats-json") &&
+               !HasArg(startupArgs, "--uninstall") &&
                !HasArg(startupArgs, "--apply-update") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
@@ -1132,6 +1141,8 @@ public static partial class Program
             "Write the allow-listed anonymous community stats payload and exit. This does not upload it." + Environment.NewLine + Environment.NewLine +
             "--apply-update --update-zip path --update-target folder --update-exe path" + Environment.NewLine +
             "Install a local Sensor Readout update ZIP through the same updater used for online updates." + Environment.NewLine + Environment.NewLine +
+            "--uninstall" + Environment.NewLine +
+            "Open the installed-copy uninstall flow. This is used by Windows Apps and Features when Sensor Readout is installed to this PC." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

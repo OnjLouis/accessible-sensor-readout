@@ -349,19 +349,20 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows, bool backgroundRefresh, bool diagnosticsMode)
     {
+        ConfigureWmiTelemetry(ShouldLog("Debug"), message => LogMessage("Debug", message));
         var totalStopwatch = Stopwatch.StartNew();
         var timings = new List<string>();
         var rows = new List<SensorRow>();
 
         AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 20000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
-        AddTimedRows(rows, "OemProviders", () => GetOemProviderRows(diagnosticsMode), timings);
-        AddTimedRows(rows, "Battery", GetBatteryRows, timings);
+        AddTimedRows(rows, "OemProviders", () => GetOemProviderRows(diagnosticsMode, backgroundRefresh), timings);
+        AddTimedRows(rows, "Battery", () => GetBatteryRows(diagnosticsMode), timings);
         AddTimedRows(rows, "SystemUptime", GetSystemUptimeRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
-        AddTimedRows(rows, "SystemPerformance", GetSystemPerformanceRows, timings);
-        AddTimedRows(rows, "GpuPerformance", GetGpuPerformanceRows, timings);
+        AddTimedRows(rows, "SystemPerformance", () => GetSystemPerformanceRows(backgroundRefresh), timings);
+        AddTimedRows(rows, "GpuPerformance", () => GetGpuPerformanceRows(backgroundRefresh), timings);
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
@@ -384,6 +385,7 @@ public sealed partial class SensorReadoutForm : Form
             .ToList();
         result.AddRange(spokenHotKeyRows);
         totalStopwatch.Stop();
+        LogWmiProviderProcessSnapshot();
         if (totalStopwatch.ElapsedMilliseconds >= 1000)
         {
             LogMessage("Debug", "CollectSensorRows took " + totalStopwatch.ElapsedMilliseconds + " ms and returned " + result.Count + " rows. Phases: " + string.Join("; ", timings.ToArray()) + ".");

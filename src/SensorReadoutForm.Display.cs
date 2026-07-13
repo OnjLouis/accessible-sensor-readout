@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -21,7 +21,7 @@ public sealed partial class SensorReadoutForm : Form
             var drivers = GetSignedDriverInfoByDeviceId();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
             {
-                foreach (ManagementObject gpu in searcher.Get())
+                foreach (ManagementObject gpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = FirstNonEmpty(Convert.ToString(gpu["Name"]), "Display adapter");
                     var pnpDeviceId = Convert.ToString(gpu["PNPDeviceID"]);
@@ -90,7 +90,7 @@ public sealed partial class SensorReadoutForm : Form
             var monitorBasicParams = GetMonitorBasicDisplayParameters();
             using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT InstanceName, ManufacturerName, ProductCodeID, SerialNumberID, UserFriendlyName, WeekOfManufacture, YearOfManufacture FROM WmiMonitorID"))
             {
-                foreach (ManagementObject monitor in searcher.Get())
+                foreach (ManagementObject monitor in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var friendly = DecodeWmiMonitorString(monitor["UserFriendlyName"]);
                     var manufacturer = DecodeWmiMonitorString(monitor["ManufacturerName"]);
@@ -142,7 +142,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM WmiMonitorBasicDisplayParams"))
             {
-                foreach (ManagementObject monitor in searcher.Get())
+                foreach (ManagementObject monitor in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var instance = Convert.ToString(monitor["InstanceName"]) ?? "";
                     if (string.IsNullOrWhiteSpace(instance))

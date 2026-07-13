@@ -863,7 +863,7 @@ public sealed partial class SensorReadoutForm : Form
             var path = GetLogFilePath();
             EnsureDirectoryForFile(path);
             MigrateProgramDataFiles();
-            RotateLogIfNeeded(path);
+            RotateLogIfNeeded(path, ShouldLog("Debug") ? MaxDebugLogBytes : MaxLogBytes);
             System.IO.File.AppendAllText(path, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + NormalizeLoggingLevel(level) + "] " + message + Environment.NewLine);
         }
         catch
@@ -904,7 +904,7 @@ public sealed partial class SensorReadoutForm : Form
         return 0;
     }
 
-    private static void RotateLogIfNeeded(string path)
+    private static void RotateLogIfNeeded(string path, long maxBytes)
     {
         try
         {
@@ -914,7 +914,7 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             var info = new System.IO.FileInfo(path);
-            if (info.Length < MaxLogBytes)
+            if (info.Length < maxBytes)
             {
                 return;
             }

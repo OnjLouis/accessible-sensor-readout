@@ -121,7 +121,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        var freshRows = BuildRunningProcessRows().ToList();
+        var freshRows = BuildRunningProcessRows(backgroundRefresh).ToList();
         lock (taskRowsCacheLock)
         {
             cachedProcessInventoryRows = freshRows.ToList();
@@ -376,7 +376,7 @@ public sealed partial class SensorReadoutForm : Form
         return details;
     }
 
-    private IEnumerable<SensorRow> BuildRunningProcessRows()
+    private IEnumerable<SensorRow> BuildRunningProcessRows(bool backgroundRefresh)
     {
         var processUsages = CaptureProcessInventoryUsages();
         var gpuUsages = GetGpuProcessUsages(processUsages);
@@ -386,7 +386,7 @@ public sealed partial class SensorReadoutForm : Form
         var gpuUsageById = gpuUsages
             .GroupBy(p => p.ProcessId)
             .ToDictionary(g => g.Key, g => g.First());
-        foreach (var target in EnumerateProcessWatchTargets())
+        foreach (var target in EnumerateProcessWatchTargets(backgroundRefresh))
         {
             TaskProcessUsage processUsage;
             processUsageById.TryGetValue(target.ProcessId, out processUsage);

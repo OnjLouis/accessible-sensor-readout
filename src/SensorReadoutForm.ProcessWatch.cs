@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -85,6 +85,9 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime activeProcessWatchPreviousUtc = DateTime.MinValue;
     private string processWatchSearchPrefix = "";
     private DateTime processWatchSearchLastKey = DateTime.MinValue;
+    private static readonly object processWatchMetadataCacheLock = new object();
+    private static Dictionary<int, ProcessWatchMetadata> cachedProcessWatchMetadata = new Dictionary<int, ProcessWatchMetadata>();
+    private static DateTime cachedProcessWatchMetadataUtc = DateTime.MinValue;
 
     private void ToggleProcessWatchCommand()
     {
@@ -280,7 +283,7 @@ public sealed partial class SensorReadoutForm : Form
                 var selectedPid = SelectedProcessWatchTarget(processList) == null ? -1 : SelectedProcessWatchTarget(processList).ProcessId;
                 processList.BeginUpdate();
                 processList.Items.Clear();
-                foreach (var target in EnumerateProcessWatchTargets())
+                foreach (var target in EnumerateProcessWatchTargets(false, true))
                 {
                     var index = processList.Items.Add(target);
                     if (target.ProcessId == selectedPid)
@@ -793,13 +796,23 @@ public sealed partial class SensorReadoutForm : Form
             return null;
         }
 
-        return EnumerateProcessWatchTargets().FirstOrDefault(t => t.ProcessId == processId);
+        return EnumerateProcessWatchTargets(false, true).FirstOrDefault(t => t.ProcessId == processId);
     }
 
     private static IEnumerable<ProcessWatchTarget> EnumerateProcessWatchTargets()
     {
+        return EnumerateProcessWatchTargets(false);
+    }
+
+    private static IEnumerable<ProcessWatchTarget> EnumerateProcessWatchTargets(bool backgroundRefresh)
+    {
+        return EnumerateProcessWatchTargets(backgroundRefresh, false);
+    }
+
+    private static IEnumerable<ProcessWatchTarget> EnumerateProcessWatchTargets(bool backgroundRefresh, bool forceMetadataRefresh)
+    {
         var targets = new List<ProcessWatchTarget>();
-        var processInfo = LoadProcessWatchMetadata();
+        var processInfo = LoadProcessWatchMetadata(backgroundRefresh, forceMetadataRefresh);
         foreach (var process in Process.GetProcesses())
         {
             using (process)
@@ -842,11 +855,25 @@ public sealed partial class SensorReadoutForm : Form
 
     private static Dictionary<int, ProcessWatchMetadata> LoadProcessWatchMetadata()
     {
+        return LoadProcessWatchMetadata(false, false);
+    }
+
+    private static Dictionary<int, ProcessWatchMetadata> LoadProcessWatchMetadata(bool backgroundRefresh, bool forceRefresh)
+    {
+        var minimumAge = backgroundRefresh ? BackgroundProcessMetadataMinimumInterval : ForegroundProcessMetadataMinimumInterval;
+        lock (processWatchMetadataCacheLock)
+        {
+            if (!forceRefresh && cachedProcessWatchMetadata.Count > 0 && DateTime.UtcNow - cachedProcessWatchMetadataUtc < minimumAge)
+            {
+                return CloneProcessWatchMetadata(cachedProcessWatchMetadata);
+            }
+        }
+
         var result = new Dictionary<int, ProcessWatchMetadata>();
         try
         {
             using (var searcher = new ManagementObjectSearcher("SELECT ProcessId, ParentProcessId, Name, CommandLine FROM Win32_Process"))
-            using (var rows = searcher.Get())
+            using (var rows = ExecuteWmiQuery(searcher, "WMI"))
             {
                 foreach (ManagementObject row in rows)
                 {
@@ -873,7 +900,27 @@ public sealed partial class SensorReadoutForm : Form
         {
         }
 
+        lock (processWatchMetadataCacheLock)
+        {
+            cachedProcessWatchMetadata = CloneProcessWatchMetadata(result);
+            cachedProcessWatchMetadataUtc = DateTime.UtcNow;
+        }
+
         return result;
+    }
+
+    private static Dictionary<int, ProcessWatchMetadata> CloneProcessWatchMetadata(Dictionary<int, ProcessWatchMetadata> source)
+    {
+        return (source ?? new Dictionary<int, ProcessWatchMetadata>())
+            .ToDictionary(
+                pair => pair.Key,
+                pair => new ProcessWatchMetadata
+                {
+                    ProcessId = pair.Value == null ? pair.Key : pair.Value.ProcessId,
+                    ParentProcessId = pair.Value == null ? 0 : pair.Value.ParentProcessId,
+                    Name = pair.Value == null ? "" : pair.Value.Name,
+                    CommandLine = pair.Value == null ? "" : pair.Value.CommandLine
+                });
     }
 
     private static string ProcessWatchParentName(int parentProcessId, Dictionary<int, ProcessWatchMetadata> metadata)

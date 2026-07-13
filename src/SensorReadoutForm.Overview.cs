@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -24,7 +24,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber, OSArchitecture, InstallDate, LastBootUpTime FROM Win32_OperatingSystem"))
             {
-                foreach (ManagementObject os in searcher.Get())
+                foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddOverviewTextRow(rows, "Windows edition", CleanWmiText(Convert.ToString(os["Caption"])), "Windows WMI", windowsDetails);
                     AddOverviewTextRow(rows, "Windows version", CleanWmiText(Convert.ToString(os["Version"])), "Windows WMI", windowsDetails);
@@ -55,7 +55,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Product, Version FROM Win32_BaseBoard"))
             {
-                foreach (ManagementObject board in searcher.Get())
+                foreach (ManagementObject board in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     baseboardManufacturer = CleanWmiText(Convert.ToString(board["Manufacturer"]));
                     baseboardProduct = CleanWmiText(Convert.ToString(board["Product"]));
@@ -72,7 +72,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem"))
             {
-                foreach (ManagementObject system in searcher.Get())
+                foreach (ManagementObject system in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddOverviewTextRow(rows, "System manufacturer", CleanWmiText(Convert.ToString(system["Manufacturer"])), "Windows WMI");
                     var systemModel = CleanWmiText(Convert.ToString(system["Model"]));
@@ -100,7 +100,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
             {
-                foreach (ManagementObject bios in searcher.Get())
+                foreach (ManagementObject bios in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddOverviewTextRow(rows, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"), "Windows WMI", firmwareDetails);
                     var version = GetWmiPropertyText(bios, "SMBIOSBIOSVersion");
@@ -124,7 +124,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
             {
-                var gpuList = searcher.Get().Cast<ManagementObject>().ToList();
+                var gpuList = ExecuteWmiQuery(searcher, "WMI").Cast<ManagementObject>().ToList();
                 var includeGpuNameInRows = gpuList.Count > 1;
                 foreach (ManagementObject gpu in gpuList)
                 {

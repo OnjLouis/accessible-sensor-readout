@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Management;
@@ -142,7 +142,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Default, Network, Shared, WorkOffline, PrinterStatus, DetectedErrorState, ExtendedPrinterStatus, DriverName, PortName, Location, Comment, ShareName, JobCountSinceLastReset FROM Win32_Printer"))
             {
-                foreach (ManagementObject printer in searcher.Get())
+                foreach (ManagementObject printer in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = CleanWmiText(Convert.ToString(printer["Name"]));
                     if (string.IsNullOrWhiteSpace(name))
@@ -180,7 +180,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Color, Duplex, HorizontalResolution, VerticalResolution, PaperSize FROM Win32_PrinterConfiguration"))
             {
-                foreach (ManagementObject config in searcher.Get())
+                foreach (ManagementObject config in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = CleanWmiText(Convert.ToString(config["Name"]));
                     PrinterInfo printer;
@@ -311,7 +311,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher(@"root\StandardCimv2", "SELECT * FROM MSFT_PrinterProperty"))
             {
-                foreach (ManagementObject property in searcher.Get())
+                foreach (ManagementObject property in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var printerName = FirstNonEmptyProperty(property, "PrinterName", "Name");
                     var propertyName = FirstNonEmptyProperty(property, "PropertyName", "Name");

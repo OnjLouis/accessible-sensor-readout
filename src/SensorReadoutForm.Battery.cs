@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,12 +15,15 @@ public sealed partial class SensorReadoutForm : Form
     private readonly object wmiBatteryInfoLock = new object();
     private DateTime wmiBatteryInfoLastReadUtc = DateTime.MinValue;
     private Dictionary<int, WmiBatteryInfo> cachedWmiBatteryInfo = new Dictionary<int, WmiBatteryInfo>();
+    private readonly object windowsPowerRowsLock = new object();
+    private DateTime windowsPowerRowsLastReadUtc = DateTime.MinValue;
+    private List<SensorRow> cachedWindowsPowerRows = new List<SensorRow>();
 
-    private IEnumerable<SensorRow> GetBatteryRows()
+    private IEnumerable<SensorRow> GetBatteryRows(bool diagnosticsMode)
     {
         var rows = new List<SensorRow>();
         var batteries = GetNativeBatteryInfo();
-        var wmiInfo = GetWmiBatteryInfo();
+        var wmiInfo = GetWmiBatteryInfo(diagnosticsMode);
         for (var i = 0; i < batteries.Count; i++)
         {
             var battery = batteries[i];
@@ -111,8 +114,8 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        rows.AddRange(GetWindowsPowerMeterRows());
-        rows.AddRange(GetDeviceBatteryRows());
+        rows.AddRange(GetWindowsPowerMeterRows(diagnosticsMode));
+        rows.AddRange(GetDeviceBatteryRows(diagnosticsMode));
         return rows;
     }
 
@@ -267,12 +270,28 @@ public sealed partial class SensorReadoutForm : Form
         return minutes + (minutes == 1 ? " minute" : " minutes");
     }
 
-    private static List<SensorRow> GetWindowsPowerMeterRows()
+    private List<SensorRow> GetWindowsPowerMeterRows(bool diagnosticsMode)
     {
+        if (!diagnosticsMode)
+        {
+            lock (windowsPowerRowsLock)
+            {
+                if (windowsPowerRowsLastReadUtc != DateTime.MinValue && DateTime.UtcNow - windowsPowerRowsLastReadUtc < WindowsPowerRowsMinimumInterval)
+                {
+                    return cachedWindowsPowerRows.Select(CloneSensorRow).ToList();
+                }
+            }
+        }
+
         var rows = new List<SensorRow>();
         rows.AddRange(ReadWindowsPowerMeters());
         rows.AddRange(ReadWindowsPowerSupplies());
-        return rows;
+        lock (windowsPowerRowsLock)
+        {
+            cachedWindowsPowerRows = rows.Select(CloneSensorRow).ToList();
+            windowsPowerRowsLastReadUtc = DateTime.UtcNow;
+            return cachedWindowsPowerRows.Select(CloneSensorRow).ToList();
+        }
     }
 
     private static List<SensorRow> ReadWindowsPowerMeters()
@@ -283,7 +302,7 @@ public sealed partial class SensorReadoutForm : Form
             using (var searcher = new ManagementObjectSearcher(@"root\cimv2\power", "SELECT * FROM Win32_PowerMeter"))
             {
                 var index = 0;
-                foreach (ManagementObject meter in searcher.Get())
+                foreach (ManagementObject meter in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var details = ReadManagementObjectDetails(meter);
                     details["Namespace"] = @"root\cimv2\power";
@@ -355,7 +374,7 @@ public sealed partial class SensorReadoutForm : Form
             using (var searcher = new ManagementObjectSearcher(@"root\cimv2\power", "SELECT * FROM Win32_PowerSupply"))
             {
                 var index = 0;
-                foreach (ManagementObject supply in searcher.Get())
+                foreach (ManagementObject supply in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var details = ReadManagementObjectDetails(supply);
                     details["Namespace"] = @"root\cimv2\power";
@@ -391,22 +410,25 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private List<SensorRow> GetDeviceBatteryRows()
+    private List<SensorRow> GetDeviceBatteryRows(bool diagnosticsMode)
     {
-        lock (deviceBatteryRowsLock)
+        if (!diagnosticsMode)
         {
-            if ((DateTime.UtcNow - deviceBatteryRowsLastReadUtc).TotalSeconds < 60)
+            lock (deviceBatteryRowsLock)
             {
-                return new List<SensorRow>(cachedDeviceBatteryRows);
+                if (deviceBatteryRowsLastReadUtc != DateTime.MinValue && DateTime.UtcNow - deviceBatteryRowsLastReadUtc < DeviceBatteryRowsMinimumInterval)
+                {
+                    return cachedDeviceBatteryRows.Select(CloneSensorRow).ToList();
+                }
             }
         }
 
         var rows = ReadDeviceBatteryRows();
         lock (deviceBatteryRowsLock)
         {
-            cachedDeviceBatteryRows = rows;
+            cachedDeviceBatteryRows = rows.Select(CloneSensorRow).ToList();
             deviceBatteryRowsLastReadUtc = DateTime.UtcNow;
-            return new List<SensorRow>(cachedDeviceBatteryRows);
+            return cachedDeviceBatteryRows.Select(CloneSensorRow).ToList();
         }
     }
 
@@ -418,7 +440,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, DeviceID, PNPClass, Manufacturer, Service, Status, Present, ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode = 0"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = Convert.ToString(device["Name"]) ?? "";
                     var deviceId = Convert.ToString(device["DeviceID"]) ?? "";
@@ -1170,13 +1192,16 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private Dictionary<int, WmiBatteryInfo> GetWmiBatteryInfo()
+    private Dictionary<int, WmiBatteryInfo> GetWmiBatteryInfo(bool diagnosticsMode)
     {
-        lock (wmiBatteryInfoLock)
+        if (!diagnosticsMode)
         {
-            if ((DateTime.UtcNow - wmiBatteryInfoLastReadUtc).TotalSeconds < 60)
+            lock (wmiBatteryInfoLock)
             {
-                return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+                if (wmiBatteryInfoLastReadUtc != DateTime.MinValue && DateTime.UtcNow - wmiBatteryInfoLastReadUtc < WmiBatteryInfoMinimumInterval)
+                {
+                    return CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+                }
             }
         }
 
@@ -1197,7 +1222,7 @@ public sealed partial class SensorReadoutForm : Form
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Battery"))
             {
                 var index = 0;
-                foreach (ManagementObject battery in searcher.Get())
+                foreach (ManagementObject battery in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var rawDetails = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     AddRawWmiDetails(rawDetails, "Battery WMI", battery);

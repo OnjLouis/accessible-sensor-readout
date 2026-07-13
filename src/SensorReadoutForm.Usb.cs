@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -50,7 +50,7 @@ public sealed partial class SensorReadoutForm : Form
             var storageIdentities = GetUsbStorageIdentitiesByPnpDeviceId();
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Description, Manufacturer, PNPClass, Status, Service, DeviceID, PNPDeviceID FROM Win32_PnPEntity"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var deviceId = Convert.ToString(device["PNPDeviceID"]);
                     if (string.IsNullOrWhiteSpace(deviceId))
@@ -734,6 +734,12 @@ public sealed partial class SensorReadoutForm : Form
             return "";
         }
 
+        if (port.Speed.IndexOf("5 Gbps", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            port.CapableSpeed.IndexOf("10 Gbps", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "Windows reports this port as actively connected at 5 Gbps while also reporting 10 Gbps capability. Some USB hubs and bridge drivers report the active port conservatively; Sensor Readout does not override the active speed unless Windows reports SuperSpeedPlus operating mode or lane data.";
+        }
+
         return "Windows reports the active USB link speed separately from the capable speed. Sensor Readout does not override the active speed unless Windows reports SuperSpeedPlus operating mode or lane data.";
     }
 
@@ -1196,7 +1202,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var diskSearcher = new ManagementObjectSearcher("SELECT DeviceID, PNPDeviceID, InterfaceType FROM Win32_DiskDrive"))
             {
-                foreach (ManagementObject disk in diskSearcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(diskSearcher, "WMI"))
                 {
                     var pnpId = Convert.ToString(disk["PNPDeviceID"]);
                     var interfaceType = Convert.ToString(disk["InterfaceType"]);
@@ -1252,7 +1258,7 @@ public sealed partial class SensorReadoutForm : Form
             var oui = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"));
             using (var searcher = new ManagementObjectSearcher("SELECT Name, NetConnectionID, MACAddress, PNPDeviceID FROM Win32_NetworkAdapter WHERE MACAddress IS NOT NULL"))
             {
-                foreach (ManagementObject adapter in searcher.Get())
+                foreach (ManagementObject adapter in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var pnpDeviceId = Convert.ToString(adapter["PNPDeviceID"]);
                     if (!IsUsbDeviceId(pnpDeviceId))
@@ -1330,7 +1336,7 @@ public sealed partial class SensorReadoutForm : Form
             var disks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             using (var diskSearcher = new ManagementObjectSearcher("SELECT Index, PNPDeviceID, InterfaceType FROM Win32_DiskDrive"))
             {
-                foreach (ManagementObject disk in diskSearcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(diskSearcher, "WMI"))
                 {
                     var pnpDeviceId = Convert.ToString(disk["PNPDeviceID"]);
                     var interfaceType = Convert.ToString(disk["InterfaceType"]);
@@ -1352,7 +1358,7 @@ public sealed partial class SensorReadoutForm : Form
             var oui = MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"));
             using (var physicalSearcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT DeviceId, UniqueId, UniqueIdFormat FROM MSFT_PhysicalDisk"))
             {
-                foreach (ManagementObject disk in physicalSearcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(physicalSearcher, "WMI"))
                 {
                     var deviceId = Convert.ToString(disk["DeviceId"]);
                     string pnpDeviceId;

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 public sealed partial class SensorReadoutForm : Form
 {
@@ -56,6 +57,7 @@ public sealed partial class SensorReadoutForm : Form
             Directory.CreateDirectory(installFolder);
             CopyDirectoryContents(sourceFolder, installFolder);
 
+            RegisterInstalledAppEntry(targetExe, installFolder);
             SetDesktopShortcut(options.CreateDesktopShortcut, targetExe, installFolder);
             SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray, targetExe, installFolder);
 
@@ -106,6 +108,7 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
             SetRunAtStartup(false, false);
             SetDesktopShortcut(false);
+            UnregisterInstalledAppEntry();
             StartUninstallScript(installFolder, Process.GetCurrentProcess().Id, options.DeleteUserData);
             Application.Exit();
         }
@@ -177,7 +180,7 @@ public sealed partial class SensorReadoutForm : Form
             dialog.AcceptButton = uninstallButton;
             dialog.CancelButton = cancelButton;
 
-            return dialog.ShowDialog(this) == DialogResult.OK
+            return dialog.ShowDialog(Visible ? this : null) == DialogResult.OK
                 ? new UninstallOptions { DeleteUserData = deleteUserDataBox.Checked }
                 : null;
         }
@@ -284,6 +287,110 @@ public sealed partial class SensorReadoutForm : Form
         return Path.Combine(localAppData, "Programs", "Sensor Readout");
     }
 
+    public static void RefreshInstalledAppRegistration()
+    {
+        if (!IsRunningFromLocalInstallFolder())
+        {
+            return;
+        }
+
+        RegisterInstalledAppEntry(Application.ExecutablePath, AppDomain.CurrentDomain.BaseDirectory);
+    }
+
+    public static void RunUninstallFromCommandLine()
+    {
+        using (var form = new SensorReadoutForm(false))
+        {
+            form.UninstallLocalInstallAndClose();
+        }
+    }
+
+    private const string UninstallRegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sensor Readout";
+
+    private static void RegisterInstalledAppEntry(string targetExe, string installFolder)
+    {
+        RegisterInstalledAppEntry(targetExe, installFolder, UninstallRegistryKeyPath);
+    }
+
+    private static void RegisterInstalledAppEntry(string targetExe, string installFolder, string registryKeyPath)
+    {
+        if (string.IsNullOrWhiteSpace(targetExe) || string.IsNullOrWhiteSpace(installFolder))
+        {
+            return;
+        }
+
+        try
+        {
+            using (var key = Registry.CurrentUser.CreateSubKey(registryKeyPath))
+            {
+                if (key == null)
+                {
+                    return;
+                }
+
+                key.SetValue("DisplayName", "Sensor Readout", RegistryValueKind.String);
+                key.SetValue("DisplayVersion", AppVersion, RegistryValueKind.String);
+                key.SetValue("Publisher", "Andre Louis", RegistryValueKind.String);
+                key.SetValue("InstallLocation", installFolder, RegistryValueKind.String);
+                key.SetValue("DisplayIcon", targetExe, RegistryValueKind.String);
+                key.SetValue("UninstallString", QuoteArgument(targetExe) + " --uninstall", RegistryValueKind.String);
+                key.SetValue("URLInfoAbout", ProjectUrl, RegistryValueKind.String);
+                key.SetValue("NoModify", 1, RegistryValueKind.DWord);
+                key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+                key.SetValue("EstimatedSize", EstimateInstallSizeKb(installFolder), RegistryValueKind.DWord);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void UnregisterInstalledAppEntry()
+    {
+        UnregisterInstalledAppEntry(UninstallRegistryKeyPath);
+    }
+
+    private static void UnregisterInstalledAppEntry(string registryKeyPath)
+    {
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(registryKeyPath, false);
+        }
+        catch
+        {
+        }
+    }
+
+    private static int EstimateInstallSizeKb(string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder))
+            {
+                return 0;
+            }
+
+            long bytes = 0;
+            foreach (var file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    bytes += new FileInfo(file).Length;
+                }
+                catch
+                {
+                }
+            }
+
+            var kb = Math.Max(1, (bytes + 1023) / 1024);
+            return kb > int.MaxValue ? int.MaxValue : (int)kb;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     private static string NormalizeFolderPath(string path)
     {
         return Path.GetFullPath(path ?? "")
@@ -342,6 +449,7 @@ public sealed partial class SensorReadoutForm : Form
             "$deleteUserData = $" + (deleteUserData ? "true" : "false") + "\r\n" +
             "$preserve = @('Config','Logs','Reports')\r\n" +
             "while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 300 }\r\n" +
+            "Remove-Item -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Sensor Readout' -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
             "if (Test-Path -LiteralPath $target) {\r\n" +
             "  if ($deleteUserData) {\r\n" +
             "    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue\r\n" +

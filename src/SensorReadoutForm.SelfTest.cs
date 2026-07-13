@@ -58,10 +58,12 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
             form.RunSelfTestStep(results, "Background hotkey refresh cadence", delegate { form.SelfTestBackgroundHotKeyRefreshCadence(); });
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
+            form.RunSelfTestStep(results, "Fragile WMI row caches", delegate { form.SelfTestFragileWmiRowCaches(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
             form.RunSelfTestStep(results, "Process watch report", delegate { form.SelfTestProcessWatchReport(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
+            form.RunSelfTestStep(results, "Installed app registration", delegate { form.SelfTestInstalledAppRegistration(outputFolder); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
@@ -161,6 +163,38 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(NormalizeHotKeyText("Ctrl+Shift+F1"), "Ctrl+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Shift function hotkey was rejected.");
         Require(string.Equals(NormalizeHotKeyText("Ctrl+Alt+F1"), "Ctrl+Alt+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Alt function hotkey was rejected.");
         Require(string.Equals(NormalizeHotKeyText("Alt+Shift+F1"), "Alt+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Alt+Shift function hotkey was rejected.");
+    }
+
+    private void SelfTestInstalledAppRegistration(string outputFolder)
+    {
+        var testKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sensor Readout SelfTest " + Guid.NewGuid().ToString("N");
+        var installFolder = Path.Combine(outputFolder, "InstalledAppRegistration");
+        Directory.CreateDirectory(installFolder);
+        var exePath = Path.Combine(installFolder, "Sensor Readout.exe");
+        File.WriteAllText(exePath, "self-test");
+
+        try
+        {
+            RegisterInstalledAppEntry(exePath, installFolder, testKeyPath);
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKeyPath))
+            {
+                Require(key != null, "Installed app registry key was not created.");
+                Require(string.Equals(Convert.ToString(key.GetValue("DisplayName")), "Sensor Readout", StringComparison.Ordinal), "DisplayName was not registered.");
+                Require(string.Equals(Convert.ToString(key.GetValue("DisplayVersion")), AppVersion, StringComparison.Ordinal), "DisplayVersion was not registered.");
+                Require(string.Equals(Convert.ToString(key.GetValue("Publisher")), "Andre Louis", StringComparison.Ordinal), "Publisher was not registered.");
+                Require(string.Equals(Convert.ToString(key.GetValue("InstallLocation")), installFolder, StringComparison.OrdinalIgnoreCase), "InstallLocation was not registered.");
+                var uninstallString = Convert.ToString(key.GetValue("UninstallString")) ?? "";
+                Require(uninstallString.IndexOf("--uninstall", StringComparison.OrdinalIgnoreCase) >= 0, "UninstallString does not call --uninstall.");
+                Require(uninstallString.IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0, "UninstallString does not reference the installed executable.");
+                Require(Convert.ToInt32(key.GetValue("NoModify")) == 1, "NoModify was not registered.");
+                Require(Convert.ToInt32(key.GetValue("NoRepair")) == 1, "NoRepair was not registered.");
+                Require(Convert.ToInt32(key.GetValue("EstimatedSize")) > 0, "EstimatedSize was not registered.");
+            }
+        }
+        finally
+        {
+            UnregisterInstalledAppEntry(testKeyPath);
+        }
     }
 
     private void SelfTestSensorCollection()
@@ -678,6 +712,174 @@ public sealed partial class SensorReadoutForm : Form
         {
             Require(cachedLhmRows.Count == 0, "LibreHardwareMonitor formatted rows were not cleared.");
             Require(cachedLhmRowsUtc == DateTime.MinValue, "LibreHardwareMonitor row cache timestamp was not reset.");
+        }
+    }
+
+    private void SelfTestFragileWmiRowCaches()
+    {
+        List<SensorRow> previousOemRows;
+        DateTime previousOemUtc;
+        string previousOemSignature;
+        List<SensorRow> previousPowerRows;
+        DateTime previousPowerUtc;
+        Dictionary<int, WmiBatteryInfo> previousWmiBatteryInfo;
+        DateTime previousWmiBatteryInfoUtc;
+        List<SensorRow> previousDeviceBatteryRows;
+        DateTime previousDeviceBatteryRowsUtc;
+        Dictionary<string, CachedDetailSnapshot> previousNetworkWmiDetails;
+        List<SensorRow> previousGpuStatusRows;
+        DateTime previousGpuStatusUtc;
+        lock (oemProviderRowsLock)
+        {
+            previousOemRows = cachedOemProviderRows.ToList();
+            previousOemUtc = cachedOemProviderRowsUtc;
+            previousOemSignature = cachedOemProviderRowsSignature;
+            cachedOemProviderRows = new List<SensorRow>
+            {
+                new SensorRow { Type = "Fan", Hardware = "Self-test", Name = "OEM cached row", Identifier = "self-test-oem-cache", DisplayValue = "1 RPM", Source = "Self-test" }
+            };
+            cachedOemProviderRowsUtc = DateTime.UtcNow;
+            cachedOemProviderRowsSignature = GetOemProviderRowsCacheSignature(settings);
+        }
+
+        lock (windowsPowerRowsLock)
+        {
+            previousPowerRows = cachedWindowsPowerRows.ToList();
+            previousPowerUtc = windowsPowerRowsLastReadUtc;
+            cachedWindowsPowerRows = new List<SensorRow>();
+            windowsPowerRowsLastReadUtc = DateTime.UtcNow;
+        }
+
+        lock (wmiBatteryInfoLock)
+        {
+            previousWmiBatteryInfo = CloneWmiBatteryInfo(cachedWmiBatteryInfo);
+            previousWmiBatteryInfoUtc = wmiBatteryInfoLastReadUtc;
+            cachedWmiBatteryInfo = new Dictionary<int, WmiBatteryInfo>
+            {
+                {
+                    0,
+                    new WmiBatteryInfo
+                    {
+                        EstimatedChargeRemaining = 77,
+                        EstimatedRunTimeMinutes = 123,
+                        BatteryStatus = 2,
+                        Status = "Self-test",
+                        RawDetails = new Dictionary<string, string> { { "Self-test", "WMI battery cache" } }
+                    }
+                }
+            };
+            wmiBatteryInfoLastReadUtc = DateTime.UtcNow;
+        }
+
+        lock (deviceBatteryRowsLock)
+        {
+            previousDeviceBatteryRows = cachedDeviceBatteryRows.ToList();
+            previousDeviceBatteryRowsUtc = deviceBatteryRowsLastReadUtc;
+            cachedDeviceBatteryRows = new List<SensorRow>();
+            deviceBatteryRowsLastReadUtc = DateTime.UtcNow;
+        }
+
+        lock (networkWmiDetailsCacheLock)
+        {
+            previousNetworkWmiDetails = networkWmiDetailsCache.ToDictionary(
+                pair => pair.Key,
+                pair => new CachedDetailSnapshot
+                {
+                    TimestampUtc = pair.Value == null ? DateTime.MinValue : pair.Value.TimestampUtc,
+                    Details = pair.Value == null ? new Dictionary<string, string>() : CloneDetails(pair.Value.Details)
+                },
+                StringComparer.OrdinalIgnoreCase);
+            networkWmiDetailsCache.Clear();
+            networkWmiDetailsCache["self-test-adapter"] = new CachedDetailSnapshot
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Details = new Dictionary<string, string> { { "WMI self-test detail", "Cached" } }
+            };
+        }
+
+        lock (gpuStatusRowsCacheLock)
+        {
+            previousGpuStatusRows = cachedGpuStatusRows.ToList();
+            previousGpuStatusUtc = cachedGpuStatusRowsUtc;
+            cachedGpuStatusRows = new List<SensorRow>();
+            cachedGpuStatusRowsUtc = DateTime.UtcNow;
+        }
+
+        try
+        {
+            var oemRows = GetOemProviderRows(false, false).ToList();
+            Require(oemRows.Count == 1 && string.Equals(oemRows[0].Identifier, "self-test-oem-cache", StringComparison.OrdinalIgnoreCase), "OEM provider rows did not reuse a fresh cache.");
+
+            lock (oemProviderRowsLock)
+            {
+                cachedOemProviderRows = new List<SensorRow>
+                {
+                    new SensorRow { Type = "Fan", Hardware = "Self-test", Name = "Stale OEM cached row", Identifier = "self-test-oem-cache", DisplayValue = "2 RPM", Source = "Self-test" }
+                };
+                cachedOemProviderRowsUtc = DateTime.UtcNow;
+                cachedOemProviderRowsSignature = "stale-self-test-signature";
+            }
+            oemRows = GetOemProviderRows(false, false).ToList();
+            Require(!oemRows.Any(r => string.Equals(r.Identifier, "self-test-oem-cache", StringComparison.OrdinalIgnoreCase)), "OEM provider rows reused a cache for the wrong plug-in state.");
+
+            var wmiBattery = GetWmiBatteryInfo(false);
+            Require(wmiBattery.ContainsKey(0) && string.Equals(wmiBattery[0].Status, "Self-test", StringComparison.Ordinal), "WMI battery info did not reuse a fresh cache.");
+
+            var powerRows = GetWindowsPowerMeterRows(false);
+            Require(powerRows.Count == 0, "Windows power rows did not reuse an empty fresh cache.");
+
+            var deviceBatteryRows = GetDeviceBatteryRows(false);
+            Require(deviceBatteryRows.Count == 0, "Device battery rows did not reuse an empty fresh cache.");
+
+            Dictionary<string, string> networkDetails;
+            Require(TryGetCachedNetworkWmiDetails("self-test-adapter", out networkDetails), "Network WMI details did not reuse a fresh cache.");
+            Require(networkDetails.ContainsKey("WMI self-test detail"), "Network WMI details cache returned the wrong data.");
+
+            var gpuRows = new List<SensorRow>();
+            AddGpuMemoryStatusRows(gpuRows);
+            Require(gpuRows.Count == 0, "GPU status rows did not reuse an empty fresh cache.");
+        }
+        finally
+        {
+            lock (oemProviderRowsLock)
+            {
+                cachedOemProviderRows = previousOemRows;
+                cachedOemProviderRowsUtc = previousOemUtc;
+                cachedOemProviderRowsSignature = previousOemSignature;
+            }
+
+            lock (windowsPowerRowsLock)
+            {
+                cachedWindowsPowerRows = previousPowerRows;
+                windowsPowerRowsLastReadUtc = previousPowerUtc;
+            }
+
+            lock (wmiBatteryInfoLock)
+            {
+                cachedWmiBatteryInfo = previousWmiBatteryInfo;
+                wmiBatteryInfoLastReadUtc = previousWmiBatteryInfoUtc;
+            }
+
+            lock (deviceBatteryRowsLock)
+            {
+                cachedDeviceBatteryRows = previousDeviceBatteryRows;
+                deviceBatteryRowsLastReadUtc = previousDeviceBatteryRowsUtc;
+            }
+
+            lock (networkWmiDetailsCacheLock)
+            {
+                networkWmiDetailsCache.Clear();
+                foreach (var pair in previousNetworkWmiDetails)
+                {
+                    networkWmiDetailsCache[pair.Key] = pair.Value;
+                }
+            }
+
+            lock (gpuStatusRowsCacheLock)
+            {
+                cachedGpuStatusRows = previousGpuStatusRows;
+                cachedGpuStatusRowsUtc = previousGpuStatusUtc;
+            }
         }
     }
 

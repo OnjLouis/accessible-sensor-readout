@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Management;
@@ -33,7 +33,7 @@ public sealed partial class SensorReadoutForm : Form
             var slots = new List<ManagementObject>();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_SystemSlot"))
             {
-                foreach (ManagementObject slot in searcher.Get())
+                foreach (ManagementObject slot in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     slots.Add(slot);
                 }
@@ -142,7 +142,7 @@ public sealed partial class SensorReadoutForm : Form
             var candidates = new List<PciLinkCandidate>();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE DeviceID LIKE 'PCI\\\\%'"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     using (device)
                     {

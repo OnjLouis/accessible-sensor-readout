@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -260,7 +260,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Present = TRUE"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var details = ReadManagementObjectDetails(device);
                     var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "Caption"), GetDictionaryValue(details, "Description"));

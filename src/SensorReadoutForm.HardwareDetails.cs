@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -29,7 +29,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
             {
-                foreach (ManagementObject cpu in searcher.Get())
+                foreach (ManagementObject cpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "CPU name", GetWmiPropertyText(cpu, "Name"));
                     AddDetail(details, "CPU manufacturer", GetWmiPropertyText(cpu, "Manufacturer"));
@@ -97,7 +97,7 @@ public sealed partial class SensorReadoutForm : Form
             var index = 1;
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_CacheMemory"))
             {
-                foreach (ManagementObject cache in searcher.Get())
+                foreach (ManagementObject cache in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var label = "CPU cache " + index;
                     var level = CpuCacheLevelName(GetWmiPropertyValue(cache, "Level"), GetWmiPropertyValue(cache, "Purpose"));
@@ -152,7 +152,7 @@ public sealed partial class SensorReadoutForm : Form
             var index = 1;
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemoryArray"))
             {
-                foreach (ManagementObject array in searcher.Get())
+                foreach (ManagementObject array in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var label = "Memory array " + index;
                     AddDetail(details, label + " location", GetWmiPropertyText(array, "Location"));
@@ -178,7 +178,7 @@ public sealed partial class SensorReadoutForm : Form
             var index = 1;
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
             {
-                foreach (ManagementObject module in searcher.Get())
+                foreach (ManagementObject module in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var locator = FirstNonEmpty(GetWmiPropertyText(module, "DeviceLocator"), GetWmiPropertyText(module, "BankLabel"), "Module " + index);
                     var label = "Memory " + locator;
@@ -245,7 +245,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
             {
-                foreach (ManagementObject os in searcher.Get())
+                foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "Windows edition", GetWmiPropertyText(os, "Caption"));
                     AddDetail(details, "Windows version", GetWmiPropertyText(os, "Version"));
@@ -331,7 +331,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Version, OA3xOriginalProductKey, ClientMachineID FROM SoftwareLicensingService"))
             {
-                foreach (ManagementObject service in searcher.Get())
+                foreach (ManagementObject service in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "Windows licensing service version", GetWmiPropertyText(service, "Version"));
                     AddDetail(details, "Windows client machine ID", GetWmiPropertyText(service, "ClientMachineID"));
@@ -349,7 +349,7 @@ public sealed partial class SensorReadoutForm : Form
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Description, LicenseStatus, PartialProductKey, ProductKeyChannel, GracePeriodRemaining FROM SoftwareLicensingProduct WHERE PartialProductKey IS NOT NULL"))
             {
                 var index = 1;
-                foreach (ManagementObject product in searcher.Get())
+                foreach (ManagementObject product in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var label = "Windows license " + index;
                     AddDetail(details, label + " name", GetWmiPropertyText(product, "Name"));
@@ -373,7 +373,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystemProduct"))
             {
-                foreach (ManagementObject product in searcher.Get())
+                foreach (ManagementObject product in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "System product vendor", GetWmiPropertyText(product, "Vendor"));
                     AddDetail(details, "System product name", GetWmiPropertyText(product, "Name"));
@@ -421,7 +421,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
             {
-                foreach (ManagementObject bios in searcher.Get())
+                foreach (ManagementObject bios in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "BIOS vendor", GetWmiPropertyText(bios, "Manufacturer"));
                     AddDetail(details, "BIOS name", GetWmiPropertyText(bios, "Name"));
@@ -461,7 +461,7 @@ public sealed partial class SensorReadoutForm : Form
             scope.Connect();
             using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT * FROM Win32_Tpm")))
             {
-                foreach (ManagementObject tpm in searcher.Get())
+                foreach (ManagementObject tpm in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "TPM enabled", FormatYesNo(GetWmiPropertyValue(tpm, "IsEnabled_InitialValue")));
                     AddDetail(details, "TPM activated", FormatYesNo(GetWmiPropertyValue(tpm, "IsActivated_InitialValue")));
@@ -509,7 +509,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
             {
-                foreach (ManagementObject board in searcher.Get())
+                foreach (ManagementObject board in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "Baseboard manufacturer", GetWmiPropertyText(board, "Manufacturer"));
                     AddDetail(details, "Baseboard product", GetWmiPropertyText(board, "Product"));
@@ -545,7 +545,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_SystemEnclosure"))
             {
-                foreach (ManagementObject enclosure in searcher.Get())
+                foreach (ManagementObject enclosure in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(details, "Chassis manufacturer", GetWmiPropertyText(enclosure, "Manufacturer"));
                     AddDetail(details, "Chassis version", GetWmiPropertyText(enclosure, "Version"));
@@ -575,7 +575,7 @@ public sealed partial class SensorReadoutForm : Form
             var index = 1;
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemoryArray"))
             {
-                foreach (ManagementObject array in searcher.Get())
+                foreach (ManagementObject array in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var label = "Board memory array " + index;
                     AddDetail(details, label + " slots", GetWmiPropertyText(array, "MemoryDevices"));
@@ -599,7 +599,7 @@ public sealed partial class SensorReadoutForm : Form
             var slots = new List<ManagementObject>();
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_SystemSlot"))
             {
-                foreach (ManagementObject slot in searcher.Get())
+                foreach (ManagementObject slot in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     slots.Add(slot);
                 }

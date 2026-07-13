@@ -3,14 +3,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Management;
+using System.Text.RegularExpressions;
 using SensorReadout.PluginSdk;
 
 namespace SensorReadout.LenovoThinkPadPlugIn
 {
     public sealed partial class LenovoThinkPadPlugIn
     {
-        private static void AddLenovoThermalDriverDetails(IPluginContext context, Dictionary<string, string> summaryDetails)
+        private static IEnumerable<SensorReading> ReadLenovoThermalDriverDevices(IPluginContext context, Dictionary<string, string> summaryDetails)
         {
+            var rows = new List<SensorReading>();
             try
             {
                 using (var searcher = CreateSearcher(@"root\cimv2", "SELECT * FROM Win32_PnPEntity WHERE Name LIKE '%Lenovo%Thermal%' OR Description LIKE '%Lenovo%Thermal%' OR Caption LIKE '%Lenovo%Thermal%'"))
@@ -26,6 +28,20 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                             if (!string.IsNullOrWhiteSpace(name))
                             {
                                 names.Add(name.Trim());
+                                rows.Add(new SensorReading
+                                {
+                                    Type = "Performance",
+                                    Hardware = "Thermal",
+                                    Name = "Lenovo thermal driver",
+                                    Identifier = StableIdentifier("lenovo/thermal/driver/" + name),
+                                    DisplayValue = name.Trim(),
+                                    Source = "Lenovo Laptop Support Plug-In",
+                                    Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                                    {
+                                        { "Namespace", @"root\cimv2" },
+                                        { "WMI class", "Win32_PnPEntity" }
+                                    }
+                                });
                             }
                         }
                     }
@@ -45,6 +61,114 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     context.Log("Debug", "Lenovo WMI probe failed for Lenovo thermal driver devices: " + ex.Message);
                 }
             }
+
+            return rows;
+        }
+
+        private static IEnumerable<SensorReading> ReadLenovoThermalModes(IPluginContext context, Dictionary<string, string> summaryDetails)
+        {
+            var rows = new List<SensorReading>();
+            const string probeKey = @"root\WMI\Lenovo_BiosSetting thermal modes";
+            if (ShouldSkipWmiProbe(probeKey, summaryDetails))
+            {
+                return rows;
+            }
+
+            try
+            {
+                using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM Lenovo_BiosSetting"))
+                using (var instances = searcher.Get())
+                {
+                    var count = 0;
+                    foreach (ManagementObject instance in instances)
+                    {
+                        using (instance)
+                        {
+                            var details = ReadDetails(instance);
+                            var setting = FirstValue(details, "CurrentSetting");
+                            if (string.IsNullOrWhiteSpace(setting))
+                            {
+                                continue;
+                            }
+
+                            var parts = setting.Split(new[] { ',' }, 2);
+                            if (parts.Length != 2 || parts[0].IndexOf("Thermal", StringComparison.OrdinalIgnoreCase) < 0)
+                            {
+                                continue;
+                            }
+
+                            count++;
+                            var settingName = DescribeLenovoThermalSetting(parts[0].Trim());
+                            var value = DescribeLenovoThermalValue(parts[1].Trim());
+                            var rowDetails = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
+                            {
+                                { "Namespace", @"root\wmi" },
+                                { "WMI class", "Lenovo_BiosSetting" },
+                                { "Raw setting", setting }
+                            };
+
+                            rows.Add(new SensorReading
+                            {
+                                Type = "Performance",
+                                Hardware = "Thermal",
+                                Name = settingName,
+                                Identifier = StableIdentifier("lenovo/thermal/mode/" + parts[0].Trim()),
+                                DisplayValue = value,
+                                Source = "Lenovo Laptop Support Plug-In",
+                                Details = rowDetails
+                            });
+                        }
+                    }
+
+                    summaryDetails["Lenovo thermal mode settings"] = count.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                summaryDetails["Lenovo thermal mode error"] = ex.Message;
+                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                if (context != null)
+                {
+                    context.Log("Debug", "Lenovo WMI probe failed for root\\wmi\\Lenovo_BiosSetting thermal modes: " + ex.Message);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string DescribeLenovoThermalSetting(string setting)
+        {
+            if (string.Equals(setting, "AdaptiveThermalManagementAC", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Thermal mode on AC power";
+            }
+
+            if (string.Equals(setting, "AdaptiveThermalManagementBattery", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Thermal mode on battery";
+            }
+
+            return SplitIdentifierWords(setting);
+        }
+
+        private static string DescribeLenovoThermalValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "Unknown";
+            }
+
+            return SplitIdentifierWords(value);
+        }
+
+        private static string SplitIdentifierWords(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "";
+            }
+
+            return Regex.Replace(value.Trim(), "([a-z])([A-Z])", "$1 $2");
         }
 
         private static IEnumerable<SensorReading> ReadAcpiThermalZones(IPluginContext context, Dictionary<string, string> summaryDetails)

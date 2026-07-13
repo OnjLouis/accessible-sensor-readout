@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -176,7 +176,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
             {
-                foreach (ManagementObject disk in searcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = Convert.ToString(disk["FriendlyName"]);
                     if (string.IsNullOrWhiteSpace(name))
@@ -253,7 +253,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Index, Model, PNPDeviceID, InterfaceType FROM Win32_DiskDrive"))
             {
-                foreach (ManagementObject drive in searcher.Get())
+                foreach (ManagementObject drive in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     int index;
                     if (!int.TryParse(Convert.ToString(drive["Index"]), out index))
@@ -517,7 +517,7 @@ public sealed partial class SensorReadoutForm : Form
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_StorageReliabilityCounter"))
             {
                 searcher.Options.Timeout = TimeSpan.FromSeconds(5);
-                foreach (ManagementObject counter in searcher.Get())
+                foreach (ManagementObject counter in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var name = Convert.ToString(counter["DeviceId"]);
                     if (string.IsNullOrWhiteSpace(name))
@@ -697,7 +697,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Name, Caption, DeviceID, Manufacturer, Service, Status FROM Win32_PnPEntity WHERE DeviceID LIKE 'PCI\\\\%'"))
             {
-                foreach (ManagementObject device in searcher.Get())
+                foreach (ManagementObject device in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     using (device)
                     {
@@ -796,7 +796,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT Model, Caption, PNPDeviceID FROM Win32_DiskDrive"))
             {
-                foreach (ManagementObject disk in searcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     using (disk)
                     {
@@ -1197,7 +1197,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_DiskDrive"))
             {
-                foreach (ManagementObject disk in searcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDiskTopologyDetails(disk, physical, logical);
                 }
@@ -1267,7 +1267,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
             {
-                foreach (ManagementObject disk in searcher.Get())
+                foreach (ManagementObject disk in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var friendlyName = GetWmiPropertyText(disk, "FriendlyName");
                     var model = GetWmiPropertyText(disk, "Model");
@@ -1452,7 +1452,7 @@ public sealed partial class SensorReadoutForm : Form
             };
             using (var searcher = new ManagementObjectSearcher(scope, new ObjectQuery("SELECT * FROM Win32_EncryptableVolume"), enumerationOptions))
             {
-                foreach (ManagementObject volume in searcher.Get())
+                foreach (ManagementObject volume in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     var driveLetter = GetWmiPropertyText(volume, "DriveLetter");
                     if (string.IsNullOrWhiteSpace(driveLetter))
@@ -1678,7 +1678,7 @@ public sealed partial class SensorReadoutForm : Form
             var query = "ASSOCIATORS OF {" + className + "." + keyName + "=\"" + EscapeWmiObjectPathValue(keyValue) + "\"} WHERE AssocClass=" + assocClass;
             using (var searcher = new ManagementObjectSearcher(query))
             {
-                results = searcher.Get();
+                results = ExecuteWmiQuery(searcher, "WMI");
             }
         }
         catch

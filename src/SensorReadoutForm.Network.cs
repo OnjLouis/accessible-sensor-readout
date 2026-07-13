@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -1170,7 +1170,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE SettingID='" + EscapeWmiQueryString(adapterId) + "'"))
             {
-                foreach (ManagementObject config in searcher.Get())
+                foreach (ManagementObject config in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddDetail(wmiDetails, "WMI DHCP enabled", FormatYesNo(GetWmiPropertyValue(config, "DHCPEnabled")));
                     AddDetail(wmiDetails, "WMI DHCP server", GetWmiPropertyText(config, "DHCPServer"));
@@ -1198,7 +1198,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_NetworkAdapter WHERE GUID='" + EscapeWmiQueryString(adapterId) + "'"))
             {
-                foreach (ManagementObject adapter in searcher.Get())
+                foreach (ManagementObject adapter in ExecuteWmiQuery(searcher, "WMI"))
                 {
                     AddRawWmiDetails(wmiDetails, "Network adapter WMI", adapter);
                 }
@@ -1220,7 +1220,7 @@ public sealed partial class SensorReadoutForm : Form
             CachedDetailSnapshot snapshot;
             if (networkWmiDetailsCache.TryGetValue(adapterId, out snapshot) &&
                 snapshot != null &&
-                (DateTime.UtcNow - snapshot.TimestampUtc).TotalMinutes < 5)
+                DateTime.UtcNow - snapshot.TimestampUtc < NetworkWmiDetailsMinimumInterval)
             {
                 details = CloneDetails(snapshot.Details);
                 return true;

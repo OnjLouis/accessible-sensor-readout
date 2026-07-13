@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.7.
+Current version: 4.10.8.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -264,6 +264,7 @@ Sensor Readout can also be started with a few command-line options:
 | `--no-diagnostics-sounds` | Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it. |
 | `--community-stats-json [path]` | Write the allow-listed anonymous community stats payload and exit. This does not upload it. |
 | `--apply-update --update-zip path --update-target folder --update-exe path` | Install a local Sensor Readout update ZIP through the same updater used for online updates, useful for offline or managed copies. |
+| `--uninstall` | Open the installed-copy uninstall flow. Windows uses this when Sensor Readout is installed to this PC and removed from Apps and Features or Programs and Features. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
@@ -308,6 +309,8 @@ The Startup and Install tab controls installation plus what happens when Sensor 
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
 The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy.
+
+Installed copies also appear in Windows Apps and Features / Programs and Features for the current user. Removing Sensor Readout from there opens the same uninstall flow as the Startup and Install tab, including the choice to keep or delete `Config`, `Logs`, and `Reports`. Portable copies are not listed there unless you choose Install to this PC.
 
 If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.
 
@@ -398,6 +401,7 @@ When an enabled plug-in includes related support pages, those links appear in th
 - Dell Command | Monitor.
 - G-Helper.
 - HP Support Assistant.
+- Huawei PC Manager.
 - OMEN Gaming Hub.
 - Lenovo Vantage.
 - Lenovo System Update.
@@ -408,6 +412,7 @@ Experimental laptop plug-ins are also bundled for opt-in tester feedback. They a
 
 - HP Hardware Support is read-only and is aimed at HP, OMEN, and Victus tester diagnostics.
 - Dell Latitude Support is read-only and is aimed at Dell Latitude tester diagnostics.
+- Huawei MateBook Support is read-only and can expose live fan RPM on supported Huawei laptops when Huawei PC Manager's local hardware SDK is installed.
 - Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
 - MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
 - Asus ROG Support is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
@@ -615,6 +620,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\Framework`: optional Framework Laptop plug-in.
 - `Plug-Ins\HP`: experimental optional HP/OMEN/Victus plug-in.
 - `Plug-Ins\DellLatitude`: experimental optional Dell Latitude plug-in.
+- `Plug-Ins\HuaweiMateBook`: experimental optional Huawei MateBook read-only plug-in for live fan RPM where Huawei PC Manager exposes it locally.
 - `Plug-Ins\AsusRog`: experimental optional Asus ROG plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
@@ -657,7 +663,7 @@ If fan controls appear to be missing, open `Options` > `Fan controls...` and ena
 
 ### Laptop Brand Plug-Ins
 
-Framework, Dell, Lenovo, MSI, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
+Framework, Dell, Huawei, Lenovo, MSI, Asus, HP, OMEN, and Victus laptop users may get better fan or temperature visibility by enabling the matching hardware plug-in from `Options` > `Preferences` > `Plug-Ins`. Plug-ins are disabled until you enable them, and changes apply after closing Preferences.
 
 Framework Laptop users should also prepare Framework Control before reporting missing Framework readings:
 
@@ -673,6 +679,7 @@ Dell, Lenovo, MSI, Asus, HP, OMEN, and Victus plug-ins do not guarantee fan read
 Optional vendor tools can also help expose or verify laptop-specific data:
 
 - Dell users can try [Dell Command | Monitor](https://www.dell.com/support/kbdoc/en-us/000177080/dell-command-monitor).
+- Huawei users can try [Huawei PC Manager](https://consumer.huawei.com/en/support/pc-manager/).
 - Lenovo users can try [Lenovo Vantage](https://www.lenovo.com/us/en/software/vantage) or [Lenovo System Update](https://pcsupport.lenovo.com/us/en/solutions/ht003029-lenovo-system-update-update-drivers-bios-and-applications).
 - MSI users can try [MSI Center](https://www.msi.com/Landing/MSI-Center).
 - Asus users can try [G-Helper](https://g-helper.com/).
@@ -683,6 +690,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.10.8
+- Added: Experimental Huawei MateBook Support plug-in. On supported Huawei laptops with Huawei PC Manager installed, it can expose live fan RPM through Huawei's local read-only hardware SDK helper.
+- Improved: Debug logging now records Sensor Readout's WMI queries, including scope, query text, duration, and failures, to help diagnose systems where Windows WMI providers grow or reset over time.
+- Improved: Installed copies now appear in Windows Apps and Features / Programs and Features for the current user, with removal routed through Sensor Readout's normal uninstall flow.
+- Improved: Sensor Readout now caches selected hardware-state WMI readings that do not need constant live polling, reducing repeated provider load on laptops where Windows WMI providers grow over time. Fixes #22.
+- Fixed: Disabling a hardware plug-in now clears cached plug-in readings immediately, so Data sources and the main tree do not keep showing rows from a plug-in that is no longer enabled.
 
 ### 4.10.7
 - Fixed: USB SuperSpeedPlus link speeds now decode Windows lane-speed data correctly, avoiding impossible raw values such as `181000 bps` for USB 3.x devices.
