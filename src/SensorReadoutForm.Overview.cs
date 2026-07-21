@@ -124,31 +124,36 @@ public sealed partial class SensorReadoutForm : Form
         {
             using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
             {
-                var gpuList = ExecuteWmiQuery(searcher, "WMI").Cast<ManagementObject>().ToList();
-                var includeGpuNameInRows = gpuList.Count > 1;
-                foreach (ManagementObject gpu in gpuList)
+                var gpuList = new List<Dictionary<string, object>>();
+                foreach (ManagementObject gpu in ExecuteWmiQuery(searcher, "WMI"))
                 {
-                    var name = Convert.ToString(gpu["Name"]);
+                    gpuList.Add(gpu.Properties.Cast<PropertyData>().ToDictionary(property => property.Name, property => property.Value, StringComparer.OrdinalIgnoreCase));
+                }
+
+                var includeGpuNameInRows = gpuList.Count > 1;
+                foreach (var gpu in gpuList)
+                {
+                    var name = Convert.ToString(GetGpuProperty(gpu, "Name"));
                     if (string.IsNullOrWhiteSpace(name))
                     {
                         name = "Display adapter";
                     }
 
                     var rowPrefix = includeGpuNameInRows ? name : "GPU";
-                    var pnpDeviceId = Convert.ToString(gpu["PNPDeviceID"]);
+                    var pnpDeviceId = Convert.ToString(GetGpuProperty(gpu, "PNPDeviceID"));
                     var details = BuildGpuOverviewDetails(gpu, name, pnpDeviceId);
-                    var adapterRam = FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"]));
-                    var adapterProblem = FormatDisplayAdapterProblem(gpu["ConfigManagerErrorCode"], Convert.ToString(gpu["Status"]));
+                    var adapterRam = FormatBytes(GetGpuAdapterMemoryBytes(name, GetGpuProperty(gpu, "AdapterRAM")));
+                    var adapterProblem = FormatDisplayAdapterProblem(GetGpuProperty(gpu, "ConfigManagerErrorCode"), Convert.ToString(GetGpuProperty(gpu, "Status")));
                     if (!string.IsNullOrWhiteSpace(adapterProblem))
                     {
                         adapterRam = FirstNonEmpty(adapterRam, "Unknown") + " (" + adapterProblem + "; may be unreliable)";
                     }
 
-                    AddOverviewTextRow(rows, rowPrefix + " vendor", CleanWmiText(Convert.ToString(gpu["AdapterCompatibility"])), "Windows WMI", details);
-                    AddOverviewTextRow(rows, rowPrefix + " processor", CleanWmiText(Convert.ToString(gpu["VideoProcessor"])), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " vendor", CleanWmiText(Convert.ToString(GetGpuProperty(gpu, "AdapterCompatibility"))), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " processor", CleanWmiText(Convert.ToString(GetGpuProperty(gpu, "VideoProcessor"))), "Windows WMI", details);
                     AddOverviewTextRow(rows, rowPrefix + " adapter RAM", adapterRam, "Windows", details);
-                    AddOverviewTextRow(rows, rowPrefix + " driver version", Convert.ToString(gpu["DriverVersion"]), "Windows WMI", details);
-                    AddOverviewTextRow(rows, rowPrefix + " driver date", FormatWmiDate(gpu["DriverDate"]), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " driver version", Convert.ToString(GetGpuProperty(gpu, "DriverVersion")), "Windows WMI", details);
+                    AddOverviewTextRow(rows, rowPrefix + " driver date", FormatWmiDate(GetGpuProperty(gpu, "DriverDate")), "Windows WMI", details);
                     AddOverviewTextRow(rows, rowPrefix + " compute capability", GetDictionaryValue(details, "NVIDIA CUDA compute capability"), "NVIDIA SMI", details);
                     AddOverviewTextRow(rows, rowPrefix + " max graphics clock", GetDictionaryValue(details, "NVIDIA max graphics clock"), "NVIDIA SMI", details);
                     AddOverviewTextRow(rows, rowPrefix + " max memory clock", GetDictionaryValue(details, "NVIDIA max memory clock"), "NVIDIA SMI", details);
@@ -175,7 +180,13 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static Dictionary<string, string> BuildGpuOverviewDetails(ManagementObject gpu, string name, string pnpDeviceId)
+    private static object GetGpuProperty(Dictionary<string, object> gpu, string name)
+    {
+        object value;
+        return gpu != null && gpu.TryGetValue(name, out value) ? value : null;
+    }
+
+    private static Dictionary<string, string> BuildGpuOverviewDetails(Dictionary<string, object> gpu, string name, string pnpDeviceId)
     {
         var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (gpu == null)
@@ -184,19 +195,19 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddDetail(details, "Name", name);
-        AddDetail(details, "Vendor", Convert.ToString(gpu["AdapterCompatibility"]));
-        AddDetail(details, "Processor", Convert.ToString(gpu["VideoProcessor"]));
-        AddDetail(details, "Adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, gpu["AdapterRAM"])));
-        AddDetail(details, "Driver version", Convert.ToString(gpu["DriverVersion"]));
-        AddDetail(details, "Driver date", FormatWmiDate(gpu["DriverDate"]));
-        AddDetail(details, "Status", Convert.ToString(gpu["Status"]));
+        AddDetail(details, "Vendor", Convert.ToString(GetGpuProperty(gpu, "AdapterCompatibility")));
+        AddDetail(details, "Processor", Convert.ToString(GetGpuProperty(gpu, "VideoProcessor")));
+        AddDetail(details, "Adapter RAM", FormatBytes(GetGpuAdapterMemoryBytes(name, GetGpuProperty(gpu, "AdapterRAM"))));
+        AddDetail(details, "Driver version", Convert.ToString(GetGpuProperty(gpu, "DriverVersion")));
+        AddDetail(details, "Driver date", FormatWmiDate(GetGpuProperty(gpu, "DriverDate")));
+        AddDetail(details, "Status", Convert.ToString(GetGpuProperty(gpu, "Status")));
         AddDetail(details, "Device ID", pnpDeviceId);
-        AddDetail(details, "Video architecture", Convert.ToString(gpu["VideoArchitecture"]));
-        AddDetail(details, "Video memory type", Convert.ToString(gpu["VideoMemoryType"]));
-        AddDetail(details, "Adapter DAC type", Convert.ToString(gpu["AdapterDACType"]));
-        AddDetail(details, "Current scan mode", Convert.ToString(gpu["CurrentScanMode"]));
-        AddDetail(details, "Availability", Convert.ToString(gpu["Availability"]));
-        AddDetail(details, "Config manager error code", Convert.ToString(gpu["ConfigManagerErrorCode"]));
+        AddDetail(details, "Video architecture", Convert.ToString(GetGpuProperty(gpu, "VideoArchitecture")));
+        AddDetail(details, "Video memory type", Convert.ToString(GetGpuProperty(gpu, "VideoMemoryType")));
+        AddDetail(details, "Adapter DAC type", Convert.ToString(GetGpuProperty(gpu, "AdapterDACType")));
+        AddDetail(details, "Current scan mode", Convert.ToString(GetGpuProperty(gpu, "CurrentScanMode")));
+        AddDetail(details, "Availability", Convert.ToString(GetGpuProperty(gpu, "Availability")));
+        AddDetail(details, "Config manager error code", Convert.ToString(GetGpuProperty(gpu, "ConfigManagerErrorCode")));
         AddPciDetails(details, pnpDeviceId);
         AddDeviceRegistryDetails(details, pnpDeviceId);
         AddGpuDisplayRegistryDetails(details, name);

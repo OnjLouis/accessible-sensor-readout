@@ -14,18 +14,19 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         {
             Id = "sensorreadout.lenovo.laptop.experimental",
             Name = "Lenovo Laptop Support (experimental)",
-            Version = "0.2.4",
+            Version = "0.3.0",
             Author = "Sensor Readout",
             Description = "Experimental read-only probe for Lenovo laptops. Reads ThinkPad fan WMI where exposed, ACPI thermal zones, Lenovo thermal modes and thermal driver presence, ACPI battery health (cycle count, full-charge capacity, charge/discharge rate, voltage, estimated runtime, power state, design capacity, chemistry, manufacturer), IdeaPad Lenovo_BatteryInformation (manufacturer, hardware ID, manufacture date), thermal throttle reasons and passive limits, system thermal state, storage health/temperature/wear for NVMe and SATA drives, and reports presence of Lenovo vendor WMI interfaces."
         };
 
-        private static readonly TimeSpan NormalCacheDuration = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan NormalCacheDuration = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan DiagnosticCacheDuration = TimeSpan.FromMinutes(2);
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
         private List<SensorReading> cachedRows = new List<SensorReading>();
         private DateTime cachedDiagnosticRowsUtc = DateTime.MinValue;
         private List<SensorReading> cachedDiagnosticRows = new List<SensorReading>();
+        private readonly object cacheLock = new object();
 
         public PluginInfo Info { get { return info; } }
 
@@ -51,23 +52,29 @@ namespace SensorReadout.LenovoThinkPadPlugIn
 
             var diagnosticsMode = context != null && context.DiagnosticsMode;
             var cacheDuration = diagnosticsMode ? DiagnosticCacheDuration : NormalCacheDuration;
-            var cacheRows = diagnosticsMode ? cachedDiagnosticRows : cachedRows;
-            var cacheUtc = diagnosticsMode ? cachedDiagnosticRowsUtc : cachedRowsUtc;
-            if (cacheRows.Count > 0 && DateTime.UtcNow - cacheUtc < cacheDuration)
+            lock (cacheLock)
             {
-                return cacheRows.Select(CloneReading).ToList();
+                var cacheRows = diagnosticsMode ? cachedDiagnosticRows : cachedRows;
+                var cacheUtc = diagnosticsMode ? cachedDiagnosticRowsUtc : cachedRowsUtc;
+                if (cacheRows.Count > 0 && DateTime.UtcNow - cacheUtc < cacheDuration)
+                {
+                    return cacheRows.Select(CloneReading).ToList();
+                }
             }
 
             var rows = ProbeLenovo(context, diagnosticsMode).ToList();
-            if (diagnosticsMode)
+            lock (cacheLock)
             {
-                cachedDiagnosticRows = rows.Select(CloneReading).ToList();
-                cachedDiagnosticRowsUtc = DateTime.UtcNow;
-            }
-            else
-            {
-                cachedRows = rows.Select(CloneReading).ToList();
-                cachedRowsUtc = DateTime.UtcNow;
+                if (diagnosticsMode)
+                {
+                    cachedDiagnosticRows = rows.Select(CloneReading).ToList();
+                    cachedDiagnosticRowsUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    cachedRows = rows.Select(CloneReading).ToList();
+                    cachedRowsUtc = DateTime.UtcNow;
+                }
             }
 
             return rows;

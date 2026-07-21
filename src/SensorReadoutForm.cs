@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.10.8";
+    public const string AppVersion = "4.11.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -162,6 +162,7 @@ public sealed partial class SensorReadoutForm : Form
     private List<SensorRow> cachedProcessInventoryRows = new List<SensorRow>();
     private DateTime cachedProcessInventoryRowsUtc = DateTime.MinValue;
     private readonly object slowRowsLock = new object();
+    private readonly object sensorCollectionLock = new object();
     private List<SensorRow> cachedSlowRows = new List<SensorRow>();
     private DateTime cachedSlowRowsUtc = DateTime.MinValue;
     private readonly object oemProviderRowsLock = new object();

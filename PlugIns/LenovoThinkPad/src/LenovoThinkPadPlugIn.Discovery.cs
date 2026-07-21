@@ -22,7 +22,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         using (var searcher = CreateSearcher(scopePath, "SELECT * FROM meta_class WHERE __CLASS LIKE '" + pattern + "'"))
                         using (var classes = searcher.Get())
                         {
-                            foreach (ManagementObject managementClass in classes)
+                            foreach (ManagementObject managementClass in EnumerateWmiObjects(classes))
                             {
                                 var className = Convert.ToString(managementClass["__CLASS"], CultureInfo.InvariantCulture);
                                 if (string.IsNullOrWhiteSpace(className))
@@ -120,7 +120,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         var snapshots = new List<string>();
                         var currentSettings = new List<string>();
                         var relevantCurrentSettings = new List<string>();
-                        foreach (ManagementObject instance in instances)
+                        foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                         {
                             using (instance)
                             {
@@ -218,7 +218,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var index = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         index++;
                         var details = ReadDetails(instance);

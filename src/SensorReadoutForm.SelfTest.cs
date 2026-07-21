@@ -67,6 +67,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
+            form.RunSelfTestStep(results, "Plug-in preference identity", delegate { form.SelfTestPlugInPreferenceIdentity(); });
             form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
@@ -1212,6 +1213,57 @@ public sealed partial class SensorReadoutForm : Form
             DisplayValue = "Off"
         };
         Require(GetWindowsSettingsTargetForSelfTest(accessibilityRow) != null, "Accessibility row should open a related Windows setting.");
+    }
+
+    private void SelfTestPlugInPreferenceIdentity()
+    {
+        EnsureSelfTestRows();
+        const string hpId = "sensorreadout.hp.experimental";
+        const string huaweiId = "sensorreadout.huawei.matebook.experimental";
+        settings.PlugInsEnabled = LoadPlugInPreferenceInfos(settings)
+            .ToDictionary(plugIn => plugIn.Id, plugIn => false, StringComparer.OrdinalIgnoreCase);
+        settings.PlugInsEnabled[huaweiId] = true;
+
+        using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Plug-Ins"))
+        {
+            preferences.CreateControl();
+            var plugInList = FindControls<CheckedListBox>(preferences.Controls)
+                .FirstOrDefault(list => list.Items.Cast<object>().Any(item => item is PlugInPreferenceInfo));
+            Require(plugInList != null, "Preferences plug-in list was not found.");
+
+            var hpIndex = -1;
+            var huaweiIndex = -1;
+            for (var i = 0; i < plugInList.Items.Count; i++)
+            {
+                var plugIn = plugInList.Items[i] as PlugInPreferenceInfo;
+                if (plugIn == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(plugIn.Id, hpId, StringComparison.OrdinalIgnoreCase))
+                {
+                    hpIndex = i;
+                }
+                else if (string.Equals(plugIn.Id, huaweiId, StringComparison.OrdinalIgnoreCase))
+                {
+                    huaweiIndex = i;
+                }
+            }
+
+            Require(hpIndex >= 0 && huaweiIndex >= 0, "HP and Huawei plug-ins were not found for identity testing.");
+
+            plugInList.SetItemChecked(hpIndex, true);
+            plugInList.SetItemChecked(huaweiIndex, false);
+            SetPrivateField(preferences, "loadingPreferences", false);
+            InvokePrivate(preferences, "SaveLivePreferences");
+            Require(settings.PlugInsEnabled.ContainsKey(hpId) && !settings.PlugInsEnabled[hpId], "A displaced checkbox enabled the wrong plug-in ID.");
+            Require(settings.PlugInsEnabled.ContainsKey(huaweiId) && settings.PlugInsEnabled[huaweiId], "A displaced checkbox disabled the intended plug-in ID.");
+
+            InvokePrivate(preferences, "SynchronizePlugInCheckStates");
+            Require(!plugInList.GetItemChecked(hpIndex), "HP checkbox did not resynchronize from its stable plug-in ID.");
+            Require(plugInList.GetItemChecked(huaweiIndex), "Huawei checkbox did not resynchronize from its stable plug-in ID.");
+        }
     }
 
     private static object GetWindowsSettingsTargetForSelfTest(SensorRow row)

@@ -19,7 +19,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject disk in instances)
+                    foreach (ManagementObject disk in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(disk);
@@ -32,7 +32,8 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                             friendly = "Disk " + count.ToString(CultureInfo.InvariantCulture);
                         }
 
-                        var diskSlug = StableIdentifier(friendly);
+                        var diskIdentity = FirstValue(details, "UniqueId", "DeviceId", "ObjectId");
+                        var diskSlug = StableIdentifier(string.IsNullOrWhiteSpace(diskIdentity) ? friendly : diskIdentity);
                         var idPrefix = "storage/" + diskSlug + "/";
 
                         var health = FirstNumber(details, "HealthStatus");
@@ -92,7 +93,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             {
                 using (var related = disk.GetRelated("MSFT_StorageReliabilityCounter"))
                 {
-                    foreach (ManagementObject counter in related)
+                    foreach (ManagementObject counter in EnumerateWmiObjects(related))
                     {
                         var details = ReadDetails(counter);
                         details["Namespace"] = @"ROOT\Microsoft\Windows\Storage";

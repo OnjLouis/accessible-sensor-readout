@@ -1,7 +1,7 @@
 {
   "id": "sensorreadout.huawei.matebook.experimental",
   "name": "Huawei MateBook Support (experimental)",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Sensor Readout",
   "description": "Experimental, read-only Huawei MateBook probe. Uses Huawei PC Manager's local hardware SDK helper when available to expose safe fan RPM readings and diagnostic details.",
   "assembly": "HuaweiMateBookPlugIn.dll",

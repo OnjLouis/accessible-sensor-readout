@@ -18,7 +18,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -122,7 +122,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -195,7 +195,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -278,7 +278,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -392,7 +392,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     using (var searcher = CreateSearcher(@"root\WMI", "SELECT InstanceName, Active FROM " + className))
                     using (var instances = searcher.Get())
                     {
-                        foreach (ManagementObject instance in instances)
+                        foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                         {
                             var details = ReadDetails(instance);
                             var activeFlag = FirstValue(details, "Active");

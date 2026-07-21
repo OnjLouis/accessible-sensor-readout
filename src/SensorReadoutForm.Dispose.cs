@@ -92,6 +92,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (disposing)
         {
+            ConfigureWmiTelemetry(false, null);
             ScreenReaderOutput.Shutdown();
         }
 

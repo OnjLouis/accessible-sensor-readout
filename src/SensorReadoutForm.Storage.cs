@@ -1672,7 +1672,7 @@ public sealed partial class SensorReadoutForm : Form
             yield break;
         }
 
-        ManagementObjectCollection results = null;
+        WmiQueryResult results = null;
         try
         {
             var query = "ASSOCIATORS OF {" + className + "." + keyName + "=\"" + EscapeWmiObjectPathValue(keyValue) + "\"} WHERE AssocClass=" + assocClass;
@@ -1690,9 +1690,12 @@ public sealed partial class SensorReadoutForm : Form
             yield break;
         }
 
-        foreach (ManagementObject obj in results)
+        using (results)
         {
-            yield return obj;
+            foreach (ManagementObject obj in results)
+            {
+                yield return obj;
+            }
         }
     }
 

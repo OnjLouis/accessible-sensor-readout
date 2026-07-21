@@ -19,7 +19,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         using (instance)
                         {
@@ -80,7 +80,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         using (instance)
                         {
@@ -180,7 +180,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject zone in instances)
+                    foreach (ManagementObject zone in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(zone);
@@ -244,7 +244,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -338,7 +338,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var searcher = CreateSearcher(@"root\cimv2", "SELECT ThermalState FROM Win32_ComputerSystem"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         var details = ReadDetails(instance);
                         var state = FirstNumber(details, "ThermalState");

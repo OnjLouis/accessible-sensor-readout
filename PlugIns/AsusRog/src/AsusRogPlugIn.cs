@@ -15,9 +15,9 @@ namespace SensorReadout.AsusRogPlugIn
         {
             Id = "sensorreadout.asus.rog.experimental",
             Name = "Asus ROG Support (experimental)",
-            Version = "0.3.0",
+            Version = "0.4.0",
             Author = "Jason Fayre, Claude Code, and Sensor Readout contributors",
-            Description = "Experimental, opt-in Asus ROG probe. Reads ASUS WMI/ATKACPI fan tachometer and temperature values where available, avoids laptop fan-curve writes on desktop towers, and attempts ATKACPI fan control only on supported laptop profiles. Based in part on G-Helper ACPI research."
+            Description = "Experimental, opt-in ASUS laptop probe. Reads ASUS WMI/ATKACPI fan and temperature values where available, and offers fan control only on gaming laptop families with a known compatible interface. Based in part on G-Helper ACPI research."
         };
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
@@ -27,6 +27,7 @@ namespace SensorReadout.AsusRogPlugIn
         private bool? cachedAsusDetection;
         private bool profileLoaded;
         private AsusMachineProfile cachedProfile;
+        private readonly object stateLock = new object();
 
         // Current manual percentages, kept so GetReadings can show the right DisplayValue for "Fan Control" rows.
         private readonly Dictionary<string, int> manualPercents = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -97,17 +98,20 @@ namespace SensorReadout.AsusRogPlugIn
 
         public IEnumerable<SensorReading> GetReadings(IPluginContext context)
         {
-            lastContext = context;
-            if (!IsAsusComputer(context))
-                return Enumerable.Empty<SensorReading>();
+            lock (stateLock)
+            {
+                if (!IsAsusComputer(context))
+                    return Enumerable.Empty<SensorReading>();
 
-            if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < TimeSpan.FromSeconds(5))
-                return cachedRows.Select(CloneReading).ToList();
+                lastContext = context;
+                if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < TimeSpan.FromSeconds(5))
+                    return cachedRows.Select(CloneReading).ToList();
 
-            var rows = ReadAsusSensors(context).ToList();
-            cachedRows = rows.Select(CloneReading).ToList();
-            cachedRowsUtc = DateTime.UtcNow;
-            return rows;
+                var rows = ReadAsusSensors(context).ToList();
+                cachedRows = rows.Select(CloneReading).ToList();
+                cachedRowsUtc = DateTime.UtcNow;
+                return rows;
+            }
         }
 
         public bool TrySetFanPercent(string identifier, int percent)
@@ -115,6 +119,11 @@ namespace SensorReadout.AsusRogPlugIn
             uint curveId;
             if (!TryGetCurveId(identifier, out curveId))
                 return false;
+            lock (stateLock)
+            {
+                if (!ShouldExposeLaptopFanControls(GetAsusMachineProfile(lastContext)))
+                    return false;
+            }
 
             var handle = OpenAtkAcpi();
             if (handle == new IntPtr(-1))
@@ -198,8 +207,11 @@ namespace SensorReadout.AsusRogPlugIn
 
                 if (ok)
                 {
-                    manualPercents[identifier] = p;
-                    cachedRows.Clear();
+                    lock (stateLock)
+                    {
+                        manualPercents[identifier] = p;
+                        cachedRows.Clear();
+                    }
                 }
                 else
                 {
@@ -220,6 +232,11 @@ namespace SensorReadout.AsusRogPlugIn
             uint curveId;
             if (!TryGetCurveId(identifier, out curveId))
                 return false;
+            lock (stateLock)
+            {
+                if (!ShouldExposeLaptopFanControls(GetAsusMachineProfile(lastContext)))
+                    return false;
+            }
 
             var handle = OpenAtkAcpi();
             if (handle == new IntPtr(-1))
@@ -234,7 +251,11 @@ namespace SensorReadout.AsusRogPlugIn
                 // Re-applying the current performance mode signals the BIOS to resume its
                 // own thermal management - the same mechanism ghelper uses when switching modes.
                 int currentMode = DeviceGet(handle, StatusModeId);
-                if (currentMode < 0 || currentMode > 2) currentMode = 0;
+                if (currentMode < 0 || currentMode > 2)
+                {
+                    Log("Debug", "Asus ROG plug-in: reset was not attempted because the current firmware mode could not be read safely.");
+                    return false;
+                }
 
                 int modeError;
                 bool modeIoOk;
@@ -252,8 +273,11 @@ namespace SensorReadout.AsusRogPlugIn
                 var ok = modeResult == 1;
                 if (ok)
                 {
-                    manualPercents.Remove(identifier);
-                    cachedRows.Clear();
+                    lock (stateLock)
+                    {
+                        manualPercents.Remove(identifier);
+                        cachedRows.Clear();
+                    }
                 }
 
                 return ok;
@@ -504,10 +528,10 @@ namespace SensorReadout.AsusRogPlugIn
                 var scope = new ManagementScope(scopePath);
                 scope.Connect();
                 using (var managementClass = new ManagementClass(scope, new ManagementPath(className), null))
-                using (var instances = managementClass.GetInstances())
+                using (var instances = managementClass.GetInstances(new EnumerationOptions { Timeout = TimeSpan.FromSeconds(5) }))
                 {
                     var foundInstance = false;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         foundInstance = true;
                         details["Instance"] = SafeManagementValue(instance, "InstanceName");
@@ -735,7 +759,11 @@ namespace SensorReadout.AsusRogPlugIn
         private SensorReading MakeFanControlRow(string controlIdentifier, string name)
         {
             int manualPercent;
-            var isManual = manualPercents.TryGetValue(controlIdentifier, out manualPercent);
+            bool isManual;
+            lock (stateLock)
+            {
+                isManual = manualPercents.TryGetValue(controlIdentifier, out manualPercent);
+            }
             return new SensorReading
             {
                 Type = "Fan Control",
@@ -759,7 +787,23 @@ namespace SensorReadout.AsusRogPlugIn
 
         private static bool ShouldExposeLaptopFanControls(AsusMachineProfile profile)
         {
-            return profile == null || !profile.IsDesktopTower;
+            if (profile == null || profile.IsDesktopTower)
+            {
+                return false;
+            }
+
+            var identity = string.Join(" ", new[]
+            {
+                profile.Model,
+                profile.SystemFamily,
+                profile.BaseboardProduct
+            }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray());
+            return Contains(identity, "ROG")
+                || Contains(identity, "TUF")
+                || Contains(identity, "Zephyrus")
+                || Contains(identity, "Strix")
+                || Contains(identity, "Scar")
+                || Contains(identity, "Flow");
         }
 
         private AsusMachineProfile GetAsusMachineProfile(IPluginContext context)
@@ -778,10 +822,10 @@ namespace SensorReadout.AsusRogPlugIn
 
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model, SystemFamily, PCSystemType, PCSystemTypeEx FROM Win32_ComputerSystem"))
+                using (var searcher = CreateSearcher("SELECT Manufacturer, Model, SystemFamily, PCSystemType, PCSystemTypeEx FROM Win32_ComputerSystem"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject system in instances)
+                    foreach (ManagementObject system in EnumerateWmiObjects(instances))
                     {
                         profile.Manufacturer = FirstNonEmpty(SafeManagementValue(system, "Manufacturer"), profile.Manufacturer);
                         profile.Model = FirstNonEmpty(SafeManagementValue(system, "Model"), profile.Model);
@@ -802,10 +846,10 @@ namespace SensorReadout.AsusRogPlugIn
 
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Product, Version FROM Win32_BaseBoard"))
+                using (var searcher = CreateSearcher("SELECT Manufacturer, Product, Version FROM Win32_BaseBoard"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject board in instances)
+                    foreach (ManagementObject board in EnumerateWmiObjects(instances))
                     {
                         profile.BaseboardManufacturer = SafeManagementValue(board, "Manufacturer");
                         profile.BaseboardProduct = SafeManagementValue(board, "Product");
@@ -824,10 +868,10 @@ namespace SensorReadout.AsusRogPlugIn
 
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT ChassisTypes FROM Win32_SystemEnclosure"))
+                using (var searcher = CreateSearcher("SELECT ChassisTypes FROM Win32_SystemEnclosure"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject enclosure in instances)
+                    foreach (ManagementObject enclosure in EnumerateWmiObjects(instances))
                     {
                         profile.ChassisTypes = FormatChassisTypes(enclosure["ChassisTypes"]);
                         profile.HasDesktopChassis = HasDesktopChassis(enclosure["ChassisTypes"]);
@@ -938,10 +982,10 @@ namespace SensorReadout.AsusRogPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT Name, Manufacturer, DeviceID, Status FROM Win32_PnPEntity WHERE DeviceID LIKE 'ACPI\\\\PNP0C0B%' OR DeviceID LIKE 'ACPI\\\\ASUS%' OR Name LIKE '%ASUS%' OR Name LIKE '%ATK%'"))
+                using (var searcher = CreateSearcher("SELECT Name, Manufacturer, DeviceID, Status FROM Win32_PnPEntity WHERE DeviceID LIKE 'ACPI\\\\PNP0C0B%' OR DeviceID LIKE 'ACPI\\\\ASUS%' OR Name LIKE '%ASUS%' OR Name LIKE '%ATK%'"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject device in instances)
+                    foreach (ManagementObject device in EnumerateWmiObjects(instances))
                     {
                         var name = SafeManagementValue(device, "Name");
                         var deviceId = SafeManagementValue(device, "DeviceID");
@@ -973,10 +1017,10 @@ namespace SensorReadout.AsusRogPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher("SELECT Name, DisplayName, State FROM Win32_SystemDriver"))
+                using (var searcher = CreateSearcher("SELECT Name, DisplayName, State FROM Win32_SystemDriver"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject driver in instances)
+                    foreach (ManagementObject driver in EnumerateWmiObjects(instances))
                     {
                         var name = SafeManagementValue(driver, "Name");
                         var displayName = SafeManagementValue(driver, "DisplayName");
@@ -1382,10 +1426,10 @@ namespace SensorReadout.AsusRogPlugIn
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher(scopePath, query))
+                using (var searcher = CreateSearcher(scopePath, query))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         foreach (PropertyData property in instance.Properties)
                         {
@@ -1419,14 +1463,14 @@ namespace SensorReadout.AsusRogPlugIn
                 var scope = new ManagementScope(scopePath);
                 scope.Connect();
                 using (var managementClass = new ManagementClass(scope, new ManagementPath(className), null))
-                using (var instances = managementClass.GetInstances())
+                using (var instances = managementClass.GetInstances(new EnumerationOptions { Timeout = TimeSpan.FromSeconds(5) }))
                 {
-                    foreach (ManagementObject ignored in instances)
+                    foreach (ManagementObject ignored in EnumerateWmiObjects(instances))
                     {
                         return true;
                     }
 
-                    return true;
+                    return false;
                 }
             }
             catch (Exception ex)
@@ -1437,6 +1481,40 @@ namespace SensorReadout.AsusRogPlugIn
                 }
 
                 return false;
+            }
+        }
+
+        private static ManagementObjectSearcher CreateSearcher(string query)
+        {
+            var searcher = new ManagementObjectSearcher(query);
+            searcher.Options.Timeout = TimeSpan.FromSeconds(5);
+            return searcher;
+        }
+
+        private static ManagementObjectSearcher CreateSearcher(string scopePath, string query)
+        {
+            var searcher = new ManagementObjectSearcher(scopePath, query);
+            searcher.Options.Timeout = TimeSpan.FromSeconds(5);
+            return searcher;
+        }
+
+        private static IEnumerable<ManagementObject> EnumerateWmiObjects(ManagementObjectCollection instances)
+        {
+            if (instances == null)
+            {
+                yield break;
+            }
+
+            foreach (ManagementObject instance in instances)
+            {
+                try
+                {
+                    yield return instance;
+                }
+                finally
+                {
+                    instance.Dispose();
+                }
             }
         }
 

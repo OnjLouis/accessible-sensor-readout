@@ -2,7 +2,7 @@ portable/*.json
 portable/Config/
 portable/Logs/
 release-stage/
-*.zip
+release/
 *.user
 *.suo
 bin/
@@ -16,4 +16,6 @@ CLIPMAN_AGENT_SYNC.md
 CLIPMAN_SHARED_CONTRACT.md
 CommunitySearch.ps1
 SmokeTest.ps1
+Release.ps1
+Publish-GitHubRelease.ps1
 HANDOVER.md

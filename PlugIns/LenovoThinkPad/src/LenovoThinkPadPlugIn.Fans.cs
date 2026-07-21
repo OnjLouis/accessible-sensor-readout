@@ -39,7 +39,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     using (var instances = searcher.Get())
                     {
                         var instanceIndex = 0;
-                        foreach (ManagementObject instance in instances)
+                        foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                         {
                             using (instance)
                             {
@@ -70,7 +70,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             catch (Exception ex)
             {
                 summaryDetails["LENOVO_FAN_METHOD error"] = ex.Message;
-                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                BackOffFailedWmiProbe(probeKey, ex, summaryDetails);
                 if (context != null)
                 {
                     context.Log("Debug", "Lenovo WMI probe failed for root\\WMI\\LENOVO_FAN_METHOD." + methodName + ": " + ex.Message);
@@ -226,7 +226,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var instanceCount = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         instanceCount++;
                         var details = ReadDetails(instance);
@@ -285,7 +285,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             catch (Exception ex)
             {
                 summaryDetails["LENOVO_FAN_TEST_DATA error"] = ex.Message;
-                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                BackOffFailedWmiProbe(probeKey, ex, summaryDetails);
                 if (context != null)
                 {
                     context.Log("Debug", "Lenovo WMI probe failed for root\\WMI\\LENOVO_FAN_TEST_DATA: " + ex.Message);
@@ -310,7 +310,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject fan in instances)
+                    foreach (ManagementObject fan in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(fan);
@@ -346,7 +346,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             catch (Exception ex)
             {
                 summaryDetails["Win32_Fan error"] = ex.Message;
-                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                BackOffFailedWmiProbe(probeKey, ex, summaryDetails);
                 if (context != null)
                 {
                     context.Log("Debug", "Lenovo WMI probe failed for root\\cimv2\\Win32_Fan: " + ex.Message);
@@ -371,7 +371,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject fan in instances)
+                    foreach (ManagementObject fan in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(fan);
@@ -404,7 +404,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             catch (Exception ex)
             {
                 summaryDetails["ACPI fan device error"] = ex.Message;
-                BackOffMissingWmiProbe(probeKey, ex, summaryDetails);
+                BackOffFailedWmiProbe(probeKey, ex, summaryDetails);
                 if (context != null)
                 {
                     context.Log("Debug", "Lenovo WMI probe failed for root\\cimv2\\Win32_PnPEntity ACPI fan devices: " + ex.Message);

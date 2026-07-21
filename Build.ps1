@@ -1,5 +1,6 @@
 param(
     [string]$OutputPath = "$PSScriptRoot\portable\Sensor Readout.exe",
+    [string]$BuildWorkRoot = '',
     [switch]$SelfTest
 )
 
@@ -93,8 +94,16 @@ function Measure-SourceFileSize {
 
 Measure-SourceFileSize
 
-$generatedRoot = Join-Path $PSScriptRoot 'obj\GeneratedAssemblyInfo'
+if ([string]::IsNullOrWhiteSpace($BuildWorkRoot)) {
+    $BuildWorkRoot = Join-Path ([IO.Path]::GetTempPath()) 'SensorReadout-build'
+}
+$generatedRoot = Join-Path ([IO.Path]::GetFullPath($BuildWorkRoot)) 'GeneratedAssemblyInfo'
+Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
+trap {
+    Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
+    throw
+}
 
 function New-GeneratedAssemblyInfo {
     param(
@@ -403,6 +412,7 @@ foreach ($preservedFolderName in @('Config', 'Logs', 'Reports')) {
 }
 
 Write-Host "Built $OutputPath"
+Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($SelfTest) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'

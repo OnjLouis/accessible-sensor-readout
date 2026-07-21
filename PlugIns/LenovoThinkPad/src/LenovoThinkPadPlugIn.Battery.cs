@@ -27,6 +27,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 }
             }
 
+            if (fullCharge.Count == 1 && designByTag.Count == 1)
+            {
+                var full = fullCharge.First();
+                if (!designByTag.ContainsKey(full.Key))
+                {
+                    designByTag[full.Key] = designByTag.First().Value;
+                }
+            }
+
             foreach (var pair in cycles)
             {
                 if (pair.Value < 0 || pair.Value > 100000)
@@ -120,7 +129,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -158,7 +167,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var searcher = CreateSearcher(@"root\cimv2", "SELECT Tag, DesignCapacity FROM Win32_PortableBattery"))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         var details = ReadDetails(instance);
                         var tag = FirstValue(details, "Tag");
@@ -185,13 +194,19 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         private static IEnumerable<SensorReading> ReadAcpiBatteryStaticData(IPluginContext context, Dictionary<string, string> summaryDetails, Dictionary<string, double> designByTag)
         {
             var rows = new List<SensorReading>();
+            const string probeKey = @"root\wmi\BatteryStaticData";
+            if (ShouldSkipWmiProbe(probeKey, summaryDetails))
+            {
+                return rows;
+            }
+
             try
             {
                 using (var searcher = CreateSearcher(@"root\wmi", "SELECT * FROM BatteryStaticData"))
                 using (var instances = searcher.Get())
                 {
                     var count = 0;
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         count++;
                         var details = ReadDetails(instance);
@@ -275,6 +290,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             catch (Exception ex)
             {
                 summaryDetails["BatteryStaticData error"] = ex.Message;
+                BackOffFailedWmiProbe(probeKey, ex, summaryDetails);
                 if (context != null)
                 {
                     context.Log("Debug", "Battery WMI probe failed for root\\wmi\\BatteryStaticData: " + ex.Message);

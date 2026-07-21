@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -24,11 +25,109 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static ManagementObjectCollection ExecuteWmiQuery(ManagementObjectSearcher searcher, string context, [CallerMemberName] string caller = "")
+    private sealed class WmiQueryResult : IEnumerable<ManagementObject>, IDisposable
+    {
+        private ManagementObjectCollection collection;
+        private bool enumerated;
+
+        public WmiQueryResult(ManagementObjectCollection collection)
+        {
+            this.collection = collection;
+        }
+
+        public IEnumerator<ManagementObject> GetEnumerator()
+        {
+            if (enumerated || collection == null)
+            {
+                return Enumerable.Empty<ManagementObject>().GetEnumerator();
+            }
+
+            enumerated = true;
+            return new WmiObjectEnumerator(this, collection.GetEnumerator());
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public void Dispose()
+        {
+            var ownedCollection = collection;
+            collection = null;
+            if (ownedCollection != null)
+            {
+                ownedCollection.Dispose();
+            }
+        }
+
+        private sealed class WmiObjectEnumerator : IEnumerator<ManagementObject>
+        {
+            private WmiQueryResult owner;
+            private readonly IEnumerator inner;
+            private ManagementObject current;
+
+            public WmiObjectEnumerator(WmiQueryResult owner, IEnumerator inner)
+            {
+                this.owner = owner;
+                this.inner = inner;
+            }
+
+            public ManagementObject Current { get { return current; } }
+            object IEnumerator.Current { get { return Current; } }
+
+            public bool MoveNext()
+            {
+                DisposeCurrent();
+                while (inner.MoveNext())
+                {
+                    current = inner.Current as ManagementObject;
+                    if (current != null)
+                        return true;
+                }
+
+                Dispose();
+                return false;
+            }
+
+            public void Reset()
+            {
+                throw new NotSupportedException();
+            }
+
+            public void Dispose()
+            {
+                DisposeCurrent();
+                var disposable = inner as IDisposable;
+                if (disposable != null)
+                {
+                    disposable.Dispose();
+                }
+
+                var ownedResult = owner;
+                owner = null;
+                if (ownedResult != null)
+                {
+                    ownedResult.Dispose();
+                }
+            }
+
+            private void DisposeCurrent()
+            {
+                if (current != null)
+                {
+                    current.Dispose();
+                    current = null;
+                }
+            }
+        }
+    }
+
+    private static WmiQueryResult ExecuteWmiQuery(ManagementObjectSearcher searcher, string context, [CallerMemberName] string caller = "")
     {
         if (searcher == null)
         {
-            return null;
+            return new WmiQueryResult(null);
         }
 
         var stopwatch = Stopwatch.StartNew();
@@ -39,10 +138,15 @@ public sealed partial class SensorReadoutForm : Form
         var query = GetWmiQueryText(searcher);
         try
         {
+            if (searcher.Options != null && searcher.Options.Timeout == ManagementOptions.InfiniteTimeout)
+            {
+                searcher.Options.Timeout = TimeSpan.FromSeconds(30);
+            }
+
             var result = searcher.Get();
             stopwatch.Stop();
             LogWmiTelemetry(effectiveContext, scope, query, stopwatch.ElapsedMilliseconds, null);
-            return result;
+            return new WmiQueryResult(result);
         }
         catch (Exception ex)
         {
@@ -131,24 +235,29 @@ public sealed partial class SensorReadoutForm : Form
                 return;
             }
 
-            var snapshots = providers.Select(p =>
+            var snapshots = new List<KeyValuePair<int, long>>();
+            foreach (var provider in providers)
             {
-                long privateBytes = 0;
-                try
+                using (provider)
                 {
-                    privateBytes = p.PrivateMemorySize64;
-                }
-                catch
-                {
-                }
+                    long privateBytes = 0;
+                    try
+                    {
+                        privateBytes = provider.PrivateMemorySize64;
+                    }
+                    catch
+                    {
+                    }
 
-                return new { p.Id, PrivateBytes = privateBytes };
-            }).ToList();
-            var largest = snapshots.OrderByDescending(p => p.PrivateBytes).First();
-            var totalBytes = snapshots.Sum(p => p.PrivateBytes);
+                    snapshots.Add(new KeyValuePair<int, long>(provider.Id, privateBytes));
+                }
+            }
+
+            var largest = snapshots.OrderByDescending(p => p.Value).First();
+            var totalBytes = snapshots.Sum(p => p.Value);
             LogMessage("Debug", "WMI provider processes: count=" + snapshots.Count +
-                "; largestPid=" + largest.Id +
-                "; largestPrivate=" + FormatBytes(largest.PrivateBytes) +
+                "; largestPid=" + largest.Key +
+                "; largestPrivate=" + FormatBytes(largest.Value) +
                 "; totalPrivate=" + FormatBytes(totalBytes) + ".");
         }
         catch (Exception ex)

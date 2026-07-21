@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using SensorReadout.PluginSdk;
 
 namespace SensorReadout.HuaweiMateBookPlugIn
@@ -15,13 +16,15 @@ namespace SensorReadout.HuaweiMateBookPlugIn
         {
             Id = "sensorreadout.huawei.matebook.experimental",
             Name = "Huawei MateBook Support (experimental)",
-            Version = "0.1.0",
+            Version = "0.2.0",
             Author = "Sensor Readout",
             Description = "Experimental, read-only Huawei MateBook fan probe using Huawei PC Manager's local hardware SDK helper when available."
         };
 
         private DateTime cachedRowsUtc = DateTime.MinValue;
         private List<SensorReading> cachedRows = new List<SensorReading>();
+        private readonly object cacheLock = new object();
+        private DateTime unavailableSdkRetryUtc = DateTime.MinValue;
 
         public PluginInfo Info { get { return info; } }
 
@@ -32,17 +35,44 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                 return Enumerable.Empty<SensorReading>();
             }
 
-            var interval = context != null && context.DiagnosticsMode
+            var diagnosticsMode = context != null && context.DiagnosticsMode;
+            var interval = diagnosticsMode
                 ? TimeSpan.Zero
                 : TimeSpan.FromSeconds(30);
-            if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < interval)
+            lock (cacheLock)
             {
-                return cachedRows.Select(CloneReading).ToList();
+                if (cachedRows.Count > 0 && DateTime.UtcNow - cachedRowsUtc < interval)
+                {
+                    return cachedRows.Select(CloneReading).ToList();
+                }
+
+                if (!diagnosticsMode && DateTime.UtcNow < unavailableSdkRetryUtc && cachedRows.Count > 0)
+                {
+                    return cachedRows.Select(CloneReading).ToList();
+                }
             }
 
-            var rows = Probe(context).ToList();
-            cachedRows = rows.Select(CloneReading).ToList();
-            cachedRowsUtc = DateTime.UtcNow;
+            if (!FindHuaweiSdkDirectory().Any())
+            {
+                var unavailable = MakeStatusReading("Huawei PC Manager hardware interface not available", diagnosticsMode, null);
+                lock (cacheLock)
+                {
+                    cachedRows = new List<SensorReading> { CloneReading(unavailable) };
+                    cachedRowsUtc = DateTime.UtcNow;
+                    unavailableSdkRetryUtc = DateTime.UtcNow.AddHours(6);
+                }
+
+                return new[] { unavailable };
+            }
+
+            var rows = Probe(context, diagnosticsMode).ToList();
+            lock (cacheLock)
+            {
+                cachedRows = rows.Select(CloneReading).ToList();
+                cachedRowsUtc = DateTime.UtcNow;
+                unavailableSdkRetryUtc = DateTime.MinValue;
+            }
+
             return rows;
         }
 
@@ -55,10 +85,10 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                 || ContainsAny(model, "Huawei", "Honor", "MateBook");
         }
 
-        private static IEnumerable<SensorReading> Probe(IPluginContext context)
+        private static IEnumerable<SensorReading> Probe(IPluginContext context, bool diagnosticsMode)
         {
             var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var result = RunHelper(context, details);
+            var result = RunHelper(context, details, diagnosticsMode);
 
             var fanRows = new List<SensorReading>();
             AddFanRow(fanRows, result, 0, "Fan 1");
@@ -82,25 +112,40 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                 status = "Huawei fan speed not exposed";
             }
 
-            return new[]
+            return new[] { MakeStatusReading(status, diagnosticsMode, details) };
+        }
+
+        private static SensorReading MakeStatusReading(string status, bool diagnosticsMode, Dictionary<string, string> diagnosticDetails)
+        {
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                new SensorReading
+                { "Mode", "Read-only Huawei hardware probe" },
+                { "Compatibility", status }
+            };
+            if (diagnosticsMode && diagnosticDetails != null)
+            {
+                foreach (var pair in diagnosticDetails)
                 {
-                    Type = "Performance",
-                    Hardware = "Overview",
-                    Name = "Huawei Plug-In",
-                    Identifier = StableIdentifier("huawei/status"),
-                    DisplayValue = status,
-                    Source = SourceName,
-                    Details = details
+                    details[pair.Key] = pair.Value;
                 }
+            }
+
+            return new SensorReading
+            {
+                Type = "Performance",
+                Hardware = "Overview",
+                Name = "Huawei Plug-In",
+                Identifier = StableIdentifier("huawei/status"),
+                DisplayValue = status,
+                Source = SourceName,
+                Details = details
             };
         }
 
         private static void AddFanRow(List<SensorReading> rows, HelperResult result, int index, string name)
         {
             uint speed;
-            if (!result.Fans.TryGetValue(index, out speed) || speed == 0 || speed >= 30000)
+            if (!result.Succeeded || !result.Fans.TryGetValue(index, out speed) || speed == 0 || speed >= 30000)
             {
                 return;
             }
@@ -129,13 +174,16 @@ namespace SensorReadout.HuaweiMateBookPlugIn
             });
         }
 
-        private static HelperResult RunHelper(IPluginContext context, Dictionary<string, string> details)
+        private static HelperResult RunHelper(IPluginContext context, Dictionary<string, string> details, bool diagnosticsMode)
         {
             var result = new HelperResult { Status = "Huawei fan helper not run" };
             var pluginDirectory = context == null ? "" : context.PluginDirectory ?? "";
             var helperPath = Path.Combine(pluginDirectory, "HuaweiMateBookHelper.exe");
             details["Mode"] = "Read-only experimental probe";
-            details["Helper path"] = helperPath;
+            if (diagnosticsMode)
+            {
+                details["Helper path"] = helperPath;
+            }
             if (!File.Exists(helperPath))
             {
                 result.Status = "Huawei fan helper not found";
@@ -158,23 +206,43 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                     };
 
                     process.Start();
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    var errorTask = process.StandardError.ReadToEndAsync();
                     if (!process.WaitForExit(3000))
                     {
                         TryKill(process);
+                        process.WaitForExit(1000);
                         result.Status = "Huawei fan helper timed out";
                         details["Helper status"] = result.Status;
-                    }
-                    else
-                    {
-                        details["Helper exit code"] = process.ExitCode.ToString(CultureInfo.InvariantCulture);
+                        return result;
                     }
 
-                    var output = process.StandardOutput.ReadToEnd();
-                    var error = process.StandardError.ReadToEnd();
+                    var exitCode = process.ExitCode;
+                    if (diagnosticsMode)
+                    {
+                        details["Helper exit code"] = exitCode.ToString(CultureInfo.InvariantCulture);
+                    }
+
+                    if (!Task.WaitAll(new Task[] { outputTask, errorTask }, 1000))
+                    {
+                        result.Status = "Huawei fan helper output timed out";
+                        details["Helper status"] = result.Status;
+                        return result;
+                    }
+
+                    var output = outputTask.Result;
+                    var error = errorTask.Result;
                     ParseHelperOutput(output, result, details);
-                    if (!string.IsNullOrWhiteSpace(error))
+                    if (diagnosticsMode && !string.IsNullOrWhiteSpace(error))
                     {
                         details["Helper error output"] = error.Trim();
+                    }
+
+                    result.Succeeded = exitCode == 0 && string.Equals(result.Status, "OK", StringComparison.OrdinalIgnoreCase);
+                    if (!result.Succeeded)
+                    {
+                        result.Fans.Clear();
+                        result.Temperatures.Clear();
                     }
                 }
             }
@@ -210,7 +278,10 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                 return;
             }
 
-            details["Helper output"] = output.Trim();
+            if (details.ContainsKey("Helper path"))
+            {
+                details["Helper output"] = output.Trim();
+            }
             using (var reader = new StringReader(output))
             {
                 string line;
@@ -230,7 +301,10 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                     }
                     else if (key.Equals("SDK", StringComparison.OrdinalIgnoreCase))
                     {
-                        details["Huawei SDK folder"] = value;
+                        if (details.ContainsKey("Helper path"))
+                        {
+                            details["Huawei SDK folder"] = value;
+                        }
                     }
                     else if (key.StartsWith("FAN", StringComparison.OrdinalIgnoreCase))
                     {
@@ -254,7 +328,10 @@ namespace SensorReadout.HuaweiMateBookPlugIn
                     }
                     else if (key.Equals("ERROR", StringComparison.OrdinalIgnoreCase))
                     {
-                        details["Helper reported error"] = value;
+                        if (details.ContainsKey("Helper path"))
+                        {
+                            details["Helper reported error"] = value;
+                        }
                     }
                 }
             }
@@ -272,6 +349,16 @@ namespace SensorReadout.HuaweiMateBookPlugIn
             catch
             {
             }
+        }
+
+        private static IEnumerable<string> FindHuaweiSdkDirectory()
+        {
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Huawei", "PCManager"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Huawei", "PCManager")
+            };
+            return candidates.Where(candidate => File.Exists(Path.Combine(candidate, "HardwareSdk.dll")));
         }
 
         private static bool ContainsAny(string value, params string[] needles)
@@ -317,6 +404,7 @@ namespace SensorReadout.HuaweiMateBookPlugIn
         private sealed class HelperResult
         {
             public string Status = "";
+            public bool Succeeded;
             public readonly Dictionary<int, uint> Fans = new Dictionary<int, uint>();
             public readonly Dictionary<int, int> Temperatures = new Dictionary<int, int>();
         }

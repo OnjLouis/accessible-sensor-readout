@@ -13,6 +13,27 @@ namespace SensorReadout.LenovoThinkPadPlugIn
         private static readonly object wmiProbeBackoffLock = new object();
         private static readonly Dictionary<string, DateTime> wmiProbeBackoffUntilUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private static readonly TimeSpan MissingWmiProbeBackoff = TimeSpan.FromHours(6);
+        private static readonly TimeSpan FailedWmiProbeBackoff = TimeSpan.FromMinutes(30);
+
+        private static IEnumerable<ManagementObject> EnumerateWmiObjects(ManagementObjectCollection instances)
+        {
+            if (instances == null)
+            {
+                yield break;
+            }
+
+            foreach (ManagementObject instance in instances)
+            {
+                try
+                {
+                    yield return instance;
+                }
+                finally
+                {
+                    instance.Dispose();
+                }
+            }
+        }
 
         private static ManagementObjectSearcher CreateSearcher(string query)
         {
@@ -57,9 +78,25 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             BackOffWmiProbe(key, "Known unavailable", summaryDetails);
         }
 
+        private static void BackOffFailedWmiProbe(string key, Exception ex, Dictionary<string, string> summaryDetails)
+        {
+            if (IsMissingWmiClassError(ex))
+            {
+                BackOffWmiProbe(key, "Known unavailable", MissingWmiProbeBackoff, summaryDetails);
+                return;
+            }
+
+            BackOffWmiProbe(key, "Temporarily unavailable", FailedWmiProbeBackoff, summaryDetails);
+        }
+
         private static void BackOffWmiProbe(string key, string reason, Dictionary<string, string> summaryDetails)
         {
-            var untilUtc = DateTime.UtcNow.Add(MissingWmiProbeBackoff);
+            BackOffWmiProbe(key, reason, MissingWmiProbeBackoff, summaryDetails);
+        }
+
+        private static void BackOffWmiProbe(string key, string reason, TimeSpan duration, Dictionary<string, string> summaryDetails)
+        {
+            var untilUtc = DateTime.UtcNow.Add(duration);
             lock (wmiProbeBackoffLock)
             {
                 wmiProbeBackoffUntilUtc[key] = untilUtc;
@@ -84,7 +121,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var searcher = CreateSearcher(scopePath, "SELECT * FROM meta_class WHERE __CLASS = '" + escapedClass + "'"))
                 using (var classes = searcher.Get())
                 {
-                    foreach (ManagementObject ignored in classes)
+                    foreach (ManagementObject ignored in EnumerateWmiObjects(classes))
                     {
                         using (ignored)
                         {
@@ -138,7 +175,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var searcher = CreateSearcher(scopePath, query))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         foreach (PropertyData property in instance.Properties)
                         {
@@ -183,7 +220,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 using (var searcher = CreateSearcher(scopePath, query))
                 using (var instances = searcher.Get())
                 {
-                    foreach (ManagementObject instance in instances)
+                    foreach (ManagementObject instance in EnumerateWmiObjects(instances))
                     {
                         foreach (PropertyData property in instance.Properties)
                         {
@@ -291,7 +328,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                 return false;
             }
 
-            foreach (var name in new[] { "Speed", "CurrentSpeed", "CurrentFanSpeed", "FanSpeed", "Data", "Value", "ReturnValue" })
+            foreach (var name in new[] { "Speed", "CurrentSpeed", "CurrentFanSpeed", "FanSpeed", "FanRpm", "RPM" })
             {
                 var property = outParams.Properties[name];
                 if (property == null || property.Value == null)
@@ -308,6 +345,13 @@ namespace SensorReadout.LenovoThinkPadPlugIn
             foreach (PropertyData property in outParams.Properties)
             {
                 if (property == null || property.Value == null)
+                {
+                    continue;
+                }
+
+                var propertyName = property.Name ?? "";
+                if (propertyName.IndexOf("speed", StringComparison.OrdinalIgnoreCase) < 0
+                    && propertyName.IndexOf("rpm", StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     continue;
                 }

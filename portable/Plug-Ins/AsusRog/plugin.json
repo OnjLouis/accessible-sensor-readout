@@ -1,9 +1,9 @@
 {
   "id": "sensorreadout.asus.rog.experimental",
   "name": "Asus ROG Support (experimental)",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "Jason Fayre, Claude Code, and Sensor Readout contributors",
-  "description": "Experimental, opt-in Asus ROG probe. Reads ASUS WMI/ATKACPI fan tachometer and temperature values where available, avoids laptop fan-curve writes on desktop towers, and attempts ATKACPI fan control only on supported laptop profiles. Based in part on G-Helper ACPI research.",
+  "description": "Experimental, opt-in ASUS laptop probe. Reads ASUS WMI/ATKACPI fan and temperature values where available, and offers fan control only on gaming laptop families with a known compatible interface. Based in part on G-Helper ACPI research.",
   "assembly": "AsusRogPlugIn.dll",
   "type": "SensorReadout.AsusRogPlugIn.AsusRogPlugIn",
   "helpLinks": [

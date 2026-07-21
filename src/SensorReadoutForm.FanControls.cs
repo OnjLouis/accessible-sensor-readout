@@ -349,6 +349,14 @@ public sealed partial class SensorReadoutForm : Form
 
     private List<SensorRow> CollectSensorRows(bool refreshSlowRows, bool backgroundRefresh, bool diagnosticsMode)
     {
+        lock (sensorCollectionLock)
+        {
+            return CollectSensorRowsCore(refreshSlowRows, backgroundRefresh, diagnosticsMode);
+        }
+    }
+
+    private List<SensorRow> CollectSensorRowsCore(bool refreshSlowRows, bool backgroundRefresh, bool diagnosticsMode)
+    {
         ConfigureWmiTelemetry(ShouldLog("Debug"), message => LogMessage("Debug", message));
         var totalStopwatch = Stopwatch.StartNew();
         var timings = new List<string>();
@@ -506,7 +514,14 @@ public sealed partial class SensorReadoutForm : Form
             return new List<SensorRow>();
         }
 
-        EnsureCoreWmiAvailable("slow hardware refresh");
+        if (!EnsureCoreWmiAvailable("slow hardware refresh"))
+        {
+            lock (slowRowsLock)
+            {
+                return cachedSlowRows.Select(CloneSensorRow).ToList();
+            }
+        }
+
         var rows = GetWindowsSmartRows()
             .Concat(GetUsbRowsWithDiagnostics())
             .Concat(GetBluetoothRows())

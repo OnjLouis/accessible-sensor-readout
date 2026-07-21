@@ -937,23 +937,43 @@ public sealed partial class PreferencesForm : Form
     private Dictionary<string, bool> CurrentPlugInSettings()
     {
         var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        if (plugInList == null)
+        foreach (var plugIn in plugIns)
         {
-            return result;
-        }
-
-        for (var i = 0; i < plugInList.Items.Count; i++)
-        {
-            var plugIn = plugInList.Items[i] as PlugInPreferenceInfo;
             if (plugIn == null || string.IsNullOrWhiteSpace(plugIn.Id))
             {
                 continue;
             }
 
-            result[plugIn.Id] = plugInList.GetItemChecked(i);
+            result[plugIn.Id] = plugIn.Enabled;
         }
 
         return result;
+    }
+
+    private void SynchronizePlugInCheckStates()
+    {
+        if (plugInList == null)
+        {
+            return;
+        }
+
+        var previousLoading = loadingPreferences;
+        loadingPreferences = true;
+        try
+        {
+            for (var i = 0; i < plugInList.Items.Count; i++)
+            {
+                var plugIn = plugInList.Items[i] as PlugInPreferenceInfo;
+                if (plugIn != null && plugInList.GetItemChecked(i) != plugIn.Enabled)
+                {
+                    plugInList.SetItemChecked(i, plugIn.Enabled);
+                }
+            }
+        }
+        finally
+        {
+            loadingPreferences = previousLoading;
+        }
     }
 
     private void SavePlugInCheckChange(int index, bool isChecked)

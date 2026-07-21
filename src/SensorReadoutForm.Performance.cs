@@ -47,65 +47,75 @@ public sealed partial class SensorReadoutForm : Form
     {
         var rows = new List<SensorRow>();
         var fastRows = new List<SensorRow>();
-        if (TryAddFastCpuUsageRow(fastRows) & TryAddFastMemoryRows(fastRows, backgroundRefresh))
+        var fastCpuAvailable = TryAddFastCpuUsageRow(fastRows);
+        var fastMemoryAvailable = TryAddFastMemoryRows(fastRows, backgroundRefresh);
+        if (fastCpuAvailable && fastMemoryAvailable)
         {
             return fastRows;
         }
 
-        try
-        {
-            using (var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor"))
-            {
-                var values = ExecuteWmiQuery(searcher, "WMI").Cast<ManagementObject>()
-                    .Select(cpu => Convert.ToDouble(cpu["LoadPercentage"] ?? 0))
-                    .ToList();
-                if (values.Count > 0)
-                {
-                    rows.Add(new SensorRow
-                    {
-                        Type = "Performance",
-                        Hardware = "CPU",
-                        Name = "CPU usage",
-                        Value = (float)values.Average(),
-                        DisplayValue = FormatNumber(Math.Round(values.Average(), 1), "0.0") + "%",
-                        Source = "Windows WMI"
-                    });
-                }
-            }
-        }
-        catch
-        {
-        }
+        rows.AddRange(fastRows);
 
-        try
+        if (!fastCpuAvailable)
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem"))
+            try
             {
-                foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
+                using (var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor"))
                 {
-                    var totalKb = Convert.ToDouble(os["TotalVisibleMemorySize"] ?? 0);
-                    var freeKb = Convert.ToDouble(os["FreePhysicalMemory"] ?? 0);
-                    if (totalKb <= 0)
+                    var values = ExecuteWmiQuery(searcher, "WMI").Cast<ManagementObject>()
+                        .Select(cpu => Convert.ToDouble(cpu["LoadPercentage"] ?? 0))
+                        .ToList();
+                    if (values.Count > 0)
                     {
-                        continue;
+                        rows.Add(new SensorRow
+                        {
+                            Type = "Performance",
+                            Hardware = "CPU",
+                            Name = "CPU usage",
+                            Value = (float)values.Average(),
+                            DisplayValue = FormatNumber(Math.Round(values.Average(), 1), "0.0") + "%",
+                            Source = "Windows WMI"
+                        });
                     }
-
-                    var usedKb = Math.Max(0, totalKb - freeKb);
-                    var usedPercent = usedKb / totalKb * 100.0;
-                    var availablePercent = freeKb / totalKb * 100.0;
-                    var memoryDetails = GetMemoryHardwareDetails();
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalKb * 1024.0), Source = "Windows WMI", Details = CloneDetails(memoryDetails) });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
-                    rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
-                    AddPhysicalAndVirtualMemoryRows(rows, totalKb * 1024.0, usedKb * 1024.0, freeKb * 1024.0, backgroundRefresh);
-                    AddPagingFileRows(rows, backgroundRefresh);
-                    break;
                 }
             }
+            catch
+            {
+            }
         }
-        catch
+
+        if (!fastMemoryAvailable)
         {
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem"))
+                {
+                    foreach (ManagementObject os in ExecuteWmiQuery(searcher, "WMI"))
+                    {
+                        var totalKb = Convert.ToDouble(os["TotalVisibleMemorySize"] ?? 0);
+                        var freeKb = Convert.ToDouble(os["FreePhysicalMemory"] ?? 0);
+                        if (totalKb <= 0)
+                        {
+                            continue;
+                        }
+
+                        var usedKb = Math.Max(0, totalKb - freeKb);
+                        var usedPercent = usedKb / totalKb * 100.0;
+                        var availablePercent = freeKb / totalKb * 100.0;
+                        var memoryDetails = GetMemoryHardwareDetails();
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory total", DisplayValue = FormatBytes(totalKb * 1024.0), Source = "Windows WMI", Details = CloneDetails(memoryDetails) });
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = (float)usedPercent, DisplayValue = FormatNumber(Math.Round(usedPercent, 1), "0.0") + "%", Source = "Windows WMI" });
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used size", DisplayValue = FormatBytes(usedKb * 1024.0), Source = "Windows WMI" });
+                        rows.Add(new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory available", DisplayValue = FormatBytes(freeKb * 1024.0) + " (" + FormatNumber(Math.Round(availablePercent, 1), "0.0") + "%)", Source = "Windows WMI" });
+                        AddPhysicalAndVirtualMemoryRows(rows, totalKb * 1024.0, usedKb * 1024.0, freeKb * 1024.0, backgroundRefresh);
+                        AddPagingFileRows(rows, backgroundRefresh);
+                        break;
+                    }
+                }
+            }
+            catch
+            {
+            }
         }
 
         return rows;

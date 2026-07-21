@@ -1606,6 +1606,7 @@ public sealed partial class PreferencesForm : Form
         speechIncludesDeviceNamesCheckBox.CheckedChanged += delegate { SaveLivePreferences(); };
         Shown += delegate
         {
+            SynchronizePlugInCheckStates();
             loadingPreferences = false;
             FinishInitialPreferenceLoad();
             SaveLivePreferences();

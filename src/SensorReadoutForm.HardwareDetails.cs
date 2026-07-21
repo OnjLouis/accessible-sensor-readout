@@ -650,6 +650,22 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private static void AddRawWmiDetails(Dictionary<string, string> details, string prefix, Dictionary<string, object> values)
+    {
+        if (details == null || values == null || string.IsNullOrWhiteSpace(prefix))
+        {
+            return;
+        }
+
+        foreach (var pair in values)
+        {
+            if (!string.IsNullOrWhiteSpace(pair.Key))
+            {
+                AddDetail(details, prefix + " " + SplitPascalCase(pair.Key), FormatWmiDetailValue(pair.Value));
+            }
+        }
+    }
+
     private static Dictionary<string, string> CloneDetails(Dictionary<string, string> details)
     {
         return details == null || details.Count == 0

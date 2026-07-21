@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.10.8.
+Current version: 4.11.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -415,7 +415,7 @@ Experimental laptop plug-ins are also bundled for opt-in tester feedback. They a
 - Huawei MateBook Support is read-only and can expose live fan RPM on supported Huawei laptops when Huawei PC Manager's local hardware SDK is installed.
 - Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
 - MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
-- Asus ROG Support is based in part on G-Helper ACPI research, can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available, and keeps desktop tower fan control read-only for safety.
+- Asus ROG Support is based in part on G-Helper ACPI research and can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available. Fan controls appear only on compatible ROG, TUF, Zephyrus, Strix, Scar, and Flow gaming laptop families; other ASUS systems remain read-only.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -690,6 +690,14 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.11.0
+
+- Improved: Long-running hardware collection is more resilient on systems with slow or fragile Windows hardware providers, while successful native CPU and memory readings avoid unnecessary fallback work.
+- Improved: Lenovo laptop readings refresh more promptly, single-battery health is matched more reliably, and repeated unavailable hardware probes are reduced.
+- Improved: ASUS fan readings remain available where supported, while fan controls are now shown only on compatible gaming laptop families instead of appearing on models whose firmware does not provide dependable control.
+- Improved: Huawei MateBook support now handles missing PC Manager hardware support, helper failures, and timeouts more safely, with clearer compatibility information.
+- Improved: Plug-in enable choices remain attached to the correct plug-in when Preferences opens, including systems with several bundled laptop plug-ins.
 
 ### 4.10.8
 - Added: Experimental Huawei MateBook Support plug-in. On supported Huawei laptops with Huawei PC Manager installed, it can expose live fan RPM through Huawei's local read-only hardware SDK helper.
