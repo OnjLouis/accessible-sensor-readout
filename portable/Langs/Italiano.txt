@@ -166,6 +166,7 @@ status.noSensorRows=Nessuna riga sensore ancora restituita.
 status.noMeterForSelectedReading=Nessun indicatore per la lettura selezionata.
 status.updated=Aggiornato
 status.from=da
+status.Paused=In pausa
 status.sensorRowSingular=riga sensore
 status.sensorRowPlural=righe sensore
 status.fanControlRequirement=Le ventole o i controlli della scheda madre potrebbero richiedere PawnIO, diritti di amministratore o supporto hardware.

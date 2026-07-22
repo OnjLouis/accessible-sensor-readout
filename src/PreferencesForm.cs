@@ -242,6 +242,8 @@ public sealed partial class PreferencesForm : Form
 
     public PreferencesForm(AppSettings settings, List<SensorRow> latestRows, List<LanguageChoice> languageChoices, string initialTabName)
     {
+        Font = SystemFonts.MessageBoxFont;
+        Icon = SensorReadoutForm.LoadApplicationIcon();
         var effectiveLanguageChoices = SensorReadoutForm.LoadLanguageChoices();
         if (effectiveLanguageChoices.Count == 0)
         {

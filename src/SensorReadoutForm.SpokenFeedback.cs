@@ -81,9 +81,25 @@ public sealed partial class SensorReadoutForm : Form
             AutoEllipsis = true,
             Dock = DockStyle.Fill,
             Font = new Font(Font.FontFamily, Math.Max(11f, Font.Size + 1f), FontStyle.Regular),
-            Padding = new Padding(14),
-            TextAlign = ContentAlignment.MiddleLeft
+            Padding = new Padding(18, 14, 14, 14),
+            TextAlign = ContentAlignment.MiddleLeft,
+            BackColor = SystemColors.Window,
+            ForeColor = SystemColors.WindowText
         };
+
+        var accentPanel = new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 6,
+            BackColor = SystemInformation.HighContrast ? SystemColors.Highlight : Color.FromArgb(20, 126, 94)
+        };
+        var feedbackBody = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = SystemColors.Window
+        };
+        feedbackBody.Controls.Add(visualSpokenFeedbackLabel);
+        feedbackBody.Controls.Add(accentPanel);
 
         visualSpokenFeedbackForm = new VisualSpokenFeedbackForm
         {
@@ -92,13 +108,13 @@ public sealed partial class SensorReadoutForm : Form
             StartPosition = FormStartPosition.Manual,
             TopMost = true,
             Text = "Sensor Readout",
-            Icon = Icon ?? SystemIcons.Application,
+            Icon = Icon == null ? LoadApplicationIcon() : (Icon)Icon.Clone(),
             ShowIcon = true,
             ControlBox = false,
             MinimizeBox = false,
             MaximizeBox = false
         };
-        visualSpokenFeedbackForm.Controls.Add(visualSpokenFeedbackLabel);
+        visualSpokenFeedbackForm.Controls.Add(feedbackBody);
 
         visualSpokenFeedbackTimer = new Timer();
         visualSpokenFeedbackTimer.Tick += delegate

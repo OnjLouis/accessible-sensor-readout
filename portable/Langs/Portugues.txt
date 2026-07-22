@@ -166,6 +166,7 @@ status.noSensorRows=Ainda não foram recebidas filas de sensores.
 status.noMeterForSelectedReading=Não existe medidor para a leitura selecionada.
 status.updated=Atualizado
 status.from=desde
+status.Paused=Em pausa
 status.sensorRowSingular=fila de sensor
 status.sensorRowPlural=filas de sensores
 status.fanControlRequirement=Os ventiladores ou controlos da placa base podem exigir PawnIO, direitos de administrador ou compatibilidade de hardware.

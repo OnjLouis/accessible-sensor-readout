@@ -888,8 +888,13 @@ public sealed partial class SensorReadoutForm : Form
         var selectedRows = GetTrayStatusRows();
         var speechText = BuildSpeechStatusText(selectedRows);
         currentTrayStatusText = speechText;
-        SetTrayTooltipText(BuildTrayTooltipText(selectedRows, speechText));
-        SetTrayIcon(selectedRows.FirstOrDefault());
+        var tooltipText = BuildTrayTooltipText(selectedRows, speechText);
+        if (!settings.AutoRefreshEnabled && !reportViewMode)
+        {
+            tooltipText = T("status.Paused", "Paused") + ": " + tooltipText;
+        }
+        SetTrayTooltipText(tooltipText);
+        SetTrayIcon(selectedRows);
     }
 
     private string BuildCurrentSpeechStatusText()
@@ -1655,9 +1660,10 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private void SetTrayIcon(SensorRow row)
+    private void SetTrayIcon(IList<SensorRow> rows)
     {
-        var signature = TrayIconSignature(row);
+        var visual = BuildTrayBadgeVisual(rows);
+        var signature = TrayBadgeSignature(visual);
         if (string.Equals(lastTrayIconSignature, signature, StringComparison.Ordinal) &&
             ReferenceEquals(trayIcon.Icon, trayStatusIcon))
         {
@@ -1667,14 +1673,14 @@ public sealed partial class SensorReadoutForm : Form
         var oldIcon = trayStatusIcon;
         try
         {
-            trayStatusIcon = CreateTrayIcon(row);
+            trayStatusIcon = CreateTrayIcon(visual);
             trayIcon.Icon = trayStatusIcon;
             lastTrayIconSignature = signature;
         }
         catch (Exception ex)
         {
             LogError("Could not create tray status icon; using fallback icon. " + ex.Message);
-            trayStatusIcon = (Icon)SystemIcons.Application.Clone();
+            trayStatusIcon = LoadApplicationIcon();
             trayIcon.Icon = trayStatusIcon;
             lastTrayIconSignature = "";
         }
@@ -1685,45 +1691,11 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static Icon CreateTrayIcon(SensorRow row)
-    {
-        using (var bitmap = new Bitmap(16, 16))
-        using (var graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.Clear(Color.Transparent);
-            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
-
-            var color = TrayColor(row);
-            using (var background = new SolidBrush(color))
-            using (var border = new Pen(Color.White))
-            {
-                graphics.FillEllipse(background, 0, 0, 15, 15);
-                graphics.DrawEllipse(border, 0, 0, 15, 15);
-            }
-
-            var text = TrayIconText(row);
-            using (var font = new Font("Segoe UI", text.Length > 2 ? 5.5f : 6.5f, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var brush = new SolidBrush(Color.White))
-            using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                graphics.DrawString(text, font, brush, new RectangleF(0, 1, 16, 14), format);
-            }
-
-            return IconFromBitmap(bitmap);
-        }
-    }
-
-    private static string TrayIconSignature(SensorRow row)
-    {
-        return TrayColor(row).ToArgb().ToString(CultureInfo.InvariantCulture) + "|" + TrayIconText(row);
-    }
-
     private static Icon IconFromBitmap(Bitmap bitmap)
     {
         if (bitmap == null)
         {
-            return (Icon)SystemIcons.Application.Clone();
+            return LoadApplicationIcon();
         }
 
         var handle = IntPtr.Zero;
@@ -1741,58 +1713,5 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static Color TrayColor(SensorRow row)
-    {
-        if (row == null)
-        {
-            return Color.DimGray;
-        }
-
-        if (row.Type == "Temperature")
-        {
-            var value = row.Value.GetValueOrDefault();
-            if (value >= 80) return Color.FromArgb(180, 40, 35);
-            if (value >= 65) return Color.FromArgb(210, 116, 0);
-            return Color.FromArgb(25, 120, 75);
-        }
-
-        if (row.Type == "Fan")
-        {
-            return Color.FromArgb(40, 95, 170);
-        }
-
-        if (row.Type == "SMART")
-        {
-            return Color.FromArgb(105, 80, 155);
-        }
-
-        return Color.DimGray;
-    }
-
-    private static string TrayIconText(SensorRow row)
-    {
-        if (row == null || !row.Value.HasValue)
-        {
-            return "SR";
-        }
-
-        if (row.Type == "Temperature")
-        {
-            var unit = NormalizeTemperatureUnit(activeTemperatureUnit);
-            var value = unit == "F" || unit == "FC"
-                ? (row.Value.Value * 9.0 / 5.0) + 32.0
-                : row.Value.Value;
-            return FormatNumber(Math.Round(value, 0), "0");
-        }
-
-        if (row.Type == "Fan")
-        {
-            var rpm = row.Value.Value;
-            return rpm >= 1000 ? FormatNumber(Math.Round(rpm / 1000, 1), "0.#") + "k" : FormatNumber(Math.Round(rpm, 0), "0");
-        }
-
-        var display = FormatNumber(Math.Round(row.Value.Value, 0), "0");
-        return display.Length <= 3 ? display : display.Substring(0, 3);
-    }
 
 }

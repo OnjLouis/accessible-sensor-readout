@@ -106,19 +106,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private static Icon CreateAlarmTrayIcon()
     {
-        using (var bitmap = new Bitmap(16, 16))
-        using (var graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.Clear(Color.Firebrick);
-            using (var brush = new SolidBrush(Color.Gold))
-            using (var font = new Font("Segoe UI", 11f, FontStyle.Bold, GraphicsUnit.Pixel))
-            using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                graphics.DrawString("!", font, brush, new RectangleF(0, 0, 16, 16), format);
-            }
-
-            return IconFromBitmap(bitmap);
-        }
+        return CreateTrayIcon(new TrayBadgeVisual { Signal = ReadingVisualSignal.Critical, Text = "!" });
     }
 
     private static bool AlarmConditionMatches(double value, AlarmSetting alarm)

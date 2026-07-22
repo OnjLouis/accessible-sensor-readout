@@ -166,6 +166,7 @@ status.noSensorRows=Noch keine Sensordaten zurückgegeben.
 status.noMeterForSelectedReading=Kein Messbalken für den ausgewählten Messwert.
 status.updated=Aktualisiert
 status.from=von
+status.Paused=Pausiert
 status.sensorRowSingular=Sensorzeile
 status.sensorRowPlural=Sensorzeilen
 status.fanControlRequirement=Mainboard-Lüfter oder Steuerungen benötigen möglicherweise PawnIO, Administratorrechte oder Hardwareunterstützung.

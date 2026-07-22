@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.11.0.
+Current version: 4.12.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -294,6 +294,8 @@ The General tab controls the main reading experience.
 When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. `Alt+F4` exits the app completely.
 
 Notification area readings are selected from an Available readings list and moved into a Tray order list. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or `Ctrl+Right`, `Ctrl+Left`, and `Ctrl+Up` / `Ctrl+Down`, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as `Ethernet - Rx: Network`, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as `CPU`, `GPU`, `Rx`, and `Tx`.
+
+The notification-area badge uses shape, symbols, and colour together so its state does not depend on colour recognition alone. A circle represents normal or active readings, an amber clipped badge marks caution, and a red octagonal badge marks a critical reading. A square `X` means disconnected or offline, a double-ring `--` means unavailable, and a square `||` means updates are paused. SMART status uses purple, normal temperature or healthy status uses green, and active CPU or GPU use uses blue. The first configured reading normally supplies the displayed value, but a caution, critical, or disconnected reading elsewhere in the selected tray items can take priority so an important state is not hidden.
 
 ### Startup and Install (`Ctrl+2`)
 
@@ -690,6 +692,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.12.0
+
+- Added: Sensor Readout now has its own multi-size gauge icon across the app, its windows, Windows shortcuts, and the notification area.
+- Improved: The notification-area badge now makes caution, critical, disconnected, unavailable, alarm, and paused states easier to recognise. Distinct shapes and symbols supplement colour, while important states among the configured tray readings can take priority over an ordinary value.
+- Improved: Percentage meters and the optional floating visual hotkey feedback have clearer Windows-native styling, spacing, contrast, and state indication.
 
 ### 4.11.0
 

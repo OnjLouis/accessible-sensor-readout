@@ -165,6 +165,7 @@ status.noSensorRows=No sensor rows returned yet.
 status.noMeterForSelectedReading=No meter for selected reading.
 status.updated=Updated
 status.from=from
+status.Paused=Paused
 status.sensorRowSingular=sensor row
 status.sensorRowPlural=sensor rows
 status.fanControlRequirement=Motherboard fans or controls may require PawnIO, administrator rights, or hardware support.

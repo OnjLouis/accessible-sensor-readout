@@ -18,6 +18,10 @@ $sdkOutput = Join-Path $resources 'SensorReadout.PluginSdk.dll'
 $sdkSources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src\PluginSdk') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $sources = Get-ChildItem -Path (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $manifest = Join-Path $PSScriptRoot 'src\SensorReadoutApp.exe.manifest'
+$applicationIcon = Join-Path $PSScriptRoot 'src\SensorReadout.ico'
+if (-not (Test-Path -LiteralPath $applicationIcon)) {
+    throw "Sensor Readout application icon is missing: $applicationIcon"
+}
 $assemblyInfo = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'src\AssemblyInfo.cs') -Raw
 if ($assemblyInfo -notmatch 'AssemblyFileVersion\("([^"]+)"\)') {
     throw "Could not find AssemblyFileVersion in src\AssemblyInfo.cs"
@@ -237,7 +241,7 @@ function Assert-RequiredResourceFiles {
     }
 }
 
-& $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /out:$OutputPath /reference:$references $sources
+& $csc /nologo /target:winexe /platform:x64 /win32manifest:$manifest /win32icon:$applicationIcon /out:$OutputPath /reference:$references $sources
 if ($LASTEXITCODE -ne 0) {
     throw "Build failed with exit code $LASTEXITCODE"
 }

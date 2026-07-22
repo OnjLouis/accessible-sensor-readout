@@ -54,6 +54,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Reading tree expansion preference", delegate { form.SelfTestReadingTreeExpansionPreference(); });
             form.RunSelfTestStep(results, "Show/hide expansion preservation", delegate { form.SelfTestExpansionPreservation(); });
             form.RunSelfTestStep(results, "Tray tooltip modes", delegate { form.SelfTestTrayStatusText(); });
+            form.RunSelfTestStep(results, "Visual status badges and meters", delegate { form.SelfTestVisualStatusBadgesAndMeters(); });
             form.RunSelfTestStep(results, "Byte unit formatting modes", delegate { form.SelfTestByteUnitFormattingModes(); });
             form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
             form.RunSelfTestStep(results, "Background hotkey refresh cadence", delegate { form.SelfTestBackgroundHotKeyRefreshCadence(); });
@@ -563,6 +564,51 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(BuildSpeechStatusText(GetSpokenHotKeyRows(profile), profile.SkipUnavailableReadings), T("speech.noActiveReadings", "No active readings to announce."), StringComparison.Ordinal), "Inactive row was not skipped for spoken hotkey profile.");
         settings.TrayItemKeys = previousTrayKeys;
         settings.TraySpeechSkipsUnavailableReadings = previousSkipUnavailable;
+    }
+
+    private void SelfTestVisualStatusBadgesAndMeters()
+    {
+        var previousAutoRefresh = settings.AutoRefreshEnabled;
+        try
+        {
+            settings.AutoRefreshEnabled = true;
+            var normalMemory = new SensorRow { Type = "Performance", Hardware = "Memory", Name = "Memory used", Value = 52f, DisplayValue = "16.6 GB (52%)" };
+            var hotTemperature = new SensorRow { Type = "Temperature", Hardware = "CPU", Name = "CPU package", Value = 86f, DisplayValue = "86 C" };
+            var warmTemperature = new SensorRow { Type = "Temperature", Hardware = "CPU", Name = "CPU package", Value = 72f, DisplayValue = "72 C" };
+            var disconnected = new SensorRow { Type = "Network", Hardware = "Wi-Fi", Name = "Status", DisplayValue = "Disconnected" };
+            var lowBattery = new SensorRow { Type = "Battery", Hardware = "Battery", Name = "Charge level", Value = 8f, DisplayValue = "8%" };
+
+            Require(VisualSignalForRow(hotTemperature) == ReadingVisualSignal.Critical, "Hot temperature did not produce a critical visual state.");
+            Require(VisualSignalForRow(warmTemperature) == ReadingVisualSignal.Caution, "Warm temperature did not produce a caution visual state.");
+            Require(VisualSignalForRow(disconnected) == ReadingVisualSignal.Offline, "Disconnected status did not produce an offline visual state.");
+            Require(VisualSignalForRow(lowBattery) == ReadingVisualSignal.Critical, "Low battery did not produce a critical visual state.");
+            Require(MeterVisualState(normalMemory, 96f) == MeterProgressBar.ErrorState, "High memory meter did not produce an error visual state.");
+            Require(MeterVisualState(lowBattery, 20f) == MeterProgressBar.WarningState, "Low battery meter did not produce a warning visual state.");
+
+            var visual = BuildTrayBadgeVisual(new List<SensorRow> { normalMemory, hotTemperature });
+            Require(visual.Signal == ReadingVisualSignal.Critical && ReferenceEquals(visual.Row, hotTemperature), "Tray badge did not prioritize the critical configured reading.");
+            using (var icon = CreateTrayIcon(visual))
+            {
+                Require(icon != null && icon.Width > 0 && icon.Height > 0, "Critical tray badge icon was not created.");
+            }
+
+            settings.AutoRefreshEnabled = false;
+            var paused = BuildTrayBadgeVisual(new List<SensorRow> { normalMemory });
+            Require(paused.Signal == ReadingVisualSignal.Paused && string.Equals(paused.Text, "||", StringComparison.Ordinal), "Paused tray badge was not selected.");
+            using (var icon = CreateTrayIcon(paused))
+            {
+                Require(icon != null, "Paused tray badge icon was not created.");
+            }
+
+            using (var icon = LoadApplicationIcon())
+            {
+                Require(icon != null && icon.Width >= 16 && icon.Height >= 16, "Application icon was not available.");
+            }
+        }
+        finally
+        {
+            settings.AutoRefreshEnabled = previousAutoRefresh;
+        }
     }
 
     private void SelfTestByteUnitFormattingModes()

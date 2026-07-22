@@ -490,6 +490,24 @@ public sealed class ReadingTreeItem
 
 public sealed class MeterProgressBar : ProgressBar
 {
+    public const int NormalState = 1;
+    public const int ErrorState = 2;
+    public const int WarningState = 3;
+    private const int PbmSetState = 0x0410;
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    public void SetVisualState(int state)
+    {
+        if (!IsHandleCreated)
+        {
+            CreateControl();
+        }
+
+        SendMessage(Handle, PbmSetState, new IntPtr(state), IntPtr.Zero);
+    }
+
     public void NotifyAccessibleValueChanged()
     {
         AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);

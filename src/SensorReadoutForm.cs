@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.11.0";
+    public const string AppVersion = "4.12.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -227,6 +227,8 @@ public sealed partial class SensorReadoutForm : Form
 
     public SensorReadoutForm(bool startMinimized)
     {
+        Font = SystemFonts.MessageBoxFont;
+        Icon = LoadApplicationIcon();
         settings = LoadSettings();
         activeTemperatureUnit = settings.TemperatureUnit;
         activeMemoryUnitMode = settings.MemoryUnitMode;
@@ -437,13 +439,15 @@ public sealed partial class SensorReadoutForm : Form
             autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
             SaveSettings(settings);
             ApplyTimerSettings();
+            UpdatePauseVisualState();
+            UpdateTrayStatus();
         };
 
         topPanel.Controls.Add(pauseCheckBox);
 
         trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = (Icon)Icon.Clone(),
             Text = "Sensor Readout",
             Visible = settings.TrayStatusEnabled,
             ContextMenuStrip = new ContextMenuStrip()
@@ -661,6 +665,8 @@ public sealed partial class SensorReadoutForm : Form
             Padding = new Padding(8, 5, 8, 0),
             Text = "Sensor Readout is open. Readings will appear as the background refresh completes."
         };
+
+        ApplyMainWindowVisualStyle(topPanel, splitContainer);
 
         Controls.Add(splitContainer);
         Controls.Add(statusLabel);

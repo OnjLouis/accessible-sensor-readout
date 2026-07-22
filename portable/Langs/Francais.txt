@@ -166,6 +166,7 @@ status.noSensorRows=Aucune ligne de capteur retournee pour le moment.
 status.noMeterForSelectedReading=Aucune jauge pour la mesure sélectionnée.
 status.updated=Mis à jour
 status.from=depuis
+status.Paused=En pause
 status.sensorRowSingular=ligne de capteur
 status.sensorRowPlural=lignes de capteurs
 status.fanControlRequirement=Les ventilateurs ou contrôles de la carte mère peuvent nécessiter PawnIO, des droits administrateur ou une prise en charge matérielle.

@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 4.11.0.</p>
+<p>Current version: 4.12.0.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#changelog">Changelog</a></li>
@@ -42,6 +42,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>4.12.0</h3><ul><li>Added: Sensor Readout now has its own multi-size gauge icon across the app, its windows, Windows shortcuts, and the notification area.</li><li>Improved: The notification-area badge now makes caution, critical, disconnected, unavailable, alarm, and paused states easier to recognise. Distinct shapes and symbols supplement colour, while important states among the configured tray readings can take priority over an ordinary value.</li><li>Improved: Percentage meters and the optional floating visual hotkey feedback have clearer Windows-native styling, spacing, contrast, and state indication.</li></ul>
 <h3>4.11.0</h3><ul><li>Improved: Long-running hardware collection is more resilient on systems with slow or fragile Windows hardware providers, while successful native CPU and memory readings avoid unnecessary fallback work.</li><li>Improved: Lenovo laptop readings refresh more promptly, single-battery health is matched more reliably, and repeated unavailable hardware probes are reduced.</li><li>Improved: ASUS fan readings remain available where supported, while fan controls are now shown only on compatible gaming laptop families instead of appearing on models whose firmware does not provide dependable control.</li><li>Improved: Huawei MateBook support now handles missing PC Manager hardware support, helper failures, and timeouts more safely, with clearer compatibility information.</li><li>Improved: Plug-in enable choices remain attached to the correct plug-in when Preferences opens, including systems with several bundled laptop plug-ins.</li></ul>
 <h3>4.10.8</h3><ul><li>Added: Experimental Huawei MateBook Support plug-in. On supported Huawei laptops with Huawei PC Manager installed, it can expose live fan RPM through Huawei's local read-only hardware SDK helper.</li><li>Improved: Debug logging now records Sensor Readout's WMI queries, including scope, query text, duration, and failures, to help diagnose systems where Windows WMI providers grow or reset over time.</li><li>Improved: Installed copies now appear in Windows Apps and Features / Programs and Features for the current user, with removal routed through Sensor Readout's normal uninstall flow.</li><li>Improved: Sensor Readout now caches selected hardware-state WMI readings that do not need constant live polling, reducing repeated provider load on laptops where Windows WMI providers grow over time.</li><li>Fixed: Disabling a hardware plug-in now clears cached plug-in readings immediately, so Data sources and the main tree do not keep showing rows from a plug-in that is no longer enabled.</li></ul>
 <h3>4.10.7</h3><ul><li>Fixed: USB SuperSpeedPlus link speeds now decode Windows lane-speed data correctly, avoiding impossible raw values such as <code>181000 bps</code> for USB 3.x devices.</li></ul>
@@ -1125,6 +1126,7 @@
 </ul>
 <p>When notification area status is enabled, minimizing Sensor Readout hides it from the taskbar and Alt+Tab list. Open it again from the notification area icon. <code>Alt+F4</code> exits the app completely.</p>
 <p>Notification area readings are selected from an Available readings list and moved into a Tray order list. A reading appears in only one list at a time. Use Add, Remove, Up, and Down, or <code>Ctrl+Right</code>, <code>Ctrl+Left</code>, and <code>Ctrl+Up</code> / <code>Ctrl+Down</code>, to choose exactly which readings appear first. Available readings are listed as device first, then reading name and category, such as <code>Ethernet - Rx: Network</code>, so type-ahead can jump to a device name. Sensor Readout uses shortened tray labels such as <code>CPU</code>, <code>GPU</code>, <code>Rx</code>, and <code>Tx</code>.</p>
+<p>The notification-area badge uses shape, symbols, and colour together so its state does not depend on colour recognition alone. A circle represents normal or active readings, an amber clipped badge marks caution, and a red octagonal badge marks a critical reading. A square <code>X</code> means disconnected or offline, a double-ring <code>--</code> means unavailable, and a square <code>||</code> means updates are paused. SMART status uses purple, normal temperature or healthy status uses green, and active CPU or GPU use uses blue. The first configured reading normally supplies the displayed value, but a caution, critical, or disconnected reading elsewhere in the selected tray items can take priority so an important state is not hidden.</p>
 <h3>Startup and Install (<code>Ctrl+2</code>)</h3>
 <p>The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.</p>
 <ul>

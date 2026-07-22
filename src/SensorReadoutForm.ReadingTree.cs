@@ -324,6 +324,7 @@ public sealed partial class SensorReadoutForm : Form
             if (lastSelectedMeterValue != -1 || !string.Equals(lastSelectedMeterLabel, noMeterText, StringComparison.Ordinal))
             {
                 selectedMeterProgressBar.Value = 0;
+                selectedMeterProgressBar.SetVisualState(MeterProgressBar.NormalState);
                 selectedMeterProgressBar.AccessibleName = T("a11y.Selected meter", "Selected meter");
                 selectedMeterProgressBar.AccessibleDescription = T("a11y.Selected reading is not a percentage meter", "Selected reading is not a percentage meter");
                 selectedMeterValueLabel.Text = noMeterText;
@@ -341,6 +342,7 @@ public sealed partial class SensorReadoutForm : Form
         if (changed)
         {
             selectedMeterProgressBar.Value = value;
+            selectedMeterProgressBar.SetVisualState(MeterVisualState(row, percent));
             selectedMeterProgressBar.AccessibleName = label + ", " + value + " percent";
             selectedMeterProgressBar.AccessibleDescription = label + ", " + value + " percent";
             selectedMeterValueLabel.Text = label + ": " + value + "%";
