@@ -242,7 +242,9 @@ public sealed partial class SensorReadoutForm : Form
             Rows = new List<ReportSnapshotRow>()
         };
 
-        foreach (var row in source == null || source.Rows == null ? new List<ReportSnapshotRow>() : source.Rows)
+        var sourceRows = source == null || source.Rows == null ? new List<ReportSnapshotRow>() : source.Rows;
+        var driveLabels = CollectSensitiveDriveLabels(sourceRows);
+        foreach (var row in sourceRows)
         {
             if (row == null)
             {
@@ -262,13 +264,13 @@ public sealed partial class SensorReadoutForm : Form
             snapshot.Rows.Add(new ReportSnapshotRow
             {
                 Type = row.Type ?? "",
-                Hardware = SanitizeReportText(row.Hardware, sourceMachineName),
-                Name = SanitizeReportText(row.Name, sourceMachineName),
-                Identifier = SanitizeReportText(row.Identifier, sourceMachineName),
+                Hardware = SanitizeReportText(row.Hardware, sourceMachineName, driveLabels),
+                Name = SanitizeReportText(row.Name, sourceMachineName, driveLabels),
+                Identifier = "",
                 Value = row.Value,
-                DisplayValue = SanitizeReportText(row.DisplayValue, sourceMachineName),
+                DisplayValue = SanitizeReportFieldValue(row.Name, row.DisplayValue, sourceMachineName, driveLabels),
                 Source = row.Source ?? "",
-                Details = row.Details == null ? null : row.Details.ToDictionary(p => p.Key, p => SanitizeReportText(p.Value, sourceMachineName), StringComparer.OrdinalIgnoreCase)
+                Details = SanitizeReportDetails(row.Details, sourceMachineName, driveLabels)
             });
         }
 
@@ -296,13 +298,66 @@ public sealed partial class SensorReadoutForm : Form
     private string BuildSanitizationPreview(ReportSnapshot snapshot)
     {
         var rows = snapshot == null || snapshot.Rows == null ? 0 : snapshot.Rows.Count;
-        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths. Online public-IP lookup rows, Tasks rows, and Spoken Hotkeys rows are removed from anonymized reports.") +
+        return T("message.Anonymized report preview", "Sensor Readout will save a shareable report with the computer name replaced and common private identifiers masked, including IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, drive labels, network locations, and paths. Online public-IP lookup rows, Tasks rows, and Spoken Hotkeys rows are removed from anonymized reports.") +
             Environment.NewLine + Environment.NewLine +
             T("ui.Rows included:", "Rows included:") + " " + rows + Environment.NewLine +
             T("ui.Computer name:", "Computer name:") + " Computer";
     }
 
-    private static string SanitizeReportText(string value, string sourceMachineName)
+    private static List<string> CollectSensitiveDriveLabels(IEnumerable<ReportSnapshotRow> rows)
+    {
+        var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows ?? Enumerable.Empty<ReportSnapshotRow>())
+        {
+            if (row == null || row.Details == null)
+            {
+                continue;
+            }
+
+            foreach (var detail in row.Details)
+            {
+                if (!IsDriveLabelReportField(detail.Key) || string.IsNullOrWhiteSpace(detail.Value))
+                {
+                    continue;
+                }
+
+                var label = detail.Value.Trim();
+                if (!label.StartsWith("[", StringComparison.Ordinal) &&
+                    !Regex.IsMatch(label, @"(?i)^[A-Z]:\\?$") &&
+                    label.Length <= 256)
+                {
+                    labels.Add(label);
+                }
+            }
+        }
+
+        return labels.OrderByDescending(label => label.Length).ToList();
+    }
+
+    private static Dictionary<string, string> SanitizeReportDetails(Dictionary<string, string> details, string sourceMachineName, IList<string> driveLabels)
+    {
+        if (details == null)
+        {
+            return null;
+        }
+
+        var sanitized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var detail in details)
+        {
+            var key = SanitizeReportText(detail.Key, sourceMachineName, driveLabels);
+            var uniqueKey = key;
+            for (var suffix = 2; sanitized.ContainsKey(uniqueKey); suffix++)
+            {
+                uniqueKey = key + " (" + suffix + ")";
+            }
+
+            sanitized[uniqueKey] = SanitizeReportFieldValue(detail.Key, detail.Value, sourceMachineName, driveLabels);
+        }
+
+        return sanitized;
+    }
+
+    private static string SanitizeReportText(string value, string sourceMachineName, IList<string> driveLabels)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -321,9 +376,63 @@ public sealed partial class SensorReadoutForm : Form
         text = Regex.Replace(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[IP address]", RegexOptions.IgnoreCase);
         text = Regex.Replace(text, @"\b[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5}\b", "[MAC address]", RegexOptions.IgnoreCase);
         text = Regex.Replace(text, @"\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b", "[UUID]", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"(?i)\\\\[^\\\s;]+\\[^\s;,\r\n]+", "[network location]");
+        if (Regex.IsMatch(text, @"(?i)\b[A-Z]:\s+"))
+        {
+            foreach (var driveLabel in driveLabels ?? new List<string>())
+            {
+                text = Regex.Replace(text, Regex.Escape(driveLabel), "[drive label]", RegexOptions.IgnoreCase);
+            }
+
+            text = Regex.Replace(text, @"(?i)\b([A-Z]:)\s+(?!\[drive label\])[^;\r\n]+", "$1 [drive label]");
+        }
         text = Regex.Replace(text, @"(?i)\b(Serial(?: number)?|UUID|Guid|PNP device ID|Hardware IDs|Compatible IDs|Location path|Device instance ID):?\s*[^;\r\n]+", "$1: [masked]");
         text = Regex.Replace(text, @"(?i)\b(?:PCI|USB|HID|ACPI|ROOT|BTH|SWD)\\[^\s;,\r\n]+", "[device identifier]");
         return text;
+    }
+
+    private static string SanitizeReportFieldValue(string fieldName, string value, string sourceMachineName, IList<string> driveLabels)
+    {
+        var sanitized = SanitizeReportText(value, sourceMachineName, driveLabels);
+        if (string.IsNullOrWhiteSpace(sanitized) || !IsSensitiveReportField(fieldName))
+        {
+            return sanitized;
+        }
+
+        if (IsDriveLabelReportField(fieldName))
+        {
+            return "[drive label]";
+        }
+
+        if ((fieldName ?? "").IndexOf("network", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            (fieldName ?? "").IndexOf("remote", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "[network location]";
+        }
+
+        return "[masked]";
+    }
+
+    private static bool IsSensitiveReportField(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+        {
+            return false;
+        }
+
+        return IsDriveLabelReportField(fieldName) || Regex.IsMatch(fieldName,
+            @"(?i)(serial|uuid|guid|pnp|hardware ids?|compatible ids?|device instance|unique id|persistent volume id|access paths?|(?:^|\s)path(?:$|\s)|\blocation\b|remote|network path|drive label|volume label|file system label)");
+    }
+
+    private static bool IsDriveLabelReportField(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+        {
+            return false;
+        }
+
+        return fieldName.IndexOf("label", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            Regex.IsMatch(fieldName, @"(?i)\bvolume(?:\s+\w+){0,3}\s+name\b");
     }
 
     private void PrepareSupportReport()

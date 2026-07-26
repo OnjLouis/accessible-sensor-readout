@@ -172,6 +172,7 @@ public sealed partial class SensorReadoutForm : Form
         var rows = new List<SensorRow>();
         var nvmeLinks = GetNvmeLinkSummariesByHardware();
         var sataLinks = GetSataLinkSummariesByHardware();
+        var inventoryDetails = GetPhysicalDiskDetailsByHardware();
         try
         {
             using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Storage", "SELECT * FROM MSFT_PhysicalDisk"))
@@ -195,6 +196,7 @@ public sealed partial class SensorReadoutForm : Form
                     AddPhysicalDiskTextRow(rows, name, "Spindle speed", FormatStorageSpindleSpeed(GetWmiPropertyValue(disk, "SpindleSpeed")), "Windows Storage");
                     AddPhysicalDiskTextRow(rows, name, "Physical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "PhysicalSectorSize")), "Windows Storage");
                     AddPhysicalDiskTextRow(rows, name, "Logical sector size", FormatStorageBytes(GetWmiPropertyValue(disk, "LogicalSectorSize")), "Windows Storage");
+                    AddPhysicalDiskInventoryRows(rows, name, inventoryDetails);
                 }
             }
         }
@@ -608,6 +610,26 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Type = "Performance",
                     Hardware = hardware,
+                    Name = "File system",
+                    DisplayValue = GetDictionaryValue(details, "Drive format"),
+                    Source = "Windows Logical Disk",
+                    Details = CloneDetails(details)
+                });
+
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = hardware,
+                    Name = "Volume type",
+                    DisplayValue = FormatDriveType(drive.DriveType),
+                    Source = "Windows Logical Disk",
+                    Details = CloneDetails(details)
+                });
+
+                rows.Add(new SensorRow
+                {
+                    Type = "Performance",
+                    Hardware = hardware,
                     Name = "Total space",
                     DisplayValue = FormatStorageBytes(drive.TotalSize),
                     Source = "Windows Logical Disk",
@@ -650,6 +672,8 @@ public sealed partial class SensorReadoutForm : Form
                     });
                 }
             }
+
+            AddMappedNetworkDriveRows(rows);
         }
         catch
         {
@@ -1208,6 +1232,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddWindowsStoragePhysicalDiskDetails(physical);
+        AddWindowsStorageInventoryDetails(physical, logical);
         AddBitLockerDetails(logical);
 
         cachedPhysicalDiskDetailsByHardware = physical;

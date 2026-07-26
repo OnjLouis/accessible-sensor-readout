@@ -730,6 +730,45 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         Match match;
+        match = Regex.Match(field, @"^CPU cache\s+(\d+)\s+WMI\s+(.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[] { "WMI", "CPU cache " + match.Groups[1].Value };
+            path.Label = ToDetailLabel(match.Groups[2].Value);
+            path.SortIndex = 910;
+            return path;
+        }
+
+        // Raw WMI fields must be grouped before partition and volume prefixes are
+        // interpreted, otherwise labels such as "Partition 1 WMI Block Size"
+        // remain in the normal partition summary and become needlessly verbose.
+        match = Regex.Match(field, @"^(.+?)\s+WMI\s+(.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[] { "WMI", NormalizeWmiDetailSource(match.Groups[1].Value) };
+            path.Label = ToDetailLabel(match.Groups[2].Value);
+            path.SortIndex = 900 + WmiDetailSortOffset(match.Groups[1].Value);
+            return path;
+        }
+
+        match = Regex.Match(field, @"^Storage partition\s+(\d+)\s+volume\s+(.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[] { "Storage partitions", "Storage partition " + match.Groups[1].Value, "Volume" };
+            path.Label = ToDetailLabel(match.Groups[2].Value);
+            path.SortIndex = 290 + SafeParseInt(match.Groups[1].Value);
+            return path;
+        }
+
+        match = Regex.Match(field, @"^Storage partition\s+(\d+)\s+(.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[] { "Storage partitions", "Storage partition " + match.Groups[1].Value };
+            path.Label = ToDetailLabel(match.Groups[2].Value);
+            path.SortIndex = 280 + SafeParseInt(match.Groups[1].Value);
+            return path;
+        }
+
         match = Regex.Match(field, @"^Partition\s+(\d+)\s+volume\s+(\d+)\s+(.+)$", RegexOptions.IgnoreCase);
         if (match.Success)
         {
@@ -748,24 +787,6 @@ public sealed partial class SensorReadoutForm : Form
             return path;
         }
 
-        match = Regex.Match(field, @"^CPU cache\s+(\d+)\s+WMI\s+(.+)$", RegexOptions.IgnoreCase);
-        if (match.Success)
-        {
-            path.Groups = new[] { "WMI", "CPU cache " + match.Groups[1].Value };
-            path.Label = ToDetailLabel(match.Groups[2].Value);
-            path.SortIndex = 910;
-            return path;
-        }
-
-        match = Regex.Match(field, @"^(.+?)\s+WMI\s+(.+)$", RegexOptions.IgnoreCase);
-        if (match.Success)
-        {
-            path.Groups = new[] { "WMI", ToDetailLabel(match.Groups[1].Value) };
-            path.Label = ToDetailLabel(match.Groups[2].Value);
-            path.SortIndex = 900 + WmiDetailSortOffset(match.Groups[1].Value);
-            return path;
-        }
-
         DetailTreePath prefixedPath;
         if (TryPrefixDetailPath(field, "Signed driver ", "Driver", 100, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Driver ", "Driver", 100, out prefixedPath)) return prefixedPath;
@@ -779,7 +800,9 @@ public sealed partial class SensorReadoutForm : Form
         if (TryPrefixDetailPath(field, "Display ", "Display", 180, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Monitor ", "Display", 185, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Battery ", "Battery", 200, out prefixedPath)) return prefixedPath;
+        if (TryPrefixDetailPath(field, "Disk ", "Disk", 250, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Physical disk ", "Physical disk", 260, out prefixedPath)) return prefixedPath;
+        if (TryPrefixDetailPath(field, "Detected file system ", "File system", 330, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Volume ", "Volumes", 340, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "Windows ", "Windows", 360, out prefixedPath)) return prefixedPath;
         if (TryPrefixDetailPath(field, "OS ", "Windows", 365, out prefixedPath)) return prefixedPath;
@@ -795,6 +818,17 @@ public sealed partial class SensorReadoutForm : Form
         if (TryPrefixDetailPath(field, "Raw Windows ", "Raw Windows fields", 980, out prefixedPath)) return prefixedPath;
 
         return path;
+    }
+
+    private static string NormalizeWmiDetailSource(string source)
+    {
+        source = ToDetailLabel(source);
+        if (source.EndsWith(" storage", StringComparison.OrdinalIgnoreCase))
+        {
+            source = source.Substring(0, source.Length - " storage".Length).TrimEnd();
+        }
+
+        return source;
     }
 
     private static bool TryPrefixDetailPath(string field, string prefix, string group, int sortIndex, out DetailTreePath path)

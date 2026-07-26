@@ -43,6 +43,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Settings save and reload", delegate { form.SelfTestSettingsRoundTrip(); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
+            form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Listening port details split", delegate { form.SelfTestListeningPortDetailsSplit(); });
@@ -1651,6 +1652,123 @@ public sealed partial class SensorReadoutForm : Form
         AssertSelfTestHtmlReportSanity(htmlText, "HTML report");
     }
 
+    private void SelfTestStorageInventoryParsersAndPrivacy()
+    {
+        var ext2 = BuildSelfTestExtSuperblock(0, 0);
+        FileSystemProbeResult parsed;
+        Require(TryParseExtSuperblock(ext2, out parsed), "EXT2 superblock was not detected.");
+        Require(parsed != null && parsed.FileSystem == "EXT2", "EXT2 superblock was classified incorrectly.");
+        Require(parsed.Label == "SR EXT TEST", "EXT volume label was not decoded.");
+        Require(!string.IsNullOrWhiteSpace(parsed.Uuid), "EXT UUID was not decoded.");
+
+        var ext3 = BuildSelfTestExtSuperblock(0x4, 0);
+        Require(TryParseExtSuperblock(ext3, out parsed) && parsed.FileSystem == "EXT3", "EXT3 journal feature was not detected.");
+
+        var ext4 = BuildSelfTestExtSuperblock(0x4, 0x40);
+        Require(TryParseExtSuperblock(ext4, out parsed) && parsed.FileSystem == "EXT4", "EXT4 extent feature was not detected.");
+        Require(!TryParseExtSuperblock(new byte[1024], out parsed), "Invalid EXT data was accepted.");
+
+        var apfs = new byte[4096];
+        WriteSelfTestUInt32(apfs, 32, 0x4253584E);
+        WriteSelfTestUInt32(apfs, 36, 4096);
+        WriteSelfTestUInt64(apfs, 40, 262144);
+        for (var index = 0; index < 16; index++) apfs[72 + index] = (byte)(index + 1);
+        Require(TryParseApfsContainerBlock(apfs, out parsed), "APFS container superblock was not detected.");
+        Require(parsed != null && parsed.FileSystem == "APFS", "APFS superblock was classified incorrectly.");
+        Require(!string.IsNullOrWhiteSpace(parsed.Uuid), "APFS container UUID was not decoded.");
+        apfs[36] = 1;
+        Require(!TryParseApfsContainerBlock(apfs, out parsed), "APFS superblock with an invalid block size was accepted.");
+
+        Require(DecodeFileSystemType(2) == "UFS", "Windows UFS filesystem code was decoded incorrectly.");
+        Require(DecodeFileSystemType(11) == "EXT2", "Windows EXT2 filesystem code was decoded incorrectly.");
+        Require(DecodeFileSystemType(14) == "NTFS", "Windows NTFS filesystem code was decoded incorrectly.");
+        Require(DecodeFileSystemType(15) == "ReFS", "Windows ReFS filesystem code was decoded incorrectly.");
+
+        var partitionWmiPath = GetDetailTreePath("Partition 1 WMI Block Size");
+        Require(partitionWmiPath.Groups.Length == 2 && partitionWmiPath.Groups[0] == "WMI" && partitionWmiPath.Groups[1] == "Partition 1",
+            "Partition WMI data was not placed under the WMI detail branch.");
+        Require(partitionWmiPath.Label == "Block Size", "Partition WMI detail retained a redundant WMI prefix.");
+        var storageWmiPath = GetDetailTreePath("Storage partition 2 storage WMI Offset");
+        Require(storageWmiPath.Groups.Length == 2 && storageWmiPath.Groups[0] == "WMI" && storageWmiPath.Groups[1] == "Storage partition 2",
+            "Windows Storage partition WMI data was not placed under the WMI detail branch.");
+        Require(DecodeSmbMappingStatus(0) == T("value.Network drive connected", "Connected"), "Connected SMB mapping status was decoded incorrectly.");
+        Require(DecodeSmbMappingStatus(2) == T("value.Network drive disconnected", "Disconnected"), "Disconnected SMB mapping status was decoded incorrectly.");
+
+        var privateSnapshot = new ReportSnapshot
+        {
+            AppVersion = AppVersion,
+            Title = "Sensor Readout report for PRIVATE-PC",
+            MachineName = "PRIVATE-PC",
+            GeneratedLocal = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            Rows = new List<ReportSnapshotRow>
+            {
+                new ReportSnapshotRow
+                {
+                    Type = "Performance",
+                    Hardware = "Z: Family Files",
+                    Name = "Serial number",
+                    Identifier = "secret-device-id",
+                    DisplayValue = "SERIAL-PRIVATE-123",
+                    Source = "Self-test",
+                    Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "Drive label", "Family Files" },
+                        { "Partition 2 volume 1 label", "Family Files" },
+                        { "Volume WMI Volume Name", "Family Files" },
+                        { "Z: Family Files free", "100 GB" },
+                        { "Z: Family Files used", "20 GB" },
+                        { "Remote location", @"\\PRIVATE-SERVER\Personal" },
+                        { "Disk path", @"\\?\PhysicalDrive9" },
+                        { "Volume UUID", "12345678-1234-1234-1234-1234567890AB" }
+                    }
+                }
+            }
+        };
+        var sanitized = SanitizeReportSnapshot(privateSnapshot);
+        var sanitizedJson = JsonConvert.SerializeObject(sanitized);
+        foreach (var secret in new[] { "PRIVATE-PC", "Family Files", "PRIVATE-SERVER", "Personal", "PhysicalDrive9", "SERIAL-PRIVATE-123", "secret-device-id", "12345678-1234-1234-1234-1234567890AB" })
+        {
+            Require(sanitizedJson.IndexOf(secret, StringComparison.OrdinalIgnoreCase) < 0, "Anonymized storage data exposed: " + secret);
+        }
+        Require(sanitizedJson.IndexOf("Z: [drive label] free", StringComparison.OrdinalIgnoreCase) >= 0,
+            "Anonymized storage summary lost its free-space field after masking the drive label.");
+        Require(sanitizedJson.IndexOf("Z: [drive label] used", StringComparison.OrdinalIgnoreCase) >= 0,
+            "Anonymized storage summary lost its used-space field after masking the drive label.");
+    }
+
+    private static byte[] BuildSelfTestExtSuperblock(uint compatibleFeatures, uint incompatibleFeatures)
+    {
+        var data = new byte[1024];
+        WriteSelfTestUInt32(data, 0x04, 1048576);
+        WriteSelfTestUInt32(data, 0x0C, 524288);
+        WriteSelfTestUInt32(data, 0x18, 2);
+        WriteSelfTestUInt16(data, 0x34, 3);
+        WriteSelfTestUInt16(data, 0x36, 20);
+        WriteSelfTestUInt16(data, 0x38, 0xEF53);
+        WriteSelfTestUInt16(data, 0x3A, 1);
+        WriteSelfTestUInt32(data, 0x48, 0);
+        WriteSelfTestUInt32(data, 0x5C, compatibleFeatures);
+        WriteSelfTestUInt32(data, 0x60, incompatibleFeatures);
+        for (var index = 0; index < 16; index++) data[0x68 + index] = (byte)(0xA0 + index);
+        Encoding.UTF8.GetBytes("SR EXT TEST").CopyTo(data, 0x78);
+        return data;
+    }
+
+    private static void WriteSelfTestUInt16(byte[] data, int offset, ushort value)
+    {
+        BitConverter.GetBytes(value).CopyTo(data, offset);
+    }
+
+    private static void WriteSelfTestUInt32(byte[] data, int offset, uint value)
+    {
+        BitConverter.GetBytes(value).CopyTo(data, offset);
+    }
+
+    private static void WriteSelfTestUInt64(byte[] data, int offset, ulong value)
+    {
+        BitConverter.GetBytes(value).CopyTo(data, offset);
+    }
+
     private void AssertSelfTestTextReportSanity(string text, string label)
     {
         Require(!string.IsNullOrWhiteSpace(text), label + " is empty.");
@@ -1744,6 +1862,7 @@ public sealed partial class SensorReadoutForm : Form
         Require(!Regex.IsMatch(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b"), label + " still contains an IPv4 address.");
         Require(!Regex.IsMatch(text, @"\b[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5}\b", RegexOptions.IgnoreCase), label + " still contains a MAC address.");
         Require(!Regex.IsMatch(text, @"(?i)\b[A-Z]:\\Users\\|\\Users\\|/Users/"), label + " still contains a user-profile filesystem path.");
+        Require(!Regex.IsMatch(text, @"(?i)\\\\[^\\\s;]+\\[^\s;,\r\n]+"), label + " still contains a network location.");
     }
 
     private void SelfTestReportReopen(string outputFolder)

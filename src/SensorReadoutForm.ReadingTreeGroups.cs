@@ -1024,6 +1024,15 @@ public sealed partial class SensorReadoutForm : Form
             return T("reading.Temperature #", "Temperature #") + clean.Substring("Temperature #".Length);
         }
 
+        const string storagePartitionPrefix = "Storage partition ";
+        const string fileSystemSuffix = " file system";
+        if (clean.StartsWith(storagePartitionPrefix, StringComparison.OrdinalIgnoreCase) &&
+            clean.EndsWith(fileSystemSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            var number = clean.Substring(storagePartitionPrefix.Length, clean.Length - storagePartitionPrefix.Length - fileSystemSuffix.Length);
+            return string.Format(T("reading.Storage partition file system format", "Storage partition {0} file system"), number);
+        }
+
         return translated;
     }
 

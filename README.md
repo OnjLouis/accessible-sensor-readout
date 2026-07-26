@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.12.0.
+Current version: 4.13.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -423,6 +423,8 @@ For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
 ## Categories and Readings
 
+Storage shows the file system and volume type for ready local drives, plus persistent mapped network drives with connection status, provider, remote location, and capacity when Windows exposes it. `Mapped` means Windows has stored the persistent mapping but has not exposed a reliable live connection state to Sensor Readout. SMART and Details can expose Windows disk, partition, and volume metadata such as partition style and count, allocation, sector sizes, firmware, serial number, health, access paths, and hidden or recovery partitions. For unmounted partitions, Sensor Readout can identify APFS and EXT2/EXT3/EXT4 and read limited container or superblock metadata when Windows permits read-only raw access. It does not mount those file systems, change disks, or inspect file contents; APFS support is currently container-level rather than a replacement for macOS Disk Utility.
+
 The readings pane is a tree view. Choose a category from the list on the left, then press `Tab` to move into that category's readings on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
 
 The category list is configurable. Use `Options` > `Preferences` > `Categories` to choose which categories appear and in what order, or use `Delete`, `Ctrl+Up`, `Ctrl+Down`, and the category context menu directly from the main category list. Category shortcuts follow your visible order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
@@ -692,6 +694,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.13.0
+
+- Added: Performance/Overview now shows the file system and volume type for ready local drives, plus persistent mapped network drives with their connection status, provider, remote location, and capacity when Windows exposes it.
+- Improved: SMART and Details now expose richer read-only disk, partition, and volume information where Windows provides it, including partition style and count, allocation, sector and volume data, firmware, serial number, health, access paths, and hidden or recovery partitions.
+- Added: Unmounted partitions can now be identified as APFS or EXT2/EXT3/EXT4 when Windows permits read-only raw access. Sensor Readout shows safe container or superblock metadata without mounting the file system, changing the disk, or inspecting its files.
+- Privacy: Anonymized reports now also remove drive labels, mapped network locations, storage paths, and other identifying storage metadata.
 
 ### 4.12.0
 
