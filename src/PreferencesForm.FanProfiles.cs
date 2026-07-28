@@ -342,11 +342,12 @@ public sealed partial class PreferencesForm : Form
         }
 
         var item = fanProfileSelectedList.Items[index];
+        var crossedItem = fanProfileSelectedList.Items[target];
         fanProfileSelectedList.Items.RemoveAt(index);
         fanProfileSelectedList.Items.Insert(target, item);
         fanProfileSelectedList.SelectedIndex = target;
         SaveSelectedFanProfileActions();
-        UpdateFanProfileStatus("Fan profile updated.");
+        ReportRelativeMove(fanProfileSelectedList, item, crossedItem, direction);
     }
 
     private void LoadSelectedFanProfileAction()

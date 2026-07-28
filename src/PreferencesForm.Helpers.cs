@@ -335,6 +335,11 @@ public sealed partial class PreferencesForm : Form
             return Name + " [" + actionText + "]";
         }
 
+        public string ReorderLabel
+        {
+            get { return Name; }
+        }
+
         public static int Compare(FanControlChoice left, FanControlChoice right)
         {
             var hardware = string.Compare(left == null ? "" : left.Hardware, right == null ? "" : right.Hardware, StringComparison.OrdinalIgnoreCase);
@@ -392,6 +397,14 @@ public sealed partial class PreferencesForm : Form
             return ShowSpeechPreview
                 ? display + " (" + SensorReadoutForm.L("ui.speaks:", "speaks:") + " " + SensorReadoutForm.SpeechPreviewLabel(Type, Hardware, Name, Key, speechLabels, includeDeviceNames()) + ")"
                 : display;
+        }
+
+        public string ReorderLabel
+        {
+            get
+            {
+                return SensorReadoutForm.SpeechPreviewLabel(Type, Hardware, Name, Key, speechLabels, includeDeviceNames());
+            }
         }
 
         public static int Compare(TrayItemChoice left, TrayItemChoice right)

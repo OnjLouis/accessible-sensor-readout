@@ -34,32 +34,35 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         var idPrefix = "acpi/battery/" + tag + "/";
 
                         var chargeRate = FirstNumber(details, "ChargeRate");
-                        if (chargeRate.HasValue && chargeRate.Value >= 0 && chargeRate.Value < 1000000)
+                        if (chargeRate.HasValue && chargeRate.Value > 0 && chargeRate.Value < 1000000)
                         {
+                            var chargeWatts = chargeRate.Value / 1000.0;
                             rows.Add(new SensorReading
                             {
                                 Type = "Battery",
                                 Hardware = "ACPI battery",
                                 Name = "Charge rate",
+                                // Keep the historical identifier stable so saved assignments continue to resolve.
                                 Identifier = StableIdentifier(idPrefix + "charge-rate-mw"),
-                                Value = (float)chargeRate.Value,
-                                DisplayValue = FormatNumber(chargeRate.Value) + " mW",
+                                Value = (float)chargeWatts,
+                                DisplayValue = chargeWatts.ToString("0.00", CultureInfo.InvariantCulture) + " W",
                                 Source = "Lenovo Laptop Support Plug-In",
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });
                         }
 
                         var dischargeRate = FirstNumber(details, "DischargeRate");
-                        if (dischargeRate.HasValue && dischargeRate.Value >= 0 && dischargeRate.Value < 1000000)
+                        if (dischargeRate.HasValue && dischargeRate.Value > 0 && dischargeRate.Value < 1000000)
                         {
+                            var dischargeWatts = dischargeRate.Value / 1000.0;
                             rows.Add(new SensorReading
                             {
                                 Type = "Battery",
                                 Hardware = "ACPI battery",
                                 Name = "Discharge rate",
                                 Identifier = StableIdentifier(idPrefix + "discharge-rate-mw"),
-                                Value = (float)dischargeRate.Value,
-                                DisplayValue = FormatNumber(dischargeRate.Value) + " mW",
+                                Value = (float)dischargeWatts,
+                                DisplayValue = dischargeWatts.ToString("0.00", CultureInfo.InvariantCulture) + " W",
                                 Source = "Lenovo Laptop Support Plug-In",
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });
@@ -68,14 +71,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         var remaining = FirstNumber(details, "RemainingCapacity");
                         if (remaining.HasValue && remaining.Value > 0 && remaining.Value < 1000000)
                         {
+                            var remainingWattHours = remaining.Value / 1000.0;
                             rows.Add(new SensorReading
                             {
                                 Type = "Battery",
                                 Hardware = "ACPI battery",
                                 Name = "Remaining capacity",
                                 Identifier = StableIdentifier(idPrefix + "remaining-capacity-mwh"),
-                                Value = (float)remaining.Value,
-                                DisplayValue = FormatNumber(remaining.Value) + " mWh",
+                                Value = (float)remainingWattHours,
+                                DisplayValue = remainingWattHours.ToString("0.00", CultureInfo.InvariantCulture) + " Wh",
                                 Source = "Lenovo Laptop Support Plug-In",
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });
@@ -84,14 +88,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         var voltage = FirstNumber(details, "Voltage");
                         if (voltage.HasValue && voltage.Value > 0 && voltage.Value < 30000)
                         {
+                            var volts = voltage.Value / 1000.0;
                             rows.Add(new SensorReading
                             {
                                 Type = "Battery",
                                 Hardware = "ACPI battery",
                                 Name = "Voltage",
                                 Identifier = StableIdentifier(idPrefix + "voltage-mv"),
-                                Value = (float)voltage.Value,
-                                DisplayValue = FormatNumber(voltage.Value) + " mV",
+                                Value = (float)volts,
+                                DisplayValue = volts.ToString("0.00", CultureInfo.InvariantCulture) + " V",
                                 Source = "Lenovo Laptop Support Plug-In",
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });

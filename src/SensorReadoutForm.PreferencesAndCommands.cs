@@ -917,6 +917,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var currentFilter = deviceList.Items[index] as DeviceFilter;
+        var crossedFilter = deviceList.Items[target] as DeviceFilter;
         if (currentFilter == null || string.IsNullOrWhiteSpace(currentFilter.Key))
         {
             return;
@@ -943,10 +944,14 @@ public sealed partial class SensorReadoutForm : Form
         UpdateDeviceList();
         SelectCategoryByKey(currentFilter.Key);
         UpdateSelectedCategoryStatus();
-        statusLabel.Text = string.Format(
-            L("status.Moved category.", "Moved {0}. Shortcut is now {1}."),
-            currentFilter.DisplayName,
-            CategoryShortcutText(deviceList.SelectedIndex));
+        var moveMessage = RelativeMoveText(currentFilter.DisplayName, crossedFilter == null ? "" : crossedFilter.DisplayName, direction);
+        statusLabel.Text = moveMessage;
+        if (Visible)
+        {
+            AnnounceRelativeMove(
+                RelativeMoveSpeechText(currentFilter.DisplayName, crossedFilter == null ? "" : crossedFilter.DisplayName, direction, settings.CategorySpeechMode),
+                settings.FallbackCategorySpeechEnabled);
+        }
     }
 
     private void UpdateSelectedCategoryCommandVisibility()

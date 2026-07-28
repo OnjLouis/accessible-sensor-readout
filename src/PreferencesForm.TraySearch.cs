@@ -73,10 +73,11 @@ public sealed partial class PreferencesForm : Form
         }
 
         var item = traySelectedList.Items[index];
+        var crossedItem = traySelectedList.Items[target];
         traySelectedList.Items.RemoveAt(index);
         traySelectedList.Items.Insert(target, item);
         traySelectedList.SelectedIndex = target;
-        SetTraySelectionStatus("Moved " + item + (direction < 0 ? " up." : " down."));
+        ReportRelativeMove(traySelectedList, item, crossedItem, direction);
         SaveLivePreferences();
     }
 
@@ -395,14 +396,66 @@ public sealed partial class PreferencesForm : Form
                 target = targetList.Items.Count - 1;
             }
 
+            var movedItem = state.Index >= 0 && state.Index < targetList.Items.Count ? targetList.Items[state.Index] : null;
+            var crossedItem = target >= 0 && target < targetList.Items.Count ? targetList.Items[target] : null;
+            var direction = target < state.Index ? -1 : 1;
             if (MoveListItem(targetList, state.Index, target))
             {
                 if (saveAfterReorder != null)
                 {
                     saveAfterReorder();
                 }
+                ReportRelativeMove(targetList, movedItem, crossedItem, direction);
             }
         };
+    }
+
+    private void ReportRelativeMove(ListBox list, object movedItem, object crossedItem, int direction)
+    {
+        var movedLabel = ReorderFeedbackLabel(movedItem);
+        var crossedLabel = ReorderFeedbackLabel(crossedItem);
+        var message = SensorReadoutForm.RelativeMoveText(movedLabel, crossedLabel, direction);
+        if (list == traySelectedList)
+        {
+            SetTraySelectionStatus(message);
+        }
+        else if (list == spokenSelectedList)
+        {
+            UpdateSpokenSelectionStatus(message);
+        }
+        else if (list == fanProfileSelectedList)
+        {
+            UpdateFanProfileStatus(message);
+        }
+        if (Visible)
+        {
+            SensorReadoutForm.AnnounceRelativeMove(
+                SensorReadoutForm.RelativeMoveSpeechText(movedLabel, crossedLabel, direction, CategorySpeechMode),
+                FallbackCategorySpeechEnabled);
+        }
+    }
+
+    private static string ReorderFeedbackLabel(object item)
+    {
+        var trayChoice = item as TrayItemChoice;
+        if (trayChoice != null)
+        {
+            return trayChoice.ReorderLabel;
+        }
+
+        var fanChoice = item as FanControlChoice;
+        if (fanChoice != null)
+        {
+            return fanChoice.ReorderLabel;
+        }
+
+        var categoryChoice = item as CategoryChoice;
+        if (categoryChoice != null)
+        {
+            return categoryChoice.DisplayName;
+        }
+
+        return item == null ? "" : item.ToString();
     }
 
     private static bool MoveListItem(ListBox list, int fromIndex, int toIndex)

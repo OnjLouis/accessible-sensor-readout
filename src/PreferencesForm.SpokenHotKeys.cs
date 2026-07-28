@@ -304,7 +304,7 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Tasks", "Highest GPU memory process", null));
         AddSpokenPresetIfAny(presets, "Battery status", "Battery charge, rate, health, and cycle count where available.",
             FindPresetRow("Battery", "Charge", null),
-            FindPresetRow("Battery", "Power rate", null),
+            FindPresetRow("Battery", "Battery charge/discharge power", null),
             FindPresetRow("Battery", "Health", null),
             FindPresetRow("Battery", "Cycle count", null));
         AddSpokenPresetIfAny(presets, "Fan and temperature", "Useful cooling readings where available.",
@@ -847,11 +847,12 @@ public sealed partial class PreferencesForm : Form
         }
 
         var item = spokenSelectedList.Items[index];
+        var crossedItem = spokenSelectedList.Items[target];
         spokenSelectedList.Items.RemoveAt(index);
         spokenSelectedList.Items.Insert(target, item);
         spokenSelectedList.SelectedIndex = target;
         SaveSelectedSpokenReadingKeys();
-        UpdateSpokenSelectionStatus("Moved " + item + (direction < 0 ? " up." : " down."));
+        ReportRelativeMove(spokenSelectedList, item, crossedItem, direction);
     }
 
     private void RenameSelectedSpokenChoice()

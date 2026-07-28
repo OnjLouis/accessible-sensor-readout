@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.13.0.
+Current version: 4.14.0.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -89,7 +89,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Enabled plug-ins can add related support pages to the Help menu, such as vendor utility pages for laptop-specific sensor support.
 - Ships with optional plug-ins for selected laptop/vendor-specific hardware where useful community or vendor interfaces are available.
 - Can import a plug-in ZIP from Preferences without automatically enabling it.
-- Can show laptop battery charge, status, capacity, health, cycle count, voltage, power rate, and charge/discharge remaining time where Windows exposes enough battery data.
+- Can show laptop battery charge, status, capacity, health, cycle count, voltage, battery charge/discharge power, and charge/discharge remaining time where Windows exposes enough battery data. Battery power is not presented as total charger input; direct input power appears only when Windows provides a watt-based power meter with usable units.
 
 ## System Requirements
 
@@ -370,7 +370,7 @@ The Plug-Ins tab lists installed hardware plug-ins and describes what each one d
 
 ### Categories (`Ctrl+8`)
 
-The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
+The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. After a move, Sensor Readout reports which neighbouring item the selection moved above or below; the Category speech setting controls whether that feedback is Full, Brief, or Off. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
 Main categories stay visible unless you hide them yourself, even when the current system has no readings for that category. Empty categories show a short explanation and remind you that you can hide the category from Preferences.
 
@@ -427,7 +427,7 @@ Storage shows the file system and volume type for ready local drives, plus persi
 
 The readings pane is a tree view. Choose a category from the list on the left, then press `Tab` to move into that category's readings on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
 
-The category list is configurable. Use `Options` > `Preferences` > `Categories` to choose which categories appear and in what order, or use `Delete`, `Ctrl+Up`, `Ctrl+Down`, and the category context menu directly from the main category list. Category shortcuts follow your visible order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
+The category list is configurable. Use `Options` > `Preferences` > `Categories` to choose which categories appear and in what order, or use `Delete`, `Ctrl+Up`, `Ctrl+Down`, and the category context menu directly from the main category list. Reordering categories and ordered lists in Preferences reports the item moved above or below, using the Full, Brief, or Off Category speech setting. Category shortcuts follow your visible order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
 Each category starts with a Category summary row. Open Details on that row to see a compact count of groups, readings, numeric values, rows with Details, and section-specific items such as non-working devices or storage health rows.
 
@@ -694,6 +694,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.14.0
+
+- Improved: Battery power, capacity, and voltage are now presented in the more readable units W, Wh, and V. Lenovo battery rows omit inactive zero rates, and existing battery alarm thresholds are converted automatically. Battery charge/discharge power is labelled clearly and untyped raw power-meter values are hidden, preventing battery-side activity from being mistaken for total charger input.
+- Improved: Reordering a category or an ordered item in Preferences now reports which neighbouring item it moved above or below. The existing Full, Brief, and Off category-speech choices control how much of that movement feedback is spoken.
 
 ### 4.13.0
 

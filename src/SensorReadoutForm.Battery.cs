@@ -104,7 +104,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     Type = "Battery",
                     Hardware = hardware,
-                    Name = "Power rate",
+                    Name = "Battery charge/discharge power",
                     Identifier = "battery/" + i + "/power-rate",
                     Value = battery.RateMilliwatts / 1000f,
                     DisplayValue = FormatNumber(Math.Round(battery.RateMilliwatts / 1000.0, 2), "0.00") + " W",
@@ -319,24 +319,20 @@ public sealed partial class SensorReadoutForm : Form
                     var unitModifier = ToNullableInt(GetDictionaryValue(details, "UnitModifier"));
                     var watts = ApplyUnitModifier(reading.Value, unitModifier);
                     var name = FirstNonEmpty(GetDictionaryValue(details, "Name"), GetDictionaryValue(details, "ElementName"), GetDictionaryValue(details, "DeviceID"), "Power meter " + (index + 1));
-                    if (!IsUsefulWindowsPowerMeterReading(name, baseUnits, watts))
+                    if (!IsUsefulWindowsPowerMeterReading(baseUnits))
                     {
                         index++;
                         continue;
                     }
 
-                    var display = IsWattBaseUnit(baseUnits)
-                        ? FormatNumber(Math.Round(watts, 2), "0.00") + " W"
-                        : FormatNumber(Math.Round(watts, 2), "0.00") + " raw";
-
                     rows.Add(new SensorRow
                     {
                         Type = "Battery",
                         Hardware = name,
-                        Name = IsWattBaseUnit(baseUnits) ? "Current power" : "Power meter reading",
+                        Name = "Current power",
                         Identifier = "power-meter/" + StableDeviceIdentifier(GetDictionaryValue(details, "DeviceID"), name) + "/current-power",
                         Value = (float)watts,
-                        DisplayValue = display,
+                        DisplayValue = FormatNumber(Math.Round(watts, 2), "0.00") + " W",
                         Source = "Windows Power Meter",
                         Details = details
                     });
@@ -351,19 +347,9 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
-    private static bool IsUsefulWindowsPowerMeterReading(string name, int? baseUnits, double reading)
+    private static bool IsUsefulWindowsPowerMeterReading(int? baseUnits)
     {
-        if (IsWattBaseUnit(baseUnits))
-        {
-            return true;
-        }
-
-        if (Math.Abs(reading) > double.Epsilon)
-        {
-            return true;
-        }
-
-        return !(name ?? "").Equals("Microsoft Power Meter Device", StringComparison.OrdinalIgnoreCase);
+        return IsWattBaseUnit(baseUnits);
     }
 
     private static List<SensorRow> ReadWindowsPowerSupplies()
@@ -849,12 +835,12 @@ public sealed partial class SensorReadoutForm : Form
             AddDetail(details, "Battery serial number", battery.SerialNumber);
             AddDetail(details, "Battery unique ID", battery.UniqueId);
             AddDetail(details, "Battery chemistry", battery.Chemistry);
-            AddDetail(details, "Designed capacity", battery.DesignedCapacity > 0 ? FormatNumber(battery.DesignedCapacity, "0") + " mWh" : "");
-            AddDetail(details, "Full charge capacity", battery.FullChargeCapacity > 0 ? FormatNumber(battery.FullChargeCapacity, "0") + " mWh" : "");
-            AddDetail(details, "Current capacity", battery.CurrentCapacity >= 0 ? FormatNumber(battery.CurrentCapacity, "0") + " mWh" : "");
+            AddDetail(details, "Designed capacity", battery.DesignedCapacity > 0 ? FormatBatteryWattHours(battery.DesignedCapacity) : "");
+            AddDetail(details, "Full charge capacity", battery.FullChargeCapacity > 0 ? FormatBatteryWattHours(battery.FullChargeCapacity) : "");
+            AddDetail(details, "Current capacity", battery.CurrentCapacity >= 0 ? FormatBatteryWattHours(battery.CurrentCapacity) : "");
             AddDetail(details, "Cycle count", battery.CycleCount > 0 ? battery.CycleCount.ToString() : "");
             AddDetail(details, "Voltage", battery.VoltageMillivolts > 0 ? FormatNumber(Math.Round(battery.VoltageMillivolts / 1000.0, 2), "0.00") + " V" : "");
-            AddDetail(details, "Power rate", battery.RateMilliwatts != int.MinValue && battery.RateMilliwatts != 0 ? FormatNumber(Math.Round(battery.RateMilliwatts / 1000.0, 2), "0.00") + " W" : "");
+            AddDetail(details, "Battery charge/discharge power", battery.RateMilliwatts != int.MinValue && battery.RateMilliwatts != 0 ? FormatNumber(Math.Round(battery.RateMilliwatts / 1000.0, 2), "0.00") + " W" : "");
             AddDetail(details, "Power state flags", battery.PowerState.ToString());
             AddDetail(details, "Native device path", battery.DevicePath);
         }
@@ -919,11 +905,16 @@ public sealed partial class SensorReadoutForm : Form
             Hardware = hardware,
             Name = name,
             Identifier = "battery/" + index + "/" + id,
-            Value = milliwattHours,
-            DisplayValue = FormatNumber(milliwattHours, "0") + " mWh",
+            Value = milliwattHours / 1000f,
+            DisplayValue = FormatBatteryWattHours(milliwattHours),
             Source = "Windows Battery",
             Details = CloneDetails(details)
         };
+    }
+
+    private static string FormatBatteryWattHours(double milliwattHours)
+    {
+        return FormatNumber(Math.Round(milliwattHours / 1000.0, 2), "0.00") + " Wh";
     }
 
     private static string BuildBatteryStatusText(NativeBatteryInfo battery, WmiBatteryInfo wmi)
@@ -933,11 +924,13 @@ public sealed partial class SensorReadoutForm : Form
         {
             parts.Add("Charging");
         }
-        if (battery.PowerState.HasFlag(BatteryPowerState.Discharging))
+        var acConnected = battery.PowerState.HasFlag(BatteryPowerState.Online);
+        if (battery.PowerState.HasFlag(BatteryPowerState.Discharging) &&
+            (!acConnected || battery.RateMilliwatts < 0))
         {
             parts.Add("Discharging");
         }
-        if (battery.PowerState.HasFlag(BatteryPowerState.Online))
+        if (acConnected)
         {
             parts.Add("AC connected");
         }

@@ -667,6 +667,143 @@ public sealed partial class SensorReadoutForm : Form
         return "minutes";
     }
 
+    private static void MigrateBatteryReadingUnits(AppSettings value)
+    {
+        MigrateBatteryReadingKeyList(value.TrayItemKeys);
+        MigrateBatteryReadingKeyList(value.HiddenReadingKeys);
+        MigrateBatteryReadingKeyList(value.TrendLoggingKeys);
+
+        foreach (var profile in value.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
+        {
+            if (profile != null)
+            {
+                MigrateBatteryReadingKeyList(profile.ReadingKeys);
+            }
+        }
+
+        var migratedLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in value.ReadingSpeechLabels ?? new Dictionary<string, string>())
+        {
+            var key = MigrateBatteryReadingKey(pair.Key);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                migratedLabels[key] = pair.Value;
+            }
+        }
+        value.ReadingSpeechLabels = migratedLabels;
+
+        foreach (var alarm in value.Alarms ?? new List<AlarmSetting>())
+        {
+            if (alarm == null)
+            {
+                continue;
+            }
+
+            alarm.ReadingKey = MigrateBatteryReadingKey(alarm.ReadingKey);
+            var identifier = IdentifierFromSettingsKey(alarm.ReadingKey);
+            if (IsLenovoMilliwattReading(identifier))
+            {
+                MigrateAlarmThresholdFromMilliUnit(alarm, "W");
+            }
+            else if (IsLenovoMilliwattHourReading(identifier) || IsWindowsBatteryCapacityReading(identifier))
+            {
+                MigrateAlarmThresholdFromMilliUnit(alarm, "Wh");
+            }
+            else if (IsLenovoMillivoltReading(identifier))
+            {
+                MigrateAlarmThresholdFromMilliUnit(alarm, "V");
+            }
+            else if (IsWindowsBatteryPowerReading(identifier))
+            {
+                alarm.ThresholdUnit = "W";
+            }
+            else if (IsWindowsBatteryVoltageReading(identifier))
+            {
+                alarm.ThresholdUnit = "V";
+            }
+        }
+    }
+
+    private static void MigrateBatteryReadingKeyList(List<string> keys)
+    {
+        if (keys == null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < keys.Count; i++)
+        {
+            keys[i] = MigrateBatteryReadingKey(keys[i]);
+        }
+    }
+
+    private static string MigrateBatteryReadingKey(string key)
+    {
+        const string oldName = "|Power rate|";
+        const string newName = "|Battery charge/discharge power|";
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return key ?? "";
+        }
+
+        var index = key.IndexOf(oldName, StringComparison.OrdinalIgnoreCase);
+        return index < 0
+            ? key
+            : key.Substring(0, index) + newName + key.Substring(index + oldName.Length);
+    }
+
+    private static void MigrateAlarmThresholdFromMilliUnit(AlarmSetting alarm, string unit)
+    {
+        if (string.Equals(alarm.ThresholdUnit, unit, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        alarm.Threshold /= 1000.0;
+        alarm.ThresholdUnit = unit;
+    }
+
+    private static bool IsLenovoMilliwattReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "-charge-rate-mw") ||
+            EndsWithBatteryIdentifier(identifier, "-discharge-rate-mw");
+    }
+
+    private static bool IsLenovoMilliwattHourReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "-remaining-capacity-mwh") ||
+            EndsWithBatteryIdentifier(identifier, "-full-charge-mwh") ||
+            EndsWithBatteryIdentifier(identifier, "-design-capacity-mwh");
+    }
+
+    private static bool IsLenovoMillivoltReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "-voltage-mv");
+    }
+
+    private static bool IsWindowsBatteryCapacityReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "/current-capacity") ||
+            EndsWithBatteryIdentifier(identifier, "/full-charge-capacity") ||
+            EndsWithBatteryIdentifier(identifier, "/design-capacity");
+    }
+
+    private static bool IsWindowsBatteryPowerReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "/power-rate");
+    }
+
+    private static bool IsWindowsBatteryVoltageReading(string identifier)
+    {
+        return EndsWithBatteryIdentifier(identifier, "/voltage");
+    }
+
+    private static bool EndsWithBatteryIdentifier(string identifier, string suffix)
+    {
+        return !string.IsNullOrWhiteSpace(identifier) &&
+            identifier.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void NormalizeSettings(AppSettings value)
     {
         if (value == null)
@@ -674,6 +811,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        MigrateBatteryReadingUnits(value);
         value.TrayItemKeys = value.TrayItemKeys ?? new List<string>();
         value.SpokenHotKeys = (value.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
             .Where(p => p != null)

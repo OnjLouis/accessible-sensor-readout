@@ -617,4 +617,53 @@ public sealed partial class SensorReadoutForm : Form
         var gibibytes = bytes / 1024.0 / 1024.0 / 1024.0;
         return FormatGigabytes(gibibytes);
     }
+
+    internal static string RelativeMoveText(string movedItem, string crossedItem, int direction)
+    {
+        var key = direction < 0 ? "status.Item moved above item." : "status.Item moved below item.";
+        var fallback = direction < 0 ? "{0} moved above {1}." : "{0} moved below {1}.";
+        return string.Format(
+            L(key, fallback),
+            string.IsNullOrWhiteSpace(movedItem) ? L("ui.Selected item", "Selected item") : movedItem.Trim(),
+            string.IsNullOrWhiteSpace(crossedItem) ? L("ui.neighbouring item", "neighbouring item") : crossedItem.Trim());
+    }
+
+    internal static string RelativeMoveSpeechText(string movedItem, string crossedItem, int direction, string categorySpeechMode)
+    {
+        var mode = NormalizeCategorySpeechMode(categorySpeechMode);
+        if (string.Equals(mode, CategorySpeechOff, StringComparison.Ordinal))
+        {
+            return "";
+        }
+
+        if (!string.Equals(mode, CategorySpeechBrief, StringComparison.Ordinal))
+        {
+            return RelativeMoveText(movedItem, crossedItem, direction);
+        }
+
+        var key = direction < 0 ? "status.Item above item." : "status.Item below item.";
+        var fallback = direction < 0 ? "{0} above {1}." : "{0} below {1}.";
+        return string.Format(
+            L(key, fallback),
+            string.IsNullOrWhiteSpace(movedItem) ? L("ui.Selected item", "Selected item") : movedItem.Trim(),
+            string.IsNullOrWhiteSpace(crossedItem) ? L("ui.neighbouring item", "neighbouring item") : crossedItem.Trim());
+    }
+
+    internal static void AnnounceRelativeMove(string message, bool fallbackSpeechEnabled)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        string error;
+        if (ScreenReaderOutput.IsActiveScreenReaderDetected)
+        {
+            ScreenReaderOutput.TrySpeakForActiveScreenReader(message, out error);
+        }
+        else if (fallbackSpeechEnabled)
+        {
+            ScreenReaderOutput.TrySpeak(message, out error);
+        }
+    }
 }

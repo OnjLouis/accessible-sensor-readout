@@ -68,14 +68,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                     continue;
                 }
 
+                var fullWattHours = pair.Value / 1000.0;
                 rows.Add(new SensorReading
                 {
                     Type = "Battery",
                     Hardware = "ACPI battery",
                     Name = "Full charge capacity",
                     Identifier = StableIdentifier("acpi/battery/" + pair.Key + "/full-charge-mwh"),
-                    Value = (float)pair.Value,
-                    DisplayValue = FormatNumber(pair.Value) + " mWh",
+                    Value = (float)fullWattHours,
+                    DisplayValue = fullWattHours.ToString("0.00", CultureInfo.InvariantCulture) + " Wh",
                     Source = "Lenovo Laptop Support Plug-In",
                     Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -109,8 +110,8 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         Source = "Lenovo Laptop Support Plug-In",
                         Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                         {
-                            { "Design capacity", FormatNumber(design) + " mWh" },
-                            { "Full charge capacity", FormatNumber(pair.Value) + " mWh" },
+                            { "Design capacity", (design / 1000.0).ToString("0.00", CultureInfo.InvariantCulture) + " Wh" },
+                            { "Full charge capacity", fullWattHours.ToString("0.00", CultureInfo.InvariantCulture) + " Wh" },
                             { "Battery tag", pair.Key },
                             { "Notes", "Wear = 1 - (full / design). Some Lenovo machines do not expose a real design capacity, in which case this row is omitted." }
                         }
@@ -225,14 +226,15 @@ namespace SensorReadout.LenovoThinkPadPlugIn
                         if (design.HasValue && design.Value > 0 && design.Value < 1000000)
                         {
                             designByTag[tag] = design.Value;
+                            var designWattHours = design.Value / 1000.0;
                             rows.Add(new SensorReading
                             {
                                 Type = "Battery",
                                 Hardware = "ACPI battery",
                                 Name = "Design capacity",
                                 Identifier = StableIdentifier(idPrefix + "design-capacity-mwh"),
-                                Value = (float)design.Value,
-                                DisplayValue = FormatNumber(design.Value) + " mWh",
+                                Value = (float)designWattHours,
+                                DisplayValue = designWattHours.ToString("0.00", CultureInfo.InvariantCulture) + " Wh",
                                 Source = "Lenovo Laptop Support Plug-In",
                                 Details = new Dictionary<string, string>(details, StringComparer.OrdinalIgnoreCase)
                             });

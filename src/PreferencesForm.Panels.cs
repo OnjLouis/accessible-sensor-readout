@@ -154,12 +154,14 @@ public sealed partial class PreferencesForm : Form
         }
 
         var item = categoryList.Items[index];
+        var crossedItem = categoryList.Items[target];
         var isChecked = categoryList.GetItemChecked(index);
         categoryList.Items.RemoveAt(index);
         categoryList.Items.Insert(target, item);
         categoryList.SetItemChecked(target, isChecked);
         categoryList.SelectedIndex = target;
         SaveLivePreferences();
+        ReportRelativeMove(categoryList, item, crossedItem, direction);
     }
 
     private void CategoryListKeyDown(object sender, KeyEventArgs e)

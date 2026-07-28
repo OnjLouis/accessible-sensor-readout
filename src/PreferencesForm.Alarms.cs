@@ -663,7 +663,7 @@ public sealed partial class PreferencesForm : Form
         }
     }
 
-    private static string[] AlarmThresholdUnits(SensorRow row)
+    internal static string[] AlarmThresholdUnits(SensorRow row)
     {
         if (row == null)
         {
@@ -685,6 +685,21 @@ public sealed partial class PreferencesForm : Form
         if (row.Type == "Fan")
         {
             return new[] { "RPM" };
+        }
+
+        if (name.Contains("power") || name.Contains("charge rate") || name.Contains("discharge rate") || display.EndsWith(" w"))
+        {
+            return new[] { "W" };
+        }
+
+        if (name.Contains("capacity") || display.EndsWith(" wh"))
+        {
+            return new[] { "Wh" };
+        }
+
+        if (name.Contains("voltage") || display.EndsWith(" v"))
+        {
+            return new[] { "V" };
         }
 
         if (name.Contains("link speed"))

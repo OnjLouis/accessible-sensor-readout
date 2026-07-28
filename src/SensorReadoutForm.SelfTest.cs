@@ -304,9 +304,9 @@ public sealed partial class SensorReadoutForm : Form
         string parentName;
         Require(TryResolveBluetoothParentName("Onj's iPhone 17 Pro Hands-Free HF Audio", "", parentMap, out parentName) && parentName == "Onj's iPhone 17 Pro", "Bluetooth child device name did not resolve by parent-name prefix.");
         Require(MacVendorDatabase.Load(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data")).Lookup("34:6F:24:6A:E5:58").IndexOf("AzureWave", StringComparison.OrdinalIgnoreCase) >= 0, "OUI lookup did not identify the local Bluetooth adapter prefix.");
-        Require(!IsUsefulWindowsPowerMeterReading("Microsoft Power Meter Device", 0, 0), "Battery filtering accepted a zero-value raw Microsoft power meter.");
-        Require(IsUsefulWindowsPowerMeterReading("Microsoft Power Meter Device", 0, 1), "Battery filtering rejected a non-zero raw Microsoft power meter.");
-        Require(IsUsefulWindowsPowerMeterReading("AC adapter", 7, 0), "Battery filtering rejected a watt-based power meter.");
+        Require(!IsUsefulWindowsPowerMeterReading(null), "Battery filtering accepted a power meter without unit metadata.");
+        Require(!IsUsefulWindowsPowerMeterReading(0), "Battery filtering accepted a non-watt power meter.");
+        Require(IsUsefulWindowsPowerMeterReading(7), "Battery filtering rejected a watt-based power meter.");
     }
 
     private void SelfTestCategoryNavigation()
@@ -342,6 +342,11 @@ public sealed partial class SensorReadoutForm : Form
         var movedFilter = deviceList.SelectedItem as DeviceFilter;
         Require(movedFilter != null && string.Equals(movedFilter.Key, "type|Performance", StringComparison.OrdinalIgnoreCase), "Moved category selection did not stay on Performance.");
         Require(settings.CategoryOrderKeys.Count > 2 && string.Equals(settings.CategoryOrderKeys[2], "type|Performance", StringComparison.OrdinalIgnoreCase), "Moved category order was not saved.");
+        Require(string.Equals(RelativeMoveText("Battery", "Fans", -1), "Battery moved above Fans.", StringComparison.Ordinal), "Upward relative move feedback was incorrect.");
+        Require(string.Equals(RelativeMoveText("Fans", "Temperatures", 1), "Fans moved below Temperatures.", StringComparison.Ordinal), "Downward relative move feedback was incorrect.");
+        Require(string.Equals(RelativeMoveSpeechText("Battery", "Fans", -1, CategorySpeechBrief), "Battery above Fans.", StringComparison.Ordinal), "Brief upward move feedback was incorrect.");
+        Require(string.Equals(RelativeMoveSpeechText("Fans", "Temperatures", 1, CategorySpeechBrief), "Fans below Temperatures.", StringComparison.Ordinal), "Brief downward move feedback was incorrect.");
+        Require(string.IsNullOrEmpty(RelativeMoveSpeechText("Battery", "Fans", -1, CategorySpeechOff)), "Off category speech mode still produced move feedback.");
         settings.HiddenCategoryKeys = new List<string> { "type|Network" };
         UpdateDeviceList();
         Require(!deviceList.Items.Cast<object>().OfType<DeviceFilter>().Any(f => string.Equals(f.Key, "type|Network", StringComparison.OrdinalIgnoreCase)), "Hidden category was still visible.");
@@ -704,18 +709,50 @@ public sealed partial class SensorReadoutForm : Form
             };
             Require(RequiresRealtimeBackgroundRefresh(), "Spoken hotkey readings should keep hidden refresh at the user interval.");
 
+            const string oldPowerKey = "Battery|Test battery|Power rate|battery/0/power-rate";
+            const string newPowerKey = "Battery|Test battery|Battery charge/discharge power|battery/0/power-rate";
+            const string lenovoDischargeKey = "Battery|ACPI battery|Discharge rate|acpi-battery-test-discharge-rate-mw";
+            const string batteryCapacityKey = "Battery|Test battery|Full charge capacity|battery/0/full-charge-capacity";
+            const string lenovoVoltageKey = "Battery|ACPI battery|Voltage|acpi-battery-test-voltage-mv";
             var normalizationSettings = new AppSettings
             {
+                TrayItemKeys = new List<string> { oldPowerKey },
                 SpokenHotKeys = new List<SpokenHotKeySetting>
                 {
                     new SpokenHotKeySetting { Name = "New spoken hotkey", HotKey = "", ReadingKeys = new List<string>() },
                     new SpokenHotKeySetting { Name = "Intentional empty profile", HotKey = "", ReadingKeys = new List<string>() },
-                    new SpokenHotKeySetting { Name = "Useful profile", HotKey = "Ctrl+Shift+F1", ReadingKeys = new List<string> { "self-test-reading" } }
+                    new SpokenHotKeySetting { Name = "Useful profile", HotKey = "Ctrl+Shift+F1", ReadingKeys = new List<string> { "self-test-reading", lenovoDischargeKey } }
+                },
+                HiddenReadingKeys = new List<string> { "row|" + batteryCapacityKey },
+                TrendLoggingKeys = new List<string> { lenovoVoltageKey },
+                ReadingSpeechLabels = new Dictionary<string, string> { { oldPowerKey, "Battery power" } },
+                Alarms = new List<AlarmSetting>
+                {
+                    new AlarmSetting { Name = "Power", ReadingKey = oldPowerKey, Threshold = 20, ThresholdUnit = "value" },
+                    new AlarmSetting { Name = "Discharge", ReadingKey = lenovoDischargeKey, Threshold = 11520, ThresholdUnit = "B/s" },
+                    new AlarmSetting { Name = "Capacity", ReadingKey = batteryCapacityKey, Threshold = 50540, ThresholdUnit = "value" },
+                    new AlarmSetting { Name = "Voltage", ReadingKey = lenovoVoltageKey, Threshold = 16561, ThresholdUnit = "value" }
                 }
             };
             NormalizeSettings(normalizationSettings);
             Require(normalizationSettings.SpokenHotKeys.Count == 2, "Settings normalization did not prune the empty default spoken hotkey placeholder.");
             Require(!normalizationSettings.SpokenHotKeys.Any(p => string.Equals(p.Name, "New spoken hotkey", StringComparison.OrdinalIgnoreCase)), "Settings normalization kept an empty default spoken hotkey placeholder.");
+            Require(normalizationSettings.TrayItemKeys.Contains(newPowerKey), "Battery power-row settings key was not migrated after its user-facing rename.");
+            Require(normalizationSettings.ReadingSpeechLabels.ContainsKey(newPowerKey), "Battery power spoken label was not migrated after its user-facing rename.");
+            Require(Math.Abs(normalizationSettings.Alarms[0].Threshold - 20) < 0.001 && normalizationSettings.Alarms[0].ThresholdUnit == "W", "Existing Windows battery power alarm was scaled incorrectly.");
+            Require(Math.Abs(normalizationSettings.Alarms[1].Threshold - 11.52) < 0.001 && normalizationSettings.Alarms[1].ThresholdUnit == "W", "Existing Lenovo battery power alarm was not migrated from milliwatts.");
+            Require(Math.Abs(normalizationSettings.Alarms[2].Threshold - 50.54) < 0.001 && normalizationSettings.Alarms[2].ThresholdUnit == "Wh", "Existing battery capacity alarm was not migrated from milliwatt-hours.");
+            Require(Math.Abs(normalizationSettings.Alarms[3].Threshold - 16.561) < 0.001 && normalizationSettings.Alarms[3].ThresholdUnit == "V", "Existing Lenovo battery voltage alarm was not migrated from millivolts.");
+            Require(PreferencesForm.AlarmThresholdUnits(new SensorRow { Type = "Battery", Name = "Discharge rate", DisplayValue = "11.52 W" }).SequenceEqual(new[] { "W" }), "Battery power alarm units were mistaken for transfer-rate units.");
+            Require(PreferencesForm.AlarmThresholdUnits(new SensorRow { Type = "Battery", Name = "Full charge capacity", DisplayValue = "50.54 Wh" }).SequenceEqual(new[] { "Wh" }), "Battery capacity alarm units were not watt-hours.");
+            Require(PreferencesForm.AlarmThresholdUnits(new SensorRow { Type = "Battery", Name = "Voltage", DisplayValue = "16.56 V" }).SequenceEqual(new[] { "V" }), "Battery voltage alarm units were not volts.");
+
+            var onlineIdleBattery = new NativeBatteryInfo
+            {
+                PowerState = BatteryPowerState.Discharging | BatteryPowerState.Online,
+                RateMilliwatts = 0
+            };
+            Require(BuildBatteryStatusText(onlineIdleBattery, null) == "AC connected", "An idle AC-connected battery was incorrectly described as discharging.");
         }
         finally
         {
