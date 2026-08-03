@@ -10,6 +10,7 @@ internal static class NativeMethods
     public const uint ModControl = 0x0002;
     public const uint ModShift = 0x0004;
     public const uint ModWin = 0x0008;
+    public const uint ModNoRepeat = 0x4000;
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);

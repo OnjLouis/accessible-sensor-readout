@@ -166,6 +166,10 @@ public sealed partial class SensorReadoutForm : Form
         Require(string.Equals(NormalizeHotKeyText("Ctrl+Shift+F1"), "Ctrl+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Shift function hotkey was rejected.");
         Require(string.Equals(NormalizeHotKeyText("Ctrl+Alt+F1"), "Ctrl+Alt+F1", StringComparison.OrdinalIgnoreCase), "Safe Ctrl+Alt function hotkey was rejected.");
         Require(string.Equals(NormalizeHotKeyText("Alt+Shift+F1"), "Alt+Shift+F1", StringComparison.OrdinalIgnoreCase), "Safe Alt+Shift function hotkey was rejected.");
+        var configuredModifiers = NativeMethods.ModControl | NativeMethods.ModShift;
+        var registrationModifiers = GlobalHotKeyRegistrationModifiers(configuredModifiers);
+        Require((registrationModifiers & NativeMethods.ModNoRepeat) != 0, "Global hotkey registration did not suppress held-key repeat.");
+        Require((registrationModifiers & configuredModifiers) == configuredModifiers, "Global hotkey registration lost configured modifiers.");
     }
 
     private void SelfTestInstalledAppRegistration(string outputFolder)
@@ -249,7 +253,8 @@ public sealed partial class SensorReadoutForm : Form
         var tcpEndpoint = new IPEndPoint(IPAddress.Loopback, 12345);
         var udpEndpoint = new IPEndPoint(IPAddress.Loopback, 23456);
         var wildcardEndpoint = new IPEndPoint(IPAddress.Any, 34567);
-        var tcp = new List<IPEndPoint> { tcpEndpoint };
+        var tcp = Enumerable.Range(1, 12).Select(port => new IPEndPoint(IPAddress.Loopback, 12000 + port)).ToList();
+        tcp[0] = tcpEndpoint;
         var udp = new List<IPEndPoint> { udpEndpoint };
         var tcpOwners = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
         var udpOwners = new Dictionary<string, List<ListeningPortOwner>>(StringComparer.OrdinalIgnoreCase);
@@ -265,6 +270,18 @@ public sealed partial class SensorReadoutForm : Form
         Require(!tcpDetails.ContainsKey("UDP listening port count"), "TCP listening details included UDP count.");
         Require(tcpDetails.Values.Any(v => v.IndexOf("tcp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "TCP listening details did not include TCP owner.");
         Require(!tcpDetails.Values.Any(v => v.IndexOf("udp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "TCP listening details included UDP owner.");
+        var orderedTcpDetailKeys = tcpDetails.Keys
+            .OrderBy(key => UsbDetailSortIndex(key))
+            .ThenBy(key => NaturalDetailSortKey(key), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Require(orderedTcpDetailKeys.IndexOf("TCP listening endpoint 2") < orderedTcpDetailKeys.IndexOf("TCP listening endpoint 10"), "TCP endpoint details were sorted alphabetically instead of numerically.");
+        Require(orderedTcpDetailKeys.IndexOf("TCP listening endpoint 10") < orderedTcpDetailKeys.IndexOf("TCP listening endpoint 11"), "TCP endpoint detail ordering was unstable above 10.");
+        var tcpEndpoint2Path = GetDetailTreePath("TCP listening endpoint 2");
+        var tcpEndpoint10Path = GetDetailTreePath("TCP listening endpoint 10");
+        var udpEndpoint1Path = GetDetailTreePath("UDP listening endpoint 1");
+        Require(tcpEndpoint2Path.Label == "2" && tcpEndpoint10Path.Label == "10" && udpEndpoint1Path.Label == "1", "Listening endpoint detail labels retained redundant protocol wording.");
+        Require(tcpEndpoint2Path.SortIndex < tcpEndpoint10Path.SortIndex, "Concise listening endpoint labels did not retain numeric order.");
         Require(tcpEndpointText.StartsWith("localhost:12345", StringComparison.OrdinalIgnoreCase), "Loopback listening endpoint did not start with localhost and port.");
         Require(wildcardEndpointText.StartsWith("all IPv4 addresses:34567", StringComparison.OrdinalIgnoreCase), "Wildcard IPv4 listening endpoint did not use a friendly host label.");
         Require(udpDetails.ContainsKey("UDP listening port count"), "UDP listening details did not include UDP count.");
@@ -307,6 +324,13 @@ public sealed partial class SensorReadoutForm : Form
         Require(!IsUsefulWindowsPowerMeterReading(null), "Battery filtering accepted a power meter without unit metadata.");
         Require(!IsUsefulWindowsPowerMeterReading(0), "Battery filtering accepted a non-watt power meter.");
         Require(IsUsefulWindowsPowerMeterReading(7), "Battery filtering rejected a watt-based power meter.");
+        Require(IsPlausibleWmiBatteryRuntimeMinutes(123), "A plausible WMI battery runtime was rejected.");
+        Require(!IsPlausibleWmiBatteryRuntimeMinutes(71582788), "The Windows unknown-runtime sentinel was accepted as a battery runtime.");
+        var runtimeDetails = BuildBatteryDetails(null, new WmiBatteryInfo { EstimatedRunTimeMinutes = 71582788 }, 0);
+        Require(!runtimeDetails.ContainsKey("WMI estimated runtime"), "The Windows unknown-runtime sentinel leaked into battery details.");
+        var liveBattery = new NativeBatteryInfo { CurrentCapacity = 9600, FullChargeCapacity = 48000 };
+        var staleWmiBattery = new WmiBatteryInfo { EstimatedChargeRemaining = 2 };
+        Require(Math.Abs(GetBatteryPercent(liveBattery, staleWmiBattery).GetValueOrDefault() - 20.0) < 0.01, "Cached WMI charge percentage overrode live native battery capacity.");
     }
 
     private void SelfTestCategoryNavigation()
@@ -2080,6 +2104,8 @@ public sealed partial class SensorReadoutForm : Form
         Require(caseTempFolders.Length == 0, "Temporary folder case-repair leftovers found: " + string.Join(", ", caseTempFolders.Select(Path.GetFileName).ToArray()));
         RefreshLanguageChoices(true);
         Require(languageChoices.Count > 0, "No language choices loaded.");
+        Require(UpdateCheckDialogTitle().IndexOf("Sensor Readout", StringComparison.OrdinalIgnoreCase) >= 0,
+            "The update dialog title does not identify Sensor Readout.");
 
         var languageFiles = Directory.GetFiles(GetLanguagesFolderPath(), "*.txt");
         Require(languageFiles.Length > 0, "No bundled language files found.");

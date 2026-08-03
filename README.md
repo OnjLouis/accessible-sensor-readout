@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 4.14.0.
+Current version: 4.14.1.
 
 Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -327,6 +327,7 @@ The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Sp
 - Include device names in spoken feedback: choose between fuller output such as `Ethernet Rx` and shorter output such as `Rx`.
 - Skip unavailable readings when speaking notification area status: omit configured tray readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group.
 - Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.
+- A held global hotkey triggers once. Release it before pressing it again; holding it does not repeat speech, actions, or the double-press clipboard gesture.
 - Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.
 - Spoken hotkey presets: create starter profiles with useful reading groups such as system status, memory status, C drive activity, Tasks summary, network, GPU, battery, or cooling readings. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
@@ -694,6 +695,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 4.14.1
+
+- Fixed: Battery charge now follows the live Windows battery capacity instead of a slower cached fallback, and unavailable runtime estimates no longer appear as enormous hour counts.
+- Fixed: Holding a global hotkey now triggers it only once per press, preventing repeated speech, repeated actions, and accidental clipboard copying.
+- Improved: Update windows now identify themselves as Sensor Readout Update in the title bar, making it clear which application is asking to update.
+- Improved: TCP and UDP endpoint entries in Details now use concise number-only labels for faster keyboard and screen-reader navigation, while numbered Details entries stay in natural numeric order instead of placing item 10 directly after item 1.
 
 ### 4.14.0
 

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versão atual: 4.14.0.</p>
+<p>Versão atual: 4.14.1.</p>
 <h2 id="contents">Conteúdo</h2>
 <ul>
 <li><a href="#changelog">Registro de alterações</a></li>
@@ -43,6 +43,7 @@
 <li><a href="#license">Licença</a></li>
 </ul>
 <h2 id="changelog">Registro de alterações</h2>
+<h3>4.14.1</h3><ul><li>Corrigido: A carga da bateria passa a seguir a capacidade atual do Windows em vez de um valor alternativo armazenado mais lentamente, e as estimativas de autonomia indisponíveis deixam de aparecer como números enormes de horas.</li><li>Corrigido: Manter premida uma tecla de atalho global passa a acioná-la apenas uma vez por pressão, evitando fala repetida, ações repetidas e cópias acidentais para a área de transferência.</li><li>Melhorado: As janelas de atualização mostram agora Atualização do Sensor Readout na barra de título, deixando claro qual aplicação está a pedir uma atualização.</li><li>Melhorado: As entradas de pontos de ligação TCP e UDP em Detalhes passam a usar rótulos concisos compostos apenas pelo número para agilizar a navegação por teclado e leitor de ecrã. As entradas numeradas também mantêm a ordem numérica natural, em vez de colocar o item 10 imediatamente após o item 1.</li></ul>
 <h3>4.14.0</h3><ul><li>Melhorado: A potência, a capacidade e a tensão da bateria são agora apresentadas nas unidades mais legíveis W, Wh e V. As linhas de bateria Lenovo omitem taxas inativas com valor zero e os limites de alarme existentes são convertidos automaticamente. A potência de carga ou descarga é identificada claramente e os valores brutos sem unidades são ocultados, evitando confundir a atividade da bateria com a potência total de entrada do carregador.</li><li>Melhorado: Ao reordenar uma categoria ou um item ordenado nas Preferências, o Sensor Readout agora indica acima ou abaixo de que item adjacente ocorreu o movimento. As opções Completa, Breve e Desativada da fala das categorias controlam a quantidade de informação falada.</li></ul>
 <h3>4.13.0</h3><ul><li>Adicionado: Desempenho/Visão geral agora mostra o sistema de ficheiros e o tipo de volume das unidades locais prontas, além das unidades de rede mapeadas de forma persistente com estado da ligação, fornecedor, localização remota e capacidade quando o Windows a disponibiliza.</li><li>Melhorado: SMART e Detalhes agora apresentam informações mais completas e apenas de leitura sobre discos, partições e volumes quando o Windows as fornece, incluindo estilo e número de partições, alocação, dados de setores e volumes, firmware, número de série, estado, caminhos de acesso e partições ocultas ou de recuperação.</li><li>Adicionado: Partições não montadas agora podem ser identificadas como APFS ou EXT2/EXT3/EXT4 quando o Windows permite acesso direto apenas de leitura. O Sensor Readout mostra metadados seguros do contentor ou superbloco sem montar o sistema de ficheiros, alterar o disco ou inspecionar os seus ficheiros.</li><li>Privacidade: Os relatórios anonimizados agora também removem rótulos de unidades, localizações de rede mapeadas, caminhos de armazenamento e outros metadados de armazenamento identificativos.</li></ul>
 <h3>4.12.0</h3><ul><li>Adicionado: o Sensor Readout agora tem o seu próprio ícone de medidor em vários tamanhos na aplicação, nas suas janelas, nos atalhos do Windows e na área de notificação.</li><li>Melhorado: o ícone da área de notificação torna mais fáceis de reconhecer os estados de aviso, crítico, desligado, indisponível, alarme e pausa. Formas e símbolos distintos complementam a cor, e um estado importante entre as leituras configuradas pode ter prioridade sobre um valor normal.</li><li>Melhorado: os medidores de percentagem e a janela flutuante opcional de feedback visual das teclas de atalho têm estilo Windows, espaçamento, contraste e indicação de estado mais claros.</li></ul>
@@ -1151,6 +1152,7 @@
 <li>Falar tecla de atalho de status da área de notificação: fala as leituras configuradas da bandeja.</li>
 <li>Incluir nomes de dispositivos no feedback falado: escolha entre resultados mais completos, como <code>Ethernet Rx</code> e resultados mais curtos, como <code>Rx</code>.</li>
 <li>Tempo limite de cópia com toque duplo: copie a mesma saída falada para a área de transferência quando uma tecla de atalho de fala for pressionada duas vezes rapidamente.</li>
+<li>Uma tecla de atalho global mantida premida é acionada apenas uma vez. Solte-a antes de a premir novamente; mantê-la premida não repete a fala, as ações nem o gesto de duplo toque que copia para a área de transferência.</li>
 <li>Perfis de teclas de atalho faladas: crie teclas de atalho globais extras, cada uma com seu próprio nome, combinação de teclas e lista de leitura ordenada.</li>
 <li>Etiquetas faladas: renomeie as leituras selecionadas para fala mais curta, como alterar <code>Receive rate</code> para <code>Rx</code>.</li>
 </ul>

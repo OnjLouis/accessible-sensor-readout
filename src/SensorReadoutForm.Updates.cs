@@ -454,7 +454,7 @@ public sealed partial class SensorReadoutForm : Form
 
         using (var dialog = new Form())
         {
-            dialog.Text = T("ui.Update available", "Update available");
+            dialog.Text = UpdateCheckDialogTitle();
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.Width = 720;
             dialog.Height = 520;
@@ -721,7 +721,7 @@ public sealed partial class SensorReadoutForm : Form
         using (var layout = new TableLayoutPanel())
         using (var buttons = new FlowLayoutPanel())
         {
-            dialog.Text = StripMenuMnemonic(T("ui.Download and install", "Download and install"));
+            dialog.Text = UpdateCheckDialogTitle();
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
@@ -782,7 +782,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private string UpdateCheckDialogTitle()
     {
-        return StripMenuMnemonic(T("ui.Check for updates...", "Check for updates..."));
+        return T("ui.Sensor Readout Update", "Sensor Readout Update");
     }
 
     private static string GetUpdaterTempDirectory(string appDir)

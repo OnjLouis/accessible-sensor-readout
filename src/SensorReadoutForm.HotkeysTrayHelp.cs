@@ -66,7 +66,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var hotKeyHandle = hotKeyWindow == null ? Handle : hotKeyWindow.Handle;
-        if (!NativeMethods.RegisterHotKey(hotKeyHandle, id, hotKey.Modifiers, (uint)hotKey.Key))
+        if (!NativeMethods.RegisterHotKey(hotKeyHandle, id, GlobalHotKeyRegistrationModifiers(hotKey.Modifiers), (uint)hotKey.Key))
         {
             var error = Marshal.GetLastWin32Error();
             var message = "Could not register " + description + " hotkey " + NormalizeHotKeyText(hotKeyText) + ". Windows error " + error + ". It may already be in use.";
@@ -77,6 +77,11 @@ public sealed partial class SensorReadoutForm : Form
 
         LogMessage("Normal", "Registered " + description + " hotkey " + NormalizeHotKeyText(hotKeyText) + ".");
         return true;
+    }
+
+    private static uint GlobalHotKeyRegistrationModifiers(uint modifiers)
+    {
+        return modifiers | NativeMethods.ModNoRepeat;
     }
 
     private void UnregisterGlobalHotKeys()

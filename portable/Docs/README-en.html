@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 4.14.0.</p>
+<p>Current version: 4.14.1.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#changelog">Changelog</a></li>
@@ -42,6 +42,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>4.14.1</h3><ul><li>Fixed: Battery charge now follows the live Windows battery capacity instead of a slower cached fallback, and unavailable runtime estimates no longer appear as enormous hour counts.</li><li>Fixed: Holding a global hotkey now triggers it only once per press, preventing repeated speech, repeated actions, and accidental clipboard copying.</li><li>Improved: Update windows now identify themselves as Sensor Readout Update in the title bar, making it clear which application is asking to update.</li><li>Improved: TCP and UDP endpoint entries in Details now use concise number-only labels for faster keyboard and screen-reader navigation, while numbered Details entries stay in natural numeric order instead of placing item 10 directly after item 1.</li></ul>
 <h3>4.14.0</h3><ul><li>Improved: Battery power, capacity, and voltage are now presented in the more readable units W, Wh, and V. Lenovo battery rows omit inactive zero rates, and existing battery alarm thresholds are converted automatically. Battery charge/discharge power is labelled clearly and untyped raw power-meter values are hidden, preventing battery-side activity from being mistaken for total charger input.</li><li>Improved: Reordering a category or an ordered item in Preferences now reports which neighbouring item it moved above or below. The existing Full, Brief, and Off category-speech choices control how much of that movement feedback is spoken.</li></ul>
 <h3>4.13.0</h3><ul><li>Added: Performance/Overview now shows the file system and volume type for ready local drives, plus persistent mapped network drives with their connection status, provider, remote location, and capacity when Windows exposes it.</li><li>Improved: SMART and Details now expose richer read-only disk, partition, and volume information where Windows provides it, including partition style and count, allocation, sector and volume data, firmware, serial number, health, access paths, and hidden or recovery partitions.</li><li>Added: Unmounted partitions can now be identified as APFS or EXT2/EXT3/EXT4 when Windows permits read-only raw access. Sensor Readout shows safe container or superblock metadata without mounting the file system, changing the disk, or inspecting its files.</li><li>Privacy: Anonymized reports now also remove drive labels, mapped network locations, storage paths, and other identifying storage metadata.</li></ul>
 <h3>4.12.0</h3><ul><li>Added: Sensor Readout now has its own multi-size gauge icon across the app, its windows, Windows shortcuts, and the notification area.</li><li>Improved: The notification-area badge now makes caution, critical, disconnected, unavailable, alarm, and paused states easier to recognise. Distinct shapes and symbols supplement colour, while important states among the configured tray readings can take priority over an ordinary value.</li><li>Improved: Percentage meters and the optional floating visual hotkey feedback have clearer Windows-native styling, spacing, contrast, and state indication.</li></ul>
@@ -1151,6 +1152,7 @@
 <li>Notification area status: choose the readings used by the tray tooltip and the speak-tray hotkey. This is a permanent profile, so it stays available even if you remove every extra spoken hotkey profile.</li><li>Speak notification area status hotkey: speak the configured notification-area readings.</li>
 <li>Include device names in spoken feedback: choose between fuller output such as <code>Ethernet Rx</code> and shorter output such as <code>Rx</code>.</li>
 <li>Double-press copy timeout: copy the same spoken output to the clipboard when a speech hotkey is pressed twice quickly.</li>
+<li>A held global hotkey triggers once. Release it before pressing it again; holding it does not repeat speech, actions, or the double-press clipboard gesture.</li>
 <li>Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.</li>
 <li>Spoken labels: rename selected readings for shorter speech, such as changing <code>Receive rate</code> to <code>Rx</code>.</li>
 </ul>

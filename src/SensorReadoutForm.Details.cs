@@ -636,6 +636,7 @@ public sealed partial class SensorReadoutForm : Form
             .Select(p => new { Pair = p, Path = GetDetailTreePath(p.Key) })
             .OrderBy(p => p.Path.SortIndex)
             .ThenBy(p => UsbDetailSortIndex(p.Pair.Key))
+            .ThenBy(p => NaturalDetailSortKey(p.Pair.Key), StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Pair.Key, StringComparer.OrdinalIgnoreCase))
         {
             var nodes = tree.Nodes;
@@ -679,6 +680,11 @@ public sealed partial class SensorReadoutForm : Form
         {
             ExpandDefaultDetailGroups(node);
         }
+    }
+
+    private static string NaturalDetailSortKey(string value)
+    {
+        return Regex.Replace(value ?? "", @"\d+", match => match.Value.PadLeft(20, '0'));
     }
 
     private static void ExpandDefaultDetailGroups(TreeNode node)
@@ -730,6 +736,15 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         Match match;
+        match = Regex.Match(field, @"^(?:TCP|UDP)\s+listening\s+endpoint\s+(\d+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            var endpointNumber = SafeParseInt(match.Groups[1].Value);
+            path.Label = match.Groups[1].Value;
+            path.SortIndex = 1000 + endpointNumber;
+            return path;
+        }
+
         match = Regex.Match(field, @"^CPU cache\s+(\d+)\s+WMI\s+(.+)$", RegexOptions.IgnoreCase);
         if (match.Success)
         {

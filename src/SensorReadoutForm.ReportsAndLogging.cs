@@ -565,7 +565,8 @@ public sealed partial class SensorReadoutForm : Form
         return row.Details
             .Where(p => !string.IsNullOrWhiteSpace(p.Value))
             .OrderBy(p => UsbDetailSortIndex(p.Key))
-            .ThenBy(p => p.Key);
+            .ThenBy(p => NaturalDetailSortKey(p.Key), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Key, StringComparer.OrdinalIgnoreCase);
     }
 
     private SensorRow GetSelectedReadingRow()

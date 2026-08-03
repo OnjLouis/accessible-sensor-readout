@@ -232,7 +232,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        if (wmi != null && wmi.EstimatedRunTimeMinutes > 0 && wmi.EstimatedRunTimeMinutes < 1440 * 14)
+        if (wmi != null && IsPlausibleWmiBatteryRuntimeMinutes(wmi.EstimatedRunTimeMinutes))
         {
             time = TimeSpan.FromMinutes(wmi.EstimatedRunTimeMinutes);
             source = "Windows WMI";
@@ -245,6 +245,11 @@ public sealed partial class SensorReadoutForm : Form
     private static bool IsPlausibleBatteryHours(double hours)
     {
         return !double.IsNaN(hours) && !double.IsInfinity(hours) && hours > 0 && hours < 24 * 14;
+    }
+
+    private static bool IsPlausibleWmiBatteryRuntimeMinutes(int minutes)
+    {
+        return minutes > 0 && minutes < 1440 * 14;
     }
 
     private static string FormatBatteryTimeSpan(TimeSpan time)
@@ -811,14 +816,14 @@ public sealed partial class SensorReadoutForm : Form
 
     private static double? GetBatteryPercent(NativeBatteryInfo battery, WmiBatteryInfo wmi)
     {
+        if (battery != null && battery.FullChargeCapacity > 0 && battery.CurrentCapacity >= 0)
+        {
+            return Math.Max(0, Math.Min(100, battery.CurrentCapacity * 100.0 / battery.FullChargeCapacity));
+        }
+
         if (wmi != null && wmi.EstimatedChargeRemaining >= 0 && wmi.EstimatedChargeRemaining <= 100)
         {
             return wmi.EstimatedChargeRemaining;
-        }
-
-        if (battery.FullChargeCapacity > 0 && battery.CurrentCapacity >= 0)
-        {
-            return Math.Max(0, Math.Min(100, battery.CurrentCapacity * 100.0 / battery.FullChargeCapacity));
         }
 
         return null;
@@ -848,7 +853,7 @@ public sealed partial class SensorReadoutForm : Form
         if (wmi != null)
         {
             AddDetail(details, "WMI estimated charge remaining", wmi.EstimatedChargeRemaining >= 0 ? wmi.EstimatedChargeRemaining + "%" : "");
-            AddDetail(details, "WMI estimated runtime", wmi.EstimatedRunTimeMinutes > 0 ? FormatBatteryTimeSpan(TimeSpan.FromMinutes(wmi.EstimatedRunTimeMinutes)) : "");
+            AddDetail(details, "WMI estimated runtime", IsPlausibleWmiBatteryRuntimeMinutes(wmi.EstimatedRunTimeMinutes) ? FormatBatteryTimeSpan(TimeSpan.FromMinutes(wmi.EstimatedRunTimeMinutes)) : "");
             AddDetail(details, "WMI battery status", DecodeWmiBatteryStatus(wmi.BatteryStatus));
             AddDetail(details, "WMI status", wmi.Status);
             if (wmi.RawDetails != null)
