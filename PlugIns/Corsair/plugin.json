@@ -1,0 +1,13 @@
+{
+  "id": "sensorreadout.corsair.experimental",
+  "name": "Corsair iCUE Link and PSU Support (experimental)",
+  "version": "0.1.0",
+  "author": "Robin Kipp, Claude Code, and Sensor Readout contributors",
+  "description": "Experimental, opt-in support for the Corsair iCUE LINK Hub (pump, fans, liquid temperature, fan control) and Corsair HXi/RMi digital power supplies (temperatures, fan, input voltage, output power, fan control). Do not run together with Corsair iCUE. Safe to run alongside HWiNFO or Fan Control for monitoring, but only one program should control fan speeds.",
+  "assembly": "CorsairPlugIn.dll",
+  "type": "SensorReadout.CorsairPlugIn.CorsairPlugIn",
+  "helpLinks": [
+    { "label": "Corsair i&CUE Link protocol research (FanControl.CorsairLink)", "url": "https://github.com/EvanMulawski/FanControl.CorsairLink" },
+    { "label": "&liquidctl project", "url": "https://github.com/liquidctl/liquidctl" }
+  ]
+}
