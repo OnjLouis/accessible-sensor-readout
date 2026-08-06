@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -52,7 +53,8 @@ namespace SensorReadout.CorsairPlugIn
             var deviceInfoSet = CorsairNativeMethods.SetupDiGetClassDevs(ref hidGuid, IntPtr.Zero, IntPtr.Zero, DigcfPresent | DigcfDeviceInterface);
             if (deviceInfoSet == IntPtr.Zero || deviceInfoSet == InvalidHandleValue)
             {
-                Log(logDebug, "Corsair plug-in: SetupDiGetClassDevs failed to enumerate HID device interfaces.");
+                var enumError = Marshal.GetLastWin32Error();
+                Log(logDebug, "Corsair plug-in: SetupDiGetClassDevs failed to enumerate HID device interfaces (error " + enumError.ToString(CultureInfo.InvariantCulture) + ").");
                 return results;
             }
 
@@ -244,8 +246,11 @@ namespace SensorReadout.CorsairPlugIn
         private const uint FileFlagOverlapped = 0x40000000;
         private const int ErrorIoPending = 997;
         private const int ErrorDeviceNotConnected = 1167;
+        private const int ErrorNoSuchDevice = 433;
         private const uint WaitObject0 = 0x0;
         private const uint WaitTimeout = 0x102;
+        private const int DrainMaxReads = 64;
+        private const int DrainBudgetMs = 250;
 
         private readonly SafeFileHandle handle;
         private readonly CorsairHidDeviceInfo info;
@@ -312,9 +317,28 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             var buffer = new byte[info.InputReportLength];
+            var reads = 0;
+            var startTicks = Environment.TickCount;
             while (Read(buffer, 3))
             {
                 // Discard stale reports left in the queue by other tools/firmware chatter.
+                reads++;
+                if (reads >= DrainMaxReads)
+                {
+                    Trace.WriteLine("Corsair plug-in: DrainInput on " + info.Path + " stopped after "
+                        + reads.ToString(CultureInfo.InvariantCulture) + " reads (cap " + DrainMaxReads.ToString(CultureInfo.InvariantCulture)
+                        + "); a device may be flooding input reports.");
+                    return;
+                }
+
+                // unchecked: Environment.TickCount wraps every ~24.9 days, and unchecked
+                // subtraction still yields the correct elapsed duration across that wraparound.
+                if (unchecked(Environment.TickCount - startTicks) >= DrainBudgetMs)
+                {
+                    Trace.WriteLine("Corsair plug-in: DrainInput on " + info.Path + " stopped after exceeding its "
+                        + DrainBudgetMs.ToString(CultureInfo.InvariantCulture) + " ms budget; a device may be flooding input reports.");
+                    return;
+                }
             }
         }
 
@@ -334,9 +358,23 @@ namespace SensorReadout.CorsairPlugIn
 
         private bool ExecuteOverlapped(bool isWrite, byte[] buffer, int timeoutMs)
         {
-            if (buffer == null || buffer.Length == 0 || disposed)
+            if (buffer == null || buffer.Length == 0 || disposed || info == null)
             {
                 return false;
+            }
+
+            // Validate against the caps-derived report length up front rather than letting the
+            // driver fail the request with ERROR_INVALID_USER_BUFFER and no local diagnostic.
+            var expectedLength = isWrite ? info.OutputReportLength : info.InputReportLength;
+            if (buffer.Length != expectedLength)
+            {
+                return false;
+            }
+
+            if (timeoutMs < 0)
+            {
+                // Guard against (uint)(-1) silently becoming INFINITE.
+                timeoutMs = 0;
             }
 
             var eventHandle = CorsairNativeMethods.CreateEvent(IntPtr.Zero, true, false, IntPtr.Zero);
@@ -345,19 +383,28 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
+            // Pin the managed buffer for the full lifetime of the overlapped operation. The
+            // interop marshaler would otherwise only pin a byte[] argument for the duration of the
+            // P/Invoke call itself, but after ERROR_IO_PENDING the kernel keeps writing to (Read)
+            // or reading from (Write) that pre-call address until the operation completes or is
+            // cancelled — a compacting GC relocating the array in the meantime would corrupt
+            // memory on Read or transmit garbage to the device on Write. GCHandle.Free() below only
+            // runs after every GetOverlappedResult/cancel path below has already completed.
+            var pinnedBuffer = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             try
             {
                 var overlapped = new CorsairNativeMethods.NativeOverlapped2();
                 overlapped.EventHandle = eventHandle;
+                var bufferPtr = pinnedBuffer.AddrOfPinnedObject();
 
                 var completedImmediately = isWrite
-                    ? CorsairNativeMethods.WriteFile(handle, buffer, (uint)buffer.Length, IntPtr.Zero, ref overlapped)
-                    : CorsairNativeMethods.ReadFile(handle, buffer, (uint)buffer.Length, IntPtr.Zero, ref overlapped);
+                    ? CorsairNativeMethods.WriteFile(handle, bufferPtr, (uint)buffer.Length, IntPtr.Zero, ref overlapped)
+                    : CorsairNativeMethods.ReadFile(handle, bufferPtr, (uint)buffer.Length, IntPtr.Zero, ref overlapped);
 
                 if (!completedImmediately)
                 {
                     var error = Marshal.GetLastWin32Error();
-                    if (error == ErrorDeviceNotConnected)
+                    if (IsDeviceGoneError(error))
                     {
                         isDeviceGone = true;
                         return false;
@@ -374,7 +421,14 @@ namespace SensorReadout.CorsairPlugIn
                     {
                         CorsairNativeMethods.CancelIoEx(handle, IntPtr.Zero);
                         uint cancelledBytes;
-                        CorsairNativeMethods.GetOverlappedResult(handle, ref overlapped, out cancelledBytes, true);
+                        if (!CorsairNativeMethods.GetOverlappedResult(handle, ref overlapped, out cancelledBytes, true))
+                        {
+                            if (IsDeviceGoneError(Marshal.GetLastWin32Error()))
+                            {
+                                isDeviceGone = true;
+                            }
+                        }
+
                         return false;
                     }
 
@@ -383,7 +437,14 @@ namespace SensorReadout.CorsairPlugIn
                         // WAIT_FAILED or unexpected result: cancel defensively, then give up.
                         CorsairNativeMethods.CancelIoEx(handle, IntPtr.Zero);
                         uint cancelledBytes;
-                        CorsairNativeMethods.GetOverlappedResult(handle, ref overlapped, out cancelledBytes, true);
+                        if (!CorsairNativeMethods.GetOverlappedResult(handle, ref overlapped, out cancelledBytes, true))
+                        {
+                            if (IsDeviceGoneError(Marshal.GetLastWin32Error()))
+                            {
+                                isDeviceGone = true;
+                            }
+                        }
+
                         return false;
                     }
                 }
@@ -392,8 +453,7 @@ namespace SensorReadout.CorsairPlugIn
                 var ok = CorsairNativeMethods.GetOverlappedResult(handle, ref overlapped, out bytesTransferred, true);
                 if (!ok)
                 {
-                    var error = Marshal.GetLastWin32Error();
-                    if (error == ErrorDeviceNotConnected)
+                    if (IsDeviceGoneError(Marshal.GetLastWin32Error()))
                     {
                         isDeviceGone = true;
                     }
@@ -405,8 +465,14 @@ namespace SensorReadout.CorsairPlugIn
             }
             finally
             {
+                pinnedBuffer.Free();
                 CorsairNativeMethods.CloseHandle(eventHandle);
             }
+        }
+
+        private static bool IsDeviceGoneError(int error)
+        {
+            return error == ErrorDeviceNotConnected || error == ErrorNoSuchDevice;
         }
     }
 
@@ -469,34 +535,42 @@ namespace SensorReadout.CorsairPlugIn
         [DllImport("hid.dll")]
         internal static extern void HidD_GetHidGuid(out Guid hidGuid);
 
+        // HidD_* functions return BOOLEAN (1 byte), not Win32 BOOL (4 bytes). Without an explicit
+        // U1 marshal, the default 4-byte bool marshaling reads three undefined bytes above EAX
+        // along with the real result byte.
         [DllImport("hid.dll")]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool HidD_GetAttributes(SafeFileHandle device, ref HiddAttributes attributes);
 
         [DllImport("hid.dll")]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool HidD_GetPreparsedData(SafeFileHandle device, out IntPtr preparsedData);
 
         [DllImport("hid.dll")]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool HidD_FreePreparsedData(IntPtr preparsedData);
 
         [DllImport("hid.dll")]
         internal static extern int HidP_GetCaps(IntPtr preparsedData, ref HidpCaps caps);
 
         [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool HidD_GetProductString(SafeFileHandle device, byte[] buffer, int bufferLength);
 
         [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.U1)]
         internal static extern bool HidD_GetSerialNumberString(SafeFileHandle device, byte[] buffer, int bufferLength);
 
-        [DllImport("setupapi.dll", CharSet = CharSet.Unicode)]
+        [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern IntPtr SetupDiGetClassDevs(ref Guid classGuid, IntPtr enumerator, IntPtr hwndParent, int flags); // flags = DIGCF_PRESENT(0x2) | DIGCF_DEVICEINTERFACE(0x10)
 
-        [DllImport("setupapi.dll")]
+        [DllImport("setupapi.dll", SetLastError = true)]
         internal static extern bool SetupDiEnumDeviceInterfaces(IntPtr deviceInfoSet, IntPtr deviceInfoData, ref Guid interfaceClassGuid, int memberIndex, ref SpDeviceInterfaceData deviceInterfaceData);
 
-        [DllImport("setupapi.dll", CharSet = CharSet.Unicode)]
+        [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr deviceInfoSet, ref SpDeviceInterfaceData deviceInterfaceData, IntPtr deviceInterfaceDetailData, int deviceInterfaceDetailDataSize, out int requiredSize, IntPtr deviceInfoData);
 
-        [DllImport("setupapi.dll")]
+        [DllImport("setupapi.dll", SetLastError = true)]
         internal static extern bool SetupDiDestroyDeviceInfoList(IntPtr deviceInfoSet);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -507,6 +581,16 @@ namespace SensorReadout.CorsairPlugIn
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool WriteFile(SafeFileHandle handle, byte[] buffer, uint bytesToWrite, IntPtr bytesWritten, ref NativeOverlapped2 overlapped);
+
+        // IntPtr overloads for the overlapped, GC-relocation-sensitive path: CorsairHidStream pins
+        // its buffer with GCHandle and passes the pinned address directly, instead of letting the
+        // interop marshaler pin a byte[] only for the duration of the call (which is not long
+        // enough once ERROR_IO_PENDING hands the buffer address to the kernel).
+        [DllImport("kernel32.dll", EntryPoint = "ReadFile", SetLastError = true)]
+        internal static extern bool ReadFile(SafeFileHandle handle, IntPtr buffer, uint bytesToRead, IntPtr bytesRead, ref NativeOverlapped2 overlapped);
+
+        [DllImport("kernel32.dll", EntryPoint = "WriteFile", SetLastError = true)]
+        internal static extern bool WriteFile(SafeFileHandle handle, IntPtr buffer, uint bytesToWrite, IntPtr bytesWritten, ref NativeOverlapped2 overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool GetOverlappedResult(SafeFileHandle handle, ref NativeOverlapped2 overlapped, out uint bytesTransferred, bool wait);

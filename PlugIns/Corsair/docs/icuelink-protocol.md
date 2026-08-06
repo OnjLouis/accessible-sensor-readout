@@ -1,5 +1,9 @@
 # Corsair iCUE LINK Hub — Wire Protocol Reference
 
+> **Editor's note (2026-08-07, local measurement addendum):** Windows-measured report
+> lengths on this machine's iCUE LINK System Hub (PID `0x0C3F`): `in=513/out=513`. Allocate
+> report buffers from live `HidP_GetCaps` output, not from this document's `512` wording below.
+
 Protocol facts extracted from study of the FanControl.CorsairLink source tree (unlicensed; no
 code reproduced — this document describes byte layouts, command IDs, timings, and semantics as
 uncopyrightable protocol facts). Source tree studied:

@@ -1,5 +1,9 @@
 # Corsair HXi/RMi HID PSU Protocol (incl. HX1200i 2025, PID 0x1C27)
 
+> **Editor's note (2026-08-07, local measurement addendum):** Windows-measured report
+> lengths on this machine's HX1200i (PID `0x1C27`): `in=65/out=65`. Allocate report
+> buffers from live `HidP_GetCaps` output, not from this document's `64`/`65` wording below.
+
 Protocol facts extracted from study of the FanControl.CorsairLink source tree (unlicensed; no code reproduced — this document describes wire-level and behavioral facts only). Source areas studied: the HID PSU device driver, the HidSharp-based HID transport, the global-mutex synchronization component, and the FanControl plugin host layer.
 
 ---
