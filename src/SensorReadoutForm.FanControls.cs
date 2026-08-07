@@ -1107,8 +1107,8 @@ public sealed partial class SensorReadoutForm : Form
             .OrderBy(r => ControlSortKey(r.Identifier))
             .ToList();
         controls = controls
-            .Select(c => EnrichFanControlRow(c, labels))
             .Where(c => settings.ShowStoppedFans || showStoppedFansCheckBox.Checked || ShouldShowFanControl(c))
+            .Select(c => EnrichFanControlRow(c, labels))
             .OrderBy(c => ControlSortKey(c.Identifier))
             .ToList();
 
@@ -1185,6 +1185,14 @@ public sealed partial class SensorReadoutForm : Form
     private bool ShouldShowFanControl(SensorRow control)
     {
         if (IsGpuControl(control.Identifier))
+        {
+            return true;
+        }
+
+        // A provider can mark a control as zero-RPM capable (the paired fan legitimately idles at
+        // 0 RPM, e.g. semi-passive power supplies) so it is not mistaken for an unused fan header
+        // and hidden. The key is an opt-in marker; its value is free-form explanatory text.
+        if (control.Details != null && control.Details.ContainsKey("Zero RPM capable"))
         {
             return true;
         }

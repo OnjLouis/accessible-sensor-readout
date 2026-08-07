@@ -74,6 +74,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
+            form.RunSelfTestStep(results, "Zero-RPM fan control visibility", delegate { form.SelfTestZeroRpmFanControlVisibility(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
             form.RunSelfTestStep(results, "Report reopening and ZIP selection", delegate { form.SelfTestReportReopen(outputFolder); });
             form.RunSelfTestStep(results, "Report tools and reading history", delegate { form.SelfTestReportToolsAndHistory(outputFolder); });
@@ -1754,6 +1755,24 @@ public sealed partial class SensorReadoutForm : Form
         settings.SpokenHotKeys = reloaded.SpokenHotKeys;
         SaveSettings(settings);
         Require(!LoadSettings().SpokenHotKeys.First(p => string.Equals(p.Name, profile.Name, StringComparison.Ordinal)).ReadingKeys.Contains(key), "Spoken hotkey removal did not persist.");
+    }
+
+    private void SelfTestZeroRpmFanControlVisibility()
+    {
+        var control = new SensorRow
+        {
+            Type = "Fan Control",
+            Hardware = "Self test",
+            Name = "Self-test zero-RPM control",
+            Identifier = "selftest/zero-rpm/control/0"
+        };
+        Require(!ShouldShowFanControl(control), "A stopped fan control without the zero-RPM marker should be hidden by default.");
+
+        control.Details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "Zero RPM capable", "Self-test marker" }
+        };
+        Require(ShouldShowFanControl(control), "A fan control carrying the \"Zero RPM capable\" Details key should stay visible at 0 RPM.");
     }
 
     private void SelfTestAlarmAndFanCurvePersistence()
