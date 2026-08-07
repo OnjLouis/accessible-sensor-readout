@@ -19,8 +19,8 @@ the feature that needs them, not on their own.
 **Added 2026-08-07 after a field bug report:** proposals **4 and 5** at the end of this document
 come out of a reproducible regression Robin hit on live hardware — opening Preferences with
 Corsair fan curves active made the fans spin up at once and never come back down until the app
-was restarted. Both are core-side. **Proposal 4 is implemented on this branch; proposal 5 is not
-yet.** The plug-in-side fix that also ships here works around proposal 4 entirely and merely
+was restarted. Both are core-side, and **both are now implemented on this branch**, one commit
+each. The plug-in-side fix that also ships here works around proposal 4 entirely and merely
 softens proposal 5, so neither core change is load-bearing for the Corsair plug-in; they are here
 because the two defects they fix affect every plug-in and, in proposal 5's case, the app itself.
 Full evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
@@ -228,7 +228,7 @@ carries `WindowsSettingsUri`. No further action is needed.
   before the moment `EnsureLoaded` reads that set, so it can only ever rebuild more often than
   strictly necessary, never less.
 
-## Proposal 5 (NEW, not implemented) — `refreshInProgress` needs a watchdog: one wedged collection kills the refresh loop for good
+## Proposal 5 — `refreshInProgress` needs a watchdog: one wedged collection kills the refresh loop for good
 
 - **Symptom that produced it:** at 17:31:53 on 2026-08-07 the app stopped refreshing entirely and
   never recovered. The log goes silent — no `CollectSensorRows`, no `WMI provider processes` line
@@ -263,29 +263,61 @@ carries `WindowsSettingsUri`. No further action is needed.
   wedged — the collection had already passed the plug-in phase (`returned 36 rows` at 17:31:53)
   and the plug-in's own teardown had completed and released everything it holds, so the stall was
   in a later, WMI-heavy phase — a stuck phase should degrade one refresh, not the app.
-- **Proposed change:** give the outer collection the same treatment the LHM phase already gets —
-  a bounded wait with a logged fallback — or, more cheaply, a watchdog that notices
-  `refreshInProgress` has been set for more than N times the refresh interval, logs it loudly
-  with the reason string, clears the flag and re-arms. Either shape is a few lines in
-  `src/SensorReadoutForm.FanControls.cs`. Logging the stall is the important half: today it is
-  completely invisible.
-- **Related, one line, independent:** `GetPlugInRows` and `TryPlugInFanControl`
-  (`src/SensorReadoutForm.PlugIns.cs:21-31`) each read the `plugInManager` field twice without
-  synchronisation:
-
-  ```csharp
-  EnsurePlugInManager();
-  return plugInManager.GetRows(diagnosticsMode);
-  ```
-
-  `DisposePlugInManager()` runs on the UI thread and sets that field to `null` (`:58-66`), while
-  these two run on the collection thread. A dispose landing between the two statements is a
-  `NullReferenceException` on the collection thread. It is recoverable (`task.IsFaulted` is
-  handled), but it turns a Preferences keystroke into a failed refresh, and with proposal 4's
-  churn the window is not rare. Assigning the field to a local once fixes it.
-- **Why generic:** nothing about this is plug-in-specific; it is the app's whole refresh
-  pipeline.
-- **Status if not accepted:** the Corsair plug-in's deferred hand-back means a wedged refresh
-  loop now leaves the fans on their last curve values for the grace period instead of dropping
-  them to the hub's own loud profile immediately — a better failure mode, but the app still stops
-  refreshing and still needs a restart.
+- **Change made — a watchdog, not a timeout.** The outer collection is *not* given a bounded wait:
+  it runs on a thread-pool thread that cannot be cancelled, so a "timeout" could only mean
+  abandoning it, which is exactly what the watchdog does, more cheaply and without a second waiter.
+  `RefreshSensors` records when the in-flight collection started
+  (`refreshInProgressSinceUtc`). When a refresh is requested while one is already in flight, it now
+  asks `TrySupersedeStalledRefresh()` before queueing: if the in-flight collection has been running
+  past the threshold, one Error line is logged, `refreshInProgress` is released, and the new
+  collection starts. No new thread and no new timer — the check rides the refresh request that
+  would otherwise have been queued and dropped.
+- **Threshold — `max(60 s, 6 × the user's refresh interval)`.** Six intervals is far past anything
+  a healthy pass takes; the LibreHardwareMonitor phase is the only one that legitimately runs into
+  seconds and it is itself capped at 20 s by `AddTimedRowsWithTimeout`. The 60 s floor exists
+  because the interval can be as low as 1 s, where six intervals would supersede a merely slow
+  collection on a busy machine. A slow-but-completing refresh can never trip it: the check only runs
+  when a *new* refresh is requested while one is in flight, and the flag is cleared the moment the
+  in-flight one completes.
+- **Bounded recovery.** `CollectSensorRows` serializes on `sensorCollectionLock`, so if the wedged
+  pass never returns, the replacement blocks behind it. Firing on every tick would therefore leave
+  one blocked thread-pool thread per interval behind for the life of the process. A latch
+  (`refreshStallReported`) permits exactly one replacement, and exactly one Error line, per stall
+  episode; the continuation of whichever collection completes clears it. A generation counter makes
+  the flag belong to the newest collection only, so a superseded pass that finally returns cannot
+  declare the pipeline idle underneath its replacement — without it, every later tick would start
+  another collection behind the same lock.
+- **The Error line names the stall duration**, says refreshes had stopped and that readings, alarms
+  and fan curves went unapplied, says a replacement is starting and that it is waiting on the
+  stalled collection's lock, and tells the user what to do if refreshes do not resume. It is the
+  half of this change that matters most: today the failure is completely invisible.
+- **Also fixed here, two lines:** `GetPlugInRows` and `TryPlugInFanControl`
+  (`src/SensorReadoutForm.PlugIns.cs`) each read the `plugInManager` field twice without
+  synchronisation, while `DisposePlugInManager()` sets it to `null` from the UI thread. A dispose
+  landing between the two statements is a `NullReferenceException` on the collection thread —
+  recoverable, since `task.IsFaulted` is handled, but it turns a plug-in toggle into a failed
+  refresh. Both now read the field into a local and treat `null` as "no rows" / "not handled".
+- **Why generic:** nothing about this is plug-in-specific; it is the app's whole refresh pipeline.
+- **Files changed:** `src/SensorReadoutForm.cs` (three fields next to `refreshInProgress`),
+  `src/SensorReadoutForm.FanControls.cs` (the guard in `RefreshSensors`, the generation check in the
+  continuation, and two new private methods), `src/SensorReadoutForm.PlugIns.cs` (the two-line
+  null-safety fix).
+- **Test:** new self-test step "Stalled refresh watchdog" (`src/SensorReadoutForm.SelfTest.cs`).
+  The decision is a pure function of elapsed time and the refresh interval, so it is asserted
+  directly with no real stall: false for a collection that just started, false for a slow but recent
+  one, false at 59 s with a 1 s interval (the floor), true past the threshold, and both sides of the
+  six-intervals rule at a 300 s interval. It then drives the real `TrySupersedeStalledRefresh` to
+  assert that a healthy in-flight collection keeps the flag, that a ten-minute-old one releases it,
+  and that the latch refuses a second recovery attempt. Full `Build.ps1` green, Corsair plug-in
+  self-test still 65 checks.
+- **Residual risk — this recovers the pipeline; it does not fix whatever wedged the collection.**
+  If the stall is a genuine hang inside `CollectSensorRows`, the wedged pass still holds
+  `sensorCollectionLock` forever and the single permitted replacement blocks on it, so refreshes
+  still do not resume — but the failure is now logged loudly and once, with the duration, instead of
+  being silent. If the stall is a starved message pump or a lost continuation, the replacement runs
+  and the app recovers on its own. The root cause of the observed 2026-08-07 stall is still unknown
+  (the log ends mid-collection after the plug-in phase, in one of the later WMI-heavy phases), which
+  is why the change is a recovery mechanism and a loud log line rather than a claimed fix.
+- **Note for the Corsair plug-in:** its deferred hand-back means a wedged refresh loop leaves the
+  fans on their last curve values for the grace period instead of dropping them to the hub's own
+  loud profile immediately. That is independent of this change and stays as it is.

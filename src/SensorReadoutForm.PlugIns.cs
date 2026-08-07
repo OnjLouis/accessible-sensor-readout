@@ -21,14 +21,20 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode)
     {
+        // Read the field once: these two methods run on the collection thread, DisposePlugInManager
+        // runs on the UI thread and sets the field to null, so a dispose landing between the ensure
+        // and the call was a NullReferenceException that failed the whole refresh. Calling a manager
+        // that was disposed in the meantime is safe - it returns no rows and no control success.
         EnsurePlugInManager();
-        return plugInManager.GetRows(diagnosticsMode);
+        var manager = plugInManager;
+        return manager == null ? Enumerable.Empty<SensorRow>() : manager.GetRows(diagnosticsMode);
     }
 
     private bool TryPlugInFanControl(string identifier, int percent, bool manual)
     {
         EnsurePlugInManager();
-        return plugInManager.TrySetFanControl(identifier, percent, manual);
+        var manager = plugInManager;
+        return manager != null && manager.TrySetFanControl(identifier, percent, manual);
     }
 
     public static List<PlugInPreferenceInfo> LoadPlugInPreferenceInfos(AppSettings settings)

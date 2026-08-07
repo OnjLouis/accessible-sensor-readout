@@ -128,6 +128,9 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime categorySearchLastKey = DateTime.MinValue;
     private bool updatingFanControlBox;
     private bool refreshInProgress;
+    private DateTime refreshInProgressSinceUtc = DateTime.MinValue;
+    private int refreshGeneration;
+    private bool refreshStallReported;
     private bool minimizingToTray;
     private readonly bool startMinimizedRequested;
     private string lastReadingTreeSignature = "";

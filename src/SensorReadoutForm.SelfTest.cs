@@ -64,6 +64,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Visual status badges and meters", delegate { form.SelfTestVisualStatusBadgesAndMeters(); });
             form.RunSelfTestStep(results, "Byte unit formatting modes", delegate { form.SelfTestByteUnitFormattingModes(); });
             form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
+            form.RunSelfTestStep(results, "Stalled refresh watchdog", delegate { form.SelfTestStalledRefreshWatchdog(); });
             form.RunSelfTestStep(results, "Background hotkey refresh cadence", delegate { form.SelfTestBackgroundHotKeyRefreshCadence(); });
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Fragile WMI row caches", delegate { form.SelfTestFragileWmiRowCaches(); });
@@ -896,6 +897,48 @@ public sealed partial class SensorReadoutForm : Form
         pendingRefreshUpdateInteractiveUi = false;
         pendingRefreshSlowRows = false;
         pendingRefreshReason = "";
+    }
+
+    // The watchdog that stops one wedged collection from latching the refresh pipeline for the life
+    // of the process. Its decision is a pure function of elapsed time and the user's refresh interval
+    // so it can be checked here without anything actually stalling; the latch is checked against the
+    // real method, which writes one Error line to the log by design.
+    private void SelfTestStalledRefreshWatchdog()
+    {
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(2), 5), "A refresh that has just started must not be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(45), 5), "A slow but recent refresh must not be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(59), 1), "The one-minute floor must protect the shortest refresh interval.");
+        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(61), 5), "A collection in flight past the threshold must be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(300), 300), "Six intervals must win over the floor at long refresh intervals.");
+        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(1801), 300), "A stall past six long intervals must still be superseded.");
+
+        var previousRefreshInProgress = refreshInProgress;
+        var previousRefreshInProgressSinceUtc = refreshInProgressSinceUtc;
+        var previousRefreshStallReported = refreshStallReported;
+        try
+        {
+            refreshInProgress = true;
+            refreshStallReported = false;
+            refreshInProgressSinceUtc = DateTime.UtcNow;
+            Require(!TrySupersedeStalledRefresh(), "A collection that had just started was treated as stalled.");
+            Require(refreshInProgress, "A healthy in-flight collection had the refresh flag cleared under it.");
+
+            refreshInProgressSinceUtc = DateTime.UtcNow.AddMinutes(-10);
+            Require(TrySupersedeStalledRefresh(), "A ten-minute-old collection was not treated as stalled.");
+            Require(!refreshInProgress, "Superseding a stalled collection did not release the refresh pipeline.");
+
+            // One recovery attempt and one Error line per stall episode. Without the latch every
+            // later timer tick would start another collection behind the wedged one's lock.
+            refreshInProgress = true;
+            Require(!TrySupersedeStalledRefresh(), "The stall latch did not stop a second recovery attempt.");
+            Require(refreshInProgress, "A second recovery attempt released the refresh pipeline again.");
+        }
+        finally
+        {
+            refreshInProgress = previousRefreshInProgress;
+            refreshInProgressSinceUtc = previousRefreshInProgressSinceUtc;
+            refreshStallReported = previousRefreshStallReported;
+        }
     }
 
     private void SelfTestBackgroundHotKeyRefreshCadence()

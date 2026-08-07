@@ -205,14 +205,16 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
     {
-        if (refreshInProgress)
+        if (refreshInProgress && !TrySupersedeStalledRefresh())
         {
             QueuePendingRefresh(updateInteractiveUi, refreshSlowRows, reason);
             return;
         }
 
         var refreshStopwatch = Stopwatch.StartNew();
+        var generation = ++refreshGeneration;
         refreshInProgress = true;
+        refreshInProgressSinceUtc = DateTime.UtcNow;
         if (updateInteractiveUi)
         {
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
@@ -290,7 +292,20 @@ public sealed partial class SensorReadoutForm : Form
                 }
                 finally
                 {
-                    refreshInProgress = false;
+                    // Only the newest collection owns the flag. A collection the watchdog gave up on
+                    // may still return later; clearing the flag from there would declare the pipeline
+                    // idle while its replacement is running, and every timer tick after that would
+                    // start yet another collection behind the same lock.
+                    if (generation == refreshGeneration)
+                    {
+                        refreshInProgress = false;
+                        refreshInProgressSinceUtc = DateTime.MinValue;
+                        // A collection completed, so whatever stall was reported is over. Faulted
+                        // counts too: the flag was cleared normally, which is the state the watchdog
+                        // exists to restore.
+                        refreshStallReported = false;
+                    }
+
                     if (!IsDisposed && !reportViewMode && task.Status == TaskStatus.RanToCompletion)
                     {
                         ApplyFanCurvesAsync(task.Result);
@@ -299,6 +314,54 @@ public sealed partial class SensorReadoutForm : Form
                     RunPendingRefreshIfNeeded();
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    // refreshInProgress is set on the UI thread and cleared in exactly one place, the continuation
+    // above. Anything that stops a collection from ever completing - a phase that hangs, or a message
+    // pump starved so the continuation never runs - therefore latches the flag for the life of the
+    // process: RefreshSensors only queues a pending refresh and RunPendingRefreshIfNeeded refuses to
+    // run it, so the app silently stops reading sensors and never says so. Plug-ins are only ever
+    // invoked from inside a collection, so plug-in readings and plug-in fan control stop with it.
+    //
+    // This gives up on a collection that has been in flight far longer than any healthy one and lets
+    // a replacement start. At most one replacement per stall episode: CollectSensorRows serializes on
+    // sensorCollectionLock, so if the wedged pass never returns the replacement just blocks behind it,
+    // and firing again on every tick would leave one blocked thread-pool thread per interval behind
+    // for the life of the process. The same latch keeps the Error line to one per episode; the
+    // continuation clears it as soon as any collection completes.
+    private bool TrySupersedeStalledRefresh()
+    {
+        if (refreshStallReported || refreshInProgressSinceUtc == DateTime.MinValue)
+        {
+            return false;
+        }
+
+        var elapsed = DateTime.UtcNow - refreshInProgressSinceUtc;
+        if (!ShouldSupersedeStalledRefresh(elapsed, settings.RefreshIntervalSeconds))
+        {
+            return false;
+        }
+
+        refreshStallReported = true;
+        refreshInProgress = false;
+        LogError("Sensor collection has not completed for " + (long)elapsed.TotalSeconds +
+            " s, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
+            "The stalled collection still holds the collection lock, so the replacement waits for it to return; if refreshes do not resume, restart Sensor Readout and send Logs with logging set to Debug.");
+        return true;
+    }
+
+    // Threshold: six refresh intervals, never less than a minute. Six intervals is far past anything
+    // a healthy pass takes - the LibreHardwareMonitor phase is the only one that legitimately runs
+    // into seconds and it is itself capped at 20 s by AddTimedRowsWithTimeout - and the one-minute
+    // floor keeps a fast interval (the minimum is 1 s) from superseding a merely slow collection on a
+    // busy machine. A slow-but-completing refresh is never affected: the check only runs when a new
+    // refresh is requested while one is still in flight, and the flag is cleared the moment the
+    // in-flight one completes.
+    private static bool ShouldSupersedeStalledRefresh(TimeSpan elapsed, int refreshIntervalSeconds)
+    {
+        var seconds = Math.Max(1, Math.Min(300, refreshIntervalSeconds));
+        var threshold = TimeSpan.FromSeconds(Math.Max(60, seconds * 6));
+        return elapsed >= threshold;
     }
 
     private void QueuePendingRefresh(bool updateInteractiveUi, bool refreshSlowRows, string reason)
