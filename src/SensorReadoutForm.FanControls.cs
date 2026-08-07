@@ -655,7 +655,9 @@ public sealed partial class SensorReadoutForm : Form
                 Identifier = row.Identifier,
                 Value = row.Value,
                 DisplayValue = FormatNumber(Math.Round(row.Value.Value, 0), "0") + " RPM " + FormatNumber(Math.Round(percent.Value, 1), "0.#") + "%",
-                Source = row.Source
+                Source = row.Source,
+                Details = row.Details == null ? null : new Dictionary<string, string>(row.Details, StringComparer.OrdinalIgnoreCase),
+                WindowsSettingsUri = row.WindowsSettingsUri
             };
         }).ToList();
     }
