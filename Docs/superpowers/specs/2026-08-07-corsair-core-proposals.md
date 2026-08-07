@@ -68,7 +68,9 @@ commit per proposal. None changes behavior for users without plug-ins or fan cur
   visible and an unmarked one stays hidden. `Docs/Plug-In-development.md` documents the
   key as part of the plug-in contract. The Corsair plug-in adopts the marker in the same
   commit (plug-in-side change only adds a Details entry).
-- **Test:** the new self-test step (would have caught the filter/enrich ordering — it was
-  found by review); full self-test passes; live check that the PSU fan control is visible
-  at 0 RPM without "Show stopped fans", and that ordinary 0-RPM header controls remain
-  hidden.
+- **Test:** a new self-test step locks the marker contract in `ShouldShowFanControl`
+  (marked stopped control visible, unmarked hidden); the caller-side filter/enrich
+  ordering was found by review, and reviewers should know `EnrichFanControlRow` drops
+  Details — the filter must keep running on the raw rows. Full self-test passes; live
+  check that the PSU fan control is visible at 0 RPM without "Show stopped fans", and
+  that ordinary 0-RPM header controls remain hidden.
