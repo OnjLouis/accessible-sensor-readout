@@ -24,6 +24,12 @@ namespace SensorReadout.CorsairPlugIn
         // on that path, and it never blocks.
         private const int DiagnosticsForceRefreshWaitMs = 3000;
 
+        // The very first GetReadings after the worker starts would otherwise race the worker's
+        // first tick and return only the "starting up" status row -- which is the whole report in
+        // the app's one-pass command-line report mode. Waiting briefly for the first completed tick
+        // happens at most once per process; every later refresh takes the never-blocking path.
+        private const int FirstSnapshotWaitMs = 2500;
+
         private readonly PluginInfo info = new PluginInfo
         {
             Id = "sensorreadout.corsair.experimental",
@@ -54,6 +60,10 @@ namespace SensorReadout.CorsairPlugIn
             if (diagnosticsMode)
             {
                 worker.ForceRefresh(DiagnosticsForceRefreshWaitMs);
+            }
+            else if (worker.CompletedTicks == 0)
+            {
+                worker.ForceRefresh(FirstSnapshotWaitMs);
             }
 
             var snapshot = worker.GetSnapshot();
