@@ -1,20 +1,24 @@
 # Corsair Plug-In Test Guide
 
-The Corsair plug-in provides experimental, opt-in, read-only monitoring for supported
-iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It does not expose
-fan controls or send duty changes.
+The Corsair plug-in provides experimental, opt-in monitoring and fan control for supported
+iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. Monitoring is passive;
+nothing is written to the hardware until a fan control is used.
+
+For the supervised hardware-validation matrix that accompanies the fan-control release, see
+`docs/hardware-validation-plan.md` in this folder.
 
 ## Before testing
 
 - Close Corsair iCUE. iCUE does not use the shared Corsair device guard and cannot be
   used safely alongside this plug-in.
 - HWiNFO or Fan Control may continue running for monitoring. Sensor Readout uses the
-  standard `Global\CorsairLinkReadWriteGuardMutex` with bounded waits.
+  standard `Global\CorsairLinkReadWriteGuardMutex` with bounded waits. Only one program
+  should *drive* the fans at a time, so quit Fan Control before testing fan control here.
 - Enable Debug logging before collecting a diagnostic if readings are absent or stale.
 
 ## Monitoring test
 
-1. Open Preferences > Plug-Ins and enable **Corsair iCUE Link and PSU Monitoring
+1. Open Preferences > Plug-Ins and enable **Corsair iCUE Link and PSU Support
    (experimental)**.
 2. Supported iCUE LINK Hub hardware can provide pump and fan speeds plus liquid or
    device temperatures where the attached device reports them.
@@ -25,11 +29,83 @@ fan controls or send duty changes.
 5. Disable the plug-in. Its background worker and HID sessions should stop immediately.
    Re-enable it to confirm monitoring starts again without restarting Sensor Readout.
 
+## Fan control test (quit Fan Control or any other controlling program first)
+
+1. Open the Fan Controls dialog. Every Corsair control starts at
+   "automatic or firmware managed".
+2. **The first control change re-baselines every hub channel**: the pump goes to 100 %
+   and all fans to 50 % before the requested value is applied, so the loop gets audibly
+   louder for a moment. This is normal and matches how other Corsair software
+   initializes the hub.
+3. Set one fan to a clearly audible value (e.g. 80 %), verify the RPM row follows within
+   a few seconds, then set it lower (e.g. 40 %) and verify it drops.
+4. Press the automatic/default action for that fan: it returns to the 50 % default. The
+   hub stays under Sensor Readout's control until the app exits, so "default" means
+   50 % fans / 100 % pump, not the hub's own curve.
+5. Pump test: the pump control never accepts below 50 %. Setting 30 % must land at 50 %.
+6. PSU fan: the control stays visible even while the fan reads 0 RPM (the row carries the
+   `Zero RPM capable` marker). Set 40 % and listen for the PSU fan; watch the Debug log --
+   if every PSU write logs an acknowledgement mismatch, stop and report it. A reset, or
+   any value below 30 %, hands the fan back to the PSU's own zero-RPM curve.
+   Recommendation: leave the PSU fan automatic in daily use; the control exists for
+   sustained-load situations.
+7. "All fans reset" in the Fan Controls dialog must audibly return manually-set Corsair
+   fans to their defaults immediately.
+
+## Fan curve test
+
+1. Preferences > Fan curves: create a curve using a Corsair liquid temperature as input
+   and a Corsair fan control as target, or use CPU temperature as input.
+2. Curve changes apply at most once per 10 seconds per control.
+3. Plug-in rows are normally served from a 5-minute cache while the app is minimized to
+   the tray. When an enabled fan curve uses a plug-in reading, that cache falls back to
+   the normal foreground interval, so liquid-temperature curves stay responsive in the
+   tray. CPU/GPU-temperature curves are unaffected either way.
+
+## Exit, restart, and diagnostics
+
+1. With fans under Sensor Readout control, quit the app normally. Within a few seconds
+   the hub returns to its own hardware profile (fans may change pitch). A manually set
+   PSU fan returns to automatic control too.
+2. **Start the app again.** A hub in hardware mode does not even list the devices plugged
+   into it, so there is nothing to read until something takes software control. Because
+   fan control has already been used on this machine, the plug-in resumes it by itself:
+   the hub goes back into software mode within a few seconds of start-up, the port rows
+   reappear, and the fans re-baseline (pump 100 %, fans 50 %) before the saved
+   fan-control settings are re-applied. The Debug log says "resuming fan control of hub
+   ...". If instead the tree shows a single "Corsair Plug-In" row saying the hub is
+   running its own hardware fan profile, the marker file below is missing -- set any
+   Corsair fan to a manual percent once and the rows appear immediately.
+3. Help > One-click diagnostics briefly sets every visible fan control to 100 % for about
+   1.5 seconds and restores it -- loud but harmless, and by design.
+4. After a crash or a killed process (not a normal exit): the hub reverts to its own
+   profile on its own after a short idle timeout (fail-loud -- possibly full fans, never
+   stopped fans). A manually set PSU fan keeps its last duty until an AC power cycle;
+   reset it from the app.
+
+## Going back to another control program
+
+Disable the Corsair plug-in in Preferences (or quit Sensor Readout), then start the other
+program. Do not run two programs with active control at the same time -- they would fight
+over duties. Monitoring together is fine.
+
 ## Known limitations
 
-- This release is monitoring-only. Fan control remains withheld until every partial
-  write, reset, acknowledgement, and shutdown path has been validated fail-safe on
-  supported hardware.
+- A hub in hardware mode refuses to enumerate its sub-devices (measured on firmware
+  3.12.650), so after a clean exit there is nothing at all to read until some program takes
+  software control. The plug-in resumes control by itself only on a machine that has used it
+  for fan control before; that fact is recorded in a marker file next to the plug-in,
+  `Plug-Ins\Corsair\corsair-hub-<serial>.controlled` (one per hub, written the first time a
+  Corsair fan control is used -- one-click diagnostics also counts, since it exercises the
+  controls). Deleting the file returns the plug-in to strictly read-only-until-touched
+  behaviour: the hub is then left in hardware mode at start-up and its rows stay hidden
+  until a fan control is used again. An app update also clears the marker (the updater
+  archives it into its backup ZIP), so after updating, use any fan control once to restore
+  automatic resume. The file records only that fan control was used -- no duties, no
+  percentages; those live in Sensor Readout's own settings.
 - Legacy Commander PRO/CORE, Hydro AIO, and AXi device families are not supported.
 - Some hub readings are unavailable while the hub is in hardware mode or controlled by
   a program that does not expose compatible read responses.
+- Fan control is experimental. The supervised validation matrix in
+  `docs/hardware-validation-plan.md` records what has been verified on real hardware and
+  what is still pending.
