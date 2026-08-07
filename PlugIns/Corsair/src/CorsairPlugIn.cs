@@ -27,7 +27,7 @@ namespace SensorReadout.CorsairPlugIn
         // The very first GetReadings after the worker starts would otherwise race the worker's
         // first tick and return only the "starting up" status row -- which is the whole report in
         // the app's one-pass command-line report mode. Waiting briefly for the first completed tick
-        // happens at most once per process; every later refresh takes the never-blocking path.
+        // happens once per process (one-shot latch); every later refresh takes the never-blocking path.
         private const int FirstSnapshotWaitMs = 2500;
 
         private readonly PluginInfo info = new PluginInfo
@@ -43,6 +43,14 @@ namespace SensorReadout.CorsairPlugIn
         // GetReadings context is kept for logging from those calls -- same pattern as
         // MsiLaptopPlugIn.lastContext.
         private IPluginContext lastContext;
+
+        // One-shot latch for the first-snapshot wait below. A worker whose guard creation
+        // permanently fails never completes a tick, so gating on CompletedTicks == 0 would make
+        // every refresh pay FirstSnapshotWaitMs forever; this flag makes the wait happen at most
+        // once per process regardless. GetReadings is called on one collection thread at a time,
+        // but reading/writing this bool without a lock is fine either way: it is a one-shot
+        // pessimistic latch, so the worst case of a race is two early callers both waiting once.
+        private bool firstSnapshotWaited;
 
         public PluginInfo Info
         {
@@ -61,8 +69,9 @@ namespace SensorReadout.CorsairPlugIn
             {
                 worker.ForceRefresh(DiagnosticsForceRefreshWaitMs);
             }
-            else if (worker.CompletedTicks == 0)
+            else if (!firstSnapshotWaited)
             {
+                firstSnapshotWaited = true;
                 worker.ForceRefresh(FirstSnapshotWaitMs);
             }
 

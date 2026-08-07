@@ -28,9 +28,19 @@ namespace SensorReadout.CorsairPlugIn
 
         public bool TryEnter(int timeoutMs)
         {
+            // Local copy: Dispose() can run concurrently on another thread and null out the field
+            // between this check and the call below, but a local reference to the Mutex object stays
+            // valid for WaitOne even after Dispose() clears mutex -- so the only race that matters is
+            // whether this method reads mutex before or after it goes null, and both are handled.
+            var localMutex = mutex;
+            if (localMutex == null)
+            {
+                return false;
+            }
+
             try
             {
-                return mutex.WaitOne(timeoutMs);
+                return localMutex.WaitOne(timeoutMs);
             }
             catch (AbandonedMutexException)
             {
@@ -40,9 +50,15 @@ namespace SensorReadout.CorsairPlugIn
 
         public void Exit()
         {
+            var localMutex = mutex;
+            if (localMutex == null)
+            {
+                return;
+            }
+
             try
             {
-                mutex.ReleaseMutex();
+                localMutex.ReleaseMutex();
             }
             catch (ApplicationException)
             {
@@ -52,11 +68,14 @@ namespace SensorReadout.CorsairPlugIn
 
         public void Dispose()
         {
-            if (mutex != null)
+            var localMutex = mutex;
+            if (localMutex == null)
             {
-                mutex.Dispose();
-                mutex = null;
+                return;
             }
+
+            mutex = null;
+            localMutex.Dispose();
         }
     }
 }

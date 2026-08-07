@@ -16,7 +16,7 @@ studying and cross-checking the following public research projects:
 2. liquidctl — the liquidctl contributors (GPL-3.0-or-later)
    https://github.com/liquidctl/liquidctl
 
-3. OpenLinkHub — Nikola Jurkovic (GPL-2.0-or-later)
+3. OpenLinkHub — Nikola Jurkovic (GPL-3.0)
    https://github.com/jurkovic-nikola/OpenLinkHub
 
 Because part of this protocol research derives from GPL-licensed projects,
@@ -32,6 +32,9 @@ the same time.
 Safety notes:
 - iCUE Link pump channels are never driven below 50 percent duty.
 - Sensor Readout's one-click diagnostics may briefly set exposed fan
-  controls to 100 percent and then restore the previous state.
+  controls to 100 percent. Afterward, iCUE LINK hub channels return to
+  their safe defaults (50 percent for fans, 100 percent for pumps) and
+  stay under Sensor Readout's control until the application exits; the
+  PSU fan returns to automatic control.
 - On clean exit the plug-in returns the hub to its autonomous hardware mode
   and the PSU fan to automatic control if it ever took control of them.

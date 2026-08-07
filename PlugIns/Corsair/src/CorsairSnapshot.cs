@@ -78,6 +78,10 @@ namespace SensorReadout.CorsairPlugIn
         public bool DutiesPending;
         public byte LastStatusByte;
 
+        // True once this hub has failed enough reads in a row that CorsairWorker.NoteDeviceResult
+        // has backed it off to the slow retry interval -- i.e. the readings below may be stale.
+        public bool BackedOff;
+
         public HubSnapshot Clone()
         {
             var clone = new HubSnapshot();
@@ -87,6 +91,7 @@ namespace SensorReadout.CorsairPlugIn
             clone.WrongModeReadFailure = WrongModeReadFailure;
             clone.DutiesPending = DutiesPending;
             clone.LastStatusByte = LastStatusByte;
+            clone.BackedOff = BackedOff;
             clone.Channels = new List<HubChannelSnapshot>();
             if (Channels != null)
             {
@@ -117,6 +122,10 @@ namespace SensorReadout.CorsairPlugIn
         public float? OutputPowerW;
         public int RequestedPercent;
 
+        // True once this PSU has failed enough reads in a row that CorsairWorker.NoteDeviceResult
+        // has backed it off to the slow retry interval -- i.e. the readings below may be stale.
+        public bool BackedOff;
+
         public PsuSnapshot Clone()
         {
             var clone = new PsuSnapshot();
@@ -129,6 +138,7 @@ namespace SensorReadout.CorsairPlugIn
             clone.InputVoltage = InputVoltage;
             clone.OutputPowerW = OutputPowerW;
             clone.RequestedPercent = RequestedPercent;
+            clone.BackedOff = BackedOff;
             return clone;
         }
     }

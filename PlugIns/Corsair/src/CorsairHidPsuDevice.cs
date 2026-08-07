@@ -43,7 +43,8 @@ namespace SensorReadout.CorsairPlugIn
         // each. At the normal 500 ms per transfer that alone could run past five seconds, so the
         // restore shortens both halves of its bound -- the guard wait and every individual
         // transfer. Worst case: 500 + 4x150 for the first write, then a floored 100 + 4x150 for the
-        // second, i.e. about 1.8 s including a fully contended guard.
+        // second, i.e. about 1.8 s including a fully contended guard -- + up to 2x250 ms of
+        // input-report draining if the device floods (~2.3 s worst case).
         private const int ShutdownGuardTimeoutMs = 500;
         private const int ShutdownTransferTimeoutMs = 150;
 

@@ -8,6 +8,7 @@
   "type": "SensorReadout.CorsairPlugIn.CorsairPlugIn",
   "helpLinks": [
     { "label": "Corsair i&CUE Link protocol research (FanControl.CorsairLink)", "url": "https://github.com/EvanMulawski/FanControl.CorsairLink" },
-    { "label": "&liquidctl project", "url": "https://github.com/liquidctl/liquidctl" }
+    { "label": "&liquidctl project", "url": "https://github.com/liquidctl/liquidctl" },
+    { "label": "&OpenLinkHub project", "url": "https://github.com/jurkovic-nikola/OpenLinkHub" }
   ]
 }

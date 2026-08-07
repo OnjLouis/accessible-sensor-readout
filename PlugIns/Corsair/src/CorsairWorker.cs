@@ -921,13 +921,20 @@ namespace SensorReadout.CorsairPlugIn
             if (!dormant)
             {
                 // Publish the flag before the final idle re-check, and pair it with NoteContact,
-                // which writes lastContactTicks and only then reads this flag. With that ordering
-                // one of the two always wins: either the re-check below sees the fresh tick and
-                // backs out, or NoteContact sees dormant == true and signals the wake event. Set
-                // the flag without re-checking and a call arriving in this window would be
-                // swallowed -- its wake would land before the WaitOne that is about to be re-armed,
-                // and the worker would sleep for a full minute with a caller waiting.
+                // which writes lastContactTicks and only then reads this flag. Both sides write one
+                // value and then read the other, and on a weakly-ordered CPU a plain store is not
+                // guaranteed to be visible before a later load runs (StoreLoad reordering) -- so
+                // without the barriers below, this thread could still be reading a stale
+                // lastContactTicks after its own dormant = true has not yet become visible to
+                // NoteContact, and NoteContact's wake.Set() could run before it observes dormant ==
+                // true. Either miss swallows the wake: the caller's contact lands, dormant looks
+                // false to it, so it never calls wake.Set(), and this thread goes on to sleep for a
+                // full DormantWaitMs with a caller that already asked for readings. The barrier after
+                // each store forces the store to retire before either thread's next load, so one of
+                // the two always wins: either the re-check below sees the fresh tick and backs out,
+                // or NoteContact's read of dormant sees true and signals the wake event.
                 dormant = true;
+                Thread.MemoryBarrier();
                 if (unchecked(Environment.TickCount - lastContactTicks) < DormancyIdleMs)
                 {
                     dormant = false;
@@ -1215,6 +1222,7 @@ namespace SensorReadout.CorsairPlugIn
                 hub.WrongModeReadFailure = device.LastReadWrongMode;
                 hub.DutiesPending = device.DutiesPending;
                 hub.LastStatusByte = device.LastStatusByte;
+                hub.BackedOff = entry.BackedOff;
                 hub.Channels = new List<HubChannelSnapshot>();
 
                 var channels = device.Channels;
@@ -1263,6 +1271,7 @@ namespace SensorReadout.CorsairPlugIn
                 psu.InputVoltage = device.InputVoltage;
                 psu.OutputPowerW = device.OutputPowerW;
                 psu.RequestedPercent = device.RequestedPercent;
+                psu.BackedOff = entry.BackedOff;
                 snapshot.Psus.Add(psu);
             }
 
@@ -1386,6 +1395,7 @@ namespace SensorReadout.CorsairPlugIn
         private void NoteContact()
         {
             lastContactTicks = Environment.TickCount;
+            Thread.MemoryBarrier();
             if (dormant)
             {
                 try

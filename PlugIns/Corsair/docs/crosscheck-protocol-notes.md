@@ -7,7 +7,7 @@ Sources compared (independent of each other):
 - **C. FanControl.CorsairLink** (EvanMulawski) — README, `src/devices/icue_link/ICueLinkHubDevice.cs`, `src/devices/hid_psu/HidPsuDevice.cs`, `src/CorsairLink.Synchronization/*`
 - **D.** Corsair forum / HWiNFO forum / OpenRGB issue #605 (web search)
 
-Local copies of all fetched sources are in this directory (`lsh.go`, `lsh.json`, `corsair_hid_psu.py`, `commander_core.md`, `commander_core.py`, `icuelink-device.cs`, `hidpsu-device.cs`, `guard.cs`, `fancontrol-readme.md`).
+Local copies of all fetched sources (`lsh.go`, `lsh.json`, `corsair_hid_psu.py`, `commander_core.md`, `commander_core.py`, `icuelink-device.cs`, `hidpsu-device.cs`, `guard.cs`, `fancontrol-readme.md`) were kept in the uncommitted research workspace used while writing this document. They are not part of this repository.
 
 ---
 

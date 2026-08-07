@@ -59,6 +59,12 @@ namespace SensorReadout.CorsairPlugIn
 
         private const string PumpMinimumNote = "This pump channel never runs below 50 percent.";
 
+        // CorsairWorker.NoteDeviceResult backs a device off to a 30 s retry interval after
+        // MaxConsecutiveFailures reads in a row fail; the last successfully read values keep being
+        // shown until it recovers, so every row for that device says so rather than looking current.
+        private const string BackedOffNote =
+            "Readings are stale: the device stopped responding and is being retried every 30 seconds";
+
         private const string WrongModeNoteFormat =
             "This iCUE LINK hub answered the last sensor read with hardware mode: another program (or its own firmware) is driving it right now, not this plug-in. Readings shown are the most recent successful read and may be stale or absent. Readings resume once a supported program controls the hub again, or once Sensor Readout takes fan control of one of its channels.";
 
@@ -493,6 +499,7 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             details["Interoperability"] = InteroperabilityNote;
+            AddNote(details, "Status", hub.BackedOff ? BackedOffNote : null);
             return details;
         }
 
@@ -644,6 +651,7 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             details["Interoperability"] = InteroperabilityNote;
+            AddNote(details, "Status", psu.BackedOff ? BackedOffNote : null);
             return details;
         }
 
@@ -681,6 +689,11 @@ namespace SensorReadout.CorsairPlugIn
                 for (var c = 0; c < channels.Count; c++)
                 {
                     var channel = channels[c];
+                    if (channel == null)
+                    {
+                        continue;
+                    }
+
                     var channelPrefix = prefix + "port " + channel.Channel.ToString(CultureInfo.InvariantCulture) + " ";
                     details[channelPrefix + "device"] = string.IsNullOrEmpty(channel.DeviceName) ? "(unknown)" : channel.DeviceName;
                     details[channelPrefix + "device id"] = string.IsNullOrEmpty(channel.DeviceId) ? "(none)" : channel.DeviceId;

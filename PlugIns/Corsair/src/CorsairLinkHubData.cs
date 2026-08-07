@@ -26,8 +26,11 @@ namespace SensorReadout.CorsairPlugIn
     /// RX/LX/RX-RGB/RX-MAX-RGB fans do not); XC7 is a temperature-only water block (no RPM, no
     /// duty control); pumps for minimum-duty purposes are models 0x07 (H-series AIO), 0x11 (TITAN
     /// AIO), 0x0C (XD5), 0x19 (XD6). Names are the annex marketing names with color/finish
-    /// qualifiers and generic category suffixes ("AIO", "PSU", "CPU/GPU water block", "pump/res")
-    /// stripped, e.g. both XD5 variants are "XD5" and both H150i finishes are "H150i".
+    /// qualifiers and generic category suffixes ("PSU", "CPU/GPU water block", "pump/res")
+    /// stripped, e.g. both XD5 variants are "XD5" and both H150i finishes are "H150i" -- except
+    /// model 0x11, whose table entries keep the "AIO" suffix ("TITAN AIO", "TITAN 360 RX RGB AIO")
+    /// because TITAN has no bare model number to strip it down to; every other name below is
+    /// suffix-free.
     /// </summary>
     public static class LinkKnownDevices
     {

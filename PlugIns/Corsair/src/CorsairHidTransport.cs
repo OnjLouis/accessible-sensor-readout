@@ -576,12 +576,6 @@ namespace SensorReadout.CorsairPlugIn
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern SafeFileHandle CreateFile(string fileName, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool ReadFile(SafeFileHandle handle, byte[] buffer, uint bytesToRead, IntPtr bytesRead, ref NativeOverlapped2 overlapped);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool WriteFile(SafeFileHandle handle, byte[] buffer, uint bytesToWrite, IntPtr bytesWritten, ref NativeOverlapped2 overlapped);
-
         // IntPtr overloads for the overlapped, GC-relocation-sensitive path: CorsairHidStream pins
         // its buffer with GCHandle and passes the pinned address directly, instead of letting the
         // interop marshaler pin a byte[] only for the duration of the call (which is not long
