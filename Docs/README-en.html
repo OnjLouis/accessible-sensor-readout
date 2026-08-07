@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 4.14.1.</p>
+<p>Current version: 5.0.0.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#changelog">Changelog</a></li>
@@ -28,12 +28,14 @@
 <li><a href="#alarms-and-sounds">Alarms And Sounds</a></li>
 <li><a href="#plug-ins">Plug-Ins</a></li>
 <li><a href="#categories-and-readings">Categories and Readings</a></li>
+<li><a href="#audio-latency-diagnostic">Audio Latency Diagnostic</a></li>
 <li><a href="#fan-control-workflow">Fan Control Workflow</a></li>
 <li><a href="#fan-curves">Fan Curves</a></li>
 <li><a href="#fan-profiles">Fan Profiles</a></li>
 <li><a href="#example-setups">Example Setups</a></li>
 <li><a href="#diagnostics">Diagnostics</a></li>
 <li><a href="#reports">Reports</a></li>
+<li><a href="#audio-latency-reports">Audio Latency Reports</a></li>
 <li><a href="#security-scanners-and-privacy">Security Scanners and Privacy</a></li>
 <li><a href="#settings-transfer">Settings Transfer</a></li>
 <li><a href="#files">Files</a></li>
@@ -42,6 +44,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>5.0.0</h3><ul><li>Added: The explicitly started Audio Latency diagnostic measures Windows DPC and interrupt-service-routine duration, hard page faults, responsible drivers, and lost trace events while you reproduce an audio problem. An optional live monitor provides separate DPC and ISR history graphs plus an accessible rolling summary, can be closed and reopened without stopping the test, and the completed diagnostic is saved automatically as an HTML report. The latest result remains available in the Audio Latency category.</li><li>Privacy: Audio Latency reports explain exactly what they collect and exclude. No latency tracing runs during ordinary refreshes, and Audio Latency rows are removed from anonymized reports.</li></ul>
 <h3>4.14.1</h3><ul><li>Fixed: Battery charge now follows the live Windows battery capacity instead of a slower cached fallback, and unavailable runtime estimates no longer appear as enormous hour counts.</li><li>Fixed: Holding a global hotkey now triggers it only once per press, preventing repeated speech, repeated actions, and accidental clipboard copying.</li><li>Improved: Update windows now identify themselves as Sensor Readout Update in the title bar, making it clear which application is asking to update.</li><li>Improved: TCP and UDP endpoint entries in Details now use concise number-only labels for faster keyboard and screen-reader navigation, while numbered Details entries stay in natural numeric order instead of placing item 10 directly after item 1.</li></ul>
 <h3>4.14.0</h3><ul><li>Improved: Battery power, capacity, and voltage are now presented in the more readable units W, Wh, and V. Lenovo battery rows omit inactive zero rates, and existing battery alarm thresholds are converted automatically. Battery charge/discharge power is labelled clearly and untyped raw power-meter values are hidden, preventing battery-side activity from being mistaken for total charger input.</li><li>Improved: Reordering a category or an ordered item in Preferences now reports which neighbouring item it moved above or below. The existing Full, Brief, and Off category-speech choices control how much of that movement feedback is spoken.</li></ul>
 <h3>4.13.0</h3><ul><li>Added: Performance/Overview now shows the file system and volume type for ready local drives, plus persistent mapped network drives with their connection status, provider, remote location, and capacity when Windows exposes it.</li><li>Improved: SMART and Details now expose richer read-only disk, partition, and volume information where Windows provides it, including partition style and count, allocation, sector and volume data, firmware, serial number, health, access paths, and hidden or recovery partitions.</li><li>Added: Unmounted partitions can now be identified as APFS or EXT2/EXT3/EXT4 when Windows permits read-only raw access. Sensor Readout shows safe container or superblock metadata without mounting the file system, changing the disk, or inspecting its files.</li><li>Privacy: Anonymized reports now also remove drive labels, mapped network locations, storage paths, and other identifying storage metadata.</li></ul>
@@ -428,6 +431,7 @@
 <li>Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.</li>
 <li>Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.</li>
 <li>Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.</li>
+<li>Includes an explicitly started Audio Latency diagnostic that measures Windows DPC and interrupt-service-routine execution, hard page faults, and responsible drivers while you reproduce an audio problem, then saves a structured HTML report.</li>
 <li>Shows a Display category for graphics adapters and monitors, including resolution, refresh rate, adapter memory, driver information, monitor vendor, and monitor identifiers where Windows exposes them.</li>
 <li>Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.</li>
 <li>Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.</li>
@@ -467,7 +471,7 @@
 <li>Windows 10 or Windows 11, 64-bit.</li>
 <li>Microsoft .NET Framework 4.8 or newer.</li>
 <li>PawnIO driver installed for motherboard sensors and fan controls.</li>
-<li>Administrator rights when reading motherboard sensors or controlling fans.</li>
+<li>Administrator rights when reading motherboard sensors, controlling fans, or running the Audio Latency diagnostic.</li>
 </ul>
 <p>LibreHardwareMonitor is not required as a running app because this folder ships the needed library files. Installing the standalone app can still be useful for troubleshooting.</p>
 <h2 id="official-links">Official Links</h2>
@@ -759,6 +763,13 @@
 <code>Ctrl+Shift+L</code>
 </td>
 <td>Open the Logs folder.</td>
+</tr>
+<tr>
+<td>Options commands</td>
+<td>
+<code>Ctrl+Shift+D</code>
+</td>
+<td>Start the Audio Latency diagnostic setup, or stop the active test and save its report.</td>
 </tr>
 <tr>
 <td>Tools and help</td>
@@ -1205,7 +1216,9 @@
 <p>When the selected reading is a percentage, Sensor Readout also exposes it through the progress bar below the tree. This is useful visually and lets screen readers use their existing progress bar feedback without navigating many separate progress controls.</p>
 <p>Use the <code>Edit</code> menu, Application key, or right-click on a reading or group to copy it, open Details where available, rename a fan, or hide it. Hidden items can be restored from <code>Options</code> &gt; <code>Preferences</code> &gt; <code>Hidden items</code>; checked items in that tab are hidden.</p>
 <p>Use <code>Edit</code> &gt; <code>Find reading...</code> or <code>F3</code> to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press <code>Alt+L</code> to clear the search, or press <code>Esc</code> or Close to return to the main window.</p>
-<p>When Details knows a related Windows Settings page, it also offers <code>Open Windows setting...</code>. This appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update.</p><p>Use <code>Options</code> &gt; <code>Watch process...</code> or <code>Ctrl+Shift+W</code> when you want to monitor one running app for a short period. Choose a process, output format, and optional duration, then start watching. The dialog closes and Sensor Readout samples in the background so you can use the PC normally. Press <code>Ctrl+Shift+W</code> again, or use <code>Options</code> &gt; <code>Stop process watch</code>, to stop and save the report automatically in the <code>Reports</code> folder. Timed watches also save automatically when the duration ends. HTML is the default because it gives screen-reader users structured tables; CSV is available when you want raw samples for a spreadsheet. This is intended for support and optimization conversations, such as checking whether an app memory grows over time. It records resource counters only; it does not inspect app contents, keystrokes, file contents, registry contents, or network payloads. Saved process watch reports may include the selected process name and executable path.</p><h2 id="fan-control-workflow">Fan Control Workflow</h2>
+<p>When Details knows a related Windows Settings page, it also offers <code>Open Windows setting...</code>. This appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update.</p><p>Use <code>Options</code> &gt; <code>Watch process...</code> or <code>Ctrl+Shift+W</code> when you want to monitor one running app for a short period. Choose a process, output format, and optional duration, then start watching. The dialog closes and Sensor Readout samples in the background so you can use the PC normally. Press <code>Ctrl+Shift+W</code> again, or use <code>Options</code> &gt; <code>Stop process watch</code>, to stop and save the report automatically in the <code>Reports</code> folder. Timed watches also save automatically when the duration ends. HTML is the default because it gives screen-reader users structured tables; CSV is available when you want raw samples for a spreadsheet. This is intended for support and optimization conversations, such as checking whether an app memory grows over time. It records resource counters only; it does not inspect app contents, keystrokes, file contents, registry contents, or network payloads. Saved process watch reports may include the selected process name and executable path.</p>
+<h2 id="audio-latency-diagnostic">Audio Latency Diagnostic</h2><p>The Audio Latency category shows the latest test started explicitly from <code>Options</code> &gt; <code>Audio latency diagnostic...</code> or <code>Ctrl+Shift+D</code>. Choose a duration, or use zero to continue until you stop it, then reproduce the clicks, gaps, distortion, or dropouts you want to investigate. Sensor Readout measures Windows deferred procedure calls (DPCs), interrupt service routines (ISRs), hard page faults, event loss, and the drivers or processes Windows associates with them. The optional live monitor shows separate DPC and ISR history graphs, the latest one-second interval, recent 60-second peaks, and the entire test summary. Its accessible tree updates values in place once per second so focus remains stable.</p><p>The live monitor is modeless, so you can continue using Sensor Readout and other programs during the test. Close it with <code>Esc</code> or Close without stopping the diagnostic, then reopen it from <code>Options</code> &gt; <code>Audio latency monitor...</code>. Use Stop and save or <code>Ctrl+Shift+D</code> to finish and save the report. No audio-latency trace runs during normal refreshes or while Sensor Readout sits in the notification area; the diagnostic runs only after you start it and requires administrator rights.</p>
+<h2 id="fan-control-workflow">Fan Control Workflow</h2>
 <p>Open fan controls from <code>Options</code> &gt; <code>Fan controls...</code> or press <code>Ctrl+L</code>.</p>
 <p>1. Choose a fan in the fan control target box.</p>
 <p>2. Optional: type a friendly label and press <code>Alt+L</code>.</p>
@@ -1245,11 +1258,12 @@
 <p>For unattended testing, run <code>Sensor Readout.exe --diagnostics [path]</code>. If <code>[path]</code> is a folder, the diagnostic ZIP is created there. If no path is supplied, Sensor Readout creates the ZIP in <code>Reports</code>.</p>
 <h2 id="reports">Reports</h2>
 <p>Reports are useful in two different situations: keeping a snapshot of your own machine, or sending a snapshot to someone else so they can inspect it in Sensor Readout.</p>
+<h3 id="audio-latency-reports">Audio Latency Reports</h3><p>Audio Latency reports are separate troubleshooting reports created by the Audio Latency diagnostic. They save automatically as structured HTML in the <code>Reports</code> folder when the test stops. The report summarizes elapsed time, maximum and total DPC and ISR activity, hard page faults, trace event loss, and the most active drivers and hard-faulting processes where Windows provides attribution. It also explains that the figures are diagnostic evidence rather than a guaranteed pass/fail verdict.</p><p>The report can contain driver file names and process names because those are necessary for troubleshooting. It does not inspect audio content, keystrokes, documents, browser data, network payloads, or private app contents. Audio Latency rows are removed completely from anonymized reports.</p>
 <h3 id="process-watch-reports">Process Watch Reports</h3><p>Process watch reports are separate support reports created by <code>Options</code> &gt; <code>Watch process...</code>. They save automatically in the <code>Reports</code> folder when the watch stops. HTML reports summarize CPU, memory, GPU counters where available, handles, threads, and growth over the watch period in tables for easier navigation; CSV output keeps the raw samples for spreadsheet analysis. They are meant for developer or support conversations about a running app's resource use. They may include the selected process name and executable path, but they do not inspect private app contents.</p><h3 id="saving-a-report">Saving a report</h3>
 <p>Press <code>Ctrl+S</code> or use <code>File</code> &gt; <code>Save report...</code>.</p>
 <p>The save dialog offers TXT and HTML reports. TXT reports are a simplified reading and sharing format: they use clear <code>#</code> section headings for each category, keep the main reading tree separate from the longer Details data, and include a Sensor Readout download link near the top. HTML reports use formatted tables with sensor, value, and source columns.</p>
 <p>Use <code>File</code> &gt; <code>Save anonymized report...</code> or <code>Ctrl+Shift+A</code> when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name and masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them.</p>
-<p>Online public-IP lookup rows are removed entirely from anonymized reports, so public IP location and provider metadata are not included.</p><h3 id="submitting-community-stats">Submitting Community Stats</h3>
+<p>Online public-IP lookup rows, Tasks rows, Spoken Hotkeys rows, and Audio Latency rows are removed entirely from anonymized reports, so public IP metadata, process names, personal hotkey setup, and latency-test driver/process data are not included.</p><h3 id="submitting-community-stats">Submitting Community Stats</h3>
 <p>Use <code>Help</code> &gt; <code>Share anonymous community stats...</code> if you want to help improve Sensor Readout's hardware and accessibility coverage data without sending a report. This is explicit opt-in only: Sensor Readout builds the small JSON payload, shows you the exact text first, and uploads nothing unless you press <code>Upload</code>.</p>
 <p>Community stats are not anonymized reports. They are a separate allow-listed payload containing only aggregate and broad setup fields, such as app version, Windows edition/version/build, CPU vendor and core counts, GPU vendor counts, memory totals, connected-disk count and total/used/free space, category coverage counts, enabled plug-in IDs, selected language, install mode, refresh/update settings, configured hotkey and notification-area counts, detected supported screen reader names, and broad Windows accessibility feature flags. The payload does not include your computer name, username, serial numbers, MAC or IP addresses, paths, drive labels, device IDs, PnP IDs, raw Details fields, installed programs, program usage, per-drive rows, or full report rows.</p>
 <p>Sensor Readout stores a random local anonymous client ID in its settings and sends only a SHA-256 hash of that ID. This lets one installation update its previous aggregate entry without using hardware-derived identity. Deleting the app settings or using a separate portable copy creates a new anonymous entry.</p>
@@ -1353,6 +1367,8 @@
 <a href="https://www.newtonsoft.com/json">Newtonsoft.Json</a>, for configuration file handling.</li>
 <li>
 <a href="https://github.com/IntergatedCircuits/HidSharp">HidSharp</a>, used by LibreHardwareMonitor for HID device access.</li>
+<li>
+<a href="https://github.com/microsoft/perfview">Microsoft TraceEvent</a>, used only during an explicitly started Audio Latency diagnostic to collect Windows ETW timing data.</li>
 <li>
 <a href="https://github.com/LibreHardwareMonitor/DiskInfoToolkit">DiskInfoToolkit</a>, used by LibreHardwareMonitor for storage data.</li>
 <li>

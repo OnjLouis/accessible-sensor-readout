@@ -1,8 +1,8 @@
 # Sensor Readout
 
-Current version: 4.14.1.
+Current version: 5.0.0.
 
-Sensor Readout is an accessibility-first Windows hardware information tool for reading sensors, checking connected devices, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
+Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
 It shows high-level categories on the left, readings grouped by device in a tree view on the right, and common commands in a standard menu bar. The goal is to make practical troubleshooting information quick to reach: temperatures and fans, storage health, USB, network, Bluetooth, tasks, audio, display, printers, batteries, PCIe details, Windows device inventory, accessibility status, diagnostics, and shareable reports.
 
@@ -46,6 +46,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Shows network adapter MAC addresses and OUI vendor names when the bundled OUI data contains the prefix.
 - Shows a USB category for connected devices, hubs, controllers, connection speed, power draw where Windows exposes it, drive letters, safe-to-unplug status, USB network adapter MAC details and storage hardware IDs where available, and detailed copyable device fields.
 - Shows an Audio category grouped by device/interface, with playback and recording endpoints underneath, including vendor, status, direction, and default channel/sample-rate/bit-depth format where Windows exposes it.
+- Includes an explicitly started Audio Latency diagnostic that measures Windows DPC and interrupt-service-routine execution, hard page faults, and responsible drivers while you reproduce an audio problem, then saves a structured HTML report.
 - Shows a Display category for graphics adapters and monitors, including resolution, refresh rate, adapter memory, driver information, monitor vendor, and monitor identifiers where Windows exposes them.
 - Links back to the project page from the README, Help menu, and About dialog.
 - Uses bundled LibreHardwareMonitor libraries for sensor access.
@@ -96,7 +97,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Windows 10 or Windows 11, 64-bit.
 - Microsoft .NET Framework 4.8 or newer.
 - PawnIO driver installed for motherboard sensors and fan controls.
-- Administrator rights when reading motherboard sensors or controlling fans.
+- Administrator rights when reading motherboard sensors, controlling fans, or running the Audio Latency diagnostic.
 
 LibreHardwareMonitor is not required as a running app because this folder ships the needed library files. Installing the standalone app can still be useful for troubleshooting.
 
@@ -194,6 +195,7 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
 | File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
 | Options commands | `Ctrl+Shift+W` | Start or stop watching one running process in the background, then save a resource report when stopped. |
+| Options commands | `Ctrl+Shift+D` | Start the Audio Latency diagnostic setup, or stop the active test and save its HTML report. |
 | File commands | `Ctrl+Shift+A` | Save an anonymized report for sharing. |
 | File commands | `Ctrl+R` | Return from a static report to live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
@@ -460,6 +462,12 @@ The USB section shows connected devices, hubs, controllers, connection speed, ca
 
 The Audio section groups related endpoints under their device or interface name where possible, then separates playback and recording entries. It shows vendor, status, direction, and default format details such as channels, sample rate, and bit depth where Windows exposes them.
 
+The Audio Latency section shows the latest explicitly started latency test. Use `Options` > `Audio latency diagnostic...` or `Ctrl+Shift+D`, choose a duration, then reproduce the dropout, crackle, delayed response, or other audio problem. Sensor Readout records Windows DPC and interrupt-service-routine durations, driver attribution, hard page faults by process, and lost tracing events. Its optional live monitor shows separate DPC and ISR history graphs, the latest one-second interval, recent 60-second peaks, and the entire test summary. It updates values in place once per second so keyboard and screen-reader focus remain stable.
+
+The live monitor is modeless, so you can continue using Sensor Readout and other programs while the test runs. Closing it with `Esc` or Close only closes the view; it does not stop tracing. Reopen it with `Options` > `Audio latency monitor...`. Choose `Stop and save` or press `Ctrl+Shift+D` to finish the diagnostic and save its HTML report automatically in `Reports`.
+
+No audio-latency tracing runs during ordinary Sensor Readout refreshes. The diagnostic starts only after you explicitly choose Start and stops at the selected duration, when you press `Ctrl+Shift+D`, or when Sensor Readout exits. The report contains timing counters, driver paths, and process names involved in hard page faults; it does not contain audio, keystrokes, file contents, or network contents. Because driver and process names can reveal installed software, Audio Latency rows are omitted from anonymized reports.
+
 The Display section shows graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.
 
 The Firmware Security section is read-only. It shows firmware mode, Secure Boot state, and, on UEFI systems where Windows permits access, summary information about Secure Boot certificate databases such as readable database count, certificate/hash counts, earliest certificate expiry, expired certificates, not-yet-valid certificates, and possible test certificates. Details group the certificate subjects, issuers, validity dates, thumbprints, serial numbers, and database read errors. Sensor Readout does not modify Secure Boot variables or EFI files.
@@ -532,6 +540,12 @@ For unattended testing, run `Sensor Readout.exe --diagnostics [path]`. If `[path
 
 Reports are useful in two different situations: keeping a snapshot of your own machine, or sending a snapshot to someone else so they can inspect it in Sensor Readout.
 
+### Audio Latency Reports
+
+Audio latency reports are separate troubleshooting reports created by `Options` > `Audio latency diagnostic...` or `Ctrl+Shift+D`. Sensor Readout saves them automatically in the `Reports` folder when the test stops. Their accessible HTML tables summarize maximum DPC and ISR duration, event counts, responsible drivers, hard page faults by process, and any tracing events Windows could not retain. The optional live monitor provides a visual graph and accessible rolling tree while the same test is running; it does not start a second trace. Reproduce the real audio problem during the test, because a quiet test cannot explain a dropout that did not occur.
+
+Microsoft's engineering guidance recommends keeping individual DPC routines below 100 microseconds and ISR routines below 25 microseconds. These values are useful context, not a simple pass/fail guarantee. Repeated high-duration drivers, hard page faults, lost events, and the audible symptom should be considered together.
+
 ### Process Watch Reports
 
 Process watch reports are separate support reports created by `Options` > `Watch process...`. They save automatically in the `Reports` folder when the watch stops. HTML reports summarize CPU, memory, GPU counters where available, handles, threads, and growth over the watch period in tables for easier navigation; CSV output keeps the raw samples for spreadsheet analysis. They are meant for developer or support conversations about a running app's resource use. They may include the selected process name and executable path, but they do not inspect private app contents.
@@ -549,7 +563,7 @@ TXT reports are a simplified reading and sharing format. They use clear `#` sect
 
 The first save creates the `Reports` folder if it does not already exist. Use `File` > `Open Reports folder` or `Ctrl+Shift+O` to jump to saved reports, and use `File` > `Open Logs folder` or `Ctrl+Shift+L` when support needs the log folder. To share a report, send the saved `.html` or `.txt` file. HTML is usually easier to read in a browser, while TXT is convenient for pasting into messages. If someone needs a fuller support bundle, use `Help` > `Run diagnostics...` instead; diagnostics include both report formats, logs, and a summary in one ZIP file.
 
-Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name, masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them, and removes online public-IP lookup rows entirely.
+Use `File` > `Save anonymized report...` or `Ctrl+Shift+A` when you want a shareable report with common private identifiers masked. The anonymized report replaces the computer name, masks IP addresses, MAC addresses, serial numbers, UUIDs, GUIDs, PnP IDs, hardware IDs, compatible IDs, and location paths where Sensor Readout recognises them, and removes online public-IP lookup rows, Tasks rows, Audio Latency rows, and Spoken Hotkeys rows entirely.
 
 ### Submitting Community Stats
 
@@ -695,6 +709,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 5.0.0
+
+- Added: The explicitly started Audio Latency diagnostic measures Windows DPC and interrupt-service-routine duration, hard page faults, responsible drivers, and lost trace events while you reproduce an audio problem. An optional live monitor provides separate DPC and ISR history graphs plus an accessible rolling summary, can be closed and reopened without stopping the test, and the completed diagnostic is saved automatically as an HTML report. The latest result remains available in the Audio Latency category.
+- Privacy: Audio Latency reports state exactly what they collect and exclude. Audio Latency rows are removed from anonymized reports because driver paths and hard-fault process names can reveal installed software.
 
 ### 4.14.1
 
@@ -1366,6 +1385,7 @@ Sensor Readout uses or bundles components from these projects:
 - [BlackSharp.Core](https://www.nuget.org/packages/BlackSharp.Core/), used by LibreHardwareMonitor dependencies.
 - [Prism screen reader library](https://github.com/ethindp/prism), used as the preferred optional speech output backend on supported systems.
 - [Tolk screen reader library](https://github.com/dkager/tolk), used for optional screen-reader speech output.
+- [Microsoft TraceEvent](https://github.com/microsoft/perfview), used only during an explicitly started Audio Latency diagnostic to read Windows ETW timing events.
 - [Framework Control](https://github.com/ozturkkl/framework-control), used through its optional local API when present on Framework Laptop systems.
 - [G-Helper](https://github.com/seerge/g-helper), whose GPL-licensed Asus ACPI research is used in the optional experimental Asus ROG plug-in.
 - [usb.ids](http://www.linux-usb.org/usb-ids.html), used under its BSD license option for USB vendor and product names.

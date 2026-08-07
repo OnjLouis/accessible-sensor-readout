@@ -59,19 +59,24 @@ public sealed partial class SensorReadoutForm : Form
             return 10;
         }
 
-        if (type == "Display")
+        if (type == "Audio Latency")
         {
             return 11;
         }
 
-        if (type == "Devices")
+        if (type == "Display")
         {
             return 12;
         }
 
-        if (type == "Firmware Security")
+        if (type == "Devices")
         {
             return 13;
+        }
+
+        if (type == "Firmware Security")
+        {
+            return 14;
         }
 
         if (type == "Battery")
@@ -79,7 +84,7 @@ public sealed partial class SensorReadoutForm : Form
             return 4;
         }
 
-        return 14;
+        return 15;
     }
 
     public static string DisplayTypeName(string type)
@@ -137,6 +142,11 @@ public sealed partial class SensorReadoutForm : Form
         if (type == "Audio")
         {
             return T("type.Audio", "Audio");
+        }
+
+        if (type == "Audio Latency")
+        {
+            return T("type.Audio Latency", "Audio Latency");
         }
 
         if (type == "Display")

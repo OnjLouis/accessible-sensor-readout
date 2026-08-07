@@ -64,6 +64,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
             form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
             form.RunSelfTestStep(results, "Process watch report", delegate { form.SelfTestProcessWatchReport(); });
+            form.RunSelfTestStep(results, "Audio latency aggregation and privacy", delegate { form.SelfTestAudioLatencyAggregationAndPrivacy(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
             form.RunSelfTestStep(results, "Installed app registration", delegate { form.SelfTestInstalledAppRegistration(outputFolder); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
@@ -1129,6 +1130,125 @@ public sealed partial class SensorReadoutForm : Form
         Require(report.IndexOf("network payloads", StringComparison.OrdinalIgnoreCase) >= 0, "Process watch report missing network privacy boundary.");
     }
 
+    private void SelfTestAudioLatencyAggregationAndPrivacy()
+    {
+        var run = new AudioLatencyRun
+        {
+            StartedLocal = new DateTime(2026, 1, 1, 12, 0, 0),
+            StoppedLocal = new DateTime(2026, 1, 1, 12, 0, 5),
+            IntervalStartedLocal = new DateTime(2026, 1, 1, 12, 0, 0),
+            StopReason = "Self-test"
+        };
+        run.Images.Add(new AudioLatencyImage
+        {
+            BaseAddress = 0x1000,
+            EndAddress = 0x2000,
+            Path = @"C:\Windows\System32\drivers\selftest.sys"
+        });
+        RecordAudioLatencyRoutine(run, false, 0x1100, 125.5);
+        RecordAudioLatencyRoutine(run, false, 0x1100, 40.0);
+        RecordAudioLatencyRoutine(run, true, 0x1200, 27.25);
+        RecordAudioLatencyHardFault(run, "PrivateSelfTestProcess", 4321);
+        FinalizeAudioLatencySampleLocked(run, run.StartedLocal.AddSeconds(1), false);
+
+        var dpc = BuildAudioLatencyDriverStats(run, false);
+        var isr = BuildAudioLatencyDriverStats(run, true);
+        Require(dpc.Count == 1 && string.Equals(dpc[0].Name, "selftest.sys", StringComparison.OrdinalIgnoreCase), "Audio latency DPC routine was not attributed to its driver image.");
+        Require(dpc[0].Count == 2 && Math.Abs(dpc[0].MaximumMicroseconds - 125.5) < 0.001, "Audio latency DPC aggregation returned the wrong count or maximum.");
+        Require(isr.Count == 1 && Math.Abs(isr[0].MaximumMicroseconds - 27.25) < 0.001, "Audio latency ISR aggregation returned the wrong maximum.");
+        Require(run.Samples.Count == 1 && run.Samples[0].DpcCount == 2 && run.Samples[0].IsrCount == 1, "Audio latency live interval aggregation returned the wrong event counts.");
+        Require(Math.Abs(run.Samples[0].MaximumDpcMicroseconds - 125.5) < 0.001 && run.Samples[0].MaximumDpcRoutine == 0x1100, "Audio latency live interval lost its DPC peak or driver routine.");
+        for (var sampleIndex = 0; sampleIndex < 130; sampleIndex++)
+        {
+            run.IntervalDpcCount = sampleIndex;
+            FinalizeAudioLatencySampleLocked(run, run.IntervalStartedLocal.AddSeconds(1), false);
+        }
+        Require(run.Samples.Count == 120, "Audio latency live history exceeded its bounded 120-sample limit.");
+
+        UpdateAudioLatencyMenuItem();
+        Require(audioLatencyMenuItem != null && audioLatencyMenuItem.Text.IndexOf("Ctrl+Shift+D", StringComparison.OrdinalIgnoreCase) >= 0, "Audio latency Options menu item did not expose Control Shift D.");
+        Require(audioLatencyMenuItem != null && audioLatencyMenuItem.ShortcutKeys == (Keys.Control | Keys.Shift | Keys.D), "Audio latency Options menu item lost its working shortcut.");
+
+        AudioLatencyRun previous;
+        lock (audioLatencyLock)
+        {
+            previous = latestAudioLatencyRun;
+            latestAudioLatencyRun = run;
+        }
+        try
+        {
+            UpdateAudioLatencyMenuItem();
+            Require(audioLatencyMonitorMenuItem != null && audioLatencyMonitorMenuItem.Available && audioLatencyMonitorMenuItem.Enabled, "Audio latency monitor command was not available for the latest test.");
+            var snapshot = BuildAudioLatencyLiveSnapshot();
+            Require(snapshot.HasRun && snapshot.Samples.Count == 120, "Audio latency live snapshot did not preserve the bounded sample history.");
+            var rows = GetAudioLatencyRows().ToList();
+            Require(rows.Any(r => string.Equals(r.Identifier, "audio-latency-top-dpc-driver", StringComparison.OrdinalIgnoreCase) && r.DisplayValue.IndexOf("selftest.sys", StringComparison.OrdinalIgnoreCase) >= 0), "Audio Latency category did not expose its highest DPC driver.");
+            Require(rows.Any(r => string.Equals(r.Identifier, "audio-latency-latest-dpc", StringComparison.OrdinalIgnoreCase) && string.Equals(r.Hardware, "Current interval", StringComparison.OrdinalIgnoreCase)), "Audio Latency category did not expose its grouped latest interval.");
+            Require(rows.Any(r => string.Equals(r.Identifier, "audio-latency-recent-dpc", StringComparison.OrdinalIgnoreCase) && string.Equals(r.Hardware, "Recent 60 seconds", StringComparison.OrdinalIgnoreCase)), "Audio Latency category did not expose its recent rolling peak.");
+            Require(rows.All(r => !IsSelectableReadoutRow(r)), "Audio Latency diagnostic rows were exposed as alarm or spoken-hotkey candidates.");
+            Require(DefaultCategoryChoices().Any(c => string.Equals(c.Type, "Audio Latency", StringComparison.OrdinalIgnoreCase)), "Audio Latency is missing from the default category list.");
+        }
+        finally
+        {
+            lock (audioLatencyLock)
+            {
+                latestAudioLatencyRun = previous;
+            }
+        }
+
+        var privateSnapshot = new ReportSnapshot
+        {
+            AppVersion = AppVersion,
+            MachineName = "PrivateMachine",
+            Rows = new List<ReportSnapshotRow>
+            {
+                new ReportSnapshotRow
+                {
+                    Type = "Audio Latency",
+                    Hardware = "Latest test",
+                    Name = "Highest DPC driver",
+                    DisplayValue = "selftest.sys",
+                    Details = BuildAudioLatencyDetails(run)
+                }
+            }
+        };
+        var sanitized = SanitizeReportSnapshot(privateSnapshot);
+        Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Audio Latency", StringComparison.OrdinalIgnoreCase)), "Anonymized reports retained Audio Latency process or driver data.");
+
+        var report = BuildAudioLatencyHtmlReport(run);
+        Require(report.IndexOf("Sensor Readout audio latency report", StringComparison.OrdinalIgnoreCase) >= 0, "Audio latency report missing its title.");
+        Require(report.IndexOf("selftest.sys", StringComparison.OrdinalIgnoreCase) >= 0, "Audio latency report missing driver attribution.");
+        Require(report.IndexOf("PrivateSelfTestProcess", StringComparison.OrdinalIgnoreCase) >= 0, "Audio latency report missing hard-fault process attribution.");
+        Require(report.IndexOf("does not contain audio", StringComparison.OrdinalIgnoreCase) >= 0, "Audio latency report missing its privacy boundary.");
+
+        string savedPath = null;
+        lock (audioLatencyLock)
+        {
+            previous = latestAudioLatencyRun;
+            latestAudioLatencyRun = run;
+        }
+        try
+        {
+            run.ReportPath = "";
+            StopAudioLatencyForShutdown();
+            savedPath = run.ReportPath;
+            Require(!string.IsNullOrWhiteSpace(savedPath) && File.Exists(savedPath), "Application shutdown did not save the completed audio latency report.");
+            SaveAudioLatencyReport(run);
+            Require(string.Equals(savedPath, run.ReportPath, StringComparison.OrdinalIgnoreCase), "Audio latency report saving was not idempotent.");
+        }
+        finally
+        {
+            lock (audioLatencyLock)
+            {
+                latestAudioLatencyRun = previous;
+            }
+            if (!string.IsNullOrWhiteSpace(savedPath))
+            {
+                try { File.Delete(savedPath); } catch { }
+            }
+        }
+    }
+
     private void SelfTestHotkeysMenu()
     {
         EnsureSelfTestRows();
@@ -2022,6 +2142,7 @@ public sealed partial class SensorReadoutForm : Form
         var sanitized = SanitizeReportSnapshot(before);
         Require(string.Equals(sanitized.MachineName, "Computer", StringComparison.Ordinal), "Anonymized report did not replace machine name.");
         Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Tasks", StringComparison.OrdinalIgnoreCase)), "Anonymized report still contains Tasks rows.");
+        Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Audio Latency", StringComparison.OrdinalIgnoreCase)), "Anonymized report still contains Audio Latency rows.");
         Require(!sanitized.Rows.Any(r => string.Equals(r.Type, "Spoken Hotkeys", StringComparison.OrdinalIgnoreCase)), "Anonymized report still contains Spoken Hotkeys rows.");
         AssertSelfTestReportSnapshotSanity(sanitized, "Anonymized report snapshot");
         var sanitizedHtml = BuildHtmlReport("", sanitized);

@@ -736,6 +736,28 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         Match match;
+        match = Regex.Match(field, @"^Audio latency (DPC|ISR) driver (\d+) (.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[]
+            {
+                match.Groups[1].Value.Equals("DPC", StringComparison.OrdinalIgnoreCase) ? T("ui.DPC drivers", "DPC drivers") : T("ui.ISR drivers", "ISR drivers"),
+                T("ui.Driver", "Driver") + " " + match.Groups[2].Value
+            };
+            path.Label = ToDetailLabel(match.Groups[3].Value);
+            path.SortIndex = 40 + SafeParseInt(match.Groups[2].Value);
+            return path;
+        }
+
+        match = Regex.Match(field, @"^Audio latency hard fault process (\d+) (.+)$", RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            path.Groups = new[] { T("reading.Hard page faults", "Hard page faults"), T("ui.Process", "Process") + " " + match.Groups[1].Value };
+            path.Label = ToDetailLabel(match.Groups[2].Value);
+            path.SortIndex = 80 + SafeParseInt(match.Groups[1].Value);
+            return path;
+        }
+
         match = Regex.Match(field, @"^(?:TCP|UDP)\s+listening\s+endpoint\s+(\d+)$", RegexOptions.IgnoreCase);
         if (match.Success)
         {

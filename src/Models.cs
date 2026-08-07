@@ -88,6 +88,12 @@ public sealed class AppSettings
     public bool ProcessWatchPlaySoundWhenStopped = false;
     public string ProcessWatchSoundFile = "";
     public string ProcessWatchCompletionMessage = "";
+    public int AudioLatencyDurationSeconds = 60;
+    public bool AudioLatencySpeakWhenStopped = true;
+    public bool AudioLatencyPlaySoundWhenStopped = false;
+    public string AudioLatencySoundFile = "";
+    public string AudioLatencyCompletionMessage = "";
+    public bool AudioLatencyOpenLiveMonitor = true;
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
     public List<string> TrayItemKeys = new List<string>();
@@ -163,6 +169,12 @@ public sealed class SharedAppSettings
     public bool ProcessWatchPlaySoundWhenStopped = false;
     public string ProcessWatchSoundFile = "";
     public string ProcessWatchCompletionMessage = "";
+    public int AudioLatencyDurationSeconds = 60;
+    public bool AudioLatencySpeakWhenStopped = true;
+    public bool AudioLatencyPlaySoundWhenStopped = false;
+    public string AudioLatencySoundFile = "";
+    public string AudioLatencyCompletionMessage = "";
+    public bool AudioLatencyOpenLiveMonitor = true;
     public string StartupSoundFile = "";
     public string ShutdownSoundFile = "";
 }

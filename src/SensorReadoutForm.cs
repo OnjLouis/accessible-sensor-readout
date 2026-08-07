@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "4.14.1";
+    public const string AppVersion = "5.0.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -72,6 +72,8 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ToolStripMenuItem trendLoggingMenuItem;
     private readonly ToolStripMenuItem processWatchMenuItem;
+    private readonly ToolStripMenuItem audioLatencyMenuItem;
+    private readonly ToolStripMenuItem audioLatencyMonitorMenuItem;
     private readonly ToolStripMenuItem celsiusMenuItem;
     private readonly ToolStripMenuItem fahrenheitMenuItem;
     private readonly ToolStripMenuItem celsiusFahrenheitMenuItem;
@@ -385,11 +387,17 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(languageMenuItem);
         processWatchMenuItem = CreateShortcutMenuItem("&Watch process...", Keys.Control | Keys.Shift | Keys.W, delegate { ToggleProcessWatchCommand(); });
         optionsMenu.DropDownItems.Add(processWatchMenuItem);
+        audioLatencyMenuItem = CreateShortcutMenuItem(T("ui.Audio latency &diagnostic...", "Audio latency &diagnostic..."), Keys.Control | Keys.Shift | Keys.D, delegate { ToggleAudioLatencyCommand(); });
+        optionsMenu.DropDownItems.Add(audioLatencyMenuItem);
+        audioLatencyMonitorMenuItem = new ToolStripMenuItem(T("ui.Audio latency &monitor...", "Audio latency &monitor..."));
+        audioLatencyMonitorMenuItem.Available = false;
+        audioLatencyMonitorMenuItem.Click += delegate { ShowAudioLatencyLiveMonitor(); };
+        optionsMenu.DropDownItems.Add(audioLatencyMonitorMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem(T("ui.&Spoken feedback...", "Spoken and visual feed&back..."), "", delegate { ShowPreferences("Spoken feedback"); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
-        optionsMenu.DropDownOpening += delegate { UpdateProcessWatchMenuItem(); };
+        optionsMenu.DropDownOpening += delegate { UpdateProcessWatchMenuItem(); UpdateAudioLatencyMenuItem(); };
 
         hotkeysMenu = new ToolStripMenuItem("Hot&keys");
         BuildHotkeysMenu();

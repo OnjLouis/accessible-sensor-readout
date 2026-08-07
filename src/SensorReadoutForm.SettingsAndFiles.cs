@@ -432,6 +432,12 @@ public sealed partial class SensorReadoutForm : Form
             ProcessWatchPlaySoundWhenStopped = value.ProcessWatchPlaySoundWhenStopped,
             ProcessWatchSoundFile = value.ProcessWatchSoundFile,
             ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage,
+            AudioLatencyDurationSeconds = value.AudioLatencyDurationSeconds,
+            AudioLatencySpeakWhenStopped = value.AudioLatencySpeakWhenStopped,
+            AudioLatencyPlaySoundWhenStopped = value.AudioLatencyPlaySoundWhenStopped,
+            AudioLatencySoundFile = value.AudioLatencySoundFile,
+            AudioLatencyCompletionMessage = value.AudioLatencyCompletionMessage,
+            AudioLatencyOpenLiveMonitor = value.AudioLatencyOpenLiveMonitor,
             StartupSoundFile = value.StartupSoundFile,
             ShutdownSoundFile = value.ShutdownSoundFile
         };
@@ -549,6 +555,12 @@ public sealed partial class SensorReadoutForm : Form
         target.ProcessWatchPlaySoundWhenStopped = shared.ProcessWatchPlaySoundWhenStopped;
         target.ProcessWatchSoundFile = System.IO.Path.GetFileName(shared.ProcessWatchSoundFile ?? "");
         target.ProcessWatchCompletionMessage = shared.ProcessWatchCompletionMessage ?? "";
+        target.AudioLatencyDurationSeconds = NormalizeAudioLatencyDurationSeconds(shared.AudioLatencyDurationSeconds);
+        target.AudioLatencySpeakWhenStopped = shared.AudioLatencySpeakWhenStopped;
+        target.AudioLatencyPlaySoundWhenStopped = shared.AudioLatencyPlaySoundWhenStopped;
+        target.AudioLatencySoundFile = System.IO.Path.GetFileName(shared.AudioLatencySoundFile ?? "");
+        target.AudioLatencyCompletionMessage = shared.AudioLatencyCompletionMessage ?? "";
+        target.AudioLatencyOpenLiveMonitor = shared.AudioLatencyOpenLiveMonitor;
         target.StartupSoundFile = shared.StartupSoundFile;
         target.ShutdownSoundFile = shared.ShutdownSoundFile;
     }
@@ -590,6 +602,9 @@ public sealed partial class SensorReadoutForm : Form
         value.ProcessWatchDurationUnit = NormalizeProcessWatchDurationUnit(value.ProcessWatchDurationUnit);
         value.ProcessWatchSoundFile = System.IO.Path.GetFileName(value.ProcessWatchSoundFile ?? "");
         value.ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage ?? "";
+        value.AudioLatencyDurationSeconds = NormalizeAudioLatencyDurationSeconds(value.AudioLatencyDurationSeconds);
+        value.AudioLatencySoundFile = System.IO.Path.GetFileName(value.AudioLatencySoundFile ?? "");
+        value.AudioLatencyCompletionMessage = value.AudioLatencyCompletionMessage ?? "";
         value.StartupSoundFile = System.IO.Path.GetFileName(value.StartupSoundFile ?? "");
         value.ShutdownSoundFile = System.IO.Path.GetFileName(value.ShutdownSoundFile ?? "");
     }
@@ -652,6 +667,11 @@ public sealed partial class SensorReadoutForm : Form
     public static int NormalizeProcessWatchDurationValue(int value)
     {
         return Math.Max(0, Math.Min(1440, value));
+    }
+
+    public static int NormalizeAudioLatencyDurationSeconds(int value)
+    {
+        return Math.Max(0, Math.Min(86400, value));
     }
 
     public static string NormalizeProcessWatchDurationUnit(string value)
@@ -877,6 +897,9 @@ public sealed partial class SensorReadoutForm : Form
         value.ProcessWatchDurationUnit = NormalizeProcessWatchDurationUnit(value.ProcessWatchDurationUnit);
         value.ProcessWatchSoundFile = System.IO.Path.GetFileName(value.ProcessWatchSoundFile ?? "");
         value.ProcessWatchCompletionMessage = value.ProcessWatchCompletionMessage ?? "";
+        value.AudioLatencyDurationSeconds = NormalizeAudioLatencyDurationSeconds(value.AudioLatencyDurationSeconds);
+        value.AudioLatencySoundFile = System.IO.Path.GetFileName(value.AudioLatencySoundFile ?? "");
+        value.AudioLatencyCompletionMessage = value.AudioLatencyCompletionMessage ?? "";
         value.RefreshIntervalSeconds = Math.Max(1, Math.Min(300, value.RefreshIntervalSeconds));
         value.ReadingTreeExpansionMode = NormalizeReadingTreeExpansionMode(value.ReadingTreeExpansionMode);
         value.TemperatureUnit = NormalizeTemperatureUnit(value.TemperatureUnit);

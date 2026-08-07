@@ -99,6 +99,7 @@ public sealed partial class SensorReadoutForm : Form
             new CategoryChoice { Key = "type|Spoken Hotkeys", DisplayName = T("type.Spoken Hotkeys", "Spoken Hotkeys"), Type = "Spoken Hotkeys" },
             new CategoryChoice { Key = "type|USB", DisplayName = T("type.USB", "USB"), Type = "USB" },
             new CategoryChoice { Key = "type|Audio", DisplayName = T("type.Audio", "Audio"), Type = "Audio" },
+            new CategoryChoice { Key = "type|Audio Latency", DisplayName = T("type.Audio Latency", "Audio Latency"), Type = "Audio Latency" },
             new CategoryChoice { Key = "type|Display", DisplayName = T("type.Display", "Display"), Type = "Display" },
             new CategoryChoice { Key = "type|Battery", DisplayName = T("type.Battery", "Battery"), Type = "Battery" },
             new CategoryChoice { Key = "type|Devices", DisplayName = T("type.Devices", "Devices"), Type = "Devices" },

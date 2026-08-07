@@ -146,6 +146,8 @@ $references = @(
     'System.IO.Compression.dll',
     'System.IO.Compression.FileSystem.dll',
     (Join-Path $resources 'LibreHardwareMonitorLib.dll'),
+    (Join-Path $resources 'Microsoft.Diagnostics.FastSerialization.dll'),
+    (Join-Path $resources 'Microsoft.Diagnostics.Tracing.TraceEvent.dll'),
     (Join-Path $resources 'Newtonsoft.Json.dll'),
     $sdkOutput
 ) -join ','
@@ -219,10 +221,14 @@ function Assert-NoRootDependencyDlls {
 function Assert-RequiredResourceFiles {
     foreach ($fileName in @(
         'BlackSharp.Core.dll',
+        'Dia2Lib.dll',
         'DiskInfoToolkit.dll',
         'HidSharp.dll',
         'LibreHardwareMonitorLib.dll',
+        'Microsoft.Diagnostics.FastSerialization.dll',
+        'Microsoft.Diagnostics.Tracing.TraceEvent.dll',
         'Newtonsoft.Json.dll',
+        'OSExtensions.dll',
         'nvdaControllerClient64.dll',
         'prism.dll',
         'RAMSPDToolkit-NDD.dll',
@@ -232,7 +238,9 @@ function Assert-RequiredResourceFiles {
         'System.Memory.dll',
         'System.Numerics.Vectors.dll',
         'System.Runtime.CompilerServices.Unsafe.dll',
-        'Tolk.dll'
+        'Tolk.dll',
+        'TraceEvent-LICENSE.txt',
+        'TraceReloggerLib.dll'
     )) {
         $path = Join-Path $resources $fileName
         if (!(Test-Path -LiteralPath $path)) {
