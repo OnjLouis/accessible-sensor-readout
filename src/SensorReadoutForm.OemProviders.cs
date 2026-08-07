@@ -12,7 +12,13 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetOemProviderRows(bool diagnosticsMode, bool backgroundRefresh)
     {
-        var cacheInterval = backgroundRefresh ? BackgroundOemProviderRowsMinimumInterval : ForegroundOemProviderRowsMinimumInterval;
+        // The long minimized/background cache exists so fragile vendor providers are not polled
+        // while nobody is looking. When an enabled fan curve takes its temperature from a plug-in
+        // reading, that reading is load-bearing for cooling decisions, so the foreground interval
+        // is used even in the background; plug-ins keeping their own caches stay cheap to query.
+        var cacheInterval = backgroundRefresh && !AnyEnabledFanCurveUsesPlugInReading()
+            ? BackgroundOemProviderRowsMinimumInterval
+            : ForegroundOemProviderRowsMinimumInterval;
         var cacheSignature = GetOemProviderRowsCacheSignature();
         if (!diagnosticsMode)
         {
@@ -39,6 +45,47 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         return rows;
+    }
+
+    private bool AnyEnabledFanCurveUsesPlugInReading()
+    {
+        var curves = settings == null ? null : settings.FanCurves;
+        if (curves == null || curves.Count == 0)
+        {
+            return false;
+        }
+
+        lock (oemProviderRowsLock)
+        {
+            if (cachedOemProviderRows.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var curve in curves)
+            {
+                if (curve == null || !curve.Enabled || curve.SuspendedByManualControl || string.IsNullOrWhiteSpace(curve.TemperatureReadingKey))
+                {
+                    continue;
+                }
+
+                var identifier = IdentifierFromSettingsKey(curve.TemperatureReadingKey);
+                if (string.IsNullOrWhiteSpace(identifier))
+                {
+                    continue;
+                }
+
+                foreach (var row in cachedOemProviderRows)
+                {
+                    if (row != null && string.Equals(row.Identifier, identifier, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private void ClearOemProviderRowsCache()
