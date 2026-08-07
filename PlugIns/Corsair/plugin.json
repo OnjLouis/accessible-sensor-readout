@@ -1,9 +1,9 @@
 {
   "id": "sensorreadout.corsair.experimental",
-  "name": "Corsair iCUE Link and PSU Monitoring (experimental)",
-  "version": "0.2.0",
+  "name": "Corsair iCUE Link and PSU Support (experimental)",
+  "version": "0.3.0",
   "author": "Robin Kipp and Sensor Readout contributors",
-  "description": "Experimental, opt-in read-only monitoring for the Corsair iCUE LINK Hub (pump, fans, and liquid temperature) and Corsair HXi/RMi digital power supplies (temperatures, fan, input voltage, and output power). Do not run together with Corsair iCUE. Monitoring can run alongside HWiNFO or Fan Control through the shared Corsair device guard.",
+  "description": "Experimental, opt-in support for the Corsair iCUE LINK Hub (pump, fans, liquid temperature, fan control) and Corsair HXi/RMi digital power supplies (temperatures, fan, input voltage, output power, fan control). Do not run together with Corsair iCUE. Monitoring can run alongside HWiNFO or Fan Control through the shared Corsair device guard, but only one program should drive the fans.",
   "assembly": "CorsairPlugIn.dll",
   "type": "SensorReadout.CorsairPlugIn.CorsairPlugIn",
   "helpLinks": [

@@ -29,13 +29,36 @@ namespace SensorReadout.CorsairPlugIn
             }
         }
 
+        // This release deliberately re-opens the write path that the 5.2.0 monitoring release kept
+        // closed, so the two boundary assertions below assert the *new* contract: control calls are
+        // routed, and they still send nothing when no matching device is connected. Nothing in this
+        // file may reach hardware -- the worker is never started here, so its device lists are empty
+        // and every call below is a lookup miss.
         private static void TestWriteBoundary()
         {
             var worker = CorsairWorker.Instance;
-            Require(!worker.SetHubChannelPercent("TEST", 1, 50), "Hub fan writes must fail closed in the read-only release.");
-            Require(!worker.ResetHubChannel("TEST", 1), "Hub fan resets must fail closed in the read-only release.");
-            Require(!worker.SetPsuFanPercent("1c27", 50), "PSU fan writes must fail closed in the read-only release.");
-            Require(!worker.ResetPsuFan("1c27"), "PSU fan resets must fail closed in the read-only release.");
+            Require(!worker.SetHubChannelPercent("TEST", 1, 50), "A hub fan write for an unknown hub must report failure and send nothing.");
+            Require(!worker.ResetHubChannel("TEST", 1), "A hub fan reset for an unknown hub must report failure and send nothing.");
+            Require(!worker.SetPsuFanPercent("1c27", 50), "A PSU fan write with no PSU connected must report failure and send nothing.");
+            Require(!worker.ResetPsuFan("1c27"), "A PSU fan reset with no PSU connected must report failure and send nothing.");
+
+            // The identifier gate in front of those calls: only this plug-in's own control
+            // identifiers may be claimed, so the host can keep offering the rest to other plug-ins.
+            bool isHub;
+            string deviceKey;
+            int channel;
+            Require(CorsairPlugIn.TryParseControlIdentifier("corsair/link/hub0/control/4", out isHub, out deviceKey, out channel)
+                && isHub && deviceKey == "hub0" && channel == 4, "A hub control identifier must parse into its device key and channel.");
+            Require(CorsairPlugIn.TryParseControlIdentifier("corsair/psu/1c23/control/0", out isHub, out deviceKey, out channel)
+                && !isHub && deviceKey == "1c23", "A PSU control identifier must parse as the PSU fan control.");
+            Require(!CorsairPlugIn.TryParseControlIdentifier("/amdcpu/0/control/1", out isHub, out deviceKey, out channel),
+                "LibreHardwareMonitor identifiers must not be claimed by this plug-in.");
+            Require(!CorsairPlugIn.TryParseControlIdentifier("corsair/link/hub0/fan/4", out isHub, out deviceKey, out channel),
+                "A Fan identifier is not a control identifier.");
+
+            var plugIn = new CorsairPlugIn();
+            Require(!plugIn.TrySetFanPercent("/amdcpu/0/control/1", 50), "A foreign identifier must be rejected without touching hardware.");
+            Require(!plugIn.TryResetFan(null), "A null identifier must be rejected without touching hardware.");
         }
 
         private static void TestReleaseSurface()
@@ -43,9 +66,13 @@ namespace SensorReadout.CorsairPlugIn
             var plugIn = new CorsairPlugIn();
             Require(plugIn is ISensorReadoutPlugin, "The Corsair plug-in must implement the sensor interface.");
             Require(plugIn is IPluginLifecycle, "The Corsair plug-in must implement explicit shutdown.");
-            Require(!typeof(IFanControllablePlugin).IsAssignableFrom(plugIn.GetType()), "The public Corsair release must remain read-only.");
-            Require(plugIn.Info != null && plugIn.Info.Description.IndexOf("read-only", StringComparison.OrdinalIgnoreCase) >= 0,
-                "The plug-in metadata must state that this release is read-only.");
+            // Deliberately re-opened in this release: fan and pump control are back, so the plug-in
+            // has to advertise the fan-control interface again.
+            Require(typeof(IFanControllablePlugin).IsAssignableFrom(plugIn.GetType()), "This Corsair release must expose fan control.");
+            Require(plugIn.Info != null && plugIn.Info.Description.IndexOf("fan control", StringComparison.OrdinalIgnoreCase) >= 0,
+                "The plug-in metadata must state that this release can drive fans.");
+            Require(plugIn.Info != null && plugIn.Info.Description.IndexOf("read-only", StringComparison.OrdinalIgnoreCase) < 0,
+                "The plug-in metadata must not still describe itself as read-only.");
         }
 
         private static void TestPacketBounds()
@@ -134,8 +161,26 @@ namespace SensorReadout.CorsairPlugIn
 
             var rows = CorsairPlugIn.BuildRows(snapshot, false, null);
             Require(rows.Count > 0, "A populated snapshot must produce rows.");
-            Require(!rows.Any(row => string.Equals(row.Type, "Fan Control", StringComparison.OrdinalIgnoreCase)),
-                "The read-only release must not expose fan controls.");
+
+            // Deliberately re-opened in this release: an enumerated hub channel that accepts a duty
+            // gets a Fan Control row, and the PSU always gets one.
+            var hubControl = rows.FirstOrDefault(row => string.Equals(row.Type, "Fan Control", StringComparison.OrdinalIgnoreCase)
+                && (row.Identifier ?? string.Empty).StartsWith("corsair/link/", StringComparison.OrdinalIgnoreCase));
+            Require(hubControl != null, "An enumerated hub channel with duty control must expose a Fan Control row.");
+            Require(hubControl.Identifier.IndexOf("/control/1", StringComparison.OrdinalIgnoreCase) >= 0,
+                "A hub control identifier must carry the port number of the channel it drives.");
+            Require(rows.Any(row => string.Equals(row.Type, "Fan", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(row.Name, hubControl.Name, StringComparison.Ordinal)
+                    && string.Equals(row.Identifier, hubControl.Identifier.Replace("/control/", "/fan/"), StringComparison.OrdinalIgnoreCase)),
+                "A Fan Control row must pair with its Fan row by identical Name and the /fan/ <-> /control/ identifier swap.");
+
+            var psuControl = rows.FirstOrDefault(row => string.Equals(row.Type, "Fan Control", StringComparison.OrdinalIgnoreCase)
+                && (row.Identifier ?? string.Empty).StartsWith("corsair/psu/", StringComparison.OrdinalIgnoreCase));
+            Require(psuControl != null, "The PSU fan control row must be emitted for every connected PSU.");
+            Require(psuControl.Details != null && psuControl.Details.ContainsKey("Zero RPM capable"),
+                "The semi-passive PSU fan control must carry the zero-RPM marker so the host keeps it visible at 0 RPM.");
+            Require(psuControl.Details.ContainsKey("Safety") && hubControl.Details.ContainsKey("Safety"),
+                "Every control row must carry its safety note.");
             Require(rows.Any(row => (row.Name ?? string.Empty).IndexOf("Hub 1", StringComparison.OrdinalIgnoreCase) >= 0),
                 "The first of multiple hubs needs a neutral visible suffix.");
             Require(rows.Any(row => (row.Name ?? string.Empty).IndexOf("Hub 2", StringComparison.OrdinalIgnoreCase) >= 0),
@@ -173,6 +218,7 @@ namespace SensorReadout.CorsairPlugIn
                         DeviceId = deviceId,
                         HasRpm = true,
                         HasTemp = true,
+                        HasControl = true,
                         Rpm = 1100 + channel,
                         TemperatureC = 35.0f + channel
                     }

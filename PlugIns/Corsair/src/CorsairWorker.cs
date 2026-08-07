@@ -19,8 +19,8 @@ namespace SensorReadout.CorsairPlugIn
     /// <see cref="DeviceLockTimeoutMs"/> ms (<see cref="Monitor.TryEnter(object,int)"/>) rather than
     /// inheriting the device layer's worst case.
     ///
-    /// This release is read-only. The worker never sends a mode change or a duty because its
-    /// control entry points fail closed:
+    /// Read-only by default, exactly like the device classes underneath. The worker never sends a
+    /// mode change or a duty on its own initiative:
     /// <list type="bullet">
     /// <item>a hub is only put into software mode by <see cref="SetHubChannelPercent"/>, or by a
     /// resume path that re-asserts control this worker had already recorded taking;</item>
@@ -73,10 +73,6 @@ namespace SensorReadout.CorsairPlugIn
         private const int MaxConsecutiveFailures = 5;
         private const int DeviceBackoffMs = 30000;
 
-        // Write support remains disabled until it has been verified on supported hardware under
-        // failure, disconnect, suspend, competing-software, and restore scenarios.
-        private static readonly bool FanControlReleaseEnabled = false;
-
         // Idle dormancy: with no host contact for this long and nothing under this plug-in's
         // control, there is nobody to show readings to, so polling stops entirely.
         private const int DormancyIdleMs = 15 * 60 * 1000;
@@ -87,6 +83,12 @@ namespace SensorReadout.CorsairPlugIn
         // Normal plug-in disable/reload can wait for a bounded HID cycle to finish. ProcessExit has
         // a much smaller CLR budget, so its fallback wait is deliberately shorter. Device cleanup
         // always runs on the worker thread; the caller never races it by closing live handles.
+        //
+        // Both waits are what the restores get to run in, and the restores are the reason shutdown
+        // exists at all now that this plug-in writes duties: a PSU left in manual mode stays there
+        // until something writes 0xF0 = 0x00 or it is power-cycled. The normal budget is generous
+        // because the host's IPluginLifecycle.Shutdown is the path that runs on a clean exit and on
+        // every plug-in reload; the ProcessExit fallback is short because the CLR gives it no more.
         private const int NormalShutdownJoinMs = 15000;
         private const int ProcessExitJoinMs = 1500;
 
@@ -123,6 +125,11 @@ namespace SensorReadout.CorsairPlugIn
         // The host recreates its plug-in context on every refresh, so the sink is swapped rather
         // than captured once. Volatile: written by host threads, read by the worker thread.
         private volatile Action<string, string> log;
+
+        // Where this plug-in's own files live, from IPluginContext.PluginDirectory. Same story as
+        // the log sink -- supplied by whichever host thread called EnsureStarted last, read by the
+        // worker thread -- and null or empty simply turns the marker feature off.
+        private volatile string pluginDirectory;
 
         private CorsairDeviceGuard guard;       // deviceLock
         private Thread thread;                  // lifecycleLock
@@ -251,12 +258,18 @@ namespace SensorReadout.CorsairPlugIn
         /// <summary>
         /// Starts the worker if it is not running and adopts <paramref name="log"/> as the current
         /// log sink. Safe to call on every host refresh; a null sink simply discards messages.
-        /// After <see cref="StopAndRestore"/> this is a no-op -- the process is going away and
-        /// re-opening devices then would be the opposite of helpful.
+        /// After <see cref="StopAndRestore"/> this is a no-op -- this instance has handed its
+        /// devices back, and <see cref="Instance"/> hands out a fresh worker for a later re-enable.
+        ///
+        /// <paramref name="pluginDirectory"/> is where the sticky-control marker files live (see
+        /// <c>CorsairWorker.Devices.cs</c>). It is tolerated as null or empty -- the marker feature
+        /// simply switches itself off, and the plug-in stays strictly read-only until the user asks
+        /// for a fan change.
         /// </summary>
-        public void EnsureStarted(Action<string, string> log)
+        public void EnsureStarted(Action<string, string> log, string pluginDirectory)
         {
             this.log = log;
+            this.pluginDirectory = pluginDirectory;
             NoteContact();
 
             if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
@@ -384,11 +397,6 @@ namespace SensorReadout.CorsairPlugIn
         /// </summary>
         public bool SetHubChannelPercent(string serial, int channel, int percent)
         {
-            if (!FanControlReleaseEnabled)
-            {
-                return false;
-            }
-
             NoteContact();
 
             if (string.IsNullOrEmpty(serial))
@@ -433,11 +441,6 @@ namespace SensorReadout.CorsairPlugIn
         /// </summary>
         public bool ResetHubChannel(string serial, int channel)
         {
-            if (!FanControlReleaseEnabled)
-            {
-                return false;
-            }
-
             NoteContact();
 
             if (string.IsNullOrEmpty(serial))
@@ -481,11 +484,6 @@ namespace SensorReadout.CorsairPlugIn
         /// </summary>
         public bool SetPsuFanPercent(string pidHex, int percent)
         {
-            if (!FanControlReleaseEnabled)
-            {
-                return false;
-            }
-
             NoteContact();
 
             if (string.IsNullOrEmpty(pidHex))
@@ -527,11 +525,6 @@ namespace SensorReadout.CorsairPlugIn
         /// </summary>
         public bool ResetPsuFan(string pidHex)
         {
-            if (!FanControlReleaseEnabled)
-            {
-                return false;
-            }
-
             NoteContact();
 
             if (string.IsNullOrEmpty(pidHex))
@@ -569,9 +562,16 @@ namespace SensorReadout.CorsairPlugIn
         }
 
         /// <summary>
-        /// Stops the worker and releases every device. Idempotent. Cleanup runs on the worker
-        /// thread after its current bounded HID operation finishes, so shutdown never closes a
-        /// handle concurrently with an in-flight read.
+        /// Stops the worker and hands every device back to whatever was driving it. Idempotent.
+        /// Cleanup runs on the worker thread after its current bounded HID operation finishes, so
+        /// shutdown never closes a handle concurrently with an in-flight read, and the caller waits
+        /// for it under a bounded join.
+        ///
+        /// The order inside <see cref="CleanupOnWorkerThread"/> is deliberate: power supplies
+        /// first, because a PSU left in manual mode stays there until something writes
+        /// 0xF0 = 0x00 or it is power-cycled; hubs second, because the hub firmware falls back to
+        /// its own profile once nothing drives it; then the remaining sessions; then the shared
+        /// guard, which everything above needs.
         /// </summary>
         public void StopAndRestore()
         {
@@ -1237,6 +1237,7 @@ namespace SensorReadout.CorsairPlugIn
                 hub.FirmwareVersion = device.FirmwareVersion;
                 hub.OwnsSoftwareControl = device.OwnsSoftwareControl;
                 hub.WrongModeReadFailure = device.LastReadWrongMode;
+                hub.HardwareModeBlocked = device.HardwareModeBlocked;
                 hub.DutiesPending = device.DutiesPending;
                 hub.LastStatusByte = device.LastStatusByte;
                 hub.BackedOff = entry.BackedOff;

@@ -31,17 +31,28 @@ namespace SensorReadout.CorsairPlugIn
     /// duty, so simply having this plug-in enabled cannot take the hub away from whatever program
     /// (Fan Control, SignalRGB, ...) is already driving the user's fans.
     ///
-    /// Exactly two entry points can put the hub into software mode:
+    /// Exactly three entry points can put the hub into software mode:
     /// <list type="bullet">
     /// <item><see cref="SetChannelPercent"/> -- takes control if this plug-in does not already have
     /// it, because the user has explicitly asked for a duty.</item>
     /// <item><see cref="ReassertControl"/> -- takes control *unconditionally*, baselining every
     /// channel to its default and writing the whole set. It is a resume path, not a query: call it
     /// only from a caller that has itself recorded prior ownership.</item>
+    /// <item><see cref="TakeControlIfBlocked"/> -- the same unconditional take, for a hub that
+    /// connected in the <see cref="HardwareModeBlocked"/> state. Same rule: only from a caller that
+    /// has established this machine already uses Sensor Readout for fan control.</item>
     /// </list>
     /// <see cref="ResetChannel"/> is not one of them. When this plug-in does not own the hub, a
     /// reset is bookkeeping only and sends nothing -- there is no control to hand back, and entering
     /// software mode to "reset" would take the hub from its real owner.
+    ///
+    /// Hardware-mode blocking (measured 2026-08-07 on firmware 3.12.650, annex §2/§7 editor's note):
+    /// a hub running its own profile refuses *every* endpoint read with status 0x03, sub-device
+    /// enumeration included. So there is a legitimate connected state with no channel map at all:
+    /// <see cref="Connect"/> keeps the session open, sets <see cref="HardwareModeBlocked"/>, and
+    /// returns true. <see cref="RefreshSensors"/> then re-tries enumeration at a slow cadence, in
+    /// case another program puts the hub into software mode, and reports success rather than a
+    /// failure so the caller's failure backoff does not fire on a perfectly healthy hub.
     ///
     /// Every wire transaction runs inside the shared <see cref="CorsairDeviceGuard"/> mutex, held
     /// for a whole endpoint bracket (close, open, read/write, close) as the annex requires. The
@@ -75,6 +86,11 @@ namespace SensorReadout.CorsairPlugIn
         // whole budget one 0-ms read at a time.
         private const int MaxResponseReads = 64;
 
+        // How often a hardware-mode-blocked hub re-tries sub-device enumeration. Slow on purpose:
+        // the only thing that can change the answer is another program taking software control, and
+        // until that happens each attempt is four wasted transactions holding the shared guard.
+        private const int BlockedRetryIntervalMs = 30000;
+
         private const string FallbackSerial = "hub0";
 
         private readonly CorsairHidDeviceInfo info;
@@ -90,6 +106,20 @@ namespace SensorReadout.CorsairPlugIn
         private bool ownsSoftwareControl;
         private bool lastReadWrongMode;
         private bool isGone;
+
+        // Set when the hub refused sub-device enumeration because it is running its own hardware
+        // profile. The session stays open and usable -- there is simply nothing to read yet -- so
+        // this is a waiting state, not a failure.
+        private bool hardwareModeBlocked;
+
+        // Environment.TickCount of the next allowed enumeration retry while blocked; only
+        // meaningful while hardwareModeBlocked is true.
+        private int blockedRetryTicks;
+
+        // Why the most recent EnumerateChannels failed: true when it was status 0x03 (wrong mode)
+        // rather than a transport failure or another error status. Recorded by EnumerateChannels
+        // itself, because Connect has to tell the two apart long after the bracket has finished.
+        private bool lastEnumerationWrongMode;
 
         // Same-thread recursion tripwire, not a cross-thread lock: the monitor above already
         // serializes callers, and it is reentrant, so the only way back into ReassertControl is this
@@ -149,6 +179,23 @@ namespace SensorReadout.CorsairPlugIn
             get { return lastReadWrongMode; }
         }
 
+        /// <summary>
+        /// True while the hub is connected but running its own hardware profile, which makes it
+        /// refuse sub-device enumeration outright (status 0x03) -- so there is no channel map, no
+        /// reading, and no control row until something puts it into software mode. Not an error
+        /// state: the session is open and healthy, and <see cref="RefreshSensors"/> keeps checking.
+        /// </summary>
+        public bool HardwareModeBlocked
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return hardwareModeBlocked;
+                }
+            }
+        }
+
         public bool IsGone
         {
             get { return isGone; }
@@ -185,9 +232,11 @@ namespace SensorReadout.CorsairPlugIn
         /// <summary>
         /// Opens the hub, reads its identity and firmware, enumerates the connected sub-devices into
         /// <see cref="Channels"/>, and takes one sensor reading. Sends no mode change and no duty
-        /// write. Returns false only when the device cannot be opened or enumeration fails on the
-        /// wire; a hub that answers "hardware mode" to the sensor reads still connects successfully
-        /// with its channels enumerated (see <see cref="LastReadWrongMode"/>).
+        /// write. Returns false only when the device cannot be opened or enumeration fails for a
+        /// reason other than the hub's mode; a hub that answers "hardware mode" to the sensor reads
+        /// still connects successfully with its channels enumerated (see
+        /// <see cref="LastReadWrongMode"/>), and a hub that answers "hardware mode" to *enumeration
+        /// itself* connects with no channels and <see cref="HardwareModeBlocked"/> set.
         /// </summary>
         public bool Connect()
         {
@@ -202,6 +251,8 @@ namespace SensorReadout.CorsairPlugIn
                 firmwareVersion = string.Empty;
                 twoReadEnumeration = false;
                 lastReadWrongMode = false;
+                hardwareModeBlocked = false;
+                lastEnumerationWrongMode = false;
                 channels.Clear();
 
                 if (info.OutputReportLength < 7 || info.InputReportLength < 9)
@@ -232,6 +283,21 @@ namespace SensorReadout.CorsairPlugIn
 
                 if (!EnumerateChannels())
                 {
+                    if (lastEnumerationWrongMode)
+                    {
+                        // Measured 2026-08-07 on firmware 3.12.650: a hub running its own profile
+                        // refuses endpoint reads outright, enumeration included. That is a normal
+                        // state of perfectly working hardware, not a failed connection -- dropping
+                        // the session here is what used to leave the plug-in permanently silent
+                        // after every clean restart, because the hub only ever leaves hardware mode
+                        // when some program asks it to, and no rows meant nothing ever asked.
+                        hardwareModeBlocked = true;
+                        blockedRetryTicks = unchecked(Environment.TickCount + BlockedRetryIntervalMs);
+                        Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial
+                            + " is in hardware mode; readings are unavailable until a program takes software control.");
+                        return true;
+                    }
+
                     Log("Error", "Corsair plug-in: sub-device enumeration failed on iCUE LINK hub " + serial + ".");
                     stream.Dispose();
                     stream = null;
@@ -301,6 +367,8 @@ namespace SensorReadout.CorsairPlugIn
         {
             ownsSoftwareControl = false;
             lastReadWrongMode = false;
+            hardwareModeBlocked = false;
+            lastEnumerationWrongMode = false;
             dutiesDirty = false;
             dutyFailureReported = false;
             isGone = false;
@@ -312,6 +380,12 @@ namespace SensorReadout.CorsairPlugIn
         /// Reads the speed and temperature arrays and folds them into <see cref="Channels"/>. Values
         /// are only touched when their transaction succeeded, so a skipped or failed read leaves the
         /// previous readings in place rather than blanking the UI.
+        ///
+        /// While <see cref="HardwareModeBlocked"/> is set there is nothing to read at all, so this
+        /// re-tries enumeration at most once every <see cref="BlockedRetryIntervalMs"/> ms and
+        /// otherwise reports success: the hub is healthy and simply not ours to read, and reporting
+        /// failure would push the caller's consecutive-failure backoff for a state that is expected
+        /// to last hours.
         /// </summary>
         public bool RefreshSensors()
         {
@@ -324,6 +398,11 @@ namespace SensorReadout.CorsairPlugIn
 
                 // Reflects the most recent refresh only.
                 lastReadWrongMode = false;
+
+                if (hardwareModeBlocked && !RetryEnumerationWhileBlocked())
+                {
+                    return true;
+                }
 
                 if (dutiesDirty && ownsSoftwareControl)
                 {
@@ -363,6 +442,35 @@ namespace SensorReadout.CorsairPlugIn
 
                 return ok;
             }
+        }
+
+        /// <summary>
+        /// One throttled attempt to leave the blocked state, called from <see cref="RefreshSensors"/>
+        /// with the monitor held. Returns true when the hub has since been put into software mode by
+        /// something (another program, or this plug-in's own control path) and its channels are now
+        /// enumerated, so the caller can carry on with an ordinary refresh.
+        ///
+        /// Sends nothing but the read bracket: recovering here must never be a way for a read to
+        /// take the hub. unchecked because Environment.TickCount wraps roughly every 24.9 days and
+        /// the subtraction is still correct across the wraparound.
+        /// </summary>
+        private bool RetryEnumerationWhileBlocked()
+        {
+            if (unchecked(Environment.TickCount - blockedRetryTicks) < 0)
+            {
+                return false;
+            }
+
+            blockedRetryTicks = unchecked(Environment.TickCount + BlockedRetryIntervalMs);
+            if (!EnumerateChannels())
+            {
+                return false;
+            }
+
+            hardwareModeBlocked = false;
+            Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " is no longer in hardware mode; it enumerated "
+                + channels.Count.ToString(CultureInfo.InvariantCulture) + " channel(s) and readings resume now.");
+            return true;
         }
 
         private void ApplySpeeds(List<LinkSensorRecord> records)
@@ -453,6 +561,14 @@ namespace SensorReadout.CorsairPlugIn
         {
             lock (sync)
             {
+                if (hardwareModeBlocked && !TakeControlWhileBlocked())
+                {
+                    // Before FindChannel on purpose: a blocked hub has no channel map at all, so
+                    // looking the channel up first would reject every duty the user asks for and the
+                    // hub could never be taken.
+                    return false;
+                }
+
                 var state = FindChannel(channel);
                 if (state == null)
                 {
@@ -505,6 +621,18 @@ namespace SensorReadout.CorsairPlugIn
         {
             lock (sync)
             {
+                if (hardwareModeBlocked)
+                {
+                    // "Reset" means "let the hub manage this channel itself", and a blocked hub is
+                    // already doing exactly that -- so this succeeds by doing nothing. Taking
+                    // control here would be perverse, and it would also make the host's start-up
+                    // re-apply of saved automatic states seize a hub nobody asked it to touch.
+                    Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial
+                        + " is running its own hardware profile, which is what a reset asks for; channel "
+                        + channel.ToString(CultureInfo.InvariantCulture) + " was left to it and nothing was sent.");
+                    return true;
+                }
+
                 var state = FindChannel(channel);
                 if (state == null)
                 {
@@ -575,6 +703,14 @@ namespace SensorReadout.CorsairPlugIn
                 reassertInFlight = true;
                 try
                 {
+                    if (hardwareModeBlocked)
+                    {
+                        // No channel map to re-assert over yet: the blocked take-control path enters
+                        // software mode, enumerates, and then runs this very same first-take
+                        // sequence against the channels that appear.
+                        return TakeControlWhileBlocked();
+                    }
+
                     if (!EnterSoftwareMode())
                     {
                         // Latch here too: a hub that refuses the mode change fails this way on every
@@ -600,14 +736,102 @@ namespace SensorReadout.CorsairPlugIn
             }
         }
 
+        /// <summary>
+        /// Takes software control of a hub that connected in the <see cref="HardwareModeBlocked"/>
+        /// state, so that its channels can be enumerated at all. Returns true when the hub is now
+        /// under this plug-in's control; false when it was not blocked (nothing to do) or the take
+        /// did not succeed.
+        ///
+        /// Unconditional, exactly like <see cref="ReassertControl"/>: call it only from a caller
+        /// that has itself established that this machine already uses Sensor Readout for fan
+        /// control. A blocked hub is a hub happily running its own profile, and taking it because it
+        /// happens to be blocked would be the control-stealing this plug-in exists not to do.
+        /// </summary>
+        public bool TakeControlIfBlocked()
+        {
+            lock (sync)
+            {
+                if (!hardwareModeBlocked)
+                {
+                    return false;
+                }
+
+                return TakeControlWhileBlocked();
+            }
+        }
+
+        // Called with the monitor held, from SetChannelPercent, TakeControlIfBlocked and
+        // ReassertControl. Order matters: the mode change has to land before enumeration is even
+        // possible, and only a successful enumeration produces the channel list that the shared
+        // first-take sequence (baseline every channel, claim ownership, write the whole set) needs.
+        private bool TakeControlWhileBlocked()
+        {
+            if (stream == null)
+            {
+                return false;
+            }
+
+            if (!EnterSoftwareMode())
+            {
+                NoteControlFailure();
+                return false;
+            }
+
+            if (!EnumerateChannels())
+            {
+                Log(ControlFailureLevel(), "Corsair plug-in: iCUE LINK hub " + serial
+                    + " still refused sub-device enumeration after the software-mode command; it stays unreadable for now.");
+
+                // The mode change landed but is useless without a channel map: a hub sitting in
+                // software mode that this plug-in never wrote a duty to, and does not consider
+                // itself the owner of, is a state nothing later can reason about (Disconnect would
+                // not restore it, either). So give straight back exactly what was just taken.
+                GiveBackHardwareMode();
+                NoteControlFailure();
+                return false;
+            }
+
+            hardwareModeBlocked = false;
+            Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " is now in software mode with "
+                + channels.Count.ToString(CultureInfo.InvariantCulture) + " channel(s) enumerated.");
+
+            // modeAlreadyEntered: the enter-software-mode command above is the one this would
+            // otherwise send, and enumeration only answered because it landed.
+            if (!EnsureSoftwareControl(true))
+            {
+                return false;
+            }
+
+            return WriteAllDuties();
+        }
+
+        // Best effort, and Debug-level throughout: this only ever runs on a path that has already
+        // reported its own failure at Error, and a hub that ignores this command is left exactly as
+        // the annex §2 fallback describes -- it returns to its own profile once nothing drives it.
+        private void GiveBackHardwareMode()
+        {
+            Log("Debug", "Corsair plug-in: returning iCUE LINK hub " + serial
+                + " to hardware mode; the software-mode take could not be completed.");
+            if (RunDirectCommand(LinkHubData.EnterHardwareMode, null, "Debug", GuardTimeoutMs) == null)
+            {
+                Log("Debug", "Corsair plug-in: the hardware-mode hand-back on iCUE LINK hub " + serial
+                    + " did not complete; the hub returns to its own profile on its own once nothing drives it.");
+            }
+        }
+
         private bool EnsureSoftwareControl()
+        {
+            return EnsureSoftwareControl(false);
+        }
+
+        private bool EnsureSoftwareControl(bool modeAlreadyEntered)
         {
             if (ownsSoftwareControl)
             {
                 return true;
             }
 
-            if (!EnterSoftwareMode())
+            if (!modeAlreadyEntered && !EnterSoftwareMode())
             {
                 NoteControlFailure();
                 return false;
@@ -773,9 +997,15 @@ namespace SensorReadout.CorsairPlugIn
             byte[] continuation;
             if (!ReadEndpointBracket(LinkHubData.EndpointSubDevices, LinkHubData.DataTypeSubDevices, twoReadEnumeration, out first, out continuation))
             {
+                // Recorded here rather than read from lastStatusWrongMode at the call site: a
+                // caller that has to distinguish "the hub is in hardware mode" from "the wire
+                // failed" needs the answer for *this* enumeration, and the bracket's own status
+                // fields are reset by whatever transaction happens next.
+                lastEnumerationWrongMode = lastStatusWrongMode;
                 return false;
             }
 
+            lastEnumerationWrongMode = false;
             var devices = LinkHubData.ParseSubDevices(first, continuation);
             channels.Clear();
 
@@ -1016,6 +1246,7 @@ namespace SensorReadout.CorsairPlugIn
                 return null;
             }
 
+            byte[] firstReport = null;
             var startTicks = Environment.TickCount;
             var reads = 0;
 
@@ -1029,6 +1260,11 @@ namespace SensorReadout.CorsairPlugIn
                 }
 
                 reads++;
+                if (firstReport == null)
+                {
+                    firstReport = buffer;
+                }
+
                 if (ReportMatches(buffer, waitForType, echoByte))
                 {
                     return CheckStatus(buffer, failureLevel);
@@ -1041,6 +1277,22 @@ namespace SensorReadout.CorsairPlugIn
                 {
                     break;
                 }
+            }
+
+            if (waitForType == null && firstReport != null)
+            {
+                // Echo matching (annex §4.5, response offset 3) is a best-effort extra filter on
+                // commands that have no data type. It may only ever pick a *better* report, never
+                // turn a real response into a failure, so an unmatched poll falls back to the first
+                // report that arrived. Data-type matching gets no such fallback: mis-parsing another
+                // program's sensor report as ours would produce silently wrong readings.
+                if (IsWriteCommand(command))
+                {
+                    Log(ControlFailureLevel(), "Corsair plug-in: could not identify the acknowledgement for a duty write to iCUE LINK hub "
+                        + serial + "; falling back to the first report received, so this write's success is unverified.");
+                }
+
+                return CheckStatus(firstReport, failureLevel);
             }
 
             return null;
@@ -1106,6 +1358,14 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             return null;
+        }
+
+        private static bool IsWriteCommand(byte[] command)
+        {
+            return command != null
+                && command.Length > 0
+                && LinkHubData.WriteEndpoint.Length > 0
+                && command[0] == LinkHubData.WriteEndpoint[0];
         }
 
         private void NoteTransportFailure(CorsairHidStream localStream, string operation, int timeoutMs)

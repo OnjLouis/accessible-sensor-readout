@@ -63,7 +63,9 @@ namespace SensorReadout.CorsairPlugIn
     /// <summary>
     /// One iCUE LINK hub. <see cref="WrongModeReadFailure"/> means the hub answered the sensor
     /// reads with "hardware mode", i.e. another program is driving it -- readings are unavailable
-    /// but nothing is broken.
+    /// but nothing is broken. <see cref="HardwareModeBlocked"/> is the stronger version of the same
+    /// situation: the hub refused sub-device *enumeration*, so <see cref="Channels"/> is empty and
+    /// there is not even a device list to show.
     /// </summary>
     public sealed class HubSnapshot
     {
@@ -71,6 +73,7 @@ namespace SensorReadout.CorsairPlugIn
         public string FirmwareVersion;
         public bool OwnsSoftwareControl;
         public bool WrongModeReadFailure;
+        public bool HardwareModeBlocked;
         public List<HubChannelSnapshot> Channels;
 
         // Diagnostics only, not part of the row model: an outstanding duty write that has not
@@ -89,6 +92,7 @@ namespace SensorReadout.CorsairPlugIn
             clone.FirmwareVersion = FirmwareVersion;
             clone.OwnsSoftwareControl = OwnsSoftwareControl;
             clone.WrongModeReadFailure = WrongModeReadFailure;
+            clone.HardwareModeBlocked = HardwareModeBlocked;
             clone.DutiesPending = DutiesPending;
             clone.LastStatusByte = LastStatusByte;
             clone.BackedOff = BackedOff;

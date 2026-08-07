@@ -424,7 +424,7 @@ Experimental laptop plug-ins are also bundled for opt-in tester feedback. They a
 - Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
 - MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
 - Asus ROG Support is based in part on G-Helper ACPI research and can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available. Fan controls appear only on compatible ROG, TUF, Zephyrus, Strix, Scar, and Flow gaming laptop families; other ASUS systems remain read-only.
-- Corsair iCUE LINK and PSU Monitoring is an experimental, opt-in, read-only plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It can show pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Disabling the plug-in stops its background worker and releases its hardware handles. This release does not expose Corsair fan controls.
+- Corsair iCUE Link and PSU Support is an experimental, opt-in plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It can show pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power, and it can drive iCUE LINK hub and PSU fan speeds. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Monitoring alongside HWiNFO or Fan Control is safe, but only one program should drive the fans. The plug-in writes nothing until a fan control is used, pump channels never run below 50 percent, and disabling the plug-in or closing the app returns the hub and the PSU fan to automatic control and releases its hardware handles.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -675,7 +675,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\AsusRog`: experimental optional Asus ROG plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
-- `Plug-Ins\Corsair`: experimental optional read-only Corsair iCUE LINK Hub and HXi/RMi digital power-supply monitoring plug-in.
+- `Plug-Ins\Corsair`: experimental optional Corsair iCUE LINK Hub and HXi/RMi digital power-supply monitoring and fan-control plug-in.
 - Users can add third-party plug-ins in their own subfolders.
 - `Docs\Plug-In-development.md`: plug-in SDK and manifest guide.
 - `Docs\Coding-agent-plug-in-rules.md`: strict guidance for coding agents working on plug-ins. Existing plug-in work must stay inside the relevant plug-in folder unless a core app change is explicitly approved.

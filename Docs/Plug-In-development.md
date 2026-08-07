@@ -343,7 +343,6 @@ MSI laptops
 ```
 
 Each plug-in documents its own hardware scope and remains disabled until the user enables it.
-The Corsair plug-in is read-only in its initial release.
 
 ## Future SDK Direction
 

@@ -30,7 +30,18 @@ and Fan Control. Corsair iCUE does not use this mutex and must not run at
 the same time.
 
 Release scope:
-- This release is read-only. It monitors supported temperatures, fan speeds,
-  voltage, and power readings but does not expose or send fan-control commands.
+- This release monitors supported temperatures, fan speeds, voltage, and power
+  readings, and can drive iCUE LINK hub and HXi/RMi PSU fan speeds when the user
+  asks for a fan change. Nothing is ever written unless a fan control is used.
 - Corsair iCUE does not use the shared guard. For reliable readings, do not run
   this plug-in and iCUE at the same time.
+
+Safety notes:
+- iCUE Link pump channels are never driven below 50 percent duty.
+- Sensor Readout's one-click diagnostics may briefly set exposed fan
+  controls to 100 percent. Afterward, iCUE LINK hub channels return to
+  their safe defaults (50 percent for fans, 100 percent for pumps) and
+  stay under Sensor Readout's control until the application exits; the
+  PSU fan returns to automatic control.
+- On clean exit the plug-in returns the hub to its autonomous hardware mode
+  and the PSU fan to automatic control if it ever took control of them.
