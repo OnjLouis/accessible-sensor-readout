@@ -39,8 +39,17 @@ namespace SensorReadout.CorsairPlugIn
     /// Locking: <c>deviceLock</c> guards the device lists and every call into a device;
     /// <c>snapshotLock</c> guards the published snapshot only. They are never held in the other
     /// order and <c>snapshotLock</c> is never held across a device call, so there is no inversion.
+    /// How long <c>deviceLock</c> stays held varies a great deal: a refresh tick takes and releases
+    /// it once per device, but a scan holds it across every <c>Connect</c> in that scan (about
+    /// 550 ms for a hub and a PSU on the machine this was written against, and multi-second when
+    /// another Corsair program is contending for the cross-process guard). That is exactly why
+    /// control calls bound their wait instead of assuming the lock is only ever held briefly.
+    ///
+    /// Partial across two files purely to stay inside the 2000-line source limit: this one holds
+    /// the public surface, the loop and the shutdown path, and <c>CorsairWorker.Devices.cs</c>
+    /// holds scanning, per-device refresh and the intent bookkeeping.
     /// </summary>
-    public sealed class CorsairWorker
+    public sealed partial class CorsairWorker
     {
         // Product ids this plug-in talks to. Deliberately an allow-list: other Corsair HID devices
         // (keyboards, the 0x0C4E interface that sits next to the hub, ...) speak different
@@ -71,10 +80,15 @@ namespace SensorReadout.CorsairPlugIn
         // A host thread may never block longer than this on the worker's device lock.
         private const int DeviceLockTimeoutMs = 5000;
 
-        // Shutdown budget. The thread is a background thread, so an unresponsive tick is abandoned
-        // rather than waited out; the restores below matter more than a clean join.
-        private const int WorkerJoinMs = 2000;
-        private const int ShutdownDeviceLockMs = 1000;
+        // Shutdown budget. A ProcessExit handler gets roughly two seconds in total, and the two
+        // restores are what actually matter there -- a PSU left in manual mode stays that way until
+        // something writes 0xF0 = 0x00. So neither wait is generous: an idle worker joins almost
+        // instantly, and a worker that has not joined in a quarter of a second is stuck in a HID
+        // transaction that waiting longer will not rescue. Both waits together are capped at half a
+        // second, leaving about 1.5 s for the restores, which is what their shortened per-transfer
+        // timeouts are sized for.
+        private const int WorkerJoinMs = 250;
+        private const int ShutdownDeviceLockMs = 250;
 
         // Annex §2/§10: a resumed machine needs a moment before its HID stack answers again.
         private const int ResumeDelayMs = 3000;
@@ -339,15 +353,22 @@ namespace SensorReadout.CorsairPlugIn
         }
 
         /// <summary>
-        /// Takes the device lock for a control call, or reports why it could not. A tick can hold
-        /// the lock for as long as one device refresh takes, and a device refresh can in the worst
-        /// case take tens of seconds (a contended cross-process guard plus HID timeouts). The host
-        /// calls control methods from a thread the user interface waits on, so the wait is bounded
-        /// and a timeout is an honest failure rather than a frozen window.
+        /// Takes the device lock for a control call, or reports why it could not.
+        ///
+        /// The lock can be held for a while: a refresh tick holds it for one device's refresh, and
+        /// a scan holds it across every <c>Connect</c> in that scan (about 550 ms for a hub and a
+        /// PSU on this machine, multi-second when another Corsair program is contending for the
+        /// cross-process guard). The host calls control methods from a thread the user interface
+        /// waits on, so the wait is bounded and a timeout is reported as an honest failure rather
+        /// than becoming a frozen window.
+        ///
+        /// Uses the <c>ref bool lockTaken</c> overload so that a thread abort landing between the
+        /// successful acquire and the caller's try block cannot leak the lock.
         /// </summary>
-        private bool TryEnterForControl(string what)
+        private bool TryEnterForControl(string what, ref bool lockTaken)
         {
-            if (Monitor.TryEnter(deviceLock, DeviceLockTimeoutMs))
+            Monitor.TryEnter(deviceLock, DeviceLockTimeoutMs, ref lockTaken);
+            if (lockTaken)
             {
                 return true;
             }
@@ -369,14 +390,15 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!TryEnterForControl("the duty change for iCUE LINK hub " + serial + " channel "
-                + channel.ToString(CultureInfo.InvariantCulture)))
-            {
-                return false;
-            }
-
+            var lockTaken = false;
             try
             {
+                if (!TryEnterForControl("the duty change for iCUE LINK hub " + serial + " channel "
+                    + channel.ToString(CultureInfo.InvariantCulture), ref lockTaken))
+                {
+                    return false;
+                }
+
                 var entry = FindHub(serial);
                 if (entry == null)
                 {
@@ -391,7 +413,10 @@ namespace SensorReadout.CorsairPlugIn
             }
             finally
             {
-                Monitor.Exit(deviceLock);
+                if (lockTaken)
+                {
+                    Monitor.Exit(deviceLock);
+                }
             }
         }
 
@@ -409,14 +434,15 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!TryEnterForControl("the reset of iCUE LINK hub " + serial + " channel "
-                + channel.ToString(CultureInfo.InvariantCulture)))
-            {
-                return false;
-            }
-
+            var lockTaken = false;
             try
             {
+                if (!TryEnterForControl("the reset of iCUE LINK hub " + serial + " channel "
+                    + channel.ToString(CultureInfo.InvariantCulture), ref lockTaken))
+                {
+                    return false;
+                }
+
                 var entry = FindHub(serial);
                 if (entry == null)
                 {
@@ -431,7 +457,10 @@ namespace SensorReadout.CorsairPlugIn
             }
             finally
             {
-                Monitor.Exit(deviceLock);
+                if (lockTaken)
+                {
+                    Monitor.Exit(deviceLock);
+                }
             }
         }
 
@@ -448,13 +477,14 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!TryEnterForControl("the fan duty change for Corsair PSU " + pidHex))
-            {
-                return false;
-            }
-
+            var lockTaken = false;
             try
             {
+                if (!TryEnterForControl("the fan duty change for Corsair PSU " + pidHex, ref lockTaken))
+                {
+                    return false;
+                }
+
                 var entry = FindPsu(pidHex);
                 if (entry == null)
                 {
@@ -469,7 +499,10 @@ namespace SensorReadout.CorsairPlugIn
             }
             finally
             {
-                Monitor.Exit(deviceLock);
+                if (lockTaken)
+                {
+                    Monitor.Exit(deviceLock);
+                }
             }
         }
 
@@ -485,13 +518,14 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!TryEnterForControl("the fan reset for Corsair PSU " + pidHex))
-            {
-                return false;
-            }
-
+            var lockTaken = false;
             try
             {
+                if (!TryEnterForControl("the fan reset for Corsair PSU " + pidHex, ref lockTaken))
+                {
+                    return false;
+                }
+
                 var entry = FindPsu(pidHex);
                 if (entry == null)
                 {
@@ -506,7 +540,10 @@ namespace SensorReadout.CorsairPlugIn
             }
             finally
             {
-                Monitor.Exit(deviceLock);
+                if (lockTaken)
+                {
+                    Monitor.Exit(deviceLock);
+                }
             }
         }
 
@@ -517,7 +554,8 @@ namespace SensorReadout.CorsairPlugIn
         /// Order matters and is deliberate:
         /// <list type="number">
         /// <item>signal the loop and join briefly -- the thread is a background thread, so an
-        /// unresponsive tick is abandoned rather than waited out;</item>
+        /// unresponsive tick is abandoned rather than waited out, and the join is deliberately
+        /// short so it cannot spend the budget the restores need;</item>
         /// <item>PSU restore first: a PSU left in manual mode stays there until something writes
         /// 0xF0 = 0x00 or it is power-cycled, so it is the one real hazard of a killed process. The
         /// hub is second because it reverts on its own once nothing keeps writing to it;</item>
@@ -526,6 +564,10 @@ namespace SensorReadout.CorsairPlugIn
         /// <item>any remaining session closed, releasing its HID handle;</item>
         /// <item>the shared guard disposed last, because everything above needs it.</item>
         /// </list>
+        ///
+        /// Each step gets its own try/catch and iterates its own copy of the device list, so that
+        /// neither a throw nor a worker thread that never joined (and is therefore still mutating
+        /// those lists) can cost a later step its turn.
         /// </summary>
         public void StopAndRestore()
         {
@@ -572,29 +614,35 @@ namespace SensorReadout.CorsairPlugIn
                 }
             }
 
-            var lockHeld = false;
+            CorsairDeviceGuard localGuard = null;
+            var lockTaken = false;
             try
             {
-                lockHeld = Monitor.TryEnter(deviceLock, ShutdownDeviceLockMs);
-                if (!lockHeld)
+                Monitor.TryEnter(deviceLock, ShutdownDeviceLockMs, ref lockTaken);
+                if (!lockTaken)
                 {
                     // Degenerate case: the worker never joined and still holds the lock. Continue
                     // anyway -- the device sessions serialize themselves internally, and leaving a
-                    // PSU in manual mode is worse than a contended shutdown.
+                    // PSU in manual mode is worse than a contended shutdown. Every step below
+                    // iterates its own copy of the device list precisely because of this path.
                     Log("Debug", "Corsair plug-in: the Corsair worker still held the device lock at shutdown; restoring anyway.");
                 }
 
-                RestorePsusAtShutdown();
-                RestoreHubsAtShutdown();
-                CloseRemainingSessions();
-            }
-            catch (Exception ex)
-            {
-                Log("Error", "Corsair plug-in: the Corsair shutdown restore threw (" + ex.Message + "); the devices may keep their last settings.");
+                // One try/catch per step: a throw in the PSU restore must not cost the hub its
+                // restore, and neither must cost the sessions their handles.
+                RunShutdownStep(RestorePsusAtShutdown, "returning the Corsair power supplies to automatic control");
+                RunShutdownStep(RestoreHubsAtShutdown, "returning the iCUE LINK hubs to hardware mode");
+                RunShutdownStep(CloseRemainingSessions, "closing the remaining Corsair device sessions");
+
+                // The guard swap belongs inside this bounded hold rather than in a second,
+                // unbounded one: taking the same lock again after deliberately bounding the first
+                // wait would give back exactly the guarantee that bound exists to provide.
+                localGuard = guard;
+                guard = null;
             }
             finally
             {
-                if (lockHeld)
+                if (lockTaken)
                 {
                     Monitor.Exit(deviceLock);
                 }
@@ -602,13 +650,6 @@ namespace SensorReadout.CorsairPlugIn
 
             // Last: CorsairDeviceGuard's methods do not survive its disposal, so nothing above may
             // still need it.
-            CorsairDeviceGuard localGuard;
-            lock (deviceLock)
-            {
-                localGuard = guard;
-                guard = null;
-            }
-
             if (localGuard != null)
             {
                 try
@@ -629,19 +670,36 @@ namespace SensorReadout.CorsairPlugIn
             Log("Debug", "Corsair plug-in: the Corsair worker has stopped and every device session is closed.");
         }
 
-        // Step 2: PSUs that this worker put into manual mode, restored first.
+        private void RunShutdownStep(Action step, string what)
+        {
+            try
+            {
+                step();
+            }
+            catch (Exception ex)
+            {
+                Log("Error", "Corsair plug-in: " + what + " threw during shutdown (" + ex.Message
+                    + "); the remaining shutdown steps still run.");
+            }
+        }
+
+        // Step 2: the power supplies, first, because a PSU left in manual mode stays there until
+        // something writes 0xF0 = 0x00 or it is power-cycled.
+        //
+        // Disconnect(true) is asked for unconditionally rather than gated on this worker's own
+        // record of having taken manual control. The device arms its restore *before* it writes the
+        // duty register, while this worker records the same fact *after* the call returns, so a
+        // throw in between would leave the PSU manual with nothing here knowing it -- a gate that
+        // fails open. The device's own flag is the authority, and it makes Disconnect(true) a no-op
+        // whenever nothing was ever taken, so deferring to it is both safer and simpler. Same shape
+        // as the hub step, which ORs the device's live state into its decision.
         private void RestorePsusAtShutdown()
         {
-            for (var i = 0; i < psus.Count; i++)
+            var entries = new List<PsuEntry>(psus);
+            for (var i = 0; i < entries.Count; i++)
             {
-                var entry = psus[i];
+                var entry = entries[i];
                 if (entry.Device == null || entry.Closed)
-                {
-                    continue;
-                }
-
-                var intent = FindPsuIntent(entry.PidHex);
-                if (intent == null || !intent.EverSetManual)
                 {
                     continue;
                 }
@@ -653,7 +711,6 @@ namespace SensorReadout.CorsairPlugIn
                     continue;
                 }
 
-                Log("Debug", "Corsair plug-in: returning the fan of Corsair PSU " + entry.PidHex + " to automatic control before shutdown.");
                 try
                 {
                     entry.Device.Disconnect(true);
@@ -671,9 +728,10 @@ namespace SensorReadout.CorsairPlugIn
         // this is the less urgent of the two restores.
         private void RestoreHubsAtShutdown()
         {
-            for (var i = 0; i < hubs.Count; i++)
+            var entries = new List<HubEntry>(hubs);
+            for (var i = 0; i < entries.Count; i++)
             {
-                var entry = hubs[i];
+                var entry = entries[i];
                 if (entry.Device == null || entry.Closed)
                 {
                     continue;
@@ -696,12 +754,14 @@ namespace SensorReadout.CorsairPlugIn
             }
         }
 
-        // Step 4: whatever is left just needs its HID handle released.
+        // Step 4: whatever is left -- a device that had already vanished, so its handle just needs
+        // releasing and a restore write could only fail.
         private void CloseRemainingSessions()
         {
-            for (var i = 0; i < psus.Count; i++)
+            var entries = new List<PsuEntry>(psus);
+            for (var i = 0; i < entries.Count; i++)
             {
-                var entry = psus[i];
+                var entry = entries[i];
                 if (entry.Device == null || entry.Closed)
                 {
                     continue;
@@ -759,6 +819,14 @@ namespace SensorReadout.CorsairPlugIn
         /// </summary>
         private int RunCycle()
         {
+            if (stopRequested || Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+            {
+                // Shutdown has begun. A straggler cycle must touch nothing: the guard may already
+                // be disposed, and EnsureGuard would otherwise happily create a replacement that
+                // nobody will ever dispose.
+                return PausedWaitMs;
+            }
+
             if (paused)
             {
                 return PausedWaitMs;
@@ -852,7 +920,21 @@ namespace SensorReadout.CorsairPlugIn
 
             if (!dormant)
             {
+                // Publish the flag before the final idle re-check, and pair it with NoteContact,
+                // which writes lastContactTicks and only then reads this flag. With that ordering
+                // one of the two always wins: either the re-check below sees the fresh tick and
+                // backs out, or NoteContact sees dormant == true and signals the wake event. Set
+                // the flag without re-checking and a call arriving in this window would be
+                // swallowed -- its wake would land before the WaitOne that is about to be re-armed,
+                // and the worker would sleep for a full minute with a caller waiting.
                 dormant = true;
+                if (unchecked(Environment.TickCount - lastContactTicks) < DormancyIdleMs)
+                {
+                    dormant = false;
+                    idleOwnedLogged = false;
+                    return false;
+                }
+
                 Log("Debug", "Corsair plug-in: nothing has asked the Corsair plug-in for readings for "
                     + (DormancyIdleMs / 60000).ToString(CultureInfo.InvariantCulture)
                     + " minutes and it controls nothing, so it has stopped polling until it is asked again.");
@@ -931,542 +1013,8 @@ namespace SensorReadout.CorsairPlugIn
             }
         }
 
-        // ---- Device refresh ---------------------------------------------------------------------
-
-        /// <summary>
-        /// Refreshes every device, taking and releasing the device lock once per device rather than
-        /// once per tick, so a control call from the host waits at most one device's refresh instead
-        /// of the whole sweep.
-        /// </summary>
-        private void RefreshAllDevices()
-        {
-            List<HubEntry> hubList;
-            List<PsuEntry> psuList;
-            lock (deviceLock)
-            {
-                hubList = new List<HubEntry>(hubs);
-                psuList = new List<PsuEntry>(psus);
-            }
-
-            for (var i = 0; i < hubList.Count && !stopRequested; i++)
-            {
-                lock (deviceLock)
-                {
-                    RefreshHub(hubList[i]);
-                }
-            }
-
-            for (var i = 0; i < psuList.Count && !stopRequested; i++)
-            {
-                lock (deviceLock)
-                {
-                    RefreshPsu(psuList[i]);
-                }
-            }
-        }
-
-        private void RefreshHub(HubEntry entry)
-        {
-            if (entry.Device == null || entry.Closed)
-            {
-                return;
-            }
-
-            if (unchecked(Environment.TickCount - entry.NextDueTicks) < 0)
-            {
-                return;
-            }
-
-            var ok = entry.Device.RefreshSensors();
-
-            if (entry.Device.IsGone)
-            {
-                DropHub(entry, "it disappeared from the HID bus");
-                return;
-            }
-
-            NoteDeviceResult(entry, ok, "iCUE LINK hub " + entry.Serial);
-
-            // Keep the recorded intent in step with what the device actually did: the device layer
-            // can take software control on its own recovery path, and the shutdown restore has to
-            // know about it.
-            var intent = FindHubIntent(entry.Serial);
-            if (entry.Device.OwnsSoftwareControl)
-            {
-                if (intent == null)
-                {
-                    intent = new HubIntent();
-                    hubIntents[entry.Serial] = intent;
-                }
-
-                intent.EverOwned = true;
-
-                if (entry.Device.LastReadWrongMode)
-                {
-                    // Belt and braces. The device layer already re-asserts from inside its own
-                    // refresh when it owns the hub and a read comes back "hardware mode", so this
-                    // is only reachable if that ever stops being true -- and it is safe precisely
-                    // because OwnsSoftwareControl says the control is ours to resume.
-                    Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial
-                        + " still answers in hardware mode while this plug-in owns it; re-asserting control.");
-                    if (entry.Device.ReassertControl())
-                    {
-                        ReapplyHubPercents(entry, intent);
-                    }
-                }
-            }
-        }
-
-        private void RefreshPsu(PsuEntry entry)
-        {
-            if (entry.Device == null || entry.Closed)
-            {
-                return;
-            }
-
-            if (unchecked(Environment.TickCount - entry.NextDueTicks) < 0)
-            {
-                return;
-            }
-
-            // False here means a core read failed (temperatures, fan speed, fan mode). Input
-            // voltage and output power are best-effort extras on models that implement them and
-            // never influence this result.
-            var ok = entry.Device.RefreshSensors();
-
-            if (entry.Device.IsGone)
-            {
-                DropPsu(entry, "it disappeared from the HID bus");
-                return;
-            }
-
-            NoteDeviceResult(entry, ok, "Corsair PSU " + entry.PidHex);
-
-            if (entry.Device.RequestedPercent >= PsuManualThresholdPercent)
-            {
-                RecordPsuIntent(entry, false);
-            }
-        }
-
-        private void NoteDeviceResult(DeviceEntry entry, bool ok, string what)
-        {
-            if (ok)
-            {
-                if (entry.BackedOff)
-                {
-                    entry.BackedOff = false;
-                    Log("Debug", "Corsair plug-in: " + what + " is answering again; it is back on the normal polling interval.");
-                }
-
-                entry.ConsecutiveFailures = 0;
-                entry.NextDueTicks = Environment.TickCount;
-                return;
-            }
-
-            Interlocked.Increment(ref failedDeviceReads);
-            entry.ConsecutiveFailures++;
-
-            if (entry.ConsecutiveFailures < MaxConsecutiveFailures)
-            {
-                return;
-            }
-
-            // Five failures in a row is a device that is busy, wedged, or owned by a program that
-            // will not share. Backing off keeps the log and the HID bus quiet without giving up.
-            if (!entry.BackedOff)
-            {
-                entry.BackedOff = true;
-                Log("Debug", "Corsair plug-in: " + what + " has failed " + entry.ConsecutiveFailures.ToString(CultureInfo.InvariantCulture)
-                    + " reads in a row; slowing it to one attempt every "
-                    + (DeviceBackoffMs / 1000).ToString(CultureInfo.InvariantCulture) + " s until one succeeds.");
-            }
-
-            entry.NextDueTicks = unchecked(Environment.TickCount + DeviceBackoffMs);
-        }
-
-        private void DropHub(HubEntry entry, string why)
-        {
-            Log("Debug", "Corsair plug-in: closing the session with iCUE LINK hub " + entry.Serial + " because " + why + ".");
-            try
-            {
-                // restoreHardwareMode: false -- the device is not reachable, so a restore write can
-                // only fail, and the intent record keeps what the user asked for.
-                entry.Device.Disconnect(false);
-            }
-            catch (Exception ex)
-            {
-                Log("Debug", "Corsair plug-in: closing iCUE LINK hub " + entry.Serial + " threw (" + ex.Message + ").");
-            }
-
-            entry.Closed = true;
-            hubs.Remove(entry);
-            scanRequested = true;
-        }
-
-        private void DropPsu(PsuEntry entry, string why)
-        {
-            Log("Debug", "Corsair plug-in: closing the session with Corsair PSU " + entry.PidHex + " because " + why + ".");
-            try
-            {
-                entry.Device.Disconnect(false);
-            }
-            catch (Exception ex)
-            {
-                Log("Debug", "Corsair plug-in: closing Corsair PSU " + entry.PidHex + " threw (" + ex.Message + ").");
-            }
-
-            entry.Closed = true;
-            psus.Remove(entry);
-            scanRequested = true;
-        }
-
-        // ---- Scanning and connecting -------------------------------------------------------------
-
-        private bool EnsureGuard()
-        {
-            lock (deviceLock)
-            {
-                if (guard != null)
-                {
-                    return true;
-                }
-
-                try
-                {
-                    guard = new CorsairDeviceGuard();
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    NoteError("creating the shared Corsair device guard", ex);
-                    return false;
-                }
-            }
-        }
-
-        private void ScanDevices()
-        {
-            var summaryBuilder = new StringBuilder();
-            List<CorsairHidDeviceInfo> found;
-            try
-            {
-                found = CorsairHidEnumerator.FindCorsairDevices(delegate(string message)
-                {
-                    if (summaryBuilder.Length > 0)
-                    {
-                        summaryBuilder.Append(Environment.NewLine);
-                    }
-
-                    summaryBuilder.Append(message);
-                });
-            }
-            catch (Exception ex)
-            {
-                NoteError("enumerating Corsair HID devices", ex);
-                found = new List<CorsairHidDeviceInfo>();
-            }
-
-            var summary = summaryBuilder.ToString();
-            if (!string.Equals(summary, lastScanSummary, StringComparison.Ordinal))
-            {
-                // Only when the HID picture actually changed: this runs every 30 s while nothing is
-                // found, and repeating the same three lines forever would drown the Debug log.
-                lastScanSummary = summary;
-                if (summary.Length > 0)
-                {
-                    Log("Debug", "Corsair plug-in: HID enumeration found:" + Environment.NewLine + summary);
-                }
-            }
-
-            var added = 0;
-            lock (deviceLock)
-            {
-                for (var i = 0; i < found.Count; i++)
-                {
-                    var info = found[i];
-                    if (info == null || string.IsNullOrEmpty(info.Path))
-                    {
-                        continue;
-                    }
-
-                    if (info.ProductId == HubProductId)
-                    {
-                        if (FindHubByPath(info.Path) == null && ConnectHub(info))
-                        {
-                            added++;
-                        }
-                    }
-                    else if (IsPsuProductId(info.ProductId))
-                    {
-                        if (FindPsuByPath(info.Path) == null && ConnectPsu(info))
-                        {
-                            added++;
-                        }
-                    }
-                }
-
-                statusMessage = (hubs.Count + psus.Count) > 0 ? string.Empty : NoDevicesStatus;
-
-                // While nothing is found, look again soon; once something is, keep a slow re-scan
-                // so a device plugged in later is still noticed.
-                nextScanTicks = unchecked(Environment.TickCount + ((hubs.Count + psus.Count) > 0 ? PresentRescanMs : ScanIntervalMs));
-            }
-
-            if (added > 0)
-            {
-                Log("Debug", "Corsair plug-in: " + added.ToString(CultureInfo.InvariantCulture)
-                    + " Corsair device session(s) opened.");
-            }
-        }
-
-        // Called with deviceLock held.
-        private bool ConnectHub(CorsairHidDeviceInfo info)
-        {
-            var device = new CorsairLinkHubDevice(info, guard, Log);
-            var connected = false;
-            try
-            {
-                connected = device.Connect();
-            }
-            catch (Exception ex)
-            {
-                NoteError("connecting to the iCUE LINK hub at " + info.Path, ex);
-            }
-
-            if (!connected)
-            {
-                try
-                {
-                    device.Disconnect(false);
-                }
-                catch (Exception)
-                {
-                }
-
-                return false;
-            }
-
-            var entry = new HubEntry();
-            entry.Device = device;
-            entry.Info = info;
-            entry.Serial = device.Serial;
-            entry.NextDueTicks = Environment.TickCount;
-            hubs.Add(entry);
-
-            Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial + " is connected with "
-                + device.Channels.Count.ToString(CultureInfo.InvariantCulture) + " channel(s).");
-
-            RestoreHubIntent(entry);
-            return true;
-        }
-
-        // Called with deviceLock held.
-        private bool ConnectPsu(CorsairHidDeviceInfo info)
-        {
-            var device = new CorsairHidPsuDevice(info, guard, Log);
-            var connected = false;
-            try
-            {
-                connected = device.Connect();
-            }
-            catch (Exception ex)
-            {
-                NoteError("connecting to the Corsair PSU at " + info.Path, ex);
-            }
-
-            if (!connected)
-            {
-                try
-                {
-                    device.Disconnect(false);
-                }
-                catch (Exception)
-                {
-                }
-
-                return false;
-            }
-
-            var entry = new PsuEntry();
-            entry.Device = device;
-            entry.Info = info;
-            entry.PidHex = device.PidHex;
-            entry.NextDueTicks = Environment.TickCount;
-            psus.Add(entry);
-
-            Log("Debug", "Corsair plug-in: Corsair PSU " + device.ModelName + " [" + entry.PidHex + "] is connected.");
-
-            RestorePsuIntent(entry);
-            return true;
-        }
-
-        // ---- Intent: what the user asked for, across device object lifetimes ----------------------
-
-        /// <summary>
-        /// Re-takes a hub this worker had already taken, then replays every channel the user moved
-        /// off its default. Does nothing at all unless this worker recorded taking the hub in this
-        /// process: <c>ReassertControl</c> takes control unconditionally, so calling it speculatively
-        /// would steal the hub from whatever program owns it.
-        /// </summary>
-        private void RestoreHubIntent(HubEntry entry)
-        {
-            var intent = FindHubIntent(entry.Serial);
-            if (intent == null || !intent.EverOwned)
-            {
-                return;
-            }
-
-            Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial
-                + " was under this plug-in's control before it was re-opened; re-asserting control and re-applying the requested duties.");
-
-            if (!entry.Device.ReassertControl())
-            {
-                Log("Debug", "Corsair plug-in: re-asserting control of iCUE LINK hub " + entry.Serial
-                    + " did not succeed; it will be retried after the next reconnect.");
-                return;
-            }
-
-            ReapplyHubPercents(entry, intent);
-        }
-
-        // A re-created device object starts every channel at its enumeration default, so the
-        // percentages the user chose only exist in the intent record.
-        private void ReapplyHubPercents(HubEntry entry, HubIntent intent)
-        {
-            if (intent.Percents.Count == 0)
-            {
-                return;
-            }
-
-            var channels = new List<int>(intent.Percents.Keys);
-            for (var i = 0; i < channels.Count; i++)
-            {
-                var channel = channels[i];
-                int percent;
-                if (!intent.Percents.TryGetValue(channel, out percent))
-                {
-                    continue;
-                }
-
-                if (!entry.Device.SetChannelPercent(channel, percent))
-                {
-                    Log("Debug", "Corsair plug-in: re-applying " + percent.ToString(CultureInfo.InvariantCulture)
-                        + " % to channel " + channel.ToString(CultureInfo.InvariantCulture)
-                        + " of iCUE LINK hub " + entry.Serial + " did not reach the hardware.");
-                }
-            }
-
-            RecordHubIntent(entry);
-        }
-
-        /// <summary>
-        /// Re-applies the PSU's manual duty after the device object was re-created. Only ever fires
-        /// when this worker recorded a manual duty at or above the PSU's 30 % floor -- there is no
-        /// path here that writes a fan register on its own initiative.
-        /// </summary>
-        private void RestorePsuIntent(PsuEntry entry)
-        {
-            var intent = FindPsuIntent(entry.PidHex);
-            if (intent == null || !intent.EverSetManual)
-            {
-                return;
-            }
-
-            if (intent.RequestedPercent < PsuManualThresholdPercent)
-            {
-                // Manual control was taken and the hand-back to the PSU's own curve did not land
-                // before the device went away. The new device object has no memory of that, so
-                // without this the PSU could sit in manual mode indefinitely -- the one hazard the
-                // shutdown ordering exists to prevent. This is the give-it-back direction only
-                // (duty 0, then mode 0x00); nothing here can put a fan under manual control.
-                Log("Debug", "Corsair plug-in: the fan of Corsair PSU " + entry.PidHex
-                    + " may still be in manual mode from an incomplete hand-back; returning it to automatic control.");
-                if (entry.Device.ResetFan())
-                {
-                    intent.EverSetManual = false;
-                }
-
-                intent.RequestedPercent = entry.Device.RequestedPercent;
-                return;
-            }
-
-            Log("Debug", "Corsair plug-in: Corsair PSU " + entry.PidHex + " was running a manual fan duty of "
-                + intent.RequestedPercent.ToString(CultureInfo.InvariantCulture) + " % before it was re-opened; re-applying it.");
-
-            if (!entry.Device.SetFanPercent(intent.RequestedPercent))
-            {
-                Log("Debug", "Corsair plug-in: re-applying the manual fan duty to Corsair PSU " + entry.PidHex + " did not reach the hardware.");
-            }
-
-            RecordPsuIntent(entry, false);
-        }
-
-        // Mirrors the device's live channel state into the intent record. Called with deviceLock
-        // held, after anything that can change a duty.
-        private void RecordHubIntent(HubEntry entry)
-        {
-            var intent = FindHubIntent(entry.Serial);
-            if (intent == null)
-            {
-                intent = new HubIntent();
-                hubIntents[entry.Serial] = intent;
-            }
-
-            if (entry.Device.OwnsSoftwareControl)
-            {
-                intent.EverOwned = true;
-            }
-
-            var channels = entry.Device.Channels;
-            for (var i = 0; i < channels.Count; i++)
-            {
-                var state = channels[i];
-                if (state.PercentIsDefault)
-                {
-                    intent.Percents.Remove(state.Channel);
-                }
-                else
-                {
-                    intent.Percents[state.Channel] = state.RequestedPercent;
-                }
-            }
-        }
-
-        // Mirrors the PSU's live state into the intent record. <paramref name="handedBack"/> is set
-        // by the two call sites that successfully returned the fan to the PSU -- the device clears
-        // its own "manual was taken" flag only on success, and this record has to match, or a
-        // shutdown would send a pointless restore (or, worse, skip a needed one).
-        private void RecordPsuIntent(PsuEntry entry, bool handedBack)
-        {
-            var intent = FindPsuIntent(entry.PidHex);
-            if (intent == null)
-            {
-                intent = new PsuIntent();
-                psuIntents[entry.PidHex] = intent;
-            }
-
-            intent.RequestedPercent = entry.Device.RequestedPercent;
-            if (handedBack)
-            {
-                intent.EverSetManual = false;
-            }
-            else if (intent.RequestedPercent >= PsuManualThresholdPercent)
-            {
-                intent.EverSetManual = true;
-            }
-        }
-
-        private HubIntent FindHubIntent(string serial)
-        {
-            HubIntent intent;
-            return (serial != null && hubIntents.TryGetValue(serial, out intent)) ? intent : null;
-        }
-
-        private PsuIntent FindPsuIntent(string pidHex)
-        {
-            PsuIntent intent;
-            return (pidHex != null && psuIntents.TryGetValue(pidHex, out intent)) ? intent : null;
-        }
+        // Scanning, connecting, per-device refresh and the intent bookkeeping live in
+        // CorsairWorker.Devices.cs -- same class, same thread, split only for the file size limit.
 
         // ---- Power events -------------------------------------------------------------------------
 
@@ -1713,7 +1261,7 @@ namespace SensorReadout.CorsairPlugIn
                 snapshot.Psus.Add(psu);
             }
 
-            snapshot.Status = (snapshot.Hubs.Count + snapshot.Psus.Count) > 0 ? string.Empty : statusMessage;
+            snapshot.Status = StatusFor(snapshot.Hubs.Count + snapshot.Psus.Count);
             return snapshot;
         }
 
@@ -1721,10 +1269,31 @@ namespace SensorReadout.CorsairPlugIn
         {
             var snapshot = new CorsairSnapshot();
             snapshot.CapturedUtc = DateTime.UtcNow;
-            snapshot.Status = statusMessage;
+            snapshot.Status = StatusFor(0);
             snapshot.Hubs = new List<HubSnapshot>();
             snapshot.Psus = new List<PsuSnapshot>();
             return snapshot;
+        }
+
+        /// <summary>
+        /// The status line for a snapshot carrying <paramref name="deviceCount"/> devices: empty
+        /// when there is something to show, and otherwise an explanation.
+        ///
+        /// Derived from the snapshot's own device count, never from the scan alone. statusMessage
+        /// is only rewritten by a scan, so between a device disappearing (which drops it from the
+        /// list immediately) and the rescan that follows, it still says "devices present" -- and a
+        /// snapshot with no devices and no explanation renders as a plug-in that has nothing to
+        /// say rather than one whose device went away. The fallback covers that window.
+        /// </summary>
+        private string StatusFor(int deviceCount)
+        {
+            if (deviceCount > 0)
+            {
+                return string.Empty;
+            }
+
+            var message = statusMessage;
+            return string.IsNullOrEmpty(message) ? NoDevicesStatus : message;
         }
 
         // snapshotLock is taken on its own, never while a device call is in flight, so it can never
