@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 5.0.0.
+Current version: 5.1.0.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -196,6 +196,7 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
 | Options commands | `Ctrl+Shift+W` | Start or stop watching one running process in the background, then save a resource report when stopped. |
 | Options commands | `Ctrl+Shift+D` | Start the Audio Latency diagnostic setup, or stop the active test and save its HTML report. |
+| Options commands | `Ctrl+Shift+T` | Open Network Tools to look up an IP address or host name, optionally test ping latency and packet loss, and review public network information. |
 | File commands | `Ctrl+Shift+A` | Save an anonymized report for sharing. |
 | File commands | `Ctrl+R` | Return from a static report to live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
@@ -462,12 +463,6 @@ The USB section shows connected devices, hubs, controllers, connection speed, ca
 
 The Audio section groups related endpoints under their device or interface name where possible, then separates playback and recording entries. It shows vendor, status, direction, and default format details such as channels, sample rate, and bit depth where Windows exposes them.
 
-The Audio Latency section shows the latest explicitly started latency test. Use `Options` > `Audio latency diagnostic...` or `Ctrl+Shift+D`, choose a duration, then reproduce the dropout, crackle, delayed response, or other audio problem. Sensor Readout records Windows DPC and interrupt-service-routine durations, driver attribution, hard page faults by process, and lost tracing events. Its optional live monitor shows separate DPC and ISR history graphs, the latest one-second interval, recent 60-second peaks, and the entire test summary. It updates values in place once per second so keyboard and screen-reader focus remain stable.
-
-The live monitor is modeless, so you can continue using Sensor Readout and other programs while the test runs. Closing it with `Esc` or Close only closes the view; it does not stop tracing. Reopen it with `Options` > `Audio latency monitor...`. Choose `Stop and save` or press `Ctrl+Shift+D` to finish the diagnostic and save its HTML report automatically in `Reports`.
-
-No audio-latency tracing runs during ordinary Sensor Readout refreshes. The diagnostic starts only after you explicitly choose Start and stops at the selected duration, when you press `Ctrl+Shift+D`, or when Sensor Readout exits. The report contains timing counters, driver paths, and process names involved in hard page faults; it does not contain audio, keystrokes, file contents, or network contents. Because driver and process names can reveal installed software, Audio Latency rows are omitted from anonymized reports.
-
 The Display section shows graphics adapters and monitors, including adapter memory, resolution, refresh rate, driver details, monitor vendor, product code, serial, and manufacture date where Windows exposes them.
 
 The Firmware Security section is read-only. It shows firmware mode, Secure Boot state, and, on UEFI systems where Windows permits access, summary information about Secure Boot certificate databases such as readable database count, certificate/hash counts, earliest certificate expiry, expired certificates, not-yet-valid certificates, and possible test certificates. Details group the certificate subjects, issuers, validity dates, thumbprints, serial numbers, and database read errors. Sensor Readout does not modify Secure Boot variables or EFI files.
@@ -477,6 +472,20 @@ When the selected reading is a percentage, Sensor Readout also exposes it throug
 Use `Edit` > `Find reading...` or `F3` to search readings across all categories. The search narrows as you type. Tab to the results list, press Enter to move to the selected reading, press `Alt+L` to clear the search, or press `Esc` or Close to return to the main window. Search checks visible reading text first, then details such as process role, executable path, parent process, device identifiers, and other detail fields, so a support clue that is not visible in the main tree can still be found.
 
 Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page or task file location where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. When a Tasks row has an executable path, the same flow offers `Open file location...`. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
+
+## Network Tools
+
+Use `Options` > `Network tools...` or `Ctrl+Shift+T` to look up an IP address or host name. Sensor Readout resolves DNS, classifies IPv4 and IPv6 addresses, attempts reverse DNS, and can send four ping requests to show latency and packet loss. When you enter a literal IP address and reverse DNS returns a host name, Sensor Readout also resolves that name and lists its related IPv4 and IPv6 addresses in a separate branch. For each resolved public address, it can show provider, organization, autonomous system, connection type, and approximate location inside that address's branch, using the same online lookup service as the Network category.
+
+Network Tools runs only when you request it. Private, local, loopback, link-local, and special-use addresses are not sent to the online metadata service. It does not test connection speed, scan ports, poll in the background, or keep a query history. A missing ping reply does not prove that a host is offline because some systems and networks block ping.
+
+## Audio Latency Diagnostic
+
+The Audio Latency section shows the latest explicitly started latency test. Use `Options` > `Audio latency diagnostic...` or `Ctrl+Shift+D`, choose a duration, then reproduce the dropout, crackle, delayed response, or other audio problem. Sensor Readout records Windows DPC and interrupt-service-routine durations, driver attribution, hard page faults by process, and lost tracing events. Its optional live monitor shows separate DPC and ISR history graphs, the latest one-second interval, recent 60-second peaks, and the entire test summary. It updates values in place once per second so keyboard and screen-reader focus remain stable.
+
+The live monitor is modeless, so you can continue using Sensor Readout and other programs while the test runs. Closing it with `Esc` or Close only closes the view; it does not stop tracing. Reopen it with `Options` > `Audio latency monitor...`. Choose `Stop and save` or press `Ctrl+Shift+D` to finish the diagnostic and save its HTML report automatically in `Reports`.
+
+No audio-latency tracing runs during ordinary Sensor Readout refreshes. The diagnostic starts only after you explicitly choose Start and stops at the selected duration, when you press `Ctrl+Shift+D`, or when Sensor Readout exits. The report contains timing counters, driver paths, and process names involved in hard page faults; it does not contain audio, keystrokes, file contents, or network contents. Because driver and process names can reveal installed software, Audio Latency rows are omitted from anonymized reports.
 
 ## Fan Control Workflow
 
@@ -709,6 +718,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 5.1.0
+
+- Added: `Options` > `Network tools...` (`Ctrl+Shift+T`) resolves IP addresses and host names, classifies IPv4 and IPv6 addresses, attempts reverse DNS, and can test ping latency and packet loss. A literal IP can also show IPv4 and IPv6 addresses related through its reverse-DNS host name. Each resolved public address can show its own provider, organization, autonomous system, connection type, and approximate location. This closes [issue #24](https://github.com/OnjLouis/accessible-sensor-readout/issues/24).
+- Privacy: Network Tools runs only when requested. Private, local, loopback, link-local, and special-use addresses are not sent to the online metadata service. It does not run connection-speed tests, scan ports, poll in the background, or keep a query history.
 
 ### 5.0.0
 

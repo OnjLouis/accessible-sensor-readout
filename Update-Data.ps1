@@ -103,7 +103,7 @@ New-Item -ItemType Directory -Force -Path $dataRoot,$tempRoot | Out-Null
 
 try {
     $changed = $false
-    $changed = (Update-DataFile 'usb.ids' 'http://www.linux-usb.org/usb.ids' ${function:Assert-UsbIds}) -or $changed
+    $changed = (Update-DataFile 'usb.ids' 'https://usb-ids.gowdy.us/usb.ids' ${function:Assert-UsbIds}) -or $changed
     $changed = (Update-DataFile 'oui.csv' 'https://standards-oui.ieee.org/oui/oui.csv' ${function:Assert-OuiCsv}) -or $changed
 
     if ($CheckOnly) {

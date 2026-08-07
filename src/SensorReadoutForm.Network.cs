@@ -266,10 +266,17 @@ public sealed partial class SensorReadoutForm : Form
 
     private InternetIpInfo FetchInternetIpInfo()
     {
+        return FetchInternetIpInfo("");
+    }
+
+    private InternetIpInfo FetchInternetIpInfo(string address)
+    {
         var info = new InternetIpInfo();
         try
         {
-            var json = DownloadStringWithTimeout(PublicIpLookupProvider, 8000);
+            var lookupUrl = BuildPublicIpLookupUrl(address);
+
+            var json = DownloadStringWithTimeout(lookupUrl, 8000);
             var obj = JObject.Parse(json);
             info.Success = string.Equals(ValueText(obj, "status"), "success", StringComparison.OrdinalIgnoreCase);
             if (!info.Success)
@@ -304,8 +311,26 @@ public sealed partial class SensorReadoutForm : Form
         return info;
     }
 
+    private static string BuildPublicIpLookupUrl(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return PublicIpLookupProvider;
+        }
+
+        IPAddress parsedAddress;
+        if (!IPAddress.TryParse(address.Trim().Trim('[', ']'), out parsedAddress))
+        {
+            throw new ArgumentException("Public IP lookup requires a valid IP address.", "address");
+        }
+
+        // The provider accepts canonical IPv6 in the path but rejects percent-encoded colons.
+        return PublicIpLookupProvider + parsedAddress;
+    }
+
     private static string DownloadStringWithTimeout(string url, int timeoutMilliseconds)
     {
+        EnsureModernTlsCompatibility();
         var request = (HttpWebRequest)WebRequest.Create(url);
         request.UserAgent = "Sensor Readout " + AppVersion;
         request.Timeout = timeoutMilliseconds;
@@ -320,9 +345,15 @@ public sealed partial class SensorReadoutForm : Form
 
             using (var reader = new System.IO.StreamReader(stream))
             {
-            return reader.ReadToEnd();
+                return reader.ReadToEnd();
             }
         }
+    }
+
+    private static void EnsureModernTlsCompatibility()
+    {
+        // TLS 1.2 is not enabled by default in some older .NET Framework configurations.
+        ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
     }
 
     private static string ValueText(JObject obj, string name)

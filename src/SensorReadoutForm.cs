@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "5.0.0";
+    public const string AppVersion = "5.1.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -71,6 +71,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem refreshWhileFocusedMenuItem;
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ToolStripMenuItem trendLoggingMenuItem;
+    private readonly ToolStripMenuItem networkToolsMenuItem;
     private readonly ToolStripMenuItem processWatchMenuItem;
     private readonly ToolStripMenuItem audioLatencyMenuItem;
     private readonly ToolStripMenuItem audioLatencyMonitorMenuItem;
@@ -385,6 +386,8 @@ public sealed partial class SensorReadoutForm : Form
         optionsMenu.DropDownItems.Add(trendLoggingMenuItem);
         optionsMenu.DropDownItems.Add(temperatureMenu);
         optionsMenu.DropDownItems.Add(languageMenuItem);
+        networkToolsMenuItem = CreateShortcutMenuItem(T("ui.&Network tools...", "&Network tools..."), Keys.Control | Keys.Shift | Keys.T, delegate { ShowNetworkToolsDialog(); });
+        optionsMenu.DropDownItems.Add(networkToolsMenuItem);
         processWatchMenuItem = CreateShortcutMenuItem("&Watch process...", Keys.Control | Keys.Shift | Keys.W, delegate { ToggleProcessWatchCommand(); });
         optionsMenu.DropDownItems.Add(processWatchMenuItem);
         audioLatencyMenuItem = CreateShortcutMenuItem(T("ui.Audio latency &diagnostic...", "Audio latency &diagnostic..."), Keys.Control | Keys.Shift | Keys.D, delegate { ToggleAudioLatencyCommand(); });
@@ -888,6 +891,12 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == Keys.Control && keyCode == Keys.U)
         {
             ShowFanCurvesDialog();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.T)
+        {
+            ShowNetworkToolsDialog();
             return true;
         }
 

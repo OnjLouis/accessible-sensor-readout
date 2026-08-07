@@ -47,6 +47,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
             form.RunSelfTestStep(results, "Wi-Fi BSS list bounds", delegate { form.SelfTestWifiBssListBounds(); });
             form.RunSelfTestStep(results, "Listening port details split", delegate { form.SelfTestListeningPortDetailsSplit(); });
+            form.RunSelfTestStep(results, "Network tools privacy and shortcut", delegate { form.SelfTestNetworkToolsPrivacyAndShortcut(); });
             form.RunSelfTestStep(results, "USB SuperSpeedPlus speed decoding", delegate { form.SelfTestUsbSuperSpeedPlusSpeedDecoding(); });
             form.RunSelfTestStep(results, "Bluetooth and battery filtering", delegate { form.SelfTestBluetoothAndBatteryFiltering(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
@@ -289,6 +290,81 @@ public sealed partial class SensorReadoutForm : Form
         Require(!udpDetails.ContainsKey("TCP listening port count"), "UDP listening details included TCP count.");
         Require(udpDetails.Values.Any(v => v.IndexOf("udp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details did not include UDP owner.");
         Require(!udpDetails.Values.Any(v => v.IndexOf("tcp-test.exe", StringComparison.OrdinalIgnoreCase) >= 0), "UDP listening details included TCP owner.");
+    }
+
+    private void SelfTestNetworkToolsPrivacyAndShortcut()
+    {
+        string normalized;
+        string error;
+        Require(TryNormalizeNetworkToolTarget("https://example.com/path?q=1", out normalized, out error) && string.Equals(normalized, "example.com", StringComparison.OrdinalIgnoreCase), "Network Tools did not extract a host name from a URL.");
+        Require(TryNormalizeNetworkToolTarget("192.168.1.25", out normalized, out error) && string.Equals(normalized, "192.168.1.25", StringComparison.Ordinal), "Network Tools did not preserve a valid IPv4 address.");
+        Require(TryNormalizeNetworkToolTarget("2606:4700:4700::1111", out normalized, out error) && IPAddress.Parse(normalized).AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6, "Network Tools did not preserve an explicit IPv6 address.");
+        Require(!TryNormalizeNetworkToolTarget("not a valid host", out normalized, out error), "Network Tools accepted a host name containing spaces.");
+
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("127.0.0.1")), "Network Tools would send a loopback address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("10.1.2.3")), "Network Tools would send a private IPv4 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("100.64.1.1")), "Network Tools would send a carrier-grade NAT address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("169.254.1.1")), "Network Tools would send a link-local IPv4 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("192.88.99.1")), "Network Tools would send a special-use IPv4 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("192.0.2.1")), "Network Tools would send a documentation IPv4 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("fc00::1")), "Network Tools would send a unique-local IPv6 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("100::1")), "Network Tools would send a non-global IPv6 address to the online provider.");
+        Require(!IsPublicNetworkToolAddress(IPAddress.Parse("2001:db8::1")), "Network Tools would send a documentation IPv6 address to the online provider.");
+        Require(IsPublicNetworkToolAddress(IPAddress.Parse("8.8.8.8")), "Network Tools did not recognize a public IPv4 address.");
+        Require(IsPublicNetworkToolAddress(IPAddress.Parse("2606:4700:4700::1111")), "Network Tools did not recognize a public IPv6 address.");
+
+        EnsureModernTlsCompatibility();
+        Require((ServicePointManager.SecurityProtocol & (SecurityProtocolType)3072) != 0, "Network Tools did not enable TLS 1.2 for public metadata lookup.");
+        Require(string.Equals(BuildPublicIpLookupUrl("8.8.8.8"), PublicIpLookupProvider + "8.8.8.8", StringComparison.Ordinal), "Public metadata lookup did not preserve a canonical IPv4 path.");
+        var ipv6LookupUrl = BuildPublicIpLookupUrl("2a04:4e42:200::81");
+        Require(string.Equals(ipv6LookupUrl, PublicIpLookupProvider + "2a04:4e42:200::81", StringComparison.Ordinal), "Public metadata lookup did not preserve a canonical IPv6 path.");
+        Require(ipv6LookupUrl.IndexOf("%3A", StringComparison.OrdinalIgnoreCase) < 0, "Public metadata lookup percent-encoded IPv6 colons, which the provider rejects.");
+
+        Require(!ShouldShowNetworkToolPingBlockedNote(new NetworkToolPingResult { Sent = 4, Received = 4 }), "Network Tools showed a blocked-ping warning after every ping succeeded.");
+        Require(!ShouldShowNetworkToolPingBlockedNote(new NetworkToolPingResult { Sent = 4, Received = 3 }), "Network Tools showed a blocked-ping warning even though the host replied.");
+        Require(ShouldShowNetworkToolPingBlockedNote(new NetworkToolPingResult { Sent = 4, Received = 0 }), "Network Tools omitted its ping warning when no replies were received.");
+
+        var reverseDnsResult = new NetworkToolResult { NormalizedTarget = "8.8.8.8" };
+        var reverseDnsAddress = new NetworkToolAddressResult { Address = IPAddress.Parse("8.8.8.8"), Scope = "Public", ReverseDns = "dns.google" };
+        reverseDnsAddress.ReverseDnsAddresses.Add(IPAddress.Parse("8.8.8.8"));
+        reverseDnsAddress.ReverseDnsAddresses.Add(IPAddress.Parse("2001:4860:4860::8888"));
+        reverseDnsResult.Addresses.Add(reverseDnsAddress);
+        using (var reverseDnsTree = new TreeView())
+        {
+            PopulateNetworkToolsTree(reverseDnsTree, reverseDnsResult);
+            var resolvedNode = reverseDnsTree.Nodes.Cast<TreeNode>().FirstOrDefault(node => node.Text.StartsWith("Resolved address", StringComparison.OrdinalIgnoreCase));
+            var relatedNode = resolvedNode == null ? null : resolvedNode.Nodes.Cast<TreeNode>().FirstOrDefault(node => node.Text.StartsWith("Addresses for reverse DNS name: dns.google", StringComparison.OrdinalIgnoreCase));
+            Require(relatedNode != null, "Network Tools did not label reverse-DNS host addresses separately.");
+            Require(relatedNode.Nodes.Cast<TreeNode>().Any(node => string.Equals(node.Text, "IPv6: 2001:4860:4860::8888", StringComparison.OrdinalIgnoreCase)), "Network Tools did not render an IPv6 address found through reverse DNS.");
+        }
+
+        var multiplePublicResult = new NetworkToolResult { NormalizedTarget = "example.test" };
+        multiplePublicResult.Addresses.Add(new NetworkToolAddressResult { Address = IPAddress.Parse("8.8.8.8"), Scope = "Public" });
+        multiplePublicResult.Addresses.Add(new NetworkToolAddressResult { Address = IPAddress.Parse("1.1.1.1"), Scope = "Public" });
+        multiplePublicResult.PublicResults.Add(new NetworkToolPublicResult { Address = "8.8.8.8", Info = new InternetIpInfo { Success = true, Country = "First" } });
+        multiplePublicResult.PublicResults.Add(new NetworkToolPublicResult { Address = "1.1.1.1", Info = new InternetIpInfo { Success = true, Country = "Second" } });
+        using (var multiplePublicTree = new TreeView())
+        {
+            PopulateNetworkToolsTree(multiplePublicTree, multiplePublicResult);
+            var resolvedNodes = multiplePublicTree.Nodes.Cast<TreeNode>().Where(node => node.Text.StartsWith("Resolved address", StringComparison.OrdinalIgnoreCase)).ToList();
+            Require(resolvedNodes.Count == 2, "Network Tools did not render every resolved public address.");
+            Require(resolvedNodes.All(node => node.Nodes.Cast<TreeNode>().Any(child => string.Equals(child.Text, "Public network information", StringComparison.OrdinalIgnoreCase))), "Network Tools did not nest public metadata beneath each matching IP address.");
+            Require(!multiplePublicTree.Nodes.Cast<TreeNode>().Any(node => string.Equals(node.Text, "Public network information", StringComparison.OrdinalIgnoreCase)), "Network Tools retained a duplicate top-level public metadata tree.");
+        }
+
+        var privateResult = new NetworkToolResult { NormalizedTarget = "router.test" };
+        privateResult.Addresses.Add(new NetworkToolAddressResult { Address = IPAddress.Parse("192.168.1.1"), Scope = "Private" });
+        using (var privateTree = new TreeView())
+        {
+            PopulateNetworkToolsTree(privateTree, privateResult);
+            var publicNode = privateTree.Nodes.Cast<TreeNode>().FirstOrDefault(node => string.Equals(node.Text, "Public network information", StringComparison.OrdinalIgnoreCase));
+            var statusText = publicNode == null || publicNode.Nodes.Count == 0 ? "" : publicNode.Nodes[0].Text;
+            Require(statusText.IndexOf("skipped", StringComparison.OrdinalIgnoreCase) >= 0, "Network Tools did not explain that private-address online lookup was deliberately skipped.");
+            Require(statusText.IndexOf("not found", StringComparison.OrdinalIgnoreCase) < 0, "Network Tools described a deliberately skipped private-address lookup as a failed search.");
+        }
+
+        Require(networkToolsMenuItem != null && networkToolsMenuItem.ShortcutKeys == (Keys.Control | Keys.Shift | Keys.T), "Network Tools lost its Control Shift T shortcut.");
+        Require(networkToolsMenuItem.Text.IndexOf("Ctrl+Shift+T", StringComparison.OrdinalIgnoreCase) >= 0, "Network Tools Options item does not expose Control Shift T.");
     }
 
     private void SelfTestUsbSuperSpeedPlusSpeedDecoding()
@@ -2241,6 +2317,19 @@ public sealed partial class SensorReadoutForm : Form
             Require(extra.Count == 0, Path.GetFileName(languageFile) + " has unknown language keys: " + string.Join(", ", extra));
         }
 
+        foreach (var languageFile in languageFiles)
+        {
+            var values = ReadLanguageFile(languageFile);
+            var networkToolMnemonics = new HashSet<char>();
+            foreach (var key in new[] { "ui.&Address or host name:", "ui.&Run", "ui.Include &ping test" })
+            {
+                string value;
+                char mnemonic = '\0';
+                Require(values.TryGetValue(key, out value) && TryGetMnemonicKey(value, out mnemonic), Path.GetFileName(languageFile) + " missing a Network Tools mnemonic for " + key + ".");
+                Require(networkToolMnemonics.Add(mnemonic), Path.GetFileName(languageFile) + " has a duplicate Network Tools mnemonic: Alt+" + char.ToUpperInvariant(mnemonic) + ".");
+            }
+        }
+
         var frenchLanguagePath = Path.Combine(GetLanguagesFolderPath(), "Francais.txt");
         if (File.Exists(frenchLanguagePath))
         {
@@ -2268,6 +2357,15 @@ public sealed partial class SensorReadoutForm : Form
             Require(Regex.IsMatch(html, @"<p>[^<]*\b" + Regex.Escape(AppVersion) + @"\.</p>"), Path.GetFileName(manual) + " missing visible current version " + AppVersion + ".");
             Require(html.IndexOf("<h3>" + AppVersion + "</h3>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing changelog entry for " + AppVersion + ".");
             Require(html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Categories and Readings section.");
+            var categoriesHeading = html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase);
+            var networkToolsHeading = html.IndexOf("<h2 id=\"network-tools\"", StringComparison.OrdinalIgnoreCase);
+            var audioLatencyHeading = html.IndexOf("<h2 id=\"audio-latency-diagnostic\"", StringComparison.OrdinalIgnoreCase);
+            Require(networkToolsHeading >= 0, Path.GetFileName(manual) + " missing a top-level Network Tools section outside the changelog.");
+            Require(html.IndexOf("href=\"#network-tools\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Network Tools from the table of contents.");
+            Require(categoriesHeading < networkToolsHeading && networkToolsHeading < audioLatencyHeading, Path.GetFileName(manual) + " has Network Tools nested in or misplaced around Categories and Audio Latency.");
+            var networkToolShortcutCount = Regex.Matches(html,
+                @"(?i)(Ctrl\+Shift\+T|Strg\+Umschalt\+T|Ctrl\+Maj\+T|Ctrl\+Mayús\+T|Ctrl\+Maiusc\+T)").Count;
+            Require(networkToolShortcutCount >= 3, Path.GetFileName(manual) + " does not document the Network Tools shortcut in its changelog, shortcut table, and normal guidance.");
             Require(html.IndexOf("<code>Tab</code>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Tab guidance for moving from categories to readings.");
             Require(html.IndexOf("<code>Enter</code> / <code>Alt+Enter</code>", StringComparison.OrdinalIgnoreCase) < 0, Path.GetFileName(manual) + " still describes Alt+Enter as a Details shortcut.");
             Require(!Regex.IsMatch(html, @"(?i)(Enter\s+or\s+Alt\+Enter|Enter\s+oder\s+Alt\+Enter|Enter\s+ou\s+Alt\+Enter|Enter\s+o\s+Alt\+Enter)"), Path.GetFileName(manual) + " contains stale Enter/Alt+Enter Details wording.");
