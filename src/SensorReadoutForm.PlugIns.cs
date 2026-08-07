@@ -12,6 +12,7 @@ using SensorReadout.PluginSdk;
 public sealed partial class SensorReadoutForm : Form
 {
     private PlugInManager plugInManager;
+    private string plugInManagerSignature = "";
 
     private IEnumerable<SensorRow> GetPlugInRows()
     {
@@ -52,7 +53,33 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        // Remembered so a later preference save can tell whether this manager is still the right one.
+        // Only meaningful while plugInManager is not null.
+        plugInManagerSignature = GetOemProviderRowsCacheSignature(settings);
         plugInManager = new PlugInManager(settings, GetPlugInsFolderPath(), LogMessage);
+    }
+
+    // Disposing the manager calls IPluginLifecycle.Shutdown on every loaded plug-in and leaves the
+    // process with no plug-in instance until the next sensor collection runs, so it must happen only
+    // when it is actually needed. The one thing that needs it is a changed enabled-plug-in set:
+    // PlugInManager reads that set exactly once, in EnsureLoaded, and never re-reads it. Nothing else
+    // a preference can change reaches a plug-in through the manager - the PlugInContext handed to
+    // GetReadings (machine identity, plug-in directory, diagnostics flag, logger) is rebuilt on every
+    // GetRows call, so no plug-in state goes stale by keeping the manager alive.
+    //
+    // The comparison is against the set the live manager was built with, not against settings before
+    // and after the apply: PreferencesForm shares this AppSettings instance (liveSettings == settings)
+    // and writes the new enabled set into it before it raises LivePreferencesSaved, so a before/after
+    // capture on this path always sees the same value and would never rebuild.
+    private void DisposePlugInManagerIfEnabledSetChanged()
+    {
+        if (plugInManager == null ||
+            string.Equals(plugInManagerSignature, GetOemProviderRowsCacheSignature(settings), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        DisposePlugInManager();
     }
 
     private void DisposePlugInManager()

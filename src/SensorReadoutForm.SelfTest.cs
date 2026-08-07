@@ -77,6 +77,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
             form.RunSelfTestStep(results, "Plug-in preference identity", delegate { form.SelfTestPlugInPreferenceIdentity(); });
+            form.RunSelfTestStep(results, "Plug-in manager rebuild guard", delegate { form.SelfTestPlugInManagerRebuildGuard(); });
             form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
@@ -1763,6 +1764,58 @@ public sealed partial class SensorReadoutForm : Form
             InvokePrivate(preferences, "SynchronizePlugInCheckStates");
             Require(!plugInList.GetItemChecked(hpIndex), "HP checkbox did not resynchronize from its stable plug-in ID.");
             Require(plugInList.GetItemChecked(huaweiIndex), "Huawei checkbox did not resynchronize from its stable plug-in ID.");
+        }
+    }
+
+    // ApplyPreferencesFromDialog used to dispose the plug-in manager on every live preference save,
+    // which is one Shutdown and reload of every loaded plug-in per keystroke in the dialog. The
+    // observable seam is the manager instance: it has to survive a save that leaves the enabled
+    // plug-in set alone, and must not survive one that changes it, because PlugInManager reads that
+    // set exactly once. Both directions go through the real apply method so that restoring the
+    // unconditional teardown fails this step. No plug-in is instantiated: PlugInManager loads
+    // assemblies lazily on its first GetRows call, which this step never makes, and the enabled set
+    // is restored either way.
+    private void SelfTestPlugInManagerRebuildGuard()
+    {
+        EnsureSelfTestRows();
+        var previousPlugInsEnabled = settings.PlugInsEnabled;
+        try
+        {
+            settings.PlugInsEnabled = LoadPlugInPreferenceInfos(settings)
+                .ToDictionary(plugIn => plugIn.Id, plugIn => false, StringComparer.OrdinalIgnoreCase);
+            using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Plug-Ins"))
+            {
+                preferences.CreateControl();
+                var plugInList = FindControls<CheckedListBox>(preferences.Controls)
+                    .FirstOrDefault(list => list.Items.Cast<object>().Any(item => item is PlugInPreferenceInfo));
+                Require(plugInList != null && plugInList.Items.Count > 0, "Preferences plug-in list was not found.");
+
+                EnsurePlugInManager();
+                var manager = plugInManager;
+                Require(manager != null, "The plug-in manager was not created for the rebuild guard test.");
+
+                ApplyPreferencesFromDialog(preferences, false, false);
+                Require(ReferenceEquals(plugInManager, manager), "A preference save that left the enabled plug-in set alone tore the plug-in manager down.");
+
+                // What SavePlugInCheckChange does to the model when the user ticks a box. The dialog
+                // reports PlugInsEnabled from these items, not from the checkbox states.
+                var toggled = (PlugInPreferenceInfo)plugInList.Items[0];
+                toggled.Enabled = true;
+                ApplyPreferencesFromDialog(preferences, false, false);
+                Require(plugInManager == null, "Enabling a plug-in did not rebuild the plug-in manager, so the change could not take effect.");
+
+                EnsurePlugInManager();
+                Require(plugInManager != null, "The plug-in manager was not recreated for the rebuild guard test.");
+                toggled.Enabled = false;
+                ApplyPreferencesFromDialog(preferences, false, false);
+                Require(plugInManager == null, "Disabling a plug-in did not rebuild the plug-in manager, so it would have kept running.");
+            }
+        }
+        finally
+        {
+            DisposePlugInManager();
+            settings.PlugInsEnabled = previousPlugInsEnabled;
+            SaveSettings(settings);
         }
     }
 

@@ -19,9 +19,11 @@ the feature that needs them, not on their own.
 **Added 2026-08-07 after a field bug report:** proposals **4 and 5** at the end of this document
 come out of a reproducible regression Robin hit on live hardware — opening Preferences with
 Corsair fan curves active made the fans spin up at once and never come back down until the app
-was restarted. Both are core-side and **neither has been implemented**; the plug-in-side fix
-that ships on this branch works around proposal 4 entirely and merely softens proposal 5. Full
-evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
+was restarted. Both are core-side. **Proposal 4 is implemented on this branch; proposal 5 is not
+yet.** The plug-in-side fix that also ships here works around proposal 4 entirely and merely
+softens proposal 5, so neither core change is load-bearing for the Corsair plug-in; they are here
+because the two defects they fix affect every plug-in and, in proposal 5's case, the app itself.
+Full evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
 
 ### Disclosure up front: the Corsair plug-in now deviates from the documented `Shutdown` contract
 
@@ -35,10 +37,13 @@ so app exit still restores.
 This is stated here rather than buried because it is a real loosening of the contract, and it is
 a workaround for proposal 4, not a design preference. The plug-in cannot distinguish "you are
 being disabled" from "I am rebuilding my manager and will load you again in a moment" — the SDK
-gives it nothing — and the second case happens on every preference keystroke. If proposal 4 is
-accepted, the plug-in can go back to restoring synchronously inside `Shutdown`. Until then the
-deviation is what keeps a user's fans from jumping to the hub's firmware profile whenever they
-open Preferences. The costs are documented in `PlugIns/Corsair/TESTING.md` (a disabled plug-in
+gives it nothing — and on a host without proposal 4 the second case happens on every preference
+keystroke. Proposal 4 is implemented on this branch, so on **this** build the rebuild-per-keystroke
+is gone and the deviation is no longer what stops the ramp. It stays because the plug-in has to
+behave on 5.2.0 and any host that does not take proposal 4, and because a rebuild is still possible
+(the user actually toggles a plug-in) with no way for the plug-in to tell it apart from a disable.
+If proposal 4 ships, a later change could reasonably go back to restoring synchronously inside
+`Shutdown`. The costs are documented in `PlugIns/Corsair/TESTING.md` (a disabled plug-in
 hands the hardware back after a delay, so "quit the app" is now the recommended way to switch to
 another control program) and in `PlugIns/Corsair/docs/hardware-validation-plan.md` (new pending
 items P6 and P7).
@@ -48,8 +53,9 @@ One thing the deviation buys back, unrelated to fans: `PlugInManager.Dispose` ca
 The previous implementation could block there for up to its 15 s worker join, on any of the 78
 live-save events described in proposal 4 — a whole class of multi-second UI freezes, on a path
 the user reaches by opening a settings window. `ReleaseFromHost` is non-blocking, so that class is
-gone regardless of what happens to proposal 4. It is worth noting that any plug-in whose
-`Shutdown` does real work has the same exposure today.
+gone regardless of what happens to proposal 4, and proposal 4 removes the events that reached it.
+It is worth noting that any plug-in whose `Shutdown` does real work has the same exposure on a host
+without proposal 4.
 
 ## Proposal 1 — Foreground cache interval for plug-in readings that feed enabled fan curves
 
@@ -145,7 +151,7 @@ carries `WindowsSettingsUri`. No further action is needed.
 
 ---
 
-## Proposal 4 (NEW, not implemented) — Preferences should not rebuild the plug-in manager unless the plug-in set actually changed
+## Proposal 4 — Preferences should not rebuild the plug-in manager unless the plug-in set actually changed
 
 - **Symptom that produced it:** with Corsair fan curves active, the fans audibly spin up the
   moment the Preferences window appears, and again on essentially every keystroke or arrow-key
@@ -174,28 +180,53 @@ carries `WindowsSettingsUri`. No further action is needed.
   no persistent device state. Anything that takes ownership of hardware — a hub in software mode,
   a PSU in manual fan mode, a future EC-control plug-in — has to give it back and take it again
   on every preference keystroke.
-- **Proposed change (one file, one condition):** in `ApplyPreferencesFromDialog`, dispose the
-  plug-in manager only when the enabled-plug-in set actually changed. The comparison already
-  exists and is already computed on this path — `GetOemProviderRowsCacheSignature(settings)`
-  (`src/SensorReadoutForm.OemProviders.cs:106-115`), which `ApplyLivePreferencesFromOpenDialog`
-  captures before and after the apply (`src/SensorReadoutForm.PreferencesAndCommands.cs:189,
-  195`). Capture it inside `ApplyPreferencesFromDialog` instead, and make line 283 conditional on
-  it having changed. Nothing else about the method changes; `ClearOemProviderRowsCache()` on the
-  next line can stay unconditional (it is cheap and only affects freshness).
-- **Second, smaller half:** the unconditional `SaveLivePreferences()` in the `Shown` handler
-  saves settings that nothing changed, purely as a side effect of the window opening. Guarding it
-  (only save if `FinishInitialPreferenceLoad` actually altered something) removes a settings-file
-  write and a full preference apply from every Preferences open, independent of the above.
+- **Change made:** `ApplyPreferencesFromDialog` now calls `DisposePlugInManagerIfEnabledSetChanged()`
+  instead of `DisposePlugInManager()`. The guard compares the enabled-plug-in signature the live
+  manager was **built with** — recorded in `EnsurePlugInManager` — against the signature of the
+  settings after the apply, using the existing `GetOemProviderRowsCacheSignature`
+  (`src/SensorReadoutForm.OemProviders.cs:106-115`). `ClearOemProviderRowsCache()` on the next line
+  stays unconditional: it is cheap and only affects reading freshness.
+- **Why not the before/after capture this proposal originally suggested.** It would never fire.
+  `PreferencesForm` holds the host's own `AppSettings` instance (`liveSettings = settings`,
+  `src/PreferencesForm.cs:265`) and writes the new enabled set into it *before* it raises
+  `LivePreferencesSaved` (`SavePlugInCheckChange`, `src/PreferencesForm.Panels.cs:997-1003`), so by
+  the time the apply runs, "before" and "after" are the same value. The same aliasing is why
+  `ApplyLivePreferencesFromOpenDialog`'s existing `plugInsChanged`
+  (`src/SensorReadoutForm.PreferencesAndCommands.cs:189, 195`) is always false for a plug-in toggle
+  today; that is left alone here, because the unconditional `RefreshSensors` on the OK path and the
+  next auto-refresh already pick the change up, and changing it would change refresh behaviour
+  rather than fix a defect. Comparing against the manager's own signature sidesteps the aliasing
+  entirely and states the actual question: is this manager still the right one?
+- **Verified before making it conditional:** nothing else about a plug-in's behaviour depends on the
+  manager being recreated. `PlugInManager` reads the enabled set exactly once, in `EnsureLoaded`
+  (`src/SensorReadoutForm.PlugIns.cs`), and never re-reads it; everything a plug-in sees per call —
+  `PlugInContext` with machine identity, plug-in directory, diagnostics flag and logger — is rebuilt
+  inside `GetRows` on every refresh, so no plug-in state goes stale when the manager survives.
+- **Not done — the second, smaller half.** The unconditional `SaveLivePreferences()` in
+  `PreferencesForm`'s `Shown` handler still saves settings nothing changed. It is now harmless for
+  plug-ins (the apply it triggers no longer tears anything down), so it is left for a separate
+  change rather than folded in here.
 - **Why generic:** every `IPluginLifecycle` implementation is shut down and re-instantiated by
   this path, and the plug-in contract has no other way to survive it.
-- **Risk:** low and local. The only behaviour that depends on the dispose is picking up a changed
-  plug-in enablement set, which is exactly what the guard tests for. Plug-in imports
-  (`ImportPlugInFromZip`, `src/SensorReadoutForm.PreferencesAndCommands.cs:344`) and settings
-  imports (`src/SensorReadoutForm.SettingsTransfer.cs:598`) keep their unconditional dispose.
-- **Status if not accepted:** the Corsair plug-in on this branch no longer restores hardware
-  inside `Shutdown()` — it arms a hand-back that the next `GetReadings` cancels — so the audible
-  symptom is gone without this change. The churn itself (an assembly-loading, manifest-parsing
-  manager rebuild per keystroke) remains.
+- **Files changed:** `src/SensorReadoutForm.PlugIns.cs` (one field, one line in
+  `EnsurePlugInManager`, one new guard method) and
+  `src/SensorReadoutForm.PreferencesAndCommands.cs` (one call swapped in
+  `ApplyPreferencesFromDialog`). Plug-in imports (`ImportPlugInFromZip`) and settings imports
+  (`src/SensorReadoutForm.SettingsTransfer.cs:598`) keep their unconditional dispose: those change
+  what is on disk, not just which plug-ins are enabled.
+- **Test:** new self-test step "Plug-in manager rebuild guard"
+  (`src/SensorReadoutForm.SelfTest.cs`). It builds a real `PreferencesForm`, creates the manager,
+  and drives the real `ApplyPreferencesFromDialog` three times: an unrelated save must leave the
+  same manager instance in place, enabling a plug-in must dispose it, and disabling one must dispose
+  it. Verified by mutation — restoring the unconditional `DisposePlugInManager()` fails the step on
+  its first assertion. No plug-in is instantiated by the step, because the manager loads lazily on
+  its first `GetRows` call. Full `Build.ps1` green, Corsair plug-in self-test still 65 checks.
+- **Residual risk:** a manager is now kept across preference saves, so a plug-in that misbehaves is
+  no longer implicitly restarted by opening Preferences. That was never a documented recovery path,
+  and disabling and re-enabling the plug-in still rebuilds it. The guard is conservative in the safe
+  direction: it compares against the set captured when the manager was constructed, which is at or
+  before the moment `EnsureLoaded` reads that set, so it can only ever rebuild more often than
+  strictly necessary, never less.
 
 ## Proposal 5 (NEW, not implemented) — `refreshInProgress` needs a watchdog: one wedged collection kills the refresh loop for good
 

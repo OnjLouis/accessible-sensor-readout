@@ -280,7 +280,15 @@ public sealed partial class SensorReadoutForm : Form
         settings.HiddenCategoryKeys = dialog.HiddenCategoryKeys;
         settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
         settings.PlugInsEnabled = dialog.PlugInsEnabled;
-        DisposePlugInManager();
+        // Every live preference save reaches this method - 78 call sites across PreferencesForm and
+        // its partials, plus the unconditional one its Shown handler fires - so tearing the plug-in
+        // manager down here unconditionally meant a full stop/restart cycle of every loaded plug-in
+        // per keystroke in the dialog, and a window with no plug-in instance at all until the next
+        // collection completed. Plug-ins that own hardware state (a hub in software mode, a PSU in
+        // manual fan mode) had to hand it back and take it again each time. Rebuild only when the
+        // enabled-plug-in set actually changed, which is the only thing the manager caches.
+        // The row cache is cleared either way: it is cheap and only affects reading freshness.
+        DisposePlugInManagerIfEnabledSetChanged();
         ClearOemProviderRowsCache();
         SaveSettings(settings);
 
