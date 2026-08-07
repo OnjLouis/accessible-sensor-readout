@@ -47,9 +47,10 @@ namespace SensorReadout.CorsairPlugIn
         // One-shot latch for the first-snapshot wait below. A worker whose guard creation
         // permanently fails never completes a tick, so gating on CompletedTicks == 0 would make
         // every refresh pay FirstSnapshotWaitMs forever; this flag makes the wait happen at most
-        // once per process regardless. GetReadings is called on one collection thread at a time,
-        // but reading/writing this bool without a lock is fine either way: it is a one-shot
-        // pessimistic latch, so the worst case of a race is two early callers both waiting once.
+        // once per plug-in instance (the 4.14.1 host keeps a single instance per process).
+        // GetReadings is called on one collection thread at a time, but reading/writing this bool
+        // without a lock is fine either way: it is a one-shot pessimistic latch, so the worst case
+        // of a race is two early callers both waiting once.
         private bool firstSnapshotWaited;
 
         public PluginInfo Info
