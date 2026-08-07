@@ -16,6 +16,13 @@ write path. Proposals 2 and 3 below only have observable effects when a plug-in 
 controls, which is exactly what was deferred out of 5.2.0; they are re-proposed together with
 the feature that needs them, not on their own.
 
+**Added 2026-08-07 after a field bug report:** proposals **4 and 5** at the end of this document
+come out of a reproducible regression Robin hit on live hardware — opening Preferences with
+Corsair fan curves active made the fans spin up at once and never come back down until the app
+was restarted. Both are core-side and **neither has been implemented**; the plug-in-side fix
+that ships on this branch works around proposal 4 entirely and merely softens proposal 5. Full
+evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
+
 ## Proposal 1 — Foreground cache interval for plug-in readings that feed enabled fan curves
 
 - **What the plug-in cannot do today:** while the app is minimized, plug-in rows are served
@@ -107,3 +114,108 @@ Recorded here only so the numbering in earlier discussion still maps to somethin
 value and dropped `Details`/`WindowsSettingsUri` in the process, so a fan under manual or
 curve control lost its details dialog content. The rebuilt row now deep-copies `Details` and
 carries `WindowsSettingsUri`. No further action is needed.
+
+---
+
+## Proposal 4 (NEW, not implemented) — Preferences should not rebuild the plug-in manager unless the plug-in set actually changed
+
+- **Symptom that produced it:** with Corsair fan curves active, the fans audibly spin up the
+  moment the Preferences window appears, and again on essentially every keystroke or arrow-key
+  press inside it. Confirmed in `C:\SensorReadout\Logs\SIMSTATION.log`, 17:20-17:32 on
+  2026-08-07: six complete `returning iCUE LINK hub ... to hardware mode` -> `worker thread is
+  exiting` -> `Loaded` -> `taking software control` cycles in eleven minutes, each one triggered
+  by a Preferences interaction and each one audible.
+- **The chain:** `PreferencesForm`'s `Shown` handler ends with an unconditional
+  `SaveLivePreferences()` (`src/PreferencesForm.cs:1609-1614`); so do about sixty control event
+  handlers, plus `CommitPreferences()` on `FormClosing` and the `DialogResult.OK` apply.
+  `SaveLivePreferences` raises `LivePreferencesSaved` (`src/PreferencesForm.Core.cs:749-753`) ->
+  `ApplyLivePreferencesFromOpenDialog` -> `ApplyPreferencesFromDialog`, whose line 283
+  (`src/SensorReadoutForm.PreferencesAndCommands.cs`) is an unconditional
+  `DisposePlugInManager()`. That disposes every loaded plug-in — calling
+  `IPluginLifecycle.Shutdown()` on each (`src/SensorReadoutForm.PlugIns.cs:183`) — and, because
+  `EnsurePlugInManager` is only ever reached from inside a sensor collection
+  (`src/SensorReadoutForm.PlugIns.cs:21-31, 48-56`), leaves the process with **no plug-in
+  instance at all** until the next refresh completes.
+- **Why it hurts any plug-in that owns hardware state:** `Shutdown()` is the plug-in's only
+  signal to release what it owns, and the SDK (`src/PluginSdk/PluginSdk.cs:22-25`) gives it no
+  way to tell "you are being disabled / the app is closing" from "I am rebuilding my manager and
+  will load you again in a second". The MSI and ASUS plug-ins get away with it because they hold
+  no persistent device state. Anything that takes ownership of hardware — a hub in software mode,
+  a PSU in manual fan mode, a future EC-control plug-in — has to give it back and take it again
+  on every preference keystroke.
+- **Proposed change (one file, one condition):** in `ApplyPreferencesFromDialog`, dispose the
+  plug-in manager only when the enabled-plug-in set actually changed. The comparison already
+  exists and is already computed on this path — `GetOemProviderRowsCacheSignature(settings)`
+  (`src/SensorReadoutForm.OemProviders.cs:106-115`), which `ApplyLivePreferencesFromOpenDialog`
+  captures before and after the apply (`src/SensorReadoutForm.PreferencesAndCommands.cs:189,
+  195`). Capture it inside `ApplyPreferencesFromDialog` instead, and make line 283 conditional on
+  it having changed. Nothing else about the method changes; `ClearOemProviderRowsCache()` on the
+  next line can stay unconditional (it is cheap and only affects freshness).
+- **Second, smaller half:** the unconditional `SaveLivePreferences()` in the `Shown` handler
+  saves settings that nothing changed, purely as a side effect of the window opening. Guarding it
+  (only save if `FinishInitialPreferenceLoad` actually altered something) removes a settings-file
+  write and a full preference apply from every Preferences open, independent of the above.
+- **Why generic:** every `IPluginLifecycle` implementation is shut down and re-instantiated by
+  this path, and the plug-in contract has no other way to survive it.
+- **Risk:** low and local. The only behaviour that depends on the dispose is picking up a changed
+  plug-in enablement set, which is exactly what the guard tests for. Plug-in imports
+  (`ImportPlugInFromZip`, `src/SensorReadoutForm.PreferencesAndCommands.cs:344`) and settings
+  imports (`src/SensorReadoutForm.SettingsTransfer.cs:598`) keep their unconditional dispose.
+- **Status if not accepted:** the Corsair plug-in on this branch no longer restores hardware
+  inside `Shutdown()` — it arms a hand-back that the next `GetReadings` cancels — so the audible
+  symptom is gone without this change. The churn itself (an assembly-loading, manifest-parsing
+  manager rebuild per keystroke) remains.
+
+## Proposal 5 (NEW, not implemented) — `refreshInProgress` needs a watchdog: one wedged collection kills the refresh loop for good
+
+- **Symptom that produced it:** at 17:31:53 on 2026-08-07 the app stopped refreshing entirely and
+  never recovered. The log goes silent — no `CollectSensorRows`, no `WMI provider processes` line
+  (written unconditionally at the end of **every** collection,
+  `src/SensorReadoutForm.FanControls.cs:397`, and present every ~5 s until that moment), no
+  plug-in load block — from 17:31:53 until the user restarted the app at 17:43:09. No crash-log
+  entry, no Windows Application-log hang or error event in that window, and the settings the app
+  had just written show `AutoRefreshEnabled: true`, `RefreshIntervalSeconds: 5`,
+  `LoggingLevel: Debug`. The refresh timer was armed and Debug logging was on; the app simply
+  never collected again. Because plug-ins are only instantiated from inside a collection, the
+  Corsair plug-in was never loaded again either, so the hub stayed in the hardware mode the
+  preceding teardown had put it in — the fans stayed loud until restart.
+- **The mechanism:** `refreshInProgress` is set on the UI thread in `RefreshSensors`
+  (`src/SensorReadoutForm.FanControls.cs:210`) and cleared in exactly one place, the continuation
+  of that collection's task (`:275-284`). While it is set, `RefreshSensors` early-outs into
+  `QueuePendingRefresh` (`:203-207`) and `RunPendingRefreshIfNeeded` early-outs on the same flag
+  (`:301-306`). So if a collection never completes — for any reason, in any phase — every later
+  timer tick silently queues a pending refresh that can never run, for the remaining life of the
+  process. There is no timeout on the outer collection and no watchdog. The inner
+  LibreHardwareMonitor phase *is* bounded (`AddTimedRowsWithTimeout`, `:434-482`); nothing else
+  is.
+- **Why it is worth fixing even though the wedge cause is unknown:** the failure is silent,
+  total, and unrecoverable without a restart, and it takes fan control down with it. Whatever
+  wedged — the collection had already passed the plug-in phase (`returned 36 rows` at 17:31:53)
+  and the plug-in's own teardown had completed and released everything it holds, so the stall was
+  in a later, WMI-heavy phase — a stuck phase should degrade one refresh, not the app.
+- **Proposed change:** give the outer collection the same treatment the LHM phase already gets —
+  a bounded wait with a logged fallback — or, more cheaply, a watchdog that notices
+  `refreshInProgress` has been set for more than N times the refresh interval, logs it loudly
+  with the reason string, clears the flag and re-arms. Either shape is a few lines in
+  `src/SensorReadoutForm.FanControls.cs`. Logging the stall is the important half: today it is
+  completely invisible.
+- **Related, one line, independent:** `GetPlugInRows` and `TryPlugInFanControl`
+  (`src/SensorReadoutForm.PlugIns.cs:21-31`) each read the `plugInManager` field twice without
+  synchronisation:
+
+  ```csharp
+  EnsurePlugInManager();
+  return plugInManager.GetRows(diagnosticsMode);
+  ```
+
+  `DisposePlugInManager()` runs on the UI thread and sets that field to `null` (`:58-66`), while
+  these two run on the collection thread. A dispose landing between the two statements is a
+  `NullReferenceException` on the collection thread. It is recoverable (`task.IsFaulted` is
+  handled), but it turns a Preferences keystroke into a failed refresh, and with proposal 4's
+  churn the window is not rare. Assigning the field to a local once fixes it.
+- **Why generic:** nothing about this is plug-in-specific; it is the app's whole refresh
+  pipeline.
+- **Status if not accepted:** the Corsair plug-in's deferred hand-back means a wedged refresh
+  loop now leaves the fans on their last curve values for the grace period instead of dropping
+  them to the hub's own loud profile immediately — a better failure mode, but the app still stops
+  refreshing and still needs a restart.
