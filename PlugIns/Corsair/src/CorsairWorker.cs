@@ -398,6 +398,23 @@ namespace SensorReadout.CorsairPlugIn
         }
 
         /// <summary>
+        /// Makes this worker look like it has a running thread, so the self-test can drive the real
+        /// <see cref="ReleaseFromHost"/> entry point down its deferring branch. The thread object is
+        /// never started and never runs the loop, so a worker this has been called on can no longer
+        /// complete a hand-back -- any test using it has to be the last one to touch the singleton.
+        /// </summary>
+        internal void PretendWorkerRunningForTest()
+        {
+            lock (lifecycleLock)
+            {
+                if (thread == null)
+                {
+                    thread = new Thread(new ThreadStart(delegate { }));
+                }
+            }
+        }
+
+        /// <summary>
         /// Hands the devices back if an armed hand-back has come due. Called once per worker cycle
         /// before that cycle touches anything, and directly by the self-test.
         ///
@@ -425,6 +442,11 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             Log("Debug", "Corsair plug-in: nothing has asked the Corsair plug-in for readings since the host released it, so it was disabled rather than reloaded; the Corsair devices are being handed back now.");
+
+            // The join budget is nominal here: the caller is the worker thread, so StopAndRestore
+            // takes its self-join guard and returns at once, and this thread then falls out of the
+            // loop into CleanupOnWorkerThread. NormalShutdownJoinMs is passed only so the one
+            // shutdown path is not written two different ways.
             StopAndRestore(NormalShutdownJoinMs);
             return true;
         }
@@ -1121,13 +1143,6 @@ namespace SensorReadout.CorsairPlugIn
                 return PausedWaitMs;
             }
 
-            // Before anything in this cycle touches a device: a hand-back that has come due ends
-            // the loop, and CleanupOnWorkerThread in the loop's finally does the restores.
-            if (CommitDeferredTeardownIfDue())
-            {
-                return PausedWaitMs;
-            }
-
             if (resumePending)
             {
                 // unchecked: TickCount wraps roughly every 24.9 days; the subtraction is still
@@ -1139,6 +1154,29 @@ namespace SensorReadout.CorsairPlugIn
 
                 resumePending = false;
                 HandleResume();
+            }
+
+            // The hand-back deadline is checked here: after the resume handling, and before
+            // anything in this cycle touches a device.
+            //
+            // After the resume handling, because on the first cycle following a wake every device
+            // object still holds a handle from before the sleep. Handing back through those would
+            // write to dead handles, fail, close the sessions anyway, and leave a manual PSU manual
+            // for the rest of the process.
+            //
+            // And not while a scan is outstanding, because HandleResume's first act is to drop
+            // every device object: a hand-back in that window would find empty lists and restore
+            // nothing at all, which is the same lost PSU by a different route. The scan later in
+            // this very cycle re-connects the devices and replays the recorded intent, so the
+            // deadline is honoured one cycle later against live sessions. Costs at most
+            // ResumeDelayMs plus one tick of extra grace, and in steady state scanRequested is
+            // false so this changes nothing.
+            //
+            // A hand-back that has come due ends the loop, and CleanupOnWorkerThread in the loop's
+            // finally does the restores.
+            if (!scanRequested && CommitDeferredTeardownIfDue())
+            {
+                return PausedWaitMs;
             }
 
             var forced = Interlocked.Exchange(ref forceRefreshRequested, 0) != 0;

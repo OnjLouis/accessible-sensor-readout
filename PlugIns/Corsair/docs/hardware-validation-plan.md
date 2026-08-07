@@ -19,9 +19,32 @@ builds from the *predecessor* branch, not from this one. The control code they e
 carried onto this branch unchanged: a line-by-line drift audit found the device-layer control
 paths (duty writes, mode changes, pump clamp, PSU mode/duty writes, per-device restores) and the
 worker's control routing byte-identical between the two branches. What differs on this branch is
-the *orchestration* around them — teardown now runs through the host's `IPluginLifecycle.Shutdown`
-rather than a process-exit handler — which is why the one item that depends on that orchestration
-is marked PENDING RE-RUN below rather than validated.
+the *orchestration* around them — when the teardown runs and who drives it — which is why the
+items that depend on that orchestration are marked PENDING or PENDING RE-RUN below rather than
+validated.
+
+**Deferred hand-back — read this before running P0, P6 or P7.** `IPluginLifecycle.Shutdown` no
+longer hands the hardware back at all. It arms a hand-back that the next `GetReadings` cancels;
+the worker runs it itself once the grace period elapses with no host contact (three observed host
+refresh intervals, clamped to 20–90 s); and `AppDomain.ProcessExit` ignores the grace and runs it
+immediately. The reason is that Sensor Readout disposes and re-creates its entire plug-in manager
+on every live preference save — including one fired the instant the Preferences window appears —
+so restoring inside `Shutdown` returned the hub to its own loud firmware profile every time the
+user touched Preferences, six times in eleven minutes in the field log that prompted the change.
+
+This is a **deliberate deviation from the documented plug-in contract.**
+`Docs\Plug-In-development.md` says `Shutdown` "should stop background work and release hardware
+handles"; at call time this plug-in now does neither. It is disclosed to Andre up front as the
+preamble to proposals 4 and 5 in `Docs\superpowers\specs\2026-08-07-corsair-core-proposals.md`,
+and it is the reason for the two new pending items P6 and P7: the properties that used to fall out
+of the old design now have to be observed.
+
+Practical consequences for the tester:
+
+- Quitting Sensor Readout restores **immediately**, through the ProcessExit path and its
+  1500 ms budget (not the 15 s budget the old `Shutdown` path had).
+- Disabling the plug-in restores **after the grace period**, typically ~30 s.
+- Opening, using and closing Preferences must produce **no hardware traffic at all**.
 
 The Debug logs from the 2026-08-07 runs were **not retained**. Every validated row's procedure is
 re-runnable and cheap, and the weekend test pass **should** re-run all of them with Debug logging
@@ -67,10 +90,12 @@ them is a stop-and-report result, not a retry.
 4. **Fail-loud, never fail-silent.** Every failure mode leaves the cooling running: a hub that stops
    being driven falls back to its own profile (possibly loud), a PSU keeps its last duty. No path
    may end with a fan or pump stopped.
-5. **Exit restores.** On a clean exit or a plug-in disable/reload, power supplies are restored
-   first, then hubs. The PSU is first because a PSU left in manual mode keeps that duty until
-   something writes mode 0x00 or it is power-cycled; a hub reverts on its own once nothing drives
-   it.
+5. **Exit restores, and only where a restore is actually meant.** A plug-in *reload* — which is
+   what the host performs on every preference change — restores nothing at all and must not
+   disturb the hardware in any way; see the deferred hand-back note below. A clean exit and a
+   genuine plug-in disable both do restore, and there power supplies are restored first, then
+   hubs. The PSU is first because a PSU left in manual mode keeps that duty until something
+   writes mode 0x00 or it is power-cycled; a hub reverts on its own once nothing drives it.
 6. **Interoperability.** Every wire transaction runs inside the shared
    `Global\CorsairLinkReadWriteGuardMutex` with a bounded 2000 ms wait, so monitoring alongside
    HWiNFO, SIV, SignalRGB or Fan Control is safe. Corsair iCUE does not use that mutex and must not
@@ -106,10 +131,13 @@ Each item lists the procedure and the single expected outcome that decides pass 
 - **Why it is not simply carried over:** the device-level restore transactions are unchanged from
   the build V8 was observed on — same hand-back commands, same per-device `Disconnect(restore)`
   decisions, same PSU-before-hub ordering, verified byte-identical by the drift audit. What changed
-  is who drives them and on what budget: teardown now runs through the host's
-  `IPluginLifecycle.Shutdown` (called on app close, plug-in disable, and plug-in reload) with the
-  worker-thread cleanup and its join budget, instead of the predecessor branch's process-exit
-  handler. That is orchestration, so it needs one observation rather than a full re-validation.
+  is *when* they run and on what budget. On this branch `IPluginLifecycle.Shutdown` deliberately
+  touches no hardware, so a clean exit restores through the `AppDomain.ProcessExit` handler and its
+  1500 ms budget — the same handler the predecessor branch used, but now as the primary path for a
+  normal quit rather than a fallback, and with a tighter budget than the 15 s the old `Shutdown`
+  path had. That is orchestration and a budget change, so it needs one observation rather than a
+  full re-validation. The measured restore in the field log completed well inside one second, so
+  1500 ms should be ample; this run is what confirms it.
 - **Procedure (about 30 seconds):** set a fan and the pump to clearly audible manual percents and
   set the PSU fan to 40 %. Quit Sensor Readout normally (File > Exit, not a kill). Listen for the
   hub's own profile taking over, and read the tail of `Logs\<machine>.log`.
@@ -117,12 +145,10 @@ Each item lists the procedure and the single expected outcome that decides pass 
   hub restore and then "the Corsair worker has stopped and every device session is closed"; the
   hub's own hardware profile is audibly back in charge; and the PSU fan has returned to automatic
   (it spins down rather than holding 40 %). No shutdown-timeout warning about the worker thread
-  failing to stop.
-- **Also worth one look while there:** repeat with Options > Preferences > OK instead of quitting,
-  which the host also treats as a plug-in reload. Expect the same restore followed by an automatic
-  marker-file re-take a few seconds later, i.e. an audible re-baseline (pump 100 %, fans 50 %)
-  before the saved settings are re-applied. This is known and documented behaviour, not a failure;
-  the point of the look is to confirm it self-heals rather than leaving the hub unread.
+  failing to stop. **Failure to watch for specifically:** a truncated restore, i.e. the log showing
+  the release line but not the PSU hand-back before the process disappears, or the PSU fan still
+  holding 40 % after the app is gone. That is the one thing the shorter ProcessExit budget could
+  cost, and it is a stop-and-report result.
 
 #### P1 — Sleep and resume under an active fan curve
 
@@ -136,6 +162,12 @@ Each item lists the procedure and the single expected outcome that decides pass 
   re-asserts software control it previously held, re-applies the recorded duties, and the curve
   resumes driving within roughly 30 seconds — with no interval in which a fan or the pump is
   stopped and no duplicate/queued mode changes in the log.
+- **One extra pass, cheap and worth it:** disable the plug-in and put the machine to sleep
+  immediately, i.e. inside the hand-back grace window, then resume. The hand-back must run *after*
+  the resume has re-opened the devices, so expect the resume lines first and the hand-back
+  ("the Corsair devices are being handed back now") after them, with the PSU restore actually
+  landing. A hand-back logged before the resume lines — or one with no PSU restore, leaving the PSU
+  fan holding its manual duty — is a failure.
 
 #### P2 — Surprise USB disconnect and reconnect while under control
 
@@ -187,6 +219,52 @@ Each item lists the procedure and the single expected outcome that decides pass 
   unknown-model row with duty control withheld; the pump floor applies to whichever pump model is
   present; the PSU accepts manual duty and hand-back at the same thresholds; and no model-specific
   crash, hang, or unacknowledged write appears in the log.
+
+#### P6 — A Preferences round-trip produces no hardware traffic at all
+
+- **Status:** PENDING. **This is the item the deferred hand-back exists for**, and it is the
+  regression the user reported: before the change, opening Preferences dropped the hub to its own
+  loud profile within a second and closing it did not bring the fans back down.
+- **Procedure (about two minutes):** Configure an enabled fan curve on a Corsair fan control so the
+  fans are audibly under Sensor Readout's control, and confirm from the Debug log that curve
+  updates are landing ("Fan curve set corsair/link/.../control/N to NN%"). Then, listening the
+  whole time: open Options > Preferences, wait five seconds, arrow through a couple of settings and
+  type a character into one text box, wait five seconds, and close with OK. Repeat once closing
+  with Escape/Cancel instead. Read the section of `Logs\<machine>.log` covering the whole
+  round-trip.
+- **Expected outcome:** No audible change at any point — no spin-up when the window appears, no
+  re-baseline afterwards — and the fan curve keeps applying throughout, with "Fan curve set ..."
+  lines continuing across the whole Preferences session. In the log:
+  - one or more "the host released the Corsair plug-in; its devices stay under this plug-in's
+    control for up to NNNNN ms in case the host is only reloading it" lines,
+  - each followed within a few seconds by "the host asked for Corsair readings again, so it was
+    reloading the plug-in rather than shutting it down; the pending hand-back was cancelled and fan
+    control was never interrupted",
+  - and **no** "returning iCUE LINK hub ... to hardware mode", **no** "taking software control of
+    iCUE LINK hub", **no** "resuming fan control of hub", and **no** "the Corsair worker thread has
+    started" anywhere in the round-trip.
+- **Any one of those four lines appearing is a failure**, because each of them means the hardware
+  was disturbed by a preference change.
+
+#### P7 — A genuine plug-in disable still hands the devices back, within the grace period
+
+- **Status:** PENDING. This is the safety valve for P6: the deferred hand-back is the only thing
+  standing between a disabled plug-in and a hub left in software mode with frozen duties for the
+  rest of the session. It must be observed, not assumed.
+- **Procedure (about three minutes):** With the pump and at least one fan under clearly audible
+  manual control and the PSU fan set to 40 %, open Options > Preferences > Plug-Ins, untick
+  **Corsair iCUE Link and PSU Support (experimental)**, and close Preferences. Do **not** quit the
+  app. Note the wall-clock time. Listen and watch `Logs\<machine>.log` for the next three minutes.
+  Then re-tick the plug-in and confirm it comes back.
+- **Expected outcome:** Within about 90 seconds plus one poll interval — typically around 30
+  seconds — the log shows "nothing has asked the Corsair plug-in for readings since the host
+  released it, so it was disabled rather than reloaded; the Corsair devices are being handed back
+  now", followed by the PSU restore, the hub restore, and "the Corsair worker has stopped and every
+  device session is closed". Audibly, the hub's own profile takes over and the PSU fan spins down.
+  Re-enabling brings the plug-in back with the marker-file resume as in V9.
+- **Failure modes to report as-is:** no hand-back line at all after three minutes (the hub would be
+  held in software mode indefinitely); the hand-back line without the PSU restore; or the PSU fan
+  still holding 40 % afterwards.
 
 ## 3. Reporting
 

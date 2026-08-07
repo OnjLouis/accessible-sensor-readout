@@ -26,8 +26,16 @@ For the supervised hardware-validation matrix that accompanies the fan-control r
    input voltage, and output power. A PSU fan speed of 0 RPM can be normal at low load.
 4. Generate a normal report and a diagnostic ZIP. Corsair rows should be present in
    both when supported hardware is available.
-5. Disable the plug-in. Its background worker and HID sessions should stop immediately.
+5. Disable the plug-in. Its background worker keeps running for a short grace period and
+   then stops, closing its HID sessions and handing the hub and the PSU fan back --
+   typically about 30 seconds, at most about 90. The Debug log says "the Corsair devices
+   are being handed back now" when it happens. The delay is deliberate: Sensor Readout
+   rebuilds its whole plug-in manager on every preference change, and stopping instantly
+   would drop the hub to its own (loud) profile every time you touch Preferences.
    Re-enable it to confirm monitoring starts again without restarting Sensor Readout.
+6. Open and close Preferences while fans are under Corsair control. Nothing should change
+   audibly, and the Debug log should contain no "returning iCUE LINK hub ... to hardware
+   mode" line at all.
 
 ## Fan control test (quit Fan Control or any other controlling program first)
 
@@ -66,7 +74,8 @@ For the supervised hardware-validation matrix that accompanies the fan-control r
 
 1. With fans under Sensor Readout control, quit the app normally. Within a few seconds
    the hub returns to its own hardware profile (fans may change pitch). A manually set
-   PSU fan returns to automatic control too.
+   PSU fan returns to automatic control too. Quitting is the immediate path; disabling the
+   plug-in instead takes the grace period described under "Known limitations".
 2. **Start the app again.** A hub in hardware mode does not even list the devices plugged
    into it, so there is nothing to read until something takes software control. Because
    fan control has already been used on this machine, the plug-in resumes it by itself:
@@ -85,9 +94,16 @@ For the supervised hardware-validation matrix that accompanies the fan-control r
 
 ## Going back to another control program
 
-Disable the Corsair plug-in in Preferences (or quit Sensor Readout), then start the other
-program. Do not run two programs with active control at the same time -- they would fight
-over duties. Monitoring together is fine.
+**Quit Sensor Readout, then start the other program.** Quitting restores the hub and the
+PSU fan immediately, so there is no window in which both programs could drive the fans.
+
+Disabling the plug-in in Preferences also works, but it is *not* immediate: for up to
+about 90 seconds afterwards the plug-in is still driving the hub. If you take that route,
+wait for the Debug log line "the Corsair devices are being handed back now" (or just wait
+a couple of minutes) before starting the other program.
+
+Do not run two programs with active control at the same time -- they would fight over
+duties. Monitoring together is fine.
 
 ## Known limitations
 
@@ -103,6 +119,13 @@ over duties. Monitoring together is fine.
   archives it into its backup ZIP), so after updating, use any fan control once to restore
   automatic resume. The file records only that fan control was used -- no duties, no
   percentages; those live in Sensor Readout's own settings.
+- **Disabling the plug-in hands the hardware back after a delay, not instantly.** Sensor
+  Readout shuts a plug-in down and re-creates it on every preference change, and gives the
+  plug-in no way to tell that apart from being disabled for good. So the plug-in defers the
+  hand-back and cancels it if the app asks for readings again -- which is what keeps opening
+  Preferences from dropping the hub to its own loud profile. The wait is three of the app's
+  observed refresh intervals, clamped to between 20 and 90 seconds. Quitting Sensor Readout
+  is unaffected and restores immediately.
 - Legacy Commander PRO/CORE, Hydro AIO, and AXi device families are not supported.
 - Some hub readings are unavailable while the hub is in hardware mode or controlled by
   a program that does not expose compatible read responses.

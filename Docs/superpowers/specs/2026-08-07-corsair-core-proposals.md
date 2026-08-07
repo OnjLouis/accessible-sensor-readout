@@ -23,6 +23,34 @@ was restarted. Both are core-side and **neither has been implemented**; the plug
 that ships on this branch works around proposal 4 entirely and merely softens proposal 5. Full
 evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
 
+### Disclosure up front: the Corsair plug-in now deviates from the documented `Shutdown` contract
+
+`Docs/Plug-In-development.md` says `IPluginLifecycle.Shutdown` "should stop background work and
+release hardware handles". **As of this branch the Corsair plug-in does neither at call time.**
+`Shutdown` arms a hand-back and returns; the next `GetReadings` cancels it; the plug-in's own
+worker performs the hand-back once a grace period (three observed host refresh intervals, clamped
+to 20–90 s) elapses with no host contact; and `AppDomain.ProcessExit` performs it immediately,
+so app exit still restores.
+
+This is stated here rather than buried because it is a real loosening of the contract, and it is
+a workaround for proposal 4, not a design preference. The plug-in cannot distinguish "you are
+being disabled" from "I am rebuilding my manager and will load you again in a moment" — the SDK
+gives it nothing — and the second case happens on every preference keystroke. If proposal 4 is
+accepted, the plug-in can go back to restoring synchronously inside `Shutdown`. Until then the
+deviation is what keeps a user's fans from jumping to the hub's firmware profile whenever they
+open Preferences. The costs are documented in `PlugIns/Corsair/TESTING.md` (a disabled plug-in
+hands the hardware back after a delay, so "quit the app" is now the recommended way to switch to
+another control program) and in `PlugIns/Corsair/docs/hardware-validation-plan.md` (new pending
+items P6 and P7).
+
+One thing the deviation buys back, unrelated to fans: `PlugInManager.Dispose` calls `Shutdown()`
+**on the UI thread while holding its `sync` lock** (`src/SensorReadoutForm.PlugIns.cs:171-190`).
+The previous implementation could block there for up to its 15 s worker join, on any of the 78
+live-save events described in proposal 4 — a whole class of multi-second UI freezes, on a path
+the user reaches by opening a settings window. `ReleaseFromHost` is non-blocking, so that class is
+gone regardless of what happens to proposal 4. It is worth noting that any plug-in whose
+`Shutdown` does real work has the same exposure today.
+
 ## Proposal 1 — Foreground cache interval for plug-in readings that feed enabled fan curves
 
 - **What the plug-in cannot do today:** while the app is minimized, plug-in rows are served
@@ -126,8 +154,11 @@ carries `WindowsSettingsUri`. No further action is needed.
   exiting` -> `Loaded` -> `taking software control` cycles in eleven minutes, each one triggered
   by a Preferences interaction and each one audible.
 - **The chain:** `PreferencesForm`'s `Shown` handler ends with an unconditional
-  `SaveLivePreferences()` (`src/PreferencesForm.cs:1609-1614`); so do about sixty control event
-  handlers, plus `CommitPreferences()` on `FormClosing` and the `DialogResult.OK` apply.
+  `SaveLivePreferences()` (`src/PreferencesForm.cs:1609-1614`); so do 78 further call sites across
+  `PreferencesForm.cs`, `.Panels.cs`, `.TraySearch.cs`, `.SpokenHotKeys.cs`, `.FanProfiles.cs`,
+  `.Alarms.cs` and `.Core.cs` — every `CheckedChanged`, `SelectedIndexChanged`, `ValueChanged` and
+  `TextChanged` in the dialog — plus `CommitPreferences()` on `FormClosing` and the
+  `DialogResult.OK` apply.
   `SaveLivePreferences` raises `LivePreferencesSaved` (`src/PreferencesForm.Core.cs:749-753`) ->
   `ApplyLivePreferencesFromOpenDialog` -> `ApplyPreferencesFromDialog`, whose line 283
   (`src/SensorReadoutForm.PreferencesAndCommands.cs`) is an unconditional
@@ -188,6 +219,14 @@ carries `WindowsSettingsUri`. No further action is needed.
   process. There is no timeout on the outer collection and no watchdog. The inner
   LibreHardwareMonitor phase *is* bounded (`AddTimedRowsWithTimeout`, `:434-482`); nothing else
   is.
+- **What this narrows the search to.** The clear sits in a `finally` and the continuation handles
+  `task.IsFaulted` before it, so an *exception* anywhere in `CollectSensorRows` cannot wedge the
+  flag — it is cleared and a pending refresh is re-armed as normal. Only two things can: a
+  collection that genuinely never returns (a hang inside one of the phases), or a UI thread that
+  stops pumping so the continuation never runs at all, since it is scheduled via
+  `TaskScheduler.FromCurrentSynchronizationContext()` (`:285`). The plug-in phase had already
+  completed and released everything it holds before the stall, so it is one of the later,
+  WMI-heavy phases or the message pump.
 - **Why it is worth fixing even though the wedge cause is unknown:** the failure is silent,
   total, and unrecoverable without a restart, and it takes fan control down with it. Whatever
   wedged — the collection had already passed the plug-in phase (`returned 36 rows` at 17:31:53)

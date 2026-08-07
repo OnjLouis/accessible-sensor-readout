@@ -20,6 +20,9 @@ namespace SensorReadout.CorsairPlugIn
                 TestRowsAndPrivacy();
                 TestDeferredTeardownAcrossReload();
                 TestUnstartedLifecycle();
+                // Last: it leaves a worker that can never complete a hand-back, so the singleton
+                // it holds is never replaced again. See PretendWorkerRunningForTest.
+                TestShutdownDefersWhileTheWorkerRuns();
                 Console.WriteLine("Corsair plug-in self-test passed: " + checks + " checks.");
                 return 0;
             }
@@ -279,6 +282,33 @@ namespace SensorReadout.CorsairPlugIn
             var second = CorsairWorker.Instance;
             Require(!object.ReferenceEquals(first, second), "Disabling before the first reading must leave a fresh worker available for re-enable.");
             second.StopAndRestore();
+        }
+
+        // The one test that goes through the real host entry point -- IPluginLifecycle.Shutdown --
+        // with a worker that looks like it is running, which is the only state in which deferring
+        // and restoring differ. TestDeferredTeardownAcrossReload above drives the state machine
+        // directly, so it would still pass if Shutdown were wired back to StopAndRestore; this one
+        // fails outright, which is the point. Still no hardware: the worker's thread object is a
+        // stand-in that is never started, and its device lists are empty.
+        //
+        // Runs last on purpose. That stand-in never executes CleanupOnWorkerThread, so this worker
+        // can never finish a hand-back and CorsairWorker.Instance keeps handing it out.
+        private static void TestShutdownDefersWhileTheWorkerRuns()
+        {
+            var worker = CorsairWorker.Instance;
+            worker.PretendWorkerRunningForTest();
+
+            new CorsairPlugIn().Shutdown();
+
+            Require(worker.IsTeardownDeferred,
+                "IPluginLifecycle.Shutdown must arm a deferred hand-back while the worker is running, not restore the hardware -- restoring here is what made the fans spin up whenever Preferences was opened.");
+            Require(!worker.IsStopped,
+                "IPluginLifecycle.Shutdown must leave the worker running so a plug-in reload never interrupts fan control.");
+            Require(object.ReferenceEquals(worker, CorsairWorker.Instance),
+                "IPluginLifecycle.Shutdown must not make the worker replaceable, so the reload reuses the same device sessions.");
+
+            Require(worker.AdoptHostContact(), "The reload after that Shutdown must find the worker still usable.");
+            Require(!worker.IsTeardownDeferred, "The reload after that Shutdown must cancel the armed hand-back.");
         }
 
         private static void Require(bool condition, string message)
