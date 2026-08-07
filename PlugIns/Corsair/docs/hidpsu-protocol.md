@@ -206,3 +206,43 @@ Unchanged values are not re-sent (change-tracking store), so a steady FanControl
 4. Read `0x8D`/`0x8E`/`0x90` as LINEAR11 (mantissa low 11 bits, exponent high 5 bits, both two's-complement).
 5. To drive the fan: write duty percent to `0x3B`, then `0x01` to `0xF0`. Never hold manual mode below ~30% duty; below the threshold write `0x00` to `0xF0` instead.
 6. **Always** write `0x00` to `0xF0` on shutdown, control-disable, and before closing the handle.
+
+---
+
+> **Editor's note (2026-08-07, Task 6 live-measurement addendum):** measured against this machine's
+> HX1200i (PID `0x1C27`, `in=65/out=65`) while implementing `CorsairHidPsuDevice`. Corrections and
+> additions to the text above.
+>
+> **(a) The handshake *reply* is framed like every other reply — §3's table applies unchanged.**
+> §4.1's "swaps the first two bytes" describes the **request** only. The measured reply is
+>
+> ```
+> 00 fe 03 48 58 31 32 30 30 69 20 50 6f 77 65 72 ...
+>  ^  ^  ^  H  X  1  2  0  0  i     P  o  w  e  r
+>  |  |  +-- 0x03, the echoed handshake argument, in the ordinary command slot
+>  |  +----- 0xfe, the handshake echo, in the ordinary mode slot
+>  +-------- report id
+> ```
+>
+> so the NUL-terminated ASCII model name starts at **buffer offset 3** (the ordinary data offset),
+> not at offset 2. Validating the reply may therefore require both echo bytes (`[1] == 0xFE`,
+> `[2] == 0x03`) exactly as §3 rule 3 states for any other command; that stricter check was verified
+> to hold on live hardware.
+>
+> **(b) This unit reports its marketing string, not a bare model name.** The handshake answers
+> `"HX1200i Power Supply"` where §1 quotes `"HX1200i"` — identical to the USB product string.
+> Consumers that use the name as a label may want to strip the `" Power Supply"` suffix.
+>
+> **(c) Three registers work here that §4 does not list.** All read cleanly and repeatedly with
+> mode `0x03`: `0x88` (PMBus READ_VIN, LINEAR11) measured **230.0 V**; `0xEE` (total output power,
+> LINEAR11) measured **~120 W** at idle; and `0xF0` (fan control mode), which §4 lists as write-only,
+> is **readable**, answering `0x00` (automatic) at buffer offset 3. Treat all three as unverified
+> outside PID `0x1C27` — no other HXi/RMi model was available — so a consumer should degrade
+> gracefully (null reading) rather than treat their absence as a device fault.
+>
+> **(d) Write-response framing for `0x3B` and `0xF0` is still UNVERIFIED.** No control write has
+> ever been sent to this PSU: Fan Control owns the fans on this machine, so every measurement above
+> comes from read-style traffic only (constraints.md §9). The assumption in the reimplementation is
+> that a write (mode `0x02`) is acknowledged with the same echo framing as a read. **The first
+> supervised control run must capture the Debug logs of both write transactions** and confirm the
+> echo bytes before the write path is trusted.

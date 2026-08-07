@@ -32,16 +32,20 @@ namespace SensorReadout.CorsairPlugIn
     /// </summary>
     public sealed class CorsairHidPsuDevice
     {
-        // Annex §8 timing rules.
-        private const int WriteTimeoutMs = 500;
-        private const int ReadTimeoutMs = 500;
+        // Annex §8 timing rules: 500 ms for a HID read and for a HID write alike.
+        private const int TransferTimeoutMs = 500;
 
         // constraints.md #8: bounded wait on the cross-process guard.
         private const int GuardTimeoutMs = 2000;
 
-        // Shutdown is on a budget (a ProcessExit handler gets roughly two seconds for everything),
-        // so the automatic-control restore does not get the full guard wait.
+        // Shutdown is on a budget: a ProcessExit handler gets roughly two seconds for everything it
+        // has to do, and the automatic-control restore is two transactions of four HID transfers
+        // each. At the normal 500 ms per transfer that alone could run past five seconds, so the
+        // restore shortens both halves of its bound -- the guard wait and every individual
+        // transfer. Worst case: 500 + 4x150 for the first write, then a floored 100 + 4x150 for the
+        // second, i.e. about 1.8 s including a fully contended guard.
         private const int ShutdownGuardTimeoutMs = 500;
+        private const int ShutdownTransferTimeoutMs = 150;
 
         // Floor for the second half of a restore: the mode write is the safety-critical one
         // (annex §7.4) and must still get a real chance at the guard even if the duty write ate
@@ -267,9 +271,11 @@ namespace SensorReadout.CorsairPlugIn
         ///
         /// Shutdown-safe: the restore is best effort and fully contained, and releasing the HID
         /// handle happens in a finally, so a throw on the way out (a disposed guard, a device that
-        /// vanished) can never leak the handle. The restore waits at most
-        /// <see cref="ShutdownGuardTimeoutMs"/> ms for the guard rather than the usual
-        /// <see cref="GuardTimeoutMs"/>.
+        /// vanished) can never leak the handle. The restore shortens both of its bounds --
+        /// <see cref="ShutdownGuardTimeoutMs"/> for the guard and
+        /// <see cref="ShutdownTransferTimeoutMs"/> per HID transfer, rather than the usual
+        /// <see cref="GuardTimeoutMs"/> and <see cref="TransferTimeoutMs"/> -- so that the whole
+        /// two-write restore fits inside the roughly two seconds a ProcessExit handler gets.
         /// </summary>
         public void Disconnect(bool restoreAutomatic)
         {
@@ -287,12 +293,24 @@ namespace SensorReadout.CorsairPlugIn
                     if (everSetManual && restoreAutomatic)
                     {
                         Log("Debug", "Corsair plug-in: returning the fan of Corsair PSU " + Identity() + " to automatic control.");
-                        if (!ResetFanCore(ShutdownGuardTimeoutMs))
+                        bool modeRestored;
+                        if (!ResetFanCore(ShutdownGuardTimeoutMs, ShutdownTransferTimeoutMs, out modeRestored))
                         {
-                            // Annex §7.4 calls this out explicitly: a PSU left in manual mode stays
-                            // there until something writes 0xF0 = 0x00 or the unit is power-cycled.
-                            Log("Error", "Corsair plug-in: the automatic-control restore on Corsair PSU " + Identity()
-                                + " did not complete; the PSU keeps the last manual fan duty until another program resets it or it is power-cycled.");
+                            if (modeRestored)
+                            {
+                                // The half that matters landed: the fan is back on the PSU's own
+                                // curve, and the duty byte that did not get cleared is inert there.
+                                Log("Debug", "Corsair plug-in: the fan of Corsair PSU " + Identity()
+                                    + " is back under PSU control, but the duty byte could not be cleared; it stays inert while the PSU drives the fan.");
+                            }
+                            else
+                            {
+                                // Annex §7.4 calls this out explicitly: a PSU left in manual mode
+                                // stays there until something writes 0xF0 = 0x00 or it is
+                                // power-cycled.
+                                Log("Error", "Corsair plug-in: the automatic-control restore on Corsair PSU " + Identity()
+                                    + " did not complete; the PSU keeps the last manual fan duty until another program resets it or it is power-cycled.");
+                            }
                         }
                     }
                 }
@@ -333,7 +351,13 @@ namespace SensorReadout.CorsairPlugIn
         /// other programs may interleave between them -- safe, because every transaction starts
         /// with its own handshake). A reading is only replaced when its transaction succeeded and
         /// the decoded value is plausible, so a failed or interfered-with read leaves the previous
-        /// value in place rather than blanking the UI. Returns true only when every read landed.
+        /// value in place rather than blanking the UI.
+        ///
+        /// Returns whether the *core* reads landed: the two temperatures, the fan speed and the fan
+        /// mode. Input voltage (0x88) and output power (0xEE) are best-effort extras -- they are
+        /// verified on this machine's 1c27 only and are not in the annex's command set, so a model
+        /// that does not implement them must not report a permanently failing refresh; their
+        /// properties simply stay null.
         /// </summary>
         public bool RefreshSensors()
         {
@@ -344,6 +368,8 @@ namespace SensorReadout.CorsairPlugIn
                     return false;
                 }
 
+                // Tracks the core reads only (see the summary): the extras must never be able to
+                // hold this at false forever on a model that does not implement them.
                 var ok = true;
 
                 var temp1 = ReadLinear11(CommandTemperature1, "temperature 1", MinTemperatureC, MaxTemperatureC);
@@ -378,35 +404,43 @@ namespace SensorReadout.CorsairPlugIn
                 }
 
                 ushort modeWord;
-                var modeKnown = TryReadWord(CommandFanMode, "fan mode", out modeWord);
-                if (modeKnown)
+                var modeKnown = false;
+                if (TryReadWord(CommandFanMode, "fan mode", out modeWord))
                 {
                     // The mode is a single byte at buffer offset 3, i.e. the low half of the word.
-                    fanIsManual = (byte)(modeWord & 0xFF) == FanModeManual;
+                    var modeByte = (byte)(modeWord & 0xFF);
+                    if (modeByte == FanModeAutomatic || modeByte == FanModeManual)
+                    {
+                        fanIsManual = modeByte == FanModeManual;
+                        modeKnown = true;
+                    }
+                    else
+                    {
+                        // Anything else is not a mode this protocol defines, so it is unknown rather
+                        // than automatic -- reading it as automatic would let one garbled reply
+                        // trigger a reconcile that takes the fan over.
+                        Log("Debug", "Corsair plug-in: the fan mode read on Corsair PSU " + Identity() + " answered 0x"
+                            + modeByte.ToString("x2", CultureInfo.InvariantCulture)
+                            + ", which is neither automatic (0x00) nor manual (0x01); the mode is treated as unknown this cycle.");
+                    }
                 }
-                else
+
+                if (!modeKnown)
                 {
                     ok = false;
                 }
 
+                // Best-effort extras from here on: their failure never reaches `ok`.
                 var volts = ReadLinear11(CommandInputVoltage, "input voltage", MinInputVoltage, MaxInputVoltage);
                 if (volts.HasValue)
                 {
                     inputVoltage = volts;
-                }
-                else
-                {
-                    ok = false;
                 }
 
                 var watts = ReadLinear11(CommandOutputPower, "output power", MinOutputPowerW, MaxOutputPowerW);
                 if (watts.HasValue)
                 {
                     outputPowerW = watts;
-                }
-                else
-                {
-                    ok = false;
                 }
 
                 if (modeKnown && !fanIsManual && requestedPercent >= ManualDutyThresholdPercent)
@@ -416,10 +450,15 @@ namespace SensorReadout.CorsairPlugIn
                     // program wrote 0xF0 = 0x00. Re-send duty + manual exactly once per refresh;
                     // if it fails the next refresh tries again. This is the only write in the
                     // sensor path and it can only fire once a manual duty has been requested.
-                    Log(ControlFailureLevel(), "Corsair plug-in: Corsair PSU " + Identity()
+                    //
+                    // Announced at Debug, not at the control-failure level: a successful reconcile
+                    // clears no latch (there is nothing failing), so at Error a program fighting us
+                    // over 0xF0 would emit one Error line per second forever. The failure of the
+                    // re-send below is what gets the Error treatment, latched as usual.
+                    Log("Debug", "Corsair plug-in: Corsair PSU " + Identity()
                         + " fell back to automatic fan control while a manual duty of "
                         + requestedPercent.ToString(CultureInfo.InvariantCulture) + " % was requested; re-sending it once.");
-                    if (!ApplyManual(requestedPercent, GuardTimeoutMs))
+                    if (!ApplyManual(requestedPercent, GuardTimeoutMs, TransferTimeoutMs))
                     {
                         ok = false;
                     }
@@ -451,10 +490,10 @@ namespace SensorReadout.CorsairPlugIn
 
                 if (percent < ManualDutyThresholdPercent)
                 {
-                    return HandBackToAutomatic(GuardTimeoutMs);
+                    return HandBackToAutomatic(GuardTimeoutMs, TransferTimeoutMs);
                 }
 
-                return ApplyManual(percent > 100 ? 100 : percent, GuardTimeoutMs);
+                return ApplyManual(percent, GuardTimeoutMs, TransferTimeoutMs);
             }
         }
 
@@ -468,25 +507,47 @@ namespace SensorReadout.CorsairPlugIn
             {
                 if (stream == null)
                 {
+                    Log("Debug", "Corsair plug-in: a fan reset was requested for Corsair PSU " + Identity()
+                        + " while it was not connected; nothing was sent.");
                     return false;
                 }
 
-                return ResetFanCore(GuardTimeoutMs);
+                bool modeRestored;
+                return ResetFanCore(GuardTimeoutMs, TransferTimeoutMs, out modeRestored);
             }
         }
 
         // Duty (0x3B) then mode (0xF0) = manual, in that order (annex §7.3). Callers: the explicit
-        // control entry point and the automatic-fallback reconcile.
-        private bool ApplyManual(int percent, int guardTimeoutMs)
+        // control entry point and the automatic-fallback reconcile. This is the single funnel to
+        // the duty byte, so the 30-100 clamp lives here.
+        private bool ApplyManual(int percent, int guardTimeoutMs, int transferTimeoutMs)
         {
             var level = ControlFailureLevel();
+            var duty = percent;
+            if (duty < ManualDutyThresholdPercent)
+            {
+                duty = ManualDutyThresholdPercent;
+            }
+            else if (duty > 100)
+            {
+                duty = 100;
+            }
 
-            // Armed before the write, not after: if the duty lands but the mode write is lost (or
-            // the reverse), the PSU may still end up manual, and the restore on the way down has
-            // to know that.
+            if (duty != percent)
+            {
+                Log("Debug", "Corsair plug-in: a manual fan duty of " + percent.ToString(CultureInfo.InvariantCulture)
+                    + " % was requested for Corsair PSU " + Identity() + "; clamping it to "
+                    + duty.ToString(CultureInfo.InvariantCulture) + " % (annex §7.2 allows 30-100 under manual control).");
+            }
+
+            // Both of these record *intent*, and both are armed before the write rather than after
+            // a confirmed echo. everSetManual so that a half-applied take-over still arms the
+            // restore on the way down; requestedPercent so that a lost echo cannot leave a stale
+            // duty behind as the reconcile's idea of what the user asked for.
             everSetManual = true;
+            requestedPercent = duty;
 
-            if (!WriteRegister(CommandFanDuty, (byte)percent, level, guardTimeoutMs))
+            if (!WriteRegister(CommandFanDuty, (byte)duty, level, guardTimeoutMs, transferTimeoutMs))
             {
                 Log(level, "Corsair plug-in: the fan duty write to Corsair PSU " + Identity() + " did not reach the hardware."
                     + (controlFailureReported ? "" : " Further failures are logged at Debug until one succeeds."));
@@ -494,7 +555,7 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!WriteRegister(CommandFanMode, FanModeManual, level, guardTimeoutMs))
+            if (!WriteRegister(CommandFanMode, FanModeManual, level, guardTimeoutMs, transferTimeoutMs))
             {
                 Log(level, "Corsair plug-in: the fan mode switch to manual on Corsair PSU " + Identity() + " did not reach the hardware."
                     + (controlFailureReported ? "" : " Further failures are logged at Debug until one succeeds."));
@@ -502,17 +563,21 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            requestedPercent = percent;
             fanIsManual = true;
-            NoteControlSuccess(true);
+            NoteControlSuccess();
             return true;
         }
 
         // Mode 0x00 only: the duty byte is inert under PSU control, so there is nothing to zero.
-        private bool HandBackToAutomatic(int guardTimeoutMs)
+        private bool HandBackToAutomatic(int guardTimeoutMs, int transferTimeoutMs)
         {
             var level = ControlFailureLevel();
-            if (!WriteRegister(CommandFanMode, FanModeAutomatic, level, guardTimeoutMs))
+
+            // Intent first (see ApplyManual): the user has asked for the PSU's own control, so the
+            // reconcile must stop wanting the old manual duty even if the write below is lost.
+            requestedPercent = NoRequestedPercent;
+
+            if (!WriteRegister(CommandFanMode, FanModeAutomatic, level, guardTimeoutMs, transferTimeoutMs))
             {
                 Log(level, "Corsair plug-in: handing the fan of Corsair PSU " + Identity()
                     + " back to automatic control did not reach the hardware."
@@ -521,20 +586,25 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            requestedPercent = NoRequestedPercent;
             fanIsManual = false;
             everSetManual = false;
-            NoteControlSuccess(true);
+            NoteControlSuccess();
             return true;
         }
 
-        // Duty 0 then mode 0x00. The guard budget is a parameter because the shutdown path cannot
-        // afford the full 2000 ms wait per write.
-        private bool ResetFanCore(int guardBudgetMs)
+        // Duty 0 then mode 0x00. Both bounds are parameters because the shutdown path can afford
+        // neither the full guard wait nor the full per-transfer timeout. <paramref
+        // name="modeRestored"/> reports the safety-critical half on its own: when it is true the fan
+        // is back on the PSU's curve even if this method returned false.
+        private bool ResetFanCore(int guardBudgetMs, int transferTimeoutMs, out bool modeRestored)
         {
             var level = ControlFailureLevel();
             var startTicks = Environment.TickCount;
-            var dutyOk = WriteRegister(CommandFanDuty, 0, level, guardBudgetMs);
+
+            // Intent first (see ApplyManual).
+            requestedPercent = NoRequestedPercent;
+
+            var dutyOk = WriteRegister(CommandFanDuty, 0, level, guardBudgetMs, transferTimeoutMs);
 
             // The mode write is the safety-critical half (annex §7.4), so it is attempted even when
             // the duty write failed, and it always gets at least MinimumRestoreGuardMs of guard
@@ -547,18 +617,18 @@ namespace SensorReadout.CorsairPlugIn
                 remaining = MinimumRestoreGuardMs;
             }
 
-            var modeOk = WriteRegister(CommandFanMode, FanModeAutomatic, level, remaining);
+            var modeOk = WriteRegister(CommandFanMode, FanModeAutomatic, level, remaining, transferTimeoutMs);
+            modeRestored = modeOk;
             if (modeOk)
             {
                 // The fan is back under PSU control; a duty that did not land is inert in that mode.
-                requestedPercent = NoRequestedPercent;
                 fanIsManual = false;
             }
 
             if (dutyOk && modeOk)
             {
                 everSetManual = false;
-                NoteControlSuccess(true);
+                NoteControlSuccess();
                 return true;
             }
 
@@ -588,7 +658,7 @@ namespace SensorReadout.CorsairPlugIn
             controlFailureReported = true;
         }
 
-        private void NoteControlSuccess(bool announceRecovery)
+        private void NoteControlSuccess()
         {
             if (!controlFailureReported)
             {
@@ -596,12 +666,10 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             controlFailureReported = false;
-            if (announceRecovery)
-            {
-                // At Error so that a reader who only has the Error log sees the failure resolved. An
-                // Error entry with no recorded clearance reads as a problem that is still happening.
-                Log("Error", "Corsair plug-in: control commands to Corsair PSU " + Identity() + " are reaching the hardware again.");
-            }
+
+            // At Error so that a reader who only has the Error log sees the failure resolved. An
+            // Error entry with no recorded clearance reads as a problem that is still happening.
+            Log("Error", "Corsair plug-in: control commands to Corsair PSU " + Identity() + " are reaching the hardware again.");
         }
 
         // ---- Reads and decoding ----------------------------------------------------------------
@@ -654,7 +722,7 @@ namespace SensorReadout.CorsairPlugIn
 
             // Reads are logged at Debug throughout: another program's interleaved traffic makes the
             // occasional unusable answer ordinary chatter, not a fault.
-            var response = RunTransaction(ModeRead, command, 0x00, "Debug", GuardTimeoutMs);
+            var response = RunTransaction(ModeRead, command, 0x00, "Debug", GuardTimeoutMs, TransferTimeoutMs);
             if (response == null)
             {
                 Log("Debug", "Corsair plug-in: the " + what + " read on Corsair PSU " + Identity() + " did not complete.");
@@ -666,9 +734,9 @@ namespace SensorReadout.CorsairPlugIn
             return true;
         }
 
-        private bool WriteRegister(byte command, byte data, string failureLevel, int guardTimeoutMs)
+        private bool WriteRegister(byte command, byte data, string failureLevel, int guardTimeoutMs, int transferTimeoutMs)
         {
-            return RunTransaction(ModeWrite, command, data, failureLevel, guardTimeoutMs) != null;
+            return RunTransaction(ModeWrite, command, data, failureLevel, guardTimeoutMs, transferTimeoutMs) != null;
         }
 
         // ---- Transaction core ------------------------------------------------------------------
@@ -681,8 +749,13 @@ namespace SensorReadout.CorsairPlugIn
         /// A response whose echo bytes do not match the request is treated as interference from
         /// another program rather than as a device fault: it is logged at Debug and the caller
         /// keeps whatever value it already had.
+        ///
+        /// Both bounds are parameters because the shutdown restore has to fit inside a ProcessExit
+        /// handler: <paramref name="guardTimeoutMs"/> bounds the wait for the cross-process guard,
+        /// <paramref name="transferTimeoutMs"/> each of the four HID transfers this transaction
+        /// performs. Total worst case is therefore guard + 4 x transfer.
         /// </summary>
-        private byte[] RunTransaction(byte mode, byte command, byte data, string failureLevel, int guardTimeoutMs)
+        private byte[] RunTransaction(byte mode, byte command, byte data, string failureLevel, int guardTimeoutMs, int transferTimeoutMs)
         {
             var localStream = stream;
             if (localStream == null)
@@ -706,18 +779,18 @@ namespace SensorReadout.CorsairPlugIn
                 // not drain, or it would swallow its own handshake's trailing traffic.
                 localStream.DrainInput();
 
-                if (!Handshake(localStream, "command preamble"))
+                if (!Handshake(localStream, "command preamble", transferTimeoutMs))
                 {
                     return null;
                 }
 
-                if (!localStream.Write(BuildRequest(mode, command, data), WriteTimeoutMs))
+                if (!localStream.Write(BuildRequest(mode, command, data), transferTimeoutMs))
                 {
                     NoteTransportFailure(localStream, "command write");
                     return null;
                 }
 
-                var response = ReadReport(localStream, "command read");
+                var response = ReadReport(localStream, "command read", transferTimeoutMs);
                 if (response == null)
                 {
                     return null;
@@ -744,34 +817,42 @@ namespace SensorReadout.CorsairPlugIn
         /// Writes the handshake (annex §4.1 swaps the first two bytes: 0xFE in the mode slot, 0x03
         /// in the command slot) and validates the reply's echo. MUST be called with the guard held.
         /// </summary>
-        private bool Handshake(CorsairHidStream localStream, string what)
+        private bool Handshake(CorsairHidStream localStream, string what, int transferTimeoutMs)
         {
             byte[] response;
-            return TryHandshake(localStream, what, out response);
+            return TryHandshake(localStream, what, transferTimeoutMs, out response);
         }
 
-        private bool TryHandshake(CorsairHidStream localStream, string what, out byte[] response)
+        private bool TryHandshake(CorsairHidStream localStream, string what, int transferTimeoutMs, out byte[] response)
         {
             response = null;
 
-            if (!localStream.Write(BuildRequest(HandshakeCommand, HandshakeArgument, 0x00), WriteTimeoutMs))
+            if (!localStream.Write(BuildRequest(HandshakeCommand, HandshakeArgument, 0x00), transferTimeoutMs))
             {
                 NoteTransportFailure(localStream, what + " handshake write");
                 return false;
             }
 
-            var reply = ReadReport(localStream, what + " handshake read");
+            var reply = ReadReport(localStream, what + " handshake read", transferTimeoutMs);
             if (reply == null)
             {
                 return false;
             }
 
-            // Annex §3 rule 1: 0xFE in the mode slot is the handshake echo, but 0xFE in the mode
-            // slot together with 0xFE in the first data byte is the device's failure reply.
-            if (reply[ModeOffset] != HandshakeCommand || reply[DataOffset] == HandshakeCommand)
+            // The annex §3 validation rules, spelled out one per clause so they map 1:1 onto the
+            // document even where one subsumes another:
+            //   rule 1 -- 0xFE in the mode slot is the handshake echo, but 0xFE there *together
+            //             with* 0xFE in the first data byte is the device's failure reply;
+            //   rule 2 -- 0xFE in the command slot is a failure marker (subsumed by rule 3 here,
+            //             since the value required there is 0x03);
+            //   rule 3 -- both echo bytes must match what was sent (0xFE, 0x03).
+            if (reply[ModeOffset] != HandshakeCommand
+                || reply[DataOffset] == HandshakeCommand
+                || reply[CommandOffset] == HandshakeCommand
+                || reply[CommandOffset] != HandshakeArgument)
             {
                 Log("Debug", "Corsair plug-in: the " + what + " handshake with Corsair PSU " + Identity()
-                    + " was answered with " + ToHex(reply, 4) + " instead of a 0xfe echo.");
+                    + " was answered with " + ToHex(reply, 4) + " instead of an 0xfe 0x03 echo.");
                 return false;
             }
 
@@ -800,7 +881,7 @@ namespace SensorReadout.CorsairPlugIn
                 localStream.DrainInput();
 
                 byte[] response;
-                if (!TryHandshake(localStream, "identification", out response))
+                if (!TryHandshake(localStream, "identification", TransferTimeoutMs, out response))
                 {
                     return string.Empty;
                 }
@@ -867,10 +948,10 @@ namespace SensorReadout.CorsairPlugIn
             return request;
         }
 
-        private byte[] ReadReport(CorsairHidStream localStream, string what)
+        private byte[] ReadReport(CorsairHidStream localStream, string what, int transferTimeoutMs)
         {
             var buffer = new byte[info.InputReportLength];
-            if (!localStream.Read(buffer, ReadTimeoutMs))
+            if (!localStream.Read(buffer, transferTimeoutMs))
             {
                 NoteTransportFailure(localStream, what);
                 return null;
@@ -879,14 +960,13 @@ namespace SensorReadout.CorsairPlugIn
             return buffer;
         }
 
-        // Annex §3: a valid command reply echoes both the mode and the command byte, and 0xFE in
-        // either slot is the device's error marker, never a real echo.
+        // Annex §3 rule 3: a valid command reply echoes both the mode and the command byte. Rules 1
+        // and 2 (0xFE as the device's error marker in either slot) need no separate clause here:
+        // this is only ever called for a real command, and neither mode (0x02, 0x03) nor any
+        // command this class sends is 0xFE, so an error marker can never satisfy the echo test.
         private static bool ResponseMatches(byte[] response, byte mode, byte command)
         {
-            return response[ModeOffset] != HandshakeCommand
-                && response[CommandOffset] != HandshakeCommand
-                && response[ModeOffset] == mode
-                && response[CommandOffset] == command;
+            return response[ModeOffset] == mode && response[CommandOffset] == command;
         }
 
         private void NoteTransportFailure(CorsairHidStream localStream, string operation)
