@@ -461,9 +461,10 @@ namespace SensorReadout.CorsairPlugIn
         /// Canonicalizes a hub serial into the key every row identifier,
         /// intent-dictionary lookup and <see cref="FindHub"/> comparison uses. <c>device.Serial</c>
         /// is already lower-cased by <c>CorsairLinkHubDevice.Connect</c>, but nothing there
-        /// guarantees it is free of '|' or '/' -- either would corrupt a
-        /// <c>SensorReading.Identifier</c> (host-conventions.md sec 1.3) and make this plug-in's own
-        /// <c>TryParseControlIdentifier</c> gate reject its own rows. Falls back to "hub0" when
+        /// guarantees it is free of '|' or '/' -- a <c>SensorReading.Identifier</c> may never
+        /// contain '|' or start with '/' (see <c>Docs/Plug-In-development.md</c>), and either
+        /// character would also make this plug-in's own <c>TryParseControlIdentifier</c> gate,
+        /// which splits on '/', reject its own rows. Falls back to "hub0" when
         /// nothing alphanumeric survives, matching <c>CorsairLinkHubDevice.FallbackSerial</c>'s
         /// intent for a device that reports no serial at all.
         /// </summary>

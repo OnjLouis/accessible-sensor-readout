@@ -344,7 +344,17 @@ namespace SensorReadout.CorsairPlugIn
             // makes the answer genuinely fresh in both cases.
             var startedBefore = Thread.VolatileRead(ref startedTicks);
             Interlocked.Exchange(ref forceRefreshRequested, 1);
-            wake.Set();
+            try
+            {
+                wake.Set();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Shutdown can dispose the event between the checks above and this line; the loop
+                // below then simply times out against the already-stopped worker. Same guard as
+                // NoteContact, OnPowerModeChanged and StopAndRestore.
+                return false;
+            }
 
             var budget = waitMs < 0 ? 0 : waitMs;
             var startTicks = Environment.TickCount;
