@@ -28,6 +28,11 @@ namespace SensorReadout.CorsairPlugIn
         private const string StatusIdentifier = "corsair/status";
         private const string DiagnosticsIdentifier = "corsair/diagnostics";
 
+        // task-8 fix round 2, MEDIUM 3: the shortest hub-serial tail ComputeHubNameSuffixes will try
+        // before growing it to disambiguate two hubs -- 6 matches the example in the re-review
+        // instruction ("Port 1 QX Fan (cbe46f)") and round 1's Hardware-suffix length.
+        private const int MinHubNameSuffixLength = 6;
+
         // Annex-derived safety facts (constraints.md sec 7/9). Repeated verbatim on every control
         // row rather than computed, so the wording cannot drift between hub and PSU rows.
         //
@@ -165,16 +170,19 @@ namespace SensorReadout.CorsairPlugIn
                 return rows;
             }
 
-            // task-8 fix round MEDIUM 3: the host's fan-control panel matches a saved label/curve by
-            // Name first and falls back to FirstOrDefault, so two hubs sharing "Corsair iCUE LINK
-            // Hub" as Hardware would be indistinguishable there -- writes could land on the wrong
-            // hub. A serial-derived suffix disambiguates Hardware only when it would actually
-            // matter; Name ("Port N ...") is unaffected either way.
+            // task-8 fix round 2, MEDIUM 3 (re-review): the host's fan/control matching is by NAME
+            // first (FanControls.cs:1060 never reads Hardware) and the fan-control dropdown labels
+            // are Name-based too, so a Hardware-only discriminator (round 1) does not actually stop
+            // two hubs from colliding. ComputeHubNameSuffixes assigns each hub a suffix -- empty for
+            // the common single-hub case -- guaranteed distinct across every hub in this snapshot;
+            // AddHubRows appends it to every row Name for that hub (fan, temperature, control, and
+            // the unavailable-hub status row).
             var hubs = snapshot.Hubs ?? new List<HubSnapshot>();
             var multiHub = hubs.Count > 1;
+            var hubNameSuffixes = ComputeHubNameSuffixes(hubs);
             for (var h = 0; h < hubs.Count; h++)
             {
-                AddHubRows(rows, hubs[h], multiHub);
+                AddHubRows(rows, hubs[h], multiHub, hubNameSuffixes[h]);
             }
 
             var psus = snapshot.Psus ?? new List<PsuSnapshot>();
@@ -214,7 +222,7 @@ namespace SensorReadout.CorsairPlugIn
 
         // ---- Hub rows ---------------------------------------------------------------------------
 
-        private static void AddHubRows(List<SensorReading> rows, HubSnapshot hub, bool multiHub)
+        private static void AddHubRows(List<SensorReading> rows, HubSnapshot hub, bool multiHub, string nameSuffix)
         {
             if (hub == null)
             {
@@ -242,7 +250,7 @@ namespace SensorReadout.CorsairPlugIn
                     continue;
                 }
 
-                AddHubChannelRows(rows, hub, channel, wrongModeNote, hardwareName);
+                AddHubChannelRows(rows, hub, channel, wrongModeNote, hardwareName, nameSuffix);
                 emittedAnyChannelRow = true;
             }
 
@@ -254,12 +262,16 @@ namespace SensorReadout.CorsairPlugIn
             // with one row rather than trying to enumerate every possible reason.
             if (!emittedAnyChannelRow)
             {
-                rows.Add(MakeHubUnavailableRow(hub));
+                rows.Add(MakeHubUnavailableRow(hub, nameSuffix));
             }
         }
 
-        // task-8 fix round MEDIUM 3: only decorates Hardware when more than one hub is present, so
-        // the common single-hub case stays exactly "Corsair iCUE LINK Hub".
+        // task-8 fix round MEDIUM 3 (round 1): only decorates Hardware when more than one hub is
+        // present, so the common single-hub case stays exactly "Corsair iCUE LINK Hub". Left as its
+        // own simple last-6-chars suffix per the re-review instruction to leave this behavior as is
+        // -- unlike ComputeHubNameSuffixes below, it does not need collision avoidance, because
+        // nothing in the host matches on Hardware (that was the round-1 mistake); it is informational
+        // only now that Name carries the disambiguation that actually matters.
         private static string HubHardwareNameFor(string serial, bool multiHub)
         {
             if (!multiHub)
@@ -273,7 +285,85 @@ namespace SensorReadout.CorsairPlugIn
             return HubHardwareName + " (" + suffix + ")";
         }
 
-        private static SensorReading MakeHubUnavailableRow(HubSnapshot hub)
+        // task-8 fix round 2, MEDIUM 3 (re-review): the host matches a Fan row to its Fan Control
+        // row, and labels the fan-control dropdown, by Name -- never Hardware (FanControls.cs:1060).
+        // Returns one suffix per hub, index-aligned with <paramref name="hubs"/>: empty for the
+        // single-hub case (Name stays exactly "Port N ..." with no change from before this fix
+        // round), otherwise the shortest tail of the (already [a-z0-9]-sanitized, task-8 fix round 1
+        // LOW 5) serial that is unique across every hub in this snapshot, growing one character at a
+        // time and falling back to the full serial if even that collides.
+        private static List<string> ComputeHubNameSuffixes(List<HubSnapshot> hubs)
+        {
+            var suffixes = new List<string>(hubs.Count);
+
+            if (hubs.Count <= 1)
+            {
+                for (var i = 0; i < hubs.Count; i++)
+                {
+                    suffixes.Add(string.Empty);
+                }
+
+                return suffixes;
+            }
+
+            var serials = new List<string>(hubs.Count);
+            var maxLength = MinHubNameSuffixLength;
+            for (var i = 0; i < hubs.Count; i++)
+            {
+                var serial = hubs[i] == null || hubs[i].Serial == null ? string.Empty : hubs[i].Serial;
+                serials.Add(serial);
+                if (serial.Length > maxLength)
+                {
+                    maxLength = serial.Length;
+                }
+            }
+
+            for (var length = MinHubNameSuffixLength; length <= maxLength; length++)
+            {
+                var candidate = new List<string>(hubs.Count);
+                var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (var i = 0; i < serials.Count; i++)
+                {
+                    var serial = serials[i];
+                    var suffixLength = Math.Min(length, serial.Length);
+                    var suffix = serial.Substring(serial.Length - suffixLength, suffixLength);
+                    candidate.Add(suffix);
+
+                    int count;
+                    counts.TryGetValue(suffix, out count);
+                    counts[suffix] = count + 1;
+                }
+
+                var unique = true;
+                foreach (var count in counts.Values)
+                {
+                    if (count > 1)
+                    {
+                        unique = false;
+                        break;
+                    }
+                }
+
+                // Either every suffix at this length is unique, or this is the longest length worth
+                // trying (every hub's suffix already equals its full serial) -- either way, this is
+                // the best available answer. A collision surviving the full-serial attempt would mean
+                // two hubs share one literal Serial, which CorsairWorker.Devices.cs's ConnectHub
+                // uniqueness guard (fix round 2) prevents at the source.
+                if (unique || length == maxLength)
+                {
+                    return candidate;
+                }
+            }
+
+            return serials;
+        }
+
+        private static string AppendHubNameSuffix(string baseName, string nameSuffix)
+        {
+            return string.IsNullOrEmpty(nameSuffix) ? baseName : baseName + " (" + nameSuffix + ")";
+        }
+
+        private static SensorReading MakeHubUnavailableRow(HubSnapshot hub, string nameSuffix)
         {
             var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             details["Firmware"] = string.IsNullOrEmpty(hub.FirmwareVersion) ? "Unknown" : hub.FirmwareVersion;
@@ -285,7 +375,7 @@ namespace SensorReadout.CorsairPlugIn
             {
                 Type = "Performance",
                 Hardware = "Overview",
-                Name = "Corsair Plug-In",
+                Name = AppendHubNameSuffix("Corsair Plug-In", nameSuffix),
                 // Per-hub rather than reusing StatusIdentifier: more than one hub can independently
                 // have nothing to show (MEDIUM 3 is exactly about not assuming a single hub), and
                 // each needs its own stable identifier so the rows do not collide or overwrite.
@@ -296,14 +386,20 @@ namespace SensorReadout.CorsairPlugIn
             };
         }
 
-        private static void AddHubChannelRows(List<SensorReading> rows, HubSnapshot hub, HubChannelSnapshot channel, string wrongModeNote, string hardwareName)
+        private static void AddHubChannelRows(List<SensorReading> rows, HubSnapshot hub, HubChannelSnapshot channel, string wrongModeNote, string hardwareName, string nameSuffix)
         {
             var deviceName = string.IsNullOrEmpty(channel.DeviceName) ? "Corsair device" : channel.DeviceName;
             var portLabel = "Port " + channel.Channel.ToString(CultureInfo.InvariantCulture);
-            var fanName = channel.IsPump ? portLabel + " " + deviceName + " pump" : portLabel + " " + deviceName;
-            var tempName = channel.IsPump
+            var baseFanName = channel.IsPump ? portLabel + " " + deviceName + " pump" : portLabel + " " + deviceName;
+            var baseTempName = channel.IsPump
                 ? portLabel + " " + deviceName + " liquid temperature"
                 : portLabel + " " + deviceName + " temperature";
+
+            // Shared locals, exactly like round 1 -- the Fan row and its Fan Control row must keep
+            // an identical Name (host-conventions.md sec 1.3 pairing), so the suffix goes on once
+            // here rather than being appended separately at each call site below.
+            var fanName = AppendHubNameSuffix(baseFanName, nameSuffix);
+            var tempName = AppendHubNameSuffix(baseTempName, nameSuffix);
 
             if (channel.Rpm.HasValue)
             {

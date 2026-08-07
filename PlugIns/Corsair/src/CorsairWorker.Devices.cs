@@ -338,7 +338,20 @@ namespace SensorReadout.CorsairPlugIn
             // on -- FindHub, hubIntents, and BuildSnapshot's HubSnapshot.Serial (and therefore every
             // row identifier Rows.cs builds) all read it back unchanged, so there is exactly one
             // place that can disagree with the others, and there is none.
-            entry.Serial = SanitizeHubKey(device.Serial);
+            //
+            // task-8 fix round 2 (MEDIUM 3 narrow guard): sanitization can turn two genuinely
+            // different hubs' serials into the same key (most plainly, two hubs that both report no
+            // serial at all would both sanitize to "hub0"). MakeUniqueHubKey is called against the
+            // list this hub is about to join, before it joins it, so a collision cannot silently
+            // merge two hubs' FindHub/hubIntents/identifier bookkeeping into one.
+            var sanitizedSerial = SanitizeHubKey(device.Serial);
+            entry.Serial = MakeUniqueHubKey(sanitizedSerial);
+            if (!string.Equals(entry.Serial, sanitizedSerial, StringComparison.OrdinalIgnoreCase))
+            {
+                Log("Debug", "Corsair plug-in: the iCUE LINK hub at " + info.Path + " sanitizes to the key \""
+                    + sanitizedSerial + "\", already used by another connected hub; using \"" + entry.Serial + "\" instead.");
+            }
+
             entry.NextDueTicks = Environment.TickCount;
             hubs.Add(entry);
 
@@ -413,6 +426,38 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             return builder.Length == 0 ? "hub0" : builder.ToString();
+        }
+
+        /// <summary>
+        /// task-8 fix round 2 (MEDIUM 3 narrow guard): returns <paramref name="candidateKey"/>
+        /// unchanged when no currently-connected hub already uses it, otherwise the same key with
+        /// "-2", "-3", ... appended until one is free. Called with <c>deviceLock</c> held (same as
+        /// <see cref="ConnectHub"/>, its only caller), so the <see cref="FindHub"/> check below sees
+        /// every hub this worker currently has open. The HID-path dedupe in <see cref="ScanDevices"/>
+        /// (<c>FindHubByPath</c>) already stops the same physical hub from being opened twice; this
+        /// guards the separate, rarer case of two genuinely different hubs whose serials collide
+        /// after <see cref="SanitizeHubKey"/> strips non-alphanumeric characters -- most plainly, two
+        /// hubs that both report no serial at all would otherwise both become "hub0".
+        /// </summary>
+        private string MakeUniqueHubKey(string candidateKey)
+        {
+            if (FindHub(candidateKey) == null)
+            {
+                return candidateKey;
+            }
+
+            for (var suffix = 2; suffix < 1000; suffix++)
+            {
+                var attempt = candidateKey + "-" + suffix.ToString(CultureInfo.InvariantCulture);
+                if (FindHub(attempt) == null)
+                {
+                    return attempt;
+                }
+            }
+
+            // Effectively unreachable (998 simultaneously connected hubs sharing one sanitized key),
+            // but every path must return a key rather than loop forever.
+            return candidateKey + "-" + Environment.TickCount.ToString(CultureInfo.InvariantCulture);
         }
 
         // ---- Intent: what the user asked for, across device object lifetimes ----------------------
