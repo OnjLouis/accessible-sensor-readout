@@ -280,7 +280,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.HiddenCategoryKeys = dialog.HiddenCategoryKeys;
         settings.ReadingSpeechLabels = dialog.ReadingSpeechLabels;
         settings.PlugInsEnabled = dialog.PlugInsEnabled;
-        plugInManager = null;
+        DisposePlugInManager();
         ClearOemProviderRowsCache();
         SaveSettings(settings);
 
@@ -341,7 +341,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        plugInManager = null;
+        DisposePlugInManager();
         ClearOemProviderRowsCache();
         statusLabel.Text = L("status.Plug-In imported. Enable it from Options, Preferences, Plug-Ins.", "Plug-In imported. Enable it from Options, Preferences, Plug-Ins.");
         RefreshSensors(false, false, "plug-in import");

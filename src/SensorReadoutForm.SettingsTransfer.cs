@@ -595,7 +595,7 @@ public sealed partial class SensorReadoutForm : Form
             settings.TrayStatusEnabled = true;
         }
 
-        plugInManager = null;
+        DisposePlugInManager();
         autoRefreshMenuItem.Checked = settings.AutoRefreshEnabled;
         refreshWhileFocusedMenuItem.Checked = settings.RefreshWhileFocused;
         trayStatusMenuItem.Checked = settings.TrayStatusEnabled;

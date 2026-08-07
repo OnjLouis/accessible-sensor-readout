@@ -264,16 +264,17 @@ if (Test-Path $plugInRoot) {
         }
 
         $plugInTarget = Join-Path (Join-Path $portable 'Plug-Ins') $plugIn.Name
-        New-Item -ItemType Directory -Force -Path $plugInTarget | Out-Null
-        $manifestSource = Join-Path $plugIn.FullName 'plugin.json'
-        if (Test-Path $manifestSource) {
-            Copy-Item -LiteralPath $manifestSource -Destination (Join-Path $plugInTarget 'plugin.json') -Force
+        if (Test-Path -LiteralPath $plugInTarget) {
+            Remove-Item -LiteralPath $plugInTarget -Recurse -Force
         }
-        Get-ChildItem -LiteralPath $plugIn.FullName -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -ne 'plugin.json' } |
-            ForEach-Object {
-                Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $plugInTarget $_.Name) -Force
+        New-Item -ItemType Directory -Force -Path $plugInTarget | Out-Null
+        $packagedPlugInFiles = @('plugin.json', 'LICENSE', 'LICENSE.txt', 'GPL-3.0.txt', 'NOTICE.txt', 'README.md')
+        foreach ($fileName in $packagedPlugInFiles) {
+            $sourceFile = Join-Path $plugIn.FullName $fileName
+            if (Test-Path -LiteralPath $sourceFile) {
+                Copy-Item -LiteralPath $sourceFile -Destination (Join-Path $plugInTarget $fileName) -Force
             }
+        }
 
         if ($plugInSources.Count -gt 0) {
             $plugInOutput = Join-Path $plugInTarget ($plugIn.Name + 'PlugIn.dll')
@@ -289,6 +290,29 @@ if (Test-Path $plugInRoot) {
     if ($LASTEXITCODE -ne 0) {
         throw "Plug-In build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
     }
+        }
+
+        $plugInTestFolder = Join-Path $plugIn.FullName 'tests'
+        $plugInTests = @()
+        if (Test-Path -LiteralPath $plugInTestFolder) {
+            $plugInTests = Get-ChildItem -Path $plugInTestFolder -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
+        }
+        if ($plugInTests.Count -gt 0) {
+            $plugInTestOutput = Join-Path $generatedRoot ($plugIn.Name + '.SelfTest.exe')
+            $plugInTestReferences = @(
+                'System.dll',
+                'System.Core.dll',
+                'System.Management.dll',
+                (Join-Path $resources 'Newtonsoft.Json.dll')
+            ) -join ','
+            & $csc /nologo /target:exe /platform:x64 /out:$plugInTestOutput /reference:$plugInTestReferences @(@($sdkSources) + @($plugInSources) + @($plugInTests))
+            if ($LASTEXITCODE -ne 0) {
+                throw "Plug-In self-test build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
+            }
+            & $plugInTestOutput
+            if ($LASTEXITCODE -ne 0) {
+                throw "Plug-In self-test failed for $($plugIn.Name) with exit code $LASTEXITCODE"
+            }
         }
 
         $helperSourceFolder = Join-Path $plugIn.FullName 'helper'
@@ -428,7 +452,7 @@ Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyCon
 
 if ($SelfTest) {
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $selfTestRoot = Join-Path ([System.IO.Path]::GetTempPath()) "SensorReadout-SelfTest-$stamp"
+    $selfTestRoot = Join-Path ([System.IO.Path]::GetFullPath($BuildWorkRoot)) "SelfTest-$stamp"
     $selfTestApp = Join-Path $selfTestRoot 'App'
     $selfTestOutput = Join-Path $selfTestRoot 'Results'
     New-Item -ItemType Directory -Force -Path $selfTestApp | Out-Null

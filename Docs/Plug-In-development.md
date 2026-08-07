@@ -92,7 +92,7 @@ Do not change `id` between versions unless you intentionally want Sensor Readout
 Plug-Ins reference:
 
 ```text
-SensorReadout.PluginSdk.dll
+Resources\SensorReadout.PluginSdk.dll
 ```
 
 The SDK namespace is:
@@ -110,6 +110,20 @@ public interface ISensorReadoutPlugin
     IEnumerable<SensorReading> GetReadings(IPluginContext context);
 }
 ```
+
+Plug-ins that keep background threads, open device handles, subscribe to events, or hold other
+resources should also implement the optional lifecycle interface:
+
+```csharp
+public interface IPluginLifecycle
+{
+    void Shutdown();
+}
+```
+
+Sensor Readout calls `Shutdown` when a plug-in is disabled or reloaded and when the application
+closes. The method must be idempotent, bounded, and safe before the plug-in's first reading. It
+should stop background work and release hardware handles without racing in-flight operations.
 
 `GetReadings` is called during Sensor Readout refresh. Keep it fast.
 
@@ -315,19 +329,25 @@ That means third-party Plug-Ins in their own folders should survive normal updat
 
 ## Current Shipped Plug-In
 
-Sensor Readout currently ships:
+Sensor Readout currently ships optional plug-ins for:
 
 ```text
-Plug-Ins\Framework
+Asus ROG/TUF
+Corsair iCUE LINK and digital power supplies
+Dell Latitude
+Framework Laptop
+HP/OMEN/Victus
+Huawei MateBook
+Lenovo laptops
+MSI laptops
 ```
 
-It reads Framework Control API data when available and falls back to optional Framework EC helper tools if present.
-
-Framework users should install the required Framework helper software before expecting Framework-specific readings.
+Each plug-in documents its own hardware scope and remains disabled until the user enables it.
+The Corsair plug-in is read-only in its initial release.
 
 ## Future SDK Direction
 
-The current 1.6.0 SDK is intentionally small. Future versions may add explicit APIs for:
+The current SDK is intentionally small. Future versions may add explicit APIs for:
 
 - Writable fan controls.
 - Fan curve providers.

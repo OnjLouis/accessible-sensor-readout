@@ -55,19 +55,31 @@ public sealed partial class SensorReadoutForm : Form
         plugInManager = new PlugInManager(settings, GetPlugInsFolderPath(), LogMessage);
     }
 
+    private void DisposePlugInManager()
+    {
+        var manager = plugInManager;
+        plugInManager = null;
+        if (manager != null)
+        {
+            manager.Dispose();
+        }
+    }
+
     public static string GetPlugInsFolderPath()
     {
         return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plug-Ins");
     }
 
-    private sealed class PlugInManager
+    private sealed class PlugInManager : IDisposable
     {
         private readonly AppSettings settings;
         private readonly string folder;
         private readonly Action<string, string> log;
         private readonly List<LoadedPlugIn> loaded = new List<LoadedPlugIn>();
         private readonly MachineInfo machine;
+        private readonly object sync = new object();
         private bool loadedOnce;
+        private bool disposed;
 
         public PlugInManager(AppSettings settings, string folder, Action<string, string> log)
         {
@@ -84,58 +96,101 @@ public sealed partial class SensorReadoutForm : Form
 
         public IEnumerable<SensorRow> GetRows(bool diagnosticsMode)
         {
-            EnsureLoaded();
-            var rows = new List<SensorRow>();
-            foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance != null))
+            lock (sync)
             {
-                try
+                if (disposed)
                 {
-                    var context = new PlugInContext(machine, plugIn.Directory, diagnosticsMode, log);
-                    var before = rows.Count;
-                    rows.AddRange((plugIn.Instance.GetReadings(context) ?? Enumerable.Empty<SensorReading>())
-                        .Where(r => r != null)
-                        .Select(r => ToSensorRow(r, plugIn)));
-                    log("Debug", "Plug-In " + plugIn.Id + " returned " + (rows.Count - before).ToString(CultureInfo.InvariantCulture) + " rows.");
+                    return Enumerable.Empty<SensorRow>();
                 }
-                catch (Exception ex)
+
+                EnsureLoaded();
+                var rows = new List<SensorRow>();
+                foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance != null))
                 {
-                    plugIn.Status = "Failed: " + ex.Message;
-                    log("Error", "Plug-In " + plugIn.Id + " failed while collecting rows: " + ex.Message);
+                    try
+                    {
+                        var context = new PlugInContext(machine, plugIn.Directory, diagnosticsMode, log);
+                        var before = rows.Count;
+                        rows.AddRange((plugIn.Instance.GetReadings(context) ?? Enumerable.Empty<SensorReading>())
+                            .Where(r => r != null)
+                            .Select(r => ToSensorRow(r, plugIn)));
+                        log("Debug", "Plug-In " + plugIn.Id + " returned " + (rows.Count - before).ToString(CultureInfo.InvariantCulture) + " rows.");
+                    }
+                    catch (Exception ex)
+                    {
+                        plugIn.Status = "Failed: " + ex.Message;
+                        log("Error", "Plug-In " + plugIn.Id + " failed while collecting rows: " + ex.Message);
+                    }
                 }
-            }
 
-            foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance == null))
-            {
-                log("Debug", "Plug-In " + plugIn.Id + " is enabled but has no loaded instance. Status: " + plugIn.Status + ".");
-            }
+                foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance == null))
+                {
+                    log("Debug", "Plug-In " + plugIn.Id + " is enabled but has no loaded instance. Status: " + plugIn.Status + ".");
+                }
 
-            return rows;
+                return rows;
+            }
         }
 
         public bool TrySetFanControl(string identifier, int percent, bool manual)
         {
-            EnsureLoaded();
-            foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance is IFanControllablePlugin))
+            lock (sync)
             {
-                var controllable = (IFanControllablePlugin)plugIn.Instance;
-                try
+                if (disposed)
                 {
-                    var success = manual
-                        ? controllable.TrySetFanPercent(identifier, percent)
-                        : controllable.TryResetFan(identifier);
-                    log("Debug", "Plug-In " + plugIn.Id + " fan control " + (manual ? "manual" : "automatic") + " for " + identifier + " returned " + success + ".");
-                    if (success)
+                    return false;
+                }
+
+                EnsureLoaded();
+                foreach (var plugIn in loaded.Where(p => p.Enabled && p.Instance is IFanControllablePlugin))
+                {
+                    var controllable = (IFanControllablePlugin)plugIn.Instance;
+                    try
                     {
-                        return true;
+                        var success = manual
+                            ? controllable.TrySetFanPercent(identifier, percent)
+                            : controllable.TryResetFan(identifier);
+                        log("Debug", "Plug-In " + plugIn.Id + " fan control " + (manual ? "manual" : "automatic") + " for " + identifier + " returned " + success + ".");
+                        if (success)
+                        {
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        log("Error", "Plug-In " + plugIn.Id + " fan control failed: " + ex.Message);
                     }
                 }
-                catch (Exception ex)
-                {
-                    log("Error", "Plug-In " + plugIn.Id + " fan control failed: " + ex.Message);
-                }
-            }
 
-            return false;
+                return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (sync)
+            {
+                if (disposed)
+                {
+                    return;
+                }
+
+                disposed = true;
+                foreach (var plugIn in loaded.Where(p => p.Instance is IPluginLifecycle))
+                {
+                    try
+                    {
+                        ((IPluginLifecycle)plugIn.Instance).Shutdown();
+                        log("Debug", "Plug-In " + plugIn.Id + " shut down cleanly.");
+                    }
+                    catch (Exception ex)
+                    {
+                        log("Error", "Plug-In " + plugIn.Id + " failed while shutting down: " + ex.Message);
+                    }
+                }
+
+                loaded.Clear();
+            }
         }
 
         public static List<PlugInPreferenceInfo> LoadPreferenceInfos(AppSettings settings, string folder)

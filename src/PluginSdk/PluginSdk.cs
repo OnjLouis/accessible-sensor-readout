@@ -15,6 +15,15 @@ namespace SensorReadout.PluginSdk
         bool TryResetFan(string identifier);
     }
 
+    /// <summary>
+    /// Optional lifecycle contract for plug-ins that retain background workers, device handles,
+    /// or other resources beyond a single GetReadings call.
+    /// </summary>
+    public interface IPluginLifecycle
+    {
+        void Shutdown();
+    }
+
     public interface IPluginContext
     {
         MachineInfo Machine { get; }

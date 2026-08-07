@@ -1,0 +1,36 @@
+Corsair iCUE Link and PSU Support Plug-In — Third-Party Notices
+===============================================================
+
+This plug-in contains an original implementation written for Sensor Readout.
+No source code was copied from any third-party project.
+
+The USB HID wire-protocol facts it implements (command identifiers, packet
+layouts, numeric encodings, timing and safety semantics) were learned by
+studying and cross-checking the following public research projects:
+
+1. FanControl.CorsairLink — Evan Mulawski
+   https://github.com/EvanMulawski/FanControl.CorsairLink
+   (No open-source license is published for this project; it was used as a
+   reference for uncopyrightable protocol facts only.)
+
+2. liquidctl — the liquidctl contributors (GPL-3.0-or-later)
+   https://github.com/liquidctl/liquidctl
+
+3. OpenLinkHub — Nikola Jurkovic (GPL-3.0)
+   https://github.com/jurkovic-nikola/OpenLinkHub
+
+Because part of this protocol research derives from GPL-licensed projects,
+this optional plug-in is offered under GPL-3.0-or-later (see GPL-3.0.txt
+in this folder). The main Sensor Readout application remains MIT-licensed.
+This notice applies only to the optional Corsair plug-in in this folder.
+
+Interoperability: this plug-in synchronizes hardware access through the
+standard Global\CorsairLinkReadWriteGuardMutex, like HWiNFO, SIV, SignalRGB
+and Fan Control. Corsair iCUE does not use this mutex and must not run at
+the same time.
+
+Release scope:
+- This release is read-only. It monitors supported temperatures, fan speeds,
+  voltage, and power readings but does not expose or send fan-control commands.
+- Corsair iCUE does not use the shared guard. For reliable readings, do not run
+  this plug-in and iCUE at the same time.

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 5.1.0.
+Current version: 5.2.0.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -422,6 +422,7 @@ Experimental laptop plug-ins are also bundled for opt-in tester feedback. They a
 - Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
 - MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
 - Asus ROG Support is based in part on G-Helper ACPI research and can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available. Fan controls appear only on compatible ROG, TUF, Zephyrus, Strix, Scar, and Flow gaming laptop families; other ASUS systems remain read-only.
+- Corsair iCUE LINK and PSU Monitoring is an experimental, opt-in, read-only plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It can show pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Disabling the plug-in stops its background worker and releases its hardware handles. This release does not expose Corsair fan controls.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -652,6 +653,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\AsusRog`: experimental optional Asus ROG plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
+- `Plug-Ins\Corsair`: experimental optional read-only Corsair iCUE LINK Hub and HXi/RMi digital power-supply monitoring plug-in.
 - Users can add third-party plug-ins in their own subfolders.
 - `Docs\Plug-In-development.md`: plug-in SDK and manifest guide.
 - `Docs\Coding-agent-plug-in-rules.md`: strict guidance for coding agents working on plug-ins. Existing plug-in work must stay inside the relevant plug-in folder unless a core app change is explicitly approved.
@@ -718,6 +720,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 5.2.0
+
+- Added: An experimental, opt-in, read-only Corsair iCUE LINK and PSU Monitoring plug-in can show supported hub pump and fan speeds, liquid or device temperatures, and HXi/RMi digital power-supply temperatures, fan speed, input voltage, and output power. Close Corsair iCUE before enabling it. Disabling the plug-in stops its background work and releases its hardware handles. This release does not expose Corsair fan controls. Thanks to Robin Kipp for contributing the original implementation.
 
 ### 5.1.0
 
@@ -1410,4 +1416,4 @@ Sensor Readout uses or bundles components from these projects:
 
 The main Sensor Readout application is licensed under the MIT License. See `LICENSE.txt`.
 
-Some optional bundled plug-ins or data files have their own licenses and notices. In particular, `Plug-Ins\AsusRog` contains G-Helper-derived ACPI work and ships with its own GPL notice and GPL text in that folder.
+Some optional bundled plug-ins or data files have their own licenses and notices. In particular, `Plug-Ins\AsusRog` contains G-Helper-derived ACPI work and ships with its own GPL notice and GPL text in that folder. `Plug-Ins\Corsair` contains an original implementation based on cross-checked public Corsair protocol research and ships with its own notice and GPL-3.0-or-later license text.
