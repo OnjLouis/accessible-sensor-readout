@@ -95,10 +95,13 @@ fight over duties (monitoring together is fine).
   software control. The plug-in resumes control by itself only on a machine that has used it
   for fan control before; that fact is recorded in a marker file next to the plug-in,
   `Plug-Ins\Corsair\corsair-hub-<serial>.controlled` (one per hub, written the first time a
-  Corsair fan control is used). Deleting the file returns the plug-in to strictly
-  read-only-until-touched behaviour: the hub is then left in hardware mode at start-up and
-  its rows stay hidden until a fan control is used again. The file records only that fan
-  control was used — no duties, no percentages; those live in Sensor Readout's own settings.
+  Corsair fan control is used — one-click diagnostics also counts, since it exercises the
+  controls). Deleting the file returns the plug-in to strictly read-only-until-touched
+  behaviour: the hub is then left in hardware mode at start-up and its rows stay hidden
+  until a fan control is used again. An app update also clears the marker (the updater
+  archives it into its backup ZIP), so after updating, use any fan control once to restore
+  automatic resume. The file records only that fan control was used — no duties, no
+  percentages; those live in Sensor Readout's own settings.
 - Minimized-tray refresh of plug-in rows is 5 minutes — except on hosts with the
   fan-curve cache exemption, where rows refresh at the normal 10-second interval
   whenever an enabled fan curve uses a plug-in temperature (so liquid-temperature curves
