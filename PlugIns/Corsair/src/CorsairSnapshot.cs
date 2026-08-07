@@ -34,6 +34,12 @@ namespace SensorReadout.CorsairPlugIn
         public int RequestedPercent;
         public bool PercentIsDefault;
 
+        // Diagnostics only (task-8 fix round, reviewer carry): the raw enumeration bytes.
+        // DeviceName is a friendly name that does not round-trip to these -- e.g. "H100i" is
+        // model 0x07 with variant 0x00 *or* 0x04 -- and a support bundle needs the real values.
+        public byte ModelCode;
+        public byte VariantCode;
+
         public HubChannelSnapshot Clone()
         {
             var clone = new HubChannelSnapshot();
@@ -48,6 +54,8 @@ namespace SensorReadout.CorsairPlugIn
             clone.TemperatureC = TemperatureC;
             clone.RequestedPercent = RequestedPercent;
             clone.PercentIsDefault = PercentIsDefault;
+            clone.ModelCode = ModelCode;
+            clone.VariantCode = VariantCode;
             return clone;
         }
     }

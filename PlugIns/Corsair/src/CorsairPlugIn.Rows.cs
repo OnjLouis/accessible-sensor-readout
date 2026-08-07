@@ -30,11 +30,24 @@ namespace SensorReadout.CorsairPlugIn
 
         // Annex-derived safety facts (constraints.md sec 7/9). Repeated verbatim on every control
         // row rather than computed, so the wording cannot drift between hub and PSU rows.
+        //
+        // task-8 fix round MEDIUM 2: the previous wording claimed diagnostics "restores
+        // automatic/original state afterward", which is not what TryResetFan does -- it writes the
+        // hub's canned defaults (50% fans / 100% pump) and the plug-in keeps the hub in software
+        // mode until the process exits. The worker-level release-to-hardware-mode-when-idle
+        // improvement is deliberately deferred (spec sec 5.1); this note describes today's actual
+        // behavior instead of promising that improvement.
         private const string HubControlSafetyNote =
-            "Taking control of a channel here puts the whole iCUE LINK hub into software mode. Pump channels (AIO/XD5/XD6 pumps) never run below 50 percent duty; a lower request is raised automatically. Diagnostics may briefly set every exposed control to 100 percent and restore automatic/original state afterward. Only one program should drive this hub's fans at a time.";
+            "Taking control of any channel here (including via diagnostics) puts the whole iCUE LINK hub into software mode and keeps it there under Sensor Readout's control until the app exits, at which point the hub returns to its own hardware profile. Diagnostics briefly sets every exposed control to 100 percent, then returns it to its default -- 50 percent for fans, 100 percent for pumps, not the hub's own automatic curve. Pump channels never run below 50 percent duty; a lower request is raised automatically. Only one program should drive this hub's fans at a time.";
 
         private const string PsuControlSafetyNote =
             "A requested percent below 30 hands the fan back to the PSU's own automatic curve (including zero-RPM operation) instead of setting a duty. Diagnostics may briefly set every exposed control to 100 percent and restore automatic/original state afterward. Only one program should drive this PSU's fan at a time.";
+
+        // task-8 fix round (additional item): the host's fan-control panel hides a control by
+        // default once its paired Fan row shows 0 RPM (ShouldShowFanControl, host-conventions.md
+        // sec 1.3) -- which is routine for this PSU family in automatic zero-RPM mode.
+        private const string PsuVisibilityNote =
+            "The host hides a fan control by default once its paired Fan row shows 0 RPM. While this PSU's zero-RPM mode is stopping the fan, this control is visible only when \"Show stopped fans\" is enabled in the Fan Controls dialog.";
 
         private const string InteroperabilityNote =
             "Every Corsair transaction from this plug-in runs inside the shared Global\\CorsairLinkReadWriteGuardMutex, so reading here is safe alongside other Corsair tools. Do not run this plug-in together with Corsair iCUE -- iCUE and this plug-in would both try to drive the same hardware.";
@@ -43,6 +56,13 @@ namespace SensorReadout.CorsairPlugIn
 
         private const string WrongModeNoteFormat =
             "This iCUE LINK hub answered the last sensor read with hardware mode: another program (or its own firmware) is driving it right now, not this plug-in. Readings shown are the most recent successful read and may be stale or absent. Readings resume once a supported program controls the hub again, or once Sensor Readout takes fan control of one of its channels.";
+
+        // task-8 fix round HIGH 1: shown instead of silence when a hub is connected (so
+        // snapshot.Status is empty -- CorsairWorker.StatusFor gates only on device *count*) but
+        // contributed no channel rows at all, e.g. because it is answering hardware-mode to every
+        // sensor read.
+        private const string HubUnavailableDisplayValue =
+            "This iCUE LINK hub was detected, but no readings are available right now. It may be in hardware mode under another program's control, or idle. Readings appear once a supported program (or Sensor Readout's fan control) is active.";
 
         // ---- Identifier helpers (Step 1) -----------------------------------------------------
 
@@ -59,8 +79,13 @@ namespace SensorReadout.CorsairPlugIn
         /// <summary>
         /// Cheap ownership gate for <see cref="CorsairPlugIn.TrySetFanPercent"/>/<see cref="CorsairPlugIn.TryResetFan"/>:
         /// string parsing only, no I/O. Accepts exactly <c>corsair/link/&lt;key&gt;/control/&lt;n&gt;</c>
-        /// and <c>corsair/psu/&lt;key&gt;/control/0</c>; everything else -- including every other
-        /// plug-in's identifiers and LibreHardwareMonitor's leading-'/' ones -- returns false.
+        /// and <c>corsair/psu/&lt;key&gt;/control/0</c>, case-insensitively (the host is
+        /// case-insensitive everywhere -- a hand-edited settings file with uppercase should be a
+        /// clean miss or accept, never a thrown status-bar error); everything else -- including
+        /// every other plug-in's identifiers and LibreHardwareMonitor's leading-'/' ones -- returns
+        /// false. <paramref name="deviceKey"/> comes back lower-cased so it matches the canonical
+        /// key <see cref="CorsairWorker"/> keys its hub/PSU lookups and intent dictionaries by
+        /// (task-8 fix round LOW 5/LOW 6).
         /// </summary>
         internal static bool TryParseControlIdentifier(string identifier, out bool isHub, out string deviceKey, out int channel)
         {
@@ -73,13 +98,13 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
-            if (!identifier.StartsWith("corsair/", StringComparison.Ordinal))
+            if (!identifier.StartsWith("corsair/", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
             var parts = identifier.Split('/');
-            if (parts.Length != 5 || !string.Equals(parts[3], "control", StringComparison.Ordinal))
+            if (parts.Length != 5 || !string.Equals(parts[3], "control", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -91,24 +116,28 @@ namespace SensorReadout.CorsairPlugIn
                 return false;
             }
 
+            // NumberStyles.None: no leading sign, no whitespace -- matches the doc's "exactly
+            // corsair/link/<key>/control/<n>" (task-8 fix round LOW 4). A negative channel could
+            // only ever be a foreign or malformed identifier, so it is rejected explicitly too,
+            // even though NumberStyles.None already makes int.TryParse fail on a leading '-'.
             int parsedChannel;
-            if (!int.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedChannel))
+            if (!int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out parsedChannel) || parsedChannel < 0)
             {
                 return false;
             }
 
-            if (string.Equals(kind, "link", StringComparison.Ordinal))
+            if (string.Equals(kind, "link", StringComparison.OrdinalIgnoreCase))
             {
                 isHub = true;
-                deviceKey = key;
+                deviceKey = key.ToLowerInvariant();
                 channel = parsedChannel;
                 return true;
             }
 
-            if (string.Equals(kind, "psu", StringComparison.Ordinal) && parsedChannel == 0)
+            if (string.Equals(kind, "psu", StringComparison.OrdinalIgnoreCase) && parsedChannel == 0)
             {
                 isHub = false;
-                deviceKey = key;
+                deviceKey = key.ToLowerInvariant();
                 channel = 0;
                 return true;
             }
@@ -123,7 +152,10 @@ namespace SensorReadout.CorsairPlugIn
 
         // ---- Row building (Step 2) ------------------------------------------------------------
 
-        private static List<SensorReading> BuildRows(CorsairSnapshot snapshot, bool diagnosticsMode, CorsairWorker worker)
+        // internal (not private): lets the harness feed a fabricated CorsairSnapshot straight
+        // through the row model without touching CorsairWorker.Instance, e.g. to exercise the HIGH 1
+        // hardware-mode fallback row without needing a real hub to sit in hardware mode.
+        internal static List<SensorReading> BuildRows(CorsairSnapshot snapshot, bool diagnosticsMode, CorsairWorker worker)
         {
             var rows = new List<SensorReading>();
 
@@ -133,10 +165,16 @@ namespace SensorReadout.CorsairPlugIn
                 return rows;
             }
 
+            // task-8 fix round MEDIUM 3: the host's fan-control panel matches a saved label/curve by
+            // Name first and falls back to FirstOrDefault, so two hubs sharing "Corsair iCUE LINK
+            // Hub" as Hardware would be indistinguishable there -- writes could land on the wrong
+            // hub. A serial-derived suffix disambiguates Hardware only when it would actually
+            // matter; Name ("Port N ...") is unaffected either way.
             var hubs = snapshot.Hubs ?? new List<HubSnapshot>();
+            var multiHub = hubs.Count > 1;
             for (var h = 0; h < hubs.Count; h++)
             {
-                AddHubRows(rows, hubs[h]);
+                AddHubRows(rows, hubs[h], multiHub);
             }
 
             var psus = snapshot.Psus ?? new List<PsuSnapshot>();
@@ -176,18 +214,21 @@ namespace SensorReadout.CorsairPlugIn
 
         // ---- Hub rows ---------------------------------------------------------------------------
 
-        private static void AddHubRows(List<SensorReading> rows, HubSnapshot hub)
+        private static void AddHubRows(List<SensorReading> rows, HubSnapshot hub, bool multiHub)
         {
-            if (hub == null || hub.Channels == null)
+            if (hub == null)
             {
                 return;
             }
 
+            var hardwareName = HubHardwareNameFor(hub.Serial, multiHub);
             var wrongModeNote = hub.WrongModeReadFailure ? WrongModeNoteFormat : null;
+            var emittedAnyChannelRow = false;
 
-            for (var c = 0; c < hub.Channels.Count; c++)
+            var channels = hub.Channels ?? new List<HubChannelSnapshot>();
+            for (var c = 0; c < channels.Count; c++)
             {
-                var channel = hub.Channels[c];
+                var channel = channels[c];
                 if (channel == null)
                 {
                     continue;
@@ -201,11 +242,61 @@ namespace SensorReadout.CorsairPlugIn
                     continue;
                 }
 
-                AddHubChannelRows(rows, hub, channel, wrongModeNote);
+                AddHubChannelRows(rows, hub, channel, wrongModeNote, hardwareName);
+                emittedAnyChannelRow = true;
+            }
+
+            // task-8 fix round HIGH 1: a hub that is connected and enumerated but answering every
+            // sensor read with hardware mode (or otherwise producing nothing but null channels)
+            // previously vanished with no explanation at all -- snapshot.Status stays empty because
+            // CorsairWorker.StatusFor gates on device *count*, not on whether any row came out of
+            // this method. Cover both causes (WrongModeReadFailure and "just nothing readable")
+            // with one row rather than trying to enumerate every possible reason.
+            if (!emittedAnyChannelRow)
+            {
+                rows.Add(MakeHubUnavailableRow(hub));
             }
         }
 
-        private static void AddHubChannelRows(List<SensorReading> rows, HubSnapshot hub, HubChannelSnapshot channel, string wrongModeNote)
+        // task-8 fix round MEDIUM 3: only decorates Hardware when more than one hub is present, so
+        // the common single-hub case stays exactly "Corsair iCUE LINK Hub".
+        private static string HubHardwareNameFor(string serial, bool multiHub)
+        {
+            if (!multiHub)
+            {
+                return HubHardwareName;
+            }
+
+            var text = serial ?? string.Empty;
+            var suffixLength = Math.Min(6, text.Length);
+            var suffix = text.Substring(text.Length - suffixLength, suffixLength);
+            return HubHardwareName + " (" + suffix + ")";
+        }
+
+        private static SensorReading MakeHubUnavailableRow(HubSnapshot hub)
+        {
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            details["Firmware"] = string.IsNullOrEmpty(hub.FirmwareVersion) ? "Unknown" : hub.FirmwareVersion;
+            details["Channels enumerated"] = (hub.Channels == null ? 0 : hub.Channels.Count).ToString(CultureInfo.InvariantCulture);
+            AddNote(details, "Hardware mode", hub.WrongModeReadFailure ? WrongModeNoteFormat : null);
+            details["Interoperability"] = InteroperabilityNote;
+
+            return new SensorReading
+            {
+                Type = "Performance",
+                Hardware = "Overview",
+                Name = "Corsair Plug-In",
+                // Per-hub rather than reusing StatusIdentifier: more than one hub can independently
+                // have nothing to show (MEDIUM 3 is exactly about not assuming a single hub), and
+                // each needs its own stable identifier so the rows do not collide or overwrite.
+                Identifier = "corsair/status/hub-" + (string.IsNullOrEmpty(hub.Serial) ? "hub0" : hub.Serial),
+                DisplayValue = HubUnavailableDisplayValue,
+                Source = SourceName,
+                Details = details
+            };
+        }
+
+        private static void AddHubChannelRows(List<SensorReading> rows, HubSnapshot hub, HubChannelSnapshot channel, string wrongModeNote, string hardwareName)
         {
             var deviceName = string.IsNullOrEmpty(channel.DeviceName) ? "Corsair device" : channel.DeviceName;
             var portLabel = "Port " + channel.Channel.ToString(CultureInfo.InvariantCulture);
@@ -221,7 +312,7 @@ namespace SensorReadout.CorsairPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Fan",
-                    Hardware = HubHardwareName,
+                    Hardware = hardwareName,
                     Name = fanName,
                     Identifier = HubIdentifier(hub.Serial, "fan", channel.Channel),
                     Value = (float)channel.Rpm.Value,
@@ -238,7 +329,7 @@ namespace SensorReadout.CorsairPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Temperature",
-                    Hardware = HubHardwareName,
+                    Hardware = hardwareName,
                     Name = tempName,
                     Identifier = HubIdentifier(hub.Serial, "temperature", channel.Channel),
                     Value = channel.TemperatureC.Value,
@@ -264,7 +355,7 @@ namespace SensorReadout.CorsairPlugIn
                 rows.Add(new SensorReading
                 {
                     Type = "Fan Control",
-                    Hardware = HubHardwareName,
+                    Hardware = hardwareName,
                     Name = fanName,
                     Identifier = HubIdentifier(hub.Serial, "control", channel.Channel),
                     Value = controlValue,
@@ -445,11 +536,15 @@ namespace SensorReadout.CorsairPlugIn
         {
             var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             details["Device"] = string.IsNullOrEmpty(psu.ModelName) ? "Unknown Corsair PSU" : psu.ModelName;
-            details["Model"] = "Corsair HID PSU, product id 0x" + LowerOrEmpty(psu.PidHex).ToUpperInvariant();
+            // task-8 fix round LOW 7: PidHex is already canonical (CorsairHidPsuDevice.PidHex is
+            // "x4"-formatted, always lowercase) -- one ToUpperInvariant for display, not a
+            // lower-then-upper no-op pair.
+            details["Model"] = "Corsair HID PSU, product id 0x" + (psu.PidHex ?? string.Empty).ToUpperInvariant();
 
             if (isControlRow)
             {
                 details["Safety"] = PsuControlSafetyNote;
+                details["Visibility"] = PsuVisibilityNote;
             }
 
             details["Interoperability"] = InteroperabilityNote;
@@ -491,11 +586,13 @@ namespace SensorReadout.CorsairPlugIn
                 {
                     var channel = channels[c];
                     var channelPrefix = prefix + "port " + channel.Channel.ToString(CultureInfo.InvariantCulture) + " ";
-                    // The snapshot does not carry the raw model/variant bytes for a recognized
-                    // device (only its friendly name) -- device name plus device id is the closest
-                    // per-channel identity this layer can report honestly.
                     details[channelPrefix + "device"] = string.IsNullOrEmpty(channel.DeviceName) ? "(unknown)" : channel.DeviceName;
                     details[channelPrefix + "device id"] = string.IsNullOrEmpty(channel.DeviceId) ? "(none)" : channel.DeviceId;
+                    // task-8 fix round diagnostics carry: the friendly DeviceName does not
+                    // round-trip to these bytes (annex sec 6.2 -- e.g. "H100i" is model 0x07 with
+                    // variant 0x00 *or* 0x04), and a support bundle needs the raw values.
+                    details[channelPrefix + "model code"] = "0x" + channel.ModelCode.ToString("x2", CultureInfo.InvariantCulture)
+                        + " / variant 0x" + channel.VariantCode.ToString("x2", CultureInfo.InvariantCulture);
                 }
             }
 

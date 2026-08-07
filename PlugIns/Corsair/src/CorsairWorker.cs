@@ -1233,6 +1233,11 @@ namespace SensorReadout.CorsairPlugIn
                     row.TemperatureC = state.TemperatureC;
                     row.RequestedPercent = state.RequestedPercent;
                     row.PercentIsDefault = state.PercentIsDefault;
+                    // Diagnostics-only carry: raw enumeration bytes, since the friendly DeviceName
+                    // does not round-trip to them (annex sec 6.2 -- e.g. "H100i" is model 0x07 with
+                    // variant 0x00 or 0x04).
+                    row.ModelCode = state.Device != null ? state.Device.Model : (byte)0;
+                    row.VariantCode = state.Device != null ? state.Device.Variant : (byte)0;
                     hub.Channels.Add(row);
                 }
 

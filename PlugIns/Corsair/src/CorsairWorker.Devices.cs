@@ -333,7 +333,12 @@ namespace SensorReadout.CorsairPlugIn
             var entry = new HubEntry();
             entry.Device = device;
             entry.Info = info;
-            entry.Serial = device.Serial;
+            // task-8 fix round LOW 5: sanitized once, here, at the single point a hub's serial
+            // enters this worker's bookkeeping. entry.Serial is the canonical key from this point
+            // on -- FindHub, hubIntents, and BuildSnapshot's HubSnapshot.Serial (and therefore every
+            // row identifier Rows.cs builds) all read it back unchanged, so there is exactly one
+            // place that can disagree with the others, and there is none.
+            entry.Serial = SanitizeHubKey(device.Serial);
             entry.NextDueTicks = Environment.TickCount;
             hubs.Add(entry);
 
@@ -382,6 +387,32 @@ namespace SensorReadout.CorsairPlugIn
 
             RestorePsuIntent(entry);
             return true;
+        }
+
+        /// <summary>
+        /// task-8 fix round LOW 5: canonicalizes a hub serial into the key every row identifier,
+        /// intent-dictionary lookup and <see cref="FindHub"/> comparison uses. <c>device.Serial</c>
+        /// is already lower-cased by <c>CorsairLinkHubDevice.Connect</c>, but nothing there
+        /// guarantees it is free of '|' or '/' -- either would corrupt a
+        /// <c>SensorReading.Identifier</c> (host-conventions.md sec 1.3) and make this plug-in's own
+        /// <c>TryParseControlIdentifier</c> gate reject its own rows. Falls back to "hub0" when
+        /// nothing alphanumeric survives, matching <c>CorsairLinkHubDevice.FallbackSerial</c>'s
+        /// intent for a device that reports no serial at all.
+        /// </summary>
+        private static string SanitizeHubKey(string rawSerial)
+        {
+            var lowered = string.IsNullOrEmpty(rawSerial) ? string.Empty : rawSerial.ToLowerInvariant();
+            var builder = new StringBuilder(lowered.Length);
+            for (var i = 0; i < lowered.Length; i++)
+            {
+                var ch = lowered[i];
+                if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+                {
+                    builder.Append(ch);
+                }
+            }
+
+            return builder.Length == 0 ? "hub0" : builder.ToString();
         }
 
         // ---- Intent: what the user asked for, across device object lifetimes ----------------------
