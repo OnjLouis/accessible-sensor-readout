@@ -292,6 +292,13 @@ reading.Details["Firmware source"] = "Vendor API";
 reading.Details["Raw value"] = rawValue;
 ```
 
+One Details key carries meaning for the host: adding `"Zero RPM capable"` to a
+`Fan Control` reading tells Sensor Readout that the paired fan legitimately idles at
+0 RPM (semi-passive power supplies, hybrid coolers), so the control stays visible in the
+Fan Controls dialog instead of being hidden as an unused fan header. The value is
+free-form explanatory text shown in the details dialog; the key alone is the marker. Only
+add it when the hardware genuinely stops its fan by design.
+
 ## Performance Rules
 
 Sensor Readout is designed to feel responsive with a screen reader. Plug-Ins must respect that.

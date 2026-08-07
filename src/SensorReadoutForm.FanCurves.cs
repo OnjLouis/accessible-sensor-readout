@@ -30,8 +30,8 @@ public sealed partial class SensorReadoutForm : Form
                 var hiddenFanControlKeys = HiddenFanControlKeys();
                 return latestRows
                     .Where(r => r.Type == "Fan Control")
-                    .Select(c => EnrichFanControlRow(c, labels))
                     .Where(c => settings.ShowStoppedFans || ShouldShowFanControl(c))
+                    .Select(c => EnrichFanControlRow(c, labels))
                     .Where(c => settings.ShowStoppedFans || !hiddenFanControlKeys.Contains(c.Identifier))
                     .OrderBy(r => ControlSortKey(r.Identifier))
                     .ToList();
