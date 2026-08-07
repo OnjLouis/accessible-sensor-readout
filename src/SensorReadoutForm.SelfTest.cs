@@ -1817,7 +1817,9 @@ public sealed partial class SensorReadoutForm : Form
     // set exactly once. Both directions go through the real apply method so that restoring the
     // unconditional teardown fails this step. No plug-in is instantiated: PlugInManager loads
     // assemblies lazily on its first GetRows call, which this step never makes, and the enabled set
-    // is restored either way.
+    // is restored either way. The apply writes the settings file each time, which is safe because
+    // Build.ps1 -SelfTest runs this against an isolated SelfTest-<stamp>\App copy with its own
+    // Config folder, never a user's install, and the finally restores the enabled set regardless.
     private void SelfTestPlugInManagerRebuildGuard()
     {
         EnsureSelfTestRows();

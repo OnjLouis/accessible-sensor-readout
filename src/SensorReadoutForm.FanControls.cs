@@ -295,7 +295,13 @@ public sealed partial class SensorReadoutForm : Form
                     // Only the newest collection owns the flag. A collection the watchdog gave up on
                     // may still return later; clearing the flag from there would declare the pipeline
                     // idle while its replacement is running, and every timer tick after that would
-                    // start yet another collection behind the same lock.
+                    // start yet another collection behind the same lock. It also keeps the stale
+                    // pass's ApplyFanCurvesAsync below from running - it early-outs on
+                    // refreshInProgress - so abandoned rows never drive fans. That relies on the
+                    // stale continuation running while the replacement is still in flight, which
+                    // holds: the replacement cannot start collecting until the stalled pass releases
+                    // sensorCollectionLock, and this synchronisation context dispatches posted
+                    // continuations in order, so the stale one always runs first.
                     if (generation == refreshGeneration)
                     {
                         refreshInProgress = false;

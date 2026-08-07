@@ -286,7 +286,13 @@ carries `WindowsSettingsUri`. No further action is needed.
   episode; the continuation of whichever collection completes clears it. A generation counter makes
   the flag belong to the newest collection only, so a superseded pass that finally returns cannot
   declare the pipeline idle underneath its replacement — without it, every later tick would start
-  another collection behind the same lock.
+  another collection behind the same lock. It also keeps stale rows from driving fans: the abandoned
+  pass's `ApplyFanCurvesAsync` early-outs on `refreshInProgress`, which is still set because the
+  replacement owns it. That needs the stale continuation to run *while* the replacement is in
+  flight, and it does: the replacement cannot start collecting until the stalled pass releases
+  `sensorCollectionLock` — so the stalled pass has already posted its continuation — and the
+  WinForms synchronisation context dispatches posted continuations in order. If that ordering ever
+  failed, stale rows would drive fan curves.
 - **The Error line names the stall duration**, says refreshes had stopped and that readings, alarms
   and fan curves went unapplied, says a replacement is starting and that it is waiting on the
   stalled collection's lock, and tells the user what to do if refreshes do not resume. It is the
@@ -297,6 +303,10 @@ carries `WindowsSettingsUri`. No further action is needed.
   landing between the two statements is a `NullReferenceException` on the collection thread —
   recoverable, since `task.IsFaulted` is handled, but it turns a plug-in toggle into a failed
   refresh. Both now read the field into a local and treat `null` as "no rows" / "not handled".
+  `GetPlugInRows` also reports whether a live manager served the call, and
+  `GetOemProviderRows` skips its cache write when one did not: an empty result caused by a
+  concurrent teardown says nothing about the plug-ins, and caching it would suppress every plug-in
+  reading for a whole cache interval — up to five minutes with the app in the tray.
 - **Why generic:** nothing about this is plug-in-specific; it is the app's whole refresh pipeline.
 - **Files changed:** `src/SensorReadoutForm.cs` (three fields next to `refreshInProgress`),
   `src/SensorReadoutForm.FanControls.cs` (the guard in `RefreshSensors`, the generation check in the
@@ -310,6 +320,17 @@ carries `WindowsSettingsUri`. No further action is needed.
   assert that a healthy in-flight collection keeps the flag, that a ten-minute-old one releases it,
   and that the latch refuses a second recovery attempt. Full `Build.ps1` green, Corsair plug-in
   self-test still 65 checks.
+- **What the test does *not* pin, stated so it is not mistaken for coverage:** the generation guard
+  in the continuation and the latch's clear-on-completion are not exercised — deleting
+  `if (generation == refreshGeneration)` still passes the suite, because reaching either needs a
+  collection that actually stalls and later returns. They are argued in the comments at the call
+  site instead. The call-site wiring is likewise unpinned: removing
+  `&& !TrySupersedeStalledRefresh()` from `RefreshSensors` would not fail the step.
+- **The watchdog only fires when something asks for a refresh.** With auto-refresh paused, a wedged
+  collection stays silent until the user unpauses or presses Refresh — at which point the check runs
+  and the stall is logged. That is self-resolving rather than a hole: with no refreshes wanted,
+  nothing is being missed. In the observed incident auto-refresh was on at a 5 s interval, so the
+  watchdog would have fired within a minute of the stall.
 - **Residual risk — this recovers the pipeline; it does not fix whatever wedged the collection.**
   If the stall is a genuine hang inside `CollectSensorRows`, the wedged pass still holds
   `sensorCollectionLock` forever and the single permitted replacement blocks on it, so refreshes

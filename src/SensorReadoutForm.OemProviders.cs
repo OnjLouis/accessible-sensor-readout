@@ -33,8 +33,13 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        var rows = GetPlugInRows(diagnosticsMode).Where(r => r != null).Select(CloneSensorRow).ToList();
-        if (!diagnosticsMode)
+        bool servedByLiveManager;
+        var rows = GetPlugInRows(diagnosticsMode, out servedByLiveManager).Where(r => r != null).Select(CloneSensorRow).ToList();
+        // Only cache rows a live plug-in manager actually produced. If a preference save disposed the
+        // manager while this call was in flight, the empty result says nothing about the plug-ins, and
+        // caching it would suppress every plug-in reading until the interval expires - up to five
+        // minutes with the app in the tray. Leaving the cache untouched makes the next refresh re-read.
+        if (!diagnosticsMode && servedByLiveManager)
         {
             lock (oemProviderRowsLock)
             {

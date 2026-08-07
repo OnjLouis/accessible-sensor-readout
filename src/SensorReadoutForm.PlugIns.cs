@@ -16,18 +16,33 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetPlugInRows()
     {
-        return GetPlugInRows(false);
+        bool servedByLiveManager;
+        return GetPlugInRows(false, out servedByLiveManager);
     }
 
-    private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode)
+    // Read the field once: this and TryPlugInFanControl run on the collection thread,
+    // DisposePlugInManager runs on the UI thread and sets the field to null, so a dispose landing
+    // between the ensure and the call was a NullReferenceException that failed the whole refresh.
+    // Calling a manager that was disposed in the meantime is safe - it returns no rows.
+    //
+    // servedByLiveManager tells the caller whether that happened, because "no rows" from a torn-down
+    // manager must not be cached as if the plug-ins had genuinely returned nothing: the row cache
+    // holds for up to five minutes in the background, which would hide every plug-in reading for
+    // that long. DisposePlugInManager nulls the field before disposing, so the field still pointing
+    // at the same instance after the call means no teardown overlapped it.
+    private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode, out bool servedByLiveManager)
     {
-        // Read the field once: these two methods run on the collection thread, DisposePlugInManager
-        // runs on the UI thread and sets the field to null, so a dispose landing between the ensure
-        // and the call was a NullReferenceException that failed the whole refresh. Calling a manager
-        // that was disposed in the meantime is safe - it returns no rows and no control success.
         EnsurePlugInManager();
         var manager = plugInManager;
-        return manager == null ? Enumerable.Empty<SensorRow>() : manager.GetRows(diagnosticsMode);
+        if (manager == null)
+        {
+            servedByLiveManager = false;
+            return Enumerable.Empty<SensorRow>();
+        }
+
+        var rows = manager.GetRows(diagnosticsMode);
+        servedByLiveManager = ReferenceEquals(manager, plugInManager);
+        return rows;
     }
 
     private bool TryPlugInFanControl(string identifier, int percent, bool manual)
