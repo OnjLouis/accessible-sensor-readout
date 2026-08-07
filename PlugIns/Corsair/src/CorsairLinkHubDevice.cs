@@ -102,6 +102,11 @@ namespace SensorReadout.CorsairPlugIn
         // the whole set once per tick until a write finally lands.
         private bool dutiesDirty;
 
+        // Log-volume latch for the control path: true once a control failure has been reported at
+        // Error, so the identical failure on every subsequent tick is logged at Debug instead. See
+        // the control-failure log latch section below.
+        private bool dutyFailureReported;
+
         // Status of the most recent failing command within the current bracket; both are reset when
         // a bracket starts and are only meaningful after that bracket reported failure.
         private byte lastStatus;
@@ -147,6 +152,16 @@ namespace SensorReadout.CorsairPlugIn
         public bool IsGone
         {
             get { return isGone; }
+        }
+
+        /// <summary>
+        /// True while a requested duty set has not reached the hardware and is waiting to be re-sent
+        /// on the next refresh. Lets a diagnostics view show an outstanding duty write honestly
+        /// instead of implying the fans are already running at the requested percentages.
+        /// </summary>
+        public bool DutiesPending
+        {
+            get { return dutiesDirty; }
         }
 
         /// <summary>
@@ -279,6 +294,7 @@ namespace SensorReadout.CorsairPlugIn
             ownsSoftwareControl = false;
             lastReadWrongMode = false;
             dutiesDirty = false;
+            dutyFailureReported = false;
             isGone = false;
         }
 
@@ -553,6 +569,10 @@ namespace SensorReadout.CorsairPlugIn
                 {
                     if (!EnterSoftwareMode())
                     {
+                        // Latch here too: a hub that refuses the mode change fails this way on every
+                        // tick, and without the latch it would never reach the duty write that
+                        // normally sets it.
+                        NoteControlFailure();
                         return false;
                     }
 
@@ -581,6 +601,7 @@ namespace SensorReadout.CorsairPlugIn
 
             if (!EnterSoftwareMode())
             {
+                NoteControlFailure();
                 return false;
             }
 
@@ -595,7 +616,7 @@ namespace SensorReadout.CorsairPlugIn
         private bool EnterSoftwareMode()
         {
             Log("Debug", "Corsair plug-in: taking software control of iCUE LINK hub " + serial + ".");
-            return RunDirectCommand(LinkHubData.EnterSoftwareMode, null, "Error", GuardTimeoutMs) != null;
+            return RunDirectCommand(LinkHubData.EnterSoftwareMode, null, ControlFailureLevel(), GuardTimeoutMs) != null;
         }
 
         private void ApplyDefaultPercents()
@@ -627,6 +648,7 @@ namespace SensorReadout.CorsairPlugIn
             {
                 Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " has no controllable channels; skipping the duty write.");
                 dutiesDirty = false;
+                NoteControlSuccess(false);
                 return true;
             }
 
@@ -634,6 +656,7 @@ namespace SensorReadout.CorsairPlugIn
             if (WriteEndpointBracket(LinkHubData.EndpointDutyWrite, block))
             {
                 dutiesDirty = false;
+                NoteControlSuccess(true);
                 return true;
             }
 
@@ -641,11 +664,12 @@ namespace SensorReadout.CorsairPlugIn
             {
                 // The hub slipped back to hardware mode between the mode change and the write. Take
                 // it once more and retry the write exactly once (annex §10) -- no loop, no recursion.
-                Log("Error", "Corsair plug-in: the duty write hit hardware mode on iCUE LINK hub " + serial
+                Log(ControlFailureLevel(), "Corsair plug-in: the duty write hit hardware mode on iCUE LINK hub " + serial
                     + "; retrying once after re-entering software mode.");
                 if (EnterSoftwareMode() && WriteEndpointBracket(LinkHubData.EndpointDutyWrite, block))
                 {
                     dutiesDirty = false;
+                    NoteControlSuccess(true);
                     return true;
                 }
             }
@@ -654,9 +678,48 @@ namespace SensorReadout.CorsairPlugIn
             // fans are actually doing. Flag it: the next refresh re-sends the whole set, and keeps
             // re-sending until one write lands.
             dutiesDirty = true;
-            Log("Error", "Corsair plug-in: the duty write to iCUE LINK hub " + serial
-                + " did not reach the hardware; the requested duties will be re-sent on the next refresh.");
+            Log(ControlFailureLevel(), "Corsair plug-in: the duty write to iCUE LINK hub " + serial
+                + " did not reach the hardware; the requested duties will be re-sent on the next refresh."
+                + (dutyFailureReported ? "" : " Further failures are logged at Debug until one succeeds."));
+            NoteControlFailure();
             return false;
+        }
+
+        // ---- Control-failure log latch --------------------------------------------------------
+        //
+        // A hub that is stuck -- left in hardware mode while this plug-in still believes it owns it,
+        // say -- fails the same way on every refresh tick, and one tick walks the whole chain twice
+        // (the dutiesDirty re-send plus the wrong-mode ReassertControl). At Error level for every
+        // step that is roughly ten lines a second, and the host's Error log rotates at 256 KB, so a
+        // few minutes of it would erase the very history someone would need to diagnose the problem.
+        // So the failing *state* is reported once, in full detail, at Error; while it persists every
+        // step of the chain drops to Debug; and the next control command that succeeds clears the
+        // latch and says so.
+
+        private string ControlFailureLevel()
+        {
+            return dutyFailureReported ? "Debug" : "Error";
+        }
+
+        private void NoteControlFailure()
+        {
+            dutyFailureReported = true;
+        }
+
+        private void NoteControlSuccess(bool announceRecovery)
+        {
+            if (!dutyFailureReported)
+            {
+                return;
+            }
+
+            dutyFailureReported = false;
+            if (announceRecovery)
+            {
+                // At Error so that a reader who only has the Error log sees the failure resolved. An
+                // Error entry with no recorded clearance reads as a problem that is still happening.
+                Log("Error", "Corsair plug-in: control commands to iCUE LINK hub " + serial + " are reaching the hardware again.");
+            }
         }
 
         // ---- Enumeration ---------------------------------------------------------------------
@@ -838,9 +901,13 @@ namespace SensorReadout.CorsairPlugIn
             lastStatus = LinkHubData.StatusOk;
             lastStatusWrongMode = false;
 
+            // One level for the whole bracket: Error while this is the first failure, Debug while a
+            // known-bad state persists (see the control-failure log latch).
+            var level = ControlFailureLevel();
+
             if (!guard.TryEnter(GuardTimeoutMs))
             {
-                Log("Error", "Corsair plug-in: another Corsair program held the device guard for "
+                Log(level, "Corsair plug-in: another Corsair program held the device guard for "
                     + GuardTimeoutMs.ToString(CultureInfo.InvariantCulture) + " ms; the endpoint 0x"
                     + endpoint.ToString("x2", CultureInfo.InvariantCulture) + " write was not sent.");
                 return false;
@@ -851,18 +918,18 @@ namespace SensorReadout.CorsairPlugIn
                 var endpointData = new byte[] { endpoint };
                 try
                 {
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Error");
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, level);
 
-                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, false, "Error") == null)
+                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, false, level) == null)
                     {
                         return false;
                     }
 
-                    return SendCommand(LinkHubData.WriteEndpoint, writeBlock, null, false, "Error") != null;
+                    return SendCommand(LinkHubData.WriteEndpoint, writeBlock, null, false, level) != null;
                 }
                 finally
                 {
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Error");
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, level);
                 }
             }
             finally
@@ -983,7 +1050,7 @@ namespace SensorReadout.CorsairPlugIn
                 // program's sensor report as ours would produce silently wrong readings.
                 if (IsWriteCommand(command))
                 {
-                    Log("Error", "Corsair plug-in: could not identify the acknowledgement for a duty write to iCUE LINK hub "
+                    Log(ControlFailureLevel(), "Corsair plug-in: could not identify the acknowledgement for a duty write to iCUE LINK hub "
                         + serial + "; falling back to the first report received, so this write's success is unverified.");
                 }
 
