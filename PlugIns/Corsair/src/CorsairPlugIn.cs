@@ -10,11 +10,16 @@ namespace SensorReadout.CorsairPlugIn
     /// and identifier parsing live in <c>CorsairPlugIn.Rows.cs</c>; this file holds the SDK entry
     /// points and the explicit lifecycle.
     ///
-    /// <see cref="CorsairWorker.StopAndRestore"/> is called from exactly one place -- the host's
+    /// <see cref="CorsairWorker.ReleaseFromHost"/> is called from exactly one place -- the host's
     /// <see cref="IPluginLifecycle.Shutdown"/> -- and never from a refresh, an error path, or a
-    /// control call. The host calls Shutdown when the plug-in is disabled, reloaded, or the app
-    /// closes, and <see cref="CorsairWorker.Instance"/> hands out a fresh worker afterwards, so a
-    /// re-enable in the same process starts from a clean instance.
+    /// control call. The host calls Shutdown for three different things (the plug-in was disabled,
+    /// the plug-in manager is being rebuilt and this plug-in will be loaded again in a moment, or
+    /// the app is closing) and gives the plug-in no way to tell them apart, so ReleaseFromHost
+    /// arms a hand-back rather than performing one: the next <c>GetReadings</c> cancels it, an
+    /// elapsed grace period runs it, and process exit runs it immediately. See the comments on
+    /// <see cref="CorsairWorker.ReleaseFromHost"/> for why -- rebuilding the plug-in manager is
+    /// what Sensor Readout does on every live preference save, including the one it fires the
+    /// instant the Preferences window appears.
     /// </summary>
     public sealed partial class CorsairPlugIn : ISensorReadoutPlugin, IFanControllablePlugin, IPluginLifecycle
     {
@@ -146,7 +151,7 @@ namespace SensorReadout.CorsairPlugIn
 
         public void Shutdown()
         {
-            CorsairWorker.Instance.StopAndRestore();
+            CorsairWorker.Instance.ReleaseFromHost();
         }
 
         private static void Log(IPluginContext context, string level, string message)

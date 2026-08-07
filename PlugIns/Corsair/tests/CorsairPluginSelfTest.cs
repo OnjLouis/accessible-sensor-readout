@@ -18,6 +18,7 @@ namespace SensorReadout.CorsairPlugIn
                 TestPacketBounds();
                 TestProtocolParsers();
                 TestRowsAndPrivacy();
+                TestDeferredTeardownAcrossReload();
                 TestUnstartedLifecycle();
                 Console.WriteLine("Corsair plug-in self-test passed: " + checks + " checks.");
                 return 0;
@@ -231,10 +232,50 @@ namespace SensorReadout.CorsairPlugIn
             return (row.Hardware ?? string.Empty) + "|" + (row.Name ?? string.Empty) + "|" + (row.DisplayValue ?? string.Empty);
         }
 
+        // Regression test for the Preferences teardown bug. The host disposes and rebuilds its
+        // whole plug-in manager on every live preference save -- including the one it fires the
+        // instant the Preferences window appears -- and calls IPluginLifecycle.Shutdown each time.
+        // Handing the hardware back there dropped the iCUE LINK hub to its own loud firmware
+        // profile every time the user opened Preferences. So a release must be deferred, the next
+        // host refresh must cancel it, and an elapsed grace period must still hand the devices
+        // back so a genuinely disabled plug-in does not keep the hub in software mode.
+        //
+        // The worker is never started here, so nothing in this test reaches a device: what is
+        // under test is the lifecycle decision itself.
+        private static void TestDeferredTeardownAcrossReload()
+        {
+            var worker = CorsairWorker.Instance;
+
+            worker.ArmDeferredTeardown(60000);
+            Require(worker.IsTeardownDeferred, "Releasing the plug-in must defer the hardware hand-back rather than perform it.");
+            Require(!worker.IsStopped, "A deferred hand-back must leave the worker running so fan control keeps applying.");
+            Require(object.ReferenceEquals(worker, CorsairWorker.Instance),
+                "A deferred hand-back must keep the same worker, so a reload never has to re-take software control.");
+            Require(!worker.CommitDeferredTeardownIfDue(), "The hand-back must not run before its grace period has elapsed.");
+
+            // The host loading the plug-in again -- what the very next GetReadings does.
+            Require(worker.AdoptHostContact(), "A reload must find the worker still usable.");
+            Require(!worker.IsTeardownDeferred, "The next host refresh must cancel the pending hand-back.");
+            Require(!worker.IsStopped && object.ReferenceEquals(worker, CorsairWorker.Instance),
+                "After a reload the plug-in must go on using the same running worker.");
+            Require(!worker.CommitDeferredTeardownIfDue(), "A cancelled hand-back must never run later.");
+
+            // The safety valve: a plug-in that really was disabled still gives the devices back.
+            worker.ArmDeferredTeardown(0);
+            Require(worker.CommitDeferredTeardownIfDue(), "An elapsed grace period must hand the Corsair devices back.");
+            Require(worker.IsStopped, "The elapsed hand-back must stop the worker.");
+            Require(!worker.AdoptHostContact(), "A worker that has handed its devices back must report itself finished.");
+            Require(!object.ReferenceEquals(worker, CorsairWorker.Instance),
+                "After the hand-back a re-enable must start from a fresh worker.");
+        }
+
         private static void TestUnstartedLifecycle()
         {
             var first = CorsairWorker.Instance;
             new CorsairPlugIn().Shutdown();
+            Require(first.IsStopped, "Releasing a worker that never started must finish immediately.");
+            Require(!first.IsTeardownDeferred,
+                "A worker that never started owns no device, so its release must not be deferred and leave a hand-back armed that nothing will ever run.");
             var second = CorsairWorker.Instance;
             Require(!object.ReferenceEquals(first, second), "Disabling before the first reading must leave a fresh worker available for re-enable.");
             second.StopAndRestore();

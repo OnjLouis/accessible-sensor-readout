@@ -87,10 +87,39 @@ namespace SensorReadout.CorsairPlugIn
         // Both waits are what the restores get to run in, and the restores are the reason shutdown
         // exists at all now that this plug-in writes duties: a PSU left in manual mode stays there
         // until something writes 0xF0 = 0x00 or it is power-cycled. The normal budget is generous
-        // because the host's IPluginLifecycle.Shutdown is the path that runs on a clean exit and on
-        // every plug-in reload; the ProcessExit fallback is short because the CLR gives it no more.
+        // because it covers a deliberate hand-back; the ProcessExit fallback is short because the
+        // CLR gives it no more.
         private const int NormalShutdownJoinMs = 15000;
         private const int ProcessExitJoinMs = 1500;
+
+        // Deferred hand-back window. The host calls IPluginLifecycle.Shutdown for two very
+        // different things and gives the plug-in no way to tell them apart: "you are going away"
+        // (app exit, user disabled the plug-in) and "I am rebuilding my plug-in manager and will
+        // load you again in a moment" (which Sensor Readout does on *every* live preference save,
+        // including the one it fires the instant the Preferences window appears). Restoring the
+        // hardware on the second kind is what made the fans jump to the hub's own loud profile
+        // every time the user opened Preferences.
+        //
+        // So Shutdown no longer hands the hardware back; it arms a hand-back that the next
+        // EnsureStarted cancels. A reload therefore costs nothing at all -- same worker, same
+        // sessions, same software mode, curves never interrupted -- while a plug-in that really
+        // was disabled still gives the hub and the PSU back once the grace period elapses.
+        // ProcessExit bypasses the grace entirely, so app exit still restores immediately.
+        //
+        // The grace is derived from how often the host has actually been asking for readings
+        // (three missed refreshes means it is not coming back), because that interval is a user
+        // setting the plug-in cannot see: the refresh interval is 1-300 s and the host serves
+        // plug-in rows from a 10 s foreground / 5 min background cache on top of it. The clamp
+        // keeps the worst case bounded either way.
+        private const int DeferredTeardownDefaultGraceMs = 30000;
+        private const int DeferredTeardownMinGraceMs = 20000;
+        private const int DeferredTeardownMaxGraceMs = 90000;
+        private const int DeferredTeardownIntervalMultiplier = 3;
+
+        // Floor on the loop wait while a hand-back is armed, so the deadline is honoured promptly
+        // without the loop spinning. At most one extra pass, and the deadline is checked before
+        // that pass touches a device.
+        private const int DeferredTeardownPollFloorMs = 50;
 
         // Annex §2/§10: a resumed machine needs a moment before its HID stack answers again.
         private const int ResumeDelayMs = 3000;
@@ -136,6 +165,11 @@ namespace SensorReadout.CorsairPlugIn
         private CorsairSnapshot published;      // snapshotLock
 
         private volatile bool stopRequested;
+        // A hand-back has been armed by ReleaseFromHost and has not been cancelled or committed
+        // yet. Written under lifecycleLock so cancelling (host thread) and committing (worker
+        // thread) can never both win; read without it on the fast paths, hence volatile.
+        private volatile bool teardownPending;
+        private volatile bool hostRefreshSeen;
         private volatile bool paused;
         private volatile bool resumePending;
         private volatile int resumeAtTicks;
@@ -160,6 +194,9 @@ namespace SensorReadout.CorsairPlugIn
         private int shutdownState;              // 0 = running, 1 = stopped (idempotence latch)
         private int cleanupComplete;             // 0 = worker may still own resources, 1 = closed
         private int forceRefreshRequested;      // 0 = no, 1 = one pending; read-and-cleared atomically
+        private int teardownDueTicks;           // only meaningful while teardownPending is true
+        private int lastHostRefreshTicks;       // only meaningful once hostRefreshSeen is true
+        private int hostRefreshIntervalMs;      // 0 until two host refreshes have been seen
 
         private bool systemEventsHooked;        // lifecycleLock
         private bool appDomainHooked;           // lifecycleLock
@@ -256,10 +293,11 @@ namespace SensorReadout.CorsairPlugIn
         // ---- Host entry points -----------------------------------------------------------------
 
         /// <summary>
-        /// Starts the worker if it is not running and adopts <paramref name="log"/> as the current
-        /// log sink. Safe to call on every host refresh; a null sink simply discards messages.
-        /// After <see cref="StopAndRestore"/> this is a no-op -- this instance has handed its
-        /// devices back, and <see cref="Instance"/> hands out a fresh worker for a later re-enable.
+        /// Starts the worker if it is not running, cancels a hand-back armed by
+        /// <see cref="ReleaseFromHost"/>, and adopts <paramref name="log"/> as the current log
+        /// sink. Safe to call on every host refresh; a null sink simply discards messages. Once
+        /// the hand-back has actually run this is a no-op -- this instance has given its devices
+        /// back, and <see cref="Instance"/> hands out a fresh worker for a later re-enable.
         ///
         /// <paramref name="pluginDirectory"/> is where the sticky-control marker files live (see
         /// <c>CorsairWorker.Devices.cs</c>). It is tolerated as null or empty -- the marker feature
@@ -271,8 +309,9 @@ namespace SensorReadout.CorsairPlugIn
             this.log = log;
             this.pluginDirectory = pluginDirectory;
             NoteContact();
+            NoteHostRefresh();
 
-            if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+            if (!AdoptHostContact())
             {
                 return;
             }
@@ -291,6 +330,145 @@ namespace SensorReadout.CorsairPlugIn
                     worker.Start();
                 }
             }
+        }
+
+        /// <summary>
+        /// Records that the host asked for readings and cancels any armed hand-back: a host that
+        /// is still calling this plug-in was reloading it, not disposing of it. Returns false once
+        /// the hand-back has committed, which is this instance saying "I am finished; ask
+        /// <see cref="Instance"/> for a fresh worker".
+        ///
+        /// Split out of <see cref="EnsureStarted"/> so the decision can be exercised on its own
+        /// (the self-test drives it against a worker that was never started, and therefore never
+        /// reaches a device).
+        /// </summary>
+        internal bool AdoptHostContact()
+        {
+            var cancelled = false;
+            lock (lifecycleLock)
+            {
+                if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+                {
+                    return false;
+                }
+
+                if (teardownPending)
+                {
+                    teardownPending = false;
+                    cancelled = true;
+                }
+            }
+
+            if (cancelled)
+            {
+                Log("Debug", "Corsair plug-in: the host asked for Corsair readings again, so it was reloading the plug-in rather than shutting it down; the pending hand-back was cancelled and fan control was never interrupted.");
+            }
+
+            return true;
+        }
+
+        /// <summary>True while a hand-back is armed and has been neither cancelled nor run.</summary>
+        internal bool IsTeardownDeferred
+        {
+            get { return teardownPending; }
+        }
+
+        /// <summary>True once this instance has begun or finished handing its devices back.</summary>
+        internal bool IsStopped
+        {
+            get { return Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0; }
+        }
+
+        /// <summary>
+        /// Arms the hand-back without performing it. Exposed to the self-test so the reload
+        /// contract can be asserted on a worker with no thread and no devices.
+        /// </summary>
+        internal void ArmDeferredTeardown(int graceMs)
+        {
+            lock (lifecycleLock)
+            {
+                if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+                {
+                    return;
+                }
+
+                Thread.VolatileWrite(ref teardownDueTicks, unchecked(Environment.TickCount + (graceMs < 0 ? 0 : graceMs)));
+                teardownPending = true;
+            }
+        }
+
+        /// <summary>
+        /// Hands the devices back if an armed hand-back has come due. Called once per worker cycle
+        /// before that cycle touches anything, and directly by the self-test.
+        ///
+        /// The decision is taken under <c>lifecycleLock</c>, which is the same lock
+        /// <see cref="AdoptHostContact"/> cancels under, so a host refresh arriving exactly on the
+        /// deadline either cancels the hand-back or arrives after it committed -- never both.
+        /// </summary>
+        internal bool CommitDeferredTeardownIfDue()
+        {
+            lock (lifecycleLock)
+            {
+                if (!teardownPending)
+                {
+                    return false;
+                }
+
+                // unchecked: TickCount wraps roughly every 24.9 days and the subtraction stays
+                // correct across the wraparound.
+                if (unchecked(Environment.TickCount - Thread.VolatileRead(ref teardownDueTicks)) < 0)
+                {
+                    return false;
+                }
+
+                teardownPending = false;
+            }
+
+            Log("Debug", "Corsair plug-in: nothing has asked the Corsair plug-in for readings since the host released it, so it was disabled rather than reloaded; the Corsair devices are being handed back now.");
+            StopAndRestore(NormalShutdownJoinMs);
+            return true;
+        }
+
+        // The host's refresh cadence, as observed from the calls it actually makes. Only used to
+        // size the hand-back grace; a wildly long gap (the app was minimized and served plug-in
+        // rows from its 5-minute cache) is ignored rather than allowed to stretch the grace.
+        private void NoteHostRefresh()
+        {
+            var now = Environment.TickCount;
+            var previous = Thread.VolatileRead(ref lastHostRefreshTicks);
+            var seen = hostRefreshSeen;
+            Thread.VolatileWrite(ref lastHostRefreshTicks, now);
+            hostRefreshSeen = true;
+            if (!seen)
+            {
+                return;
+            }
+
+            var gap = unchecked(now - previous);
+            if (gap <= 0 || gap > DeferredTeardownMaxGraceMs)
+            {
+                return;
+            }
+
+            Thread.VolatileWrite(ref hostRefreshIntervalMs, gap);
+        }
+
+        private int DeferredTeardownGraceMs()
+        {
+            var interval = Thread.VolatileRead(ref hostRefreshIntervalMs);
+            if (interval <= 0)
+            {
+                return DeferredTeardownDefaultGraceMs;
+            }
+
+            // interval is capped at DeferredTeardownMaxGraceMs above, so this cannot overflow.
+            var grace = interval * DeferredTeardownIntervalMultiplier;
+            if (grace < DeferredTeardownMinGraceMs)
+            {
+                return DeferredTeardownMinGraceMs;
+            }
+
+            return grace > DeferredTeardownMaxGraceMs ? DeferredTeardownMaxGraceMs : grace;
         }
 
         /// <summary>
@@ -572,10 +750,80 @@ namespace SensorReadout.CorsairPlugIn
         }
 
         /// <summary>
+        /// What the host's <c>IPluginLifecycle.Shutdown</c> calls. It does **not** hand the
+        /// hardware back; it arms a hand-back that the next <see cref="EnsureStarted"/> cancels.
+        ///
+        /// The host uses one call for two unrelated things and gives the plug-in nothing to tell
+        /// them apart. Sensor Readout disposes and rebuilds its whole plug-in manager on every
+        /// live preference save -- including the one it fires the moment the Preferences window
+        /// appears -- so treating Shutdown as "give the hardware back" meant the iCUE LINK hub
+        /// dropped to its own (loud) firmware profile every time the user opened Preferences, and
+        /// then had to re-baseline when the reload took control again.
+        ///
+        /// The three ways out of the deferred state, all bounded:
+        /// <list type="bullet">
+        /// <item>the host loads the plug-in again and calls <see cref="EnsureStarted"/> -- the
+        /// hand-back is cancelled and nothing at all happened to the hardware;</item>
+        /// <item>nothing calls back within the grace period (the plug-in really was disabled) --
+        /// the worker runs the ordinary hand-back itself, see
+        /// <see cref="CommitDeferredTeardownIfDue"/>;</item>
+        /// <item>the process exits -- <see cref="OnProcessExit"/> ignores the grace entirely and
+        /// runs the hand-back inside the ProcessExit budget.</item>
+        /// </list>
+        ///
+        /// A worker that was never started owns nothing, so there is nothing to defer: it stops
+        /// immediately, which is also what makes <see cref="Instance"/> replaceable again for a
+        /// plug-in that is enabled and disabled before its first reading.
+        /// </summary>
+        public void ReleaseFromHost()
+        {
+            if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+            {
+                return;
+            }
+
+            var grace = DeferredTeardownGraceMs();
+            bool running;
+            lock (lifecycleLock)
+            {
+                // Re-checked inside the lock: a ProcessExit or an elapsed hand-back could have
+                // landed since the cheap check above, and arming a hand-back on a worker that has
+                // already given its devices back would leave a flag nothing ever clears.
+                if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
+                {
+                    return;
+                }
+
+                running = thread != null;
+                if (running)
+                {
+                    Thread.VolatileWrite(ref teardownDueTicks, unchecked(Environment.TickCount + grace));
+                    teardownPending = true;
+                }
+            }
+
+            if (!running)
+            {
+                StopAndRestore(NormalShutdownJoinMs);
+                return;
+            }
+
+            Log("Debug", "Corsair plug-in: the host released the Corsair plug-in; its devices stay under this plug-in's control for up to "
+                + grace.ToString(CultureInfo.InvariantCulture) + " ms in case the host is only reloading it.");
+            try
+            {
+                wake.Set();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        /// <summary>
         /// Stops the worker and hands every device back to whatever was driving it. Idempotent.
         /// Cleanup runs on the worker thread after its current bounded HID operation finishes, so
-        /// shutdown never closes a handle concurrently with an in-flight read, and the caller waits
-        /// for it under a bounded join.
+        /// shutdown never closes a handle concurrently with an in-flight read, and a caller on any
+        /// other thread waits for it under a bounded join.
         ///
         /// The order inside <see cref="CleanupOnWorkerThread"/> is deliberate: power supplies
         /// first, because a PSU left in manual mode stays there until something writes
@@ -595,6 +843,10 @@ namespace SensorReadout.CorsairPlugIn
                 return;
             }
 
+            // A real stop supersedes an armed hand-back; CommitDeferredTeardownIfDue and
+            // AdoptHostContact both see shutdownState first and stand down.
+            teardownPending = false;
+
             // Before the restores (a power event arriving mid-shutdown could only schedule work
             // that will never run).
             UnhookSystemEvents();
@@ -613,6 +865,13 @@ namespace SensorReadout.CorsairPlugIn
             lock (lifecycleLock)
             {
                 worker = thread;
+            }
+
+            // The worker itself commits the deferred hand-back, so it can land here; it must not
+            // join itself. Its own loop is about to fall out of the while and run the cleanup.
+            if (worker != null && object.ReferenceEquals(worker, Thread.CurrentThread))
+            {
+                return;
             }
 
             if (worker != null)
@@ -830,7 +1089,7 @@ namespace SensorReadout.CorsairPlugIn
                         break;
                     }
 
-                    wake.WaitOne(waitMs);
+                    wake.WaitOne(CapWaitForPendingTeardown(waitMs));
                 }
             }
             finally
@@ -855,6 +1114,16 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             if (paused)
+            {
+                // A suspending machine is the one moment not to hand hardware back: the writes
+                // would very likely fail anyway. The deadline is simply re-checked after resume,
+                // and a host that comes back first cancels it as usual.
+                return PausedWaitMs;
+            }
+
+            // Before anything in this cycle touches a device: a hand-back that has come due ends
+            // the loop, and CleanupOnWorkerThread in the loop's finally does the restores.
+            if (CommitDeferredTeardownIfDue())
             {
                 return PausedWaitMs;
             }
@@ -918,6 +1187,24 @@ namespace SensorReadout.CorsairPlugIn
             Interlocked.Increment(ref completedTicks);
 
             return NextIntervalMs();
+        }
+
+        // While a hand-back is armed the loop must not sleep past its deadline, or a disabled
+        // plug-in would hold the hub in software mode for up to one extra tick interval.
+        private int CapWaitForPendingTeardown(int waitMs)
+        {
+            if (!teardownPending)
+            {
+                return waitMs;
+            }
+
+            var remaining = unchecked(Thread.VolatileRead(ref teardownDueTicks) - Environment.TickCount);
+            if (remaining < DeferredTeardownPollFloorMs)
+            {
+                remaining = DeferredTeardownPollFloorMs;
+            }
+
+            return remaining < waitMs ? remaining : waitMs;
         }
 
         /// <summary>
