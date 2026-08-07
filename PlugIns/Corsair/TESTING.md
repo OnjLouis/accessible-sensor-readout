@@ -67,9 +67,18 @@ were validated on this machine (iCUE LINK Hub firmware 3.12.650, HX1200i 2025); 
 1. With fans under Sensor Readout control, quit the app normally. Within a few seconds
    the hub returns to its own hardware profile (fans may change pitch). If you ever set
    the PSU fan manually, it returns to automatic on exit too.
-2. Help > One-click diagnostics: this briefly sets every visible fan control to 100%
+2. **Start the app again.** A hub in hardware mode will not even list the devices plugged
+   into it, so there is nothing to read until something takes software control. Because
+   fan control has already been used on this machine, the plug-in resumes it by itself:
+   the hub goes back into software mode within a few seconds of start-up, all the Port N
+   rows reappear, and the fans re-baseline (pump 100%, fans 50%) before your saved
+   fan-control settings are re-applied. The Debug log says "resuming fan control of hub
+   ...". If instead the tree shows a single "Corsair Plug-In" row saying the hub is
+   running its own hardware fan profile, the marker file below is missing — set any
+   Corsair fan to a manual percent once and the rows appear immediately.
+3. Help > One-click diagnostics: this briefly sets every visible fan control to 100%
    for about 1.5 seconds and restores it — loud but harmless, and by design.
-3. After a crash/kill (not normal exit): the hub reverts to its own profile on its own
+4. After a crash/kill (not normal exit): the hub reverts to its own profile on its own
    after a short idle timeout (fail-loud: possibly full fans, never stopped fans). A
    manually-set PSU fan keeps its last duty until AC power-cycle — reset it via the app.
 
@@ -81,6 +90,15 @@ fight over duties (monitoring together is fine).
 
 ## Known limitations
 
+- A hub in hardware mode refuses to enumerate its sub-devices (measured on firmware
+  3.12.650), so after a clean exit there is nothing at all to read until some program takes
+  software control. The plug-in resumes control by itself only on a machine that has used it
+  for fan control before; that fact is recorded in a marker file next to the plug-in,
+  `Plug-Ins\Corsair\corsair-hub-<serial>.controlled` (one per hub, written the first time a
+  Corsair fan control is used). Deleting the file returns the plug-in to strictly
+  read-only-until-touched behaviour: the hub is then left in hardware mode at start-up and
+  its rows stay hidden until a fan control is used again. The file records only that fan
+  control was used — no duties, no percentages; those live in Sensor Readout's own settings.
 - Minimized-tray refresh of plug-in rows is 5 minutes — except on hosts with the
   fan-curve cache exemption, where rows refresh at the normal 10-second interval
   whenever an enabled fan curve uses a plug-in temperature (so liquid-temperature curves

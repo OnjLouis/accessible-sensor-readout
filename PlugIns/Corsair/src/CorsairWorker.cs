@@ -124,6 +124,11 @@ namespace SensorReadout.CorsairPlugIn
         // than captured once. Volatile: written by host threads, read by the worker thread.
         private volatile Action<string, string> log;
 
+        // Where this plug-in's own files live, from IPluginContext.PluginDirectory. Same story as
+        // the log sink -- supplied by whichever host thread called EnsureStarted last, read by the
+        // worker thread -- and null or empty simply turns the marker feature off.
+        private volatile string pluginDirectory;
+
         private CorsairDeviceGuard guard;       // deviceLock
         private Thread thread;                  // lifecycleLock
         private CorsairSnapshot published;      // snapshotLock
@@ -252,10 +257,16 @@ namespace SensorReadout.CorsairPlugIn
         /// log sink. Safe to call on every host refresh; a null sink simply discards messages.
         /// After <see cref="StopAndRestore"/> this is a no-op -- the process is going away and
         /// re-opening devices then would be the opposite of helpful.
+        ///
+        /// <paramref name="pluginDirectory"/> is where the sticky-control marker files live (see
+        /// <c>CorsairWorker.Devices.cs</c>). It is tolerated as null or empty -- the marker feature
+        /// simply switches itself off, and the plug-in stays strictly read-only until the user asks
+        /// for a fan change.
         /// </summary>
-        public void EnsureStarted(Action<string, string> log)
+        public void EnsureStarted(Action<string, string> log, string pluginDirectory)
         {
             this.log = log;
+            this.pluginDirectory = pluginDirectory;
             NoteContact();
 
             if (Interlocked.CompareExchange(ref shutdownState, 0, 0) != 0)
@@ -1220,6 +1231,7 @@ namespace SensorReadout.CorsairPlugIn
                 hub.FirmwareVersion = device.FirmwareVersion;
                 hub.OwnsSoftwareControl = device.OwnsSoftwareControl;
                 hub.WrongModeReadFailure = device.LastReadWrongMode;
+                hub.HardwareModeBlocked = device.HardwareModeBlocked;
                 hub.DutiesPending = device.DutiesPending;
                 hub.LastStatusByte = device.LastStatusByte;
                 hub.BackedOff = entry.BackedOff;

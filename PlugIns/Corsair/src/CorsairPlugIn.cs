@@ -63,7 +63,9 @@ namespace SensorReadout.CorsairPlugIn
             lastContext = context;
 
             var worker = CorsairWorker.Instance;
-            worker.EnsureStarted(context == null ? null : new Action<string, string>(context.Log));
+            worker.EnsureStarted(
+                context == null ? null : new Action<string, string>(context.Log),
+                context == null ? null : context.PluginDirectory);
 
             var diagnosticsMode = context != null && context.DiagnosticsMode;
             if (diagnosticsMode)

@@ -83,6 +83,14 @@ namespace SensorReadout.CorsairPlugIn
         private const string HubUnavailableDisplayValue =
             "This iCUE LINK hub was detected, but no readings are available right now. It may be in hardware mode under another program's control, or idle. Readings appear once a supported program (or Sensor Readout's fan control) is active.";
 
+        // The specific, and far more common, reason for the row above: a hub running its own stored
+        // profile refuses even to list the devices plugged into it (annex sec 2/sec 7 editor's note,
+        // measured 2026-08-07 on firmware 3.12.650), so there is nothing to show and no way out of
+        // it that does not involve some program taking software control. Worth its own wording
+        // because the way out is a concrete action the reader can take.
+        private const string HubHardwareModeBlockedDisplayValue =
+            "This iCUE LINK hub is running its own hardware fan profile, so it does not report the devices connected to it and no readings are available. Readings and fan controls appear as soon as Sensor Readout takes fan control of it: set any Corsair fan to a manual percent once, or restart the app after fan control has been used on this machine. They also appear if another supported program puts the hub into software mode.";
+
         // ---- Identifier helpers (Step 1) -----------------------------------------------------
 
         internal static string HubIdentifier(string serial, string kind, int channel)
@@ -394,7 +402,9 @@ namespace SensorReadout.CorsairPlugIn
                 // have nothing to show (MEDIUM 3 is exactly about not assuming a single hub), and
                 // each needs its own stable identifier so the rows do not collide or overwrite.
                 Identifier = "corsair/status/hub-" + (string.IsNullOrEmpty(hub.Serial) ? "hub0" : hub.Serial),
-                DisplayValue = HubUnavailableDisplayValue,
+                // Still exactly one row, with the same identifier, either way -- only the
+                // explanation changes when the cause is known to be the hub's own profile.
+                DisplayValue = hub.HardwareModeBlocked ? HubHardwareModeBlockedDisplayValue : HubUnavailableDisplayValue,
                 Source = SourceName,
                 Details = details
             };
@@ -691,6 +701,7 @@ namespace SensorReadout.CorsairPlugIn
                 details[prefix + "firmware"] = string.IsNullOrEmpty(hub.FirmwareVersion) ? "(unknown)" : hub.FirmwareVersion;
                 details[prefix + "owns software control"] = hub.OwnsSoftwareControl.ToString(CultureInfo.InvariantCulture);
                 details[prefix + "wrong-mode read failure"] = hub.WrongModeReadFailure.ToString(CultureInfo.InvariantCulture);
+                details[prefix + "hardware-mode blocked"] = hub.HardwareModeBlocked.ToString(CultureInfo.InvariantCulture);
                 details[prefix + "duties pending"] = hub.DutiesPending.ToString(CultureInfo.InvariantCulture);
                 details[prefix + "last status byte"] = "0x" + hub.LastStatusByte.ToString("x2", CultureInfo.InvariantCulture);
 

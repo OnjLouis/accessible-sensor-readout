@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -15,6 +16,14 @@ namespace SensorReadout.CorsairPlugIn
     // the intent bookkeeping, by whichever control method is calling in.
     public sealed partial class CorsairWorker
     {
+        // Sticky-control marker. Written into the plug-in's own directory the first time this
+        // machine puts a given hub under Sensor Readout's fan control, and read on every later
+        // connect. See ResumeControlIfMarked for why it has to exist at all.
+        private const string HubControlMarkerPrefix = "corsair-hub-";
+        private const string HubControlMarkerSuffix = ".controlled";
+        private const string HubControlMarkerContent =
+            "Sensor Readout has used this machine's Corsair plug-in to control the fans of this iCUE LINK hub. While this file exists, the plug-in resumes fan control of that hub automatically at start-up instead of waiting for the hub to be readable. Delete it to go back to strictly read-only behaviour until a fan control is used again.";
+
         // ---- Device refresh ---------------------------------------------------------------------
 
         /// <summary>
@@ -83,7 +92,7 @@ namespace SensorReadout.CorsairPlugIn
                     hubIntents[entry.Serial] = intent;
                 }
 
-                intent.EverOwned = true;
+                NoteHubOwned(entry.Serial, intent);
 
                 if (entry.Device.LastReadWrongMode)
                 {
@@ -359,7 +368,53 @@ namespace SensorReadout.CorsairPlugIn
                 + device.Channels.Count.ToString(CultureInfo.InvariantCulture) + " channel(s).");
 
             RestoreHubIntent(entry);
+
+            // After RestoreHubIntent, not before: a hub this worker has already owned in *this*
+            // process is resumed from the intent record, which also clears the blocked state, and
+            // there is then nothing left for the marker path to do.
+            ResumeControlIfMarked(entry);
             return true;
+        }
+
+        /// <summary>
+        /// Resumes fan control of a hub that connected in the hardware-mode-blocked state, but only
+        /// on a machine that has already used Sensor Readout for fan control.
+        ///
+        /// The problem this solves: a hub in hardware mode refuses sub-device enumeration outright
+        /// (annex §2/§7 editor's note, measured 2026-08-07 on firmware 3.12.650). So after a clean
+        /// exit -- which deliberately hands the hub back to its own profile -- the next launch has
+        /// no rows, no controls, and no temperature source for a fan curve, and nothing can ever ask
+        /// for software mode again. The marker file is the narrowest fact that breaks that deadlock:
+        /// this machine has used this plug-in to drive this hub's fans before, so resuming is
+        /// restoring the user's own arrangement rather than seizing someone else's hardware. Without
+        /// the marker the hub is left exactly as found, and the status row says how to start.
+        /// </summary>
+        private void ResumeControlIfMarked(HubEntry entry)
+        {
+            if (entry.Device == null || !entry.Device.HardwareModeBlocked)
+            {
+                return;
+            }
+
+            if (!HubControlMarkerExists(entry.Serial))
+            {
+                Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial
+                    + " is running its own hardware profile and this machine has not used Sensor Readout for its fan control,"
+                    + " so it is left alone; its readings appear once a fan control here is used or another program takes the hub.");
+                return;
+            }
+
+            Log("Debug", "Corsair plug-in: resuming fan control of hub " + entry.Serial
+                + " (this machine previously used Sensor Readout for fan control).");
+
+            if (!entry.Device.TakeControlIfBlocked())
+            {
+                Log("Debug", "Corsair plug-in: taking software control of iCUE LINK hub " + entry.Serial
+                    + " did not succeed; it stays in hardware mode and will be retried on the next reconnect.");
+                return;
+            }
+
+            RecordHubIntent(entry);
         }
 
         // Called with deviceLock held.
@@ -574,7 +629,7 @@ namespace SensorReadout.CorsairPlugIn
 
             if (entry.Device.OwnsSoftwareControl)
             {
-                intent.EverOwned = true;
+                NoteHubOwned(entry.Serial, intent);
             }
 
             var channels = entry.Device.Channels;
@@ -653,6 +708,105 @@ namespace SensorReadout.CorsairPlugIn
             else if (intent.RequestedPercent >= PsuManualThresholdPercent)
             {
                 intent.EverSetManual = true;
+            }
+        }
+
+        // ---- Sticky-control marker ----------------------------------------------------------------
+        //
+        // The intent record above only lives as long as this process, which is all it needs for
+        // reconnects and sleep/wake. Surviving a restart is a different question with a different
+        // answer: the only thing recorded on disk is the single bit "fan control has been used for
+        // this hub on this machine", and its only effect is to let ResumeControlIfMarked take a hub
+        // that would otherwise be unreadable. No duty, no percentage, nothing about what the user
+        // asked for -- those still come from the host's own saved fan-control state.
+
+        /// <summary>
+        /// Records that this worker now owns <paramref name="serial"/>, writing the marker file the
+        /// first time that becomes true. Both places that can be the first to observe ownership --
+        /// <see cref="RefreshHub"/> and <see cref="RecordHubIntent"/> -- go through here, so the
+        /// marker cannot depend on which of them happened to notice first.
+        /// </summary>
+        private void NoteHubOwned(string serial, HubIntent intent)
+        {
+            if (intent == null || intent.EverOwned)
+            {
+                return;
+            }
+
+            intent.EverOwned = true;
+            WriteHubControlMarker(serial);
+        }
+
+        // Null whenever the marker feature is off (no plug-in directory was supplied) or there is no
+        // serial to key it by. entry.Serial is already sanitized to [a-z0-9] plus a possible "-N"
+        // uniqueness suffix (SanitizeHubKey / MakeUniqueHubKey), so it is safe as a file name.
+        private string HubControlMarkerPath(string serial)
+        {
+            var directory = pluginDirectory;
+            if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(serial))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Path.Combine(directory, HubControlMarkerPrefix + serial + HubControlMarkerSuffix);
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not build the fan-control marker path for iCUE LINK hub "
+                    + serial + " (" + ex.Message + "); the marker is not used for it.");
+                return null;
+            }
+        }
+
+        // Every marker operation is best effort: a read-only plug-in directory, a roaming profile, a
+        // locked file -- none of that is a reason to fail a control call the user asked for, and the
+        // only consequence is that the next launch waits to be asked again.
+        private void WriteHubControlMarker(string serial)
+        {
+            var path = HubControlMarkerPath(serial);
+            if (path == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    return;
+                }
+
+                File.WriteAllText(path, HubControlMarkerContent, Encoding.UTF8);
+                Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial
+                    + " is now under this plug-in's fan control; recorded it in " + path
+                    + " so control resumes automatically the next time the app starts.");
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not write the fan-control marker file " + path + " ("
+                    + ex.Message + "); fan control will simply have to be used again after the next restart.");
+            }
+        }
+
+        private bool HubControlMarkerExists(string serial)
+        {
+            var path = HubControlMarkerPath(serial);
+            if (path == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return File.Exists(path);
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not check for the fan-control marker file " + path + " ("
+                    + ex.Message + "); treating it as absent.");
+                return false;
             }
         }
 

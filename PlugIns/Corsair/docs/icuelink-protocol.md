@@ -456,3 +456,26 @@ Write duties (channel 1 → 50 %, channel 8 → 100 %):
 
 Read temperatures: same bracket with endpoint `0x21`, expect type `10 00`; record
 `00 D0 00` = 20.8 °C, `01 00 00` = none.
+
+---
+
+## Editor's note (2026-08-07, measured behaviour of hardware mode)
+
+Everything above describes what a hub does in **software mode**. What it does in **hardware
+mode** was left open by §2 and §7 (the reference implementation enters software mode during
+its handshake, so it never observes the alternative). Measured on this machine's iCUE LINK
+System Hub, firmware `3.12.650`, with the hub genuinely in hardware mode:
+
+- **Direct commands work.** Read firmware version (`0x02 0x13`) answers normally with status
+  `0x00`. So a hub in hardware mode is fully reachable, identifies itself, and can be told to
+  enter software mode.
+- **Endpoint reads do not.** Every endpoint bracket answers status `0x03` ("incorrect mode"),
+  and that includes **sub-device enumeration** (endpoint `0x36`, type `21 00`) — not only the
+  speed/temperature endpoints of §7 and the duty write of §8. The error response carries the
+  echoed command byte but no data type, which is why a status-`0x03` answer to a read has to be
+  matched by echo rather than by data type (§4.5).
+- **Implication for monitoring:** there is no read-only way to see what is plugged into a hub
+  that is running its own profile. Not the device list, not one RPM. A monitoring
+  implementation therefore has exactly two honest states for such a hub — "present but
+  unreadable", or "under our software control" — and moving between them is a deliberate act of
+  taking the hardware, never a side effect of reading it.
