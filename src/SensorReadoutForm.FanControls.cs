@@ -815,9 +815,27 @@ public sealed partial class SensorReadoutForm : Form
         }
         fanPercentBox.Value = 50;
         var count = 0;
+        // Plug-in fan controls are not LibreHardwareMonitor sensors, so the bulk LHM reset below
+        // cannot reach them; collect their identifiers here (plug-in identifiers never start with
+        // "/") and reset each through the plug-in-aware path, like every other control action.
+        var plugInControlIdentifiers = latestRows
+            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && !r.Identifier.StartsWith("/", StringComparison.Ordinal))
+            .Select(r => r.Identifier)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         RunFanAction(
             "Returning all fan controls to automatic...",
-            delegate { count = SetAllLibreHardwareMonitorControlsDefault(); },
+            delegate
+            {
+                count = SetAllLibreHardwareMonitorControlsDefault();
+                foreach (var identifier in plugInControlIdentifiers)
+                {
+                    if (TryPlugInFanControl(identifier, 50, false))
+                    {
+                        count++;
+                    }
+                }
+            },
             delegate
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);

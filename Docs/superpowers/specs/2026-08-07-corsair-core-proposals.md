@@ -4,9 +4,10 @@ Date: 2026-08-07. Branch: `feature/corsair-core-proposals` (based on `feature/co
 rebased onto v5.0.0). Author: Robin Kipp with Claude Code.
 
 Per `Docs/Coding-agent-plug-in-rules.md`, core changes require a written case and explicit
-approval from Andre. These three small changes were identified while building the Corsair
-plug-in; each is generic (any plug-in benefits), isolated, and separately revertible — one
-commit per proposal. None changes behavior for users without plug-ins or fan curves.
+approval from Andre. These four small changes were identified while building and
+field-testing the Corsair plug-in; each is generic (any plug-in benefits), isolated, and
+separately revertible — one commit per proposal. None changes behavior for users without
+plug-ins or fan curves.
 
 ## Proposal 1 — Foreground cache interval for plug-in readings that feed enabled fan curves
 
@@ -74,3 +75,22 @@ commit per proposal. None changes behavior for users without plug-ins or fan cur
   Details — the filter must keep running on the raw rows. Full self-test passes; live
   check that the PSU fan control is visible at 0 RPM without "Show stopped fans", and
   that ordinary 0-RPM header controls remain hidden.
+
+## Proposal 4 — "All fans reset" also resets plug-in fan controls
+
+- **What the plug-in cannot do today:** the Fan Controls dialog's "All fans reset" button
+  calls `SetAllLibreHardwareMonitorControlsDefault()`, which iterates LibreHardwareMonitor
+  control sensors only. Plug-in controls are silently skipped: the wire reset never
+  happens, though settings are saved as automatic and suspended curves resume (which can
+  mask the gap when curves are active). Found during real-world testing — the user pressed
+  the button and the Corsair fans did not react. Every other control path (single-fan
+  actions, fan profiles, curves, diagnostics, startup re-apply) already routes through the
+  plug-in-aware `SetLibreHardwareMonitorControl`; this was the one remaining LHM-only path.
+- **Why generic:** affects every `IFanControllablePlugin` (MSI, ASUS, Corsair).
+- **File changed:** `src/SensorReadoutForm.FanControls.cs` — `ResetAllFanControls` collects
+  plug-in control identifiers (never `/`-prefixed) on the UI thread and resets each via
+  `TryPlugInFanControl(identifier, 50, manual: false)` in the same worker, counting
+  successes into the existing status message.
+- **Test:** full self-test passes; live check that "All fans reset" audibly returns
+  manually-set Corsair fans to their defaults immediately (previously only the curve
+  engine corrected them later).
