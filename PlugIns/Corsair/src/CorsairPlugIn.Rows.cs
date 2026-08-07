@@ -50,9 +50,17 @@ namespace SensorReadout.CorsairPlugIn
 
         // task-8 fix round (additional item): the host's fan-control panel hides a control by
         // default once its paired Fan row shows 0 RPM (ShouldShowFanControl, host-conventions.md
-        // sec 1.3) -- which is routine for this PSU family in automatic zero-RPM mode.
+        // sec 1.3) -- which is routine for this PSU family in automatic zero-RPM mode. Hosts with
+        // the zero-RPM marker support keep the control visible because of the "Zero RPM capable"
+        // Details key below; on older hosts "Show stopped fans" reveals it.
         private const string PsuVisibilityNote =
-            "The host hides a fan control by default once its paired Fan row shows 0 RPM. While this PSU's zero-RPM mode is stopping the fan, this control is visible only when \"Show stopped fans\" is enabled in the Fan Controls dialog.";
+            "On Sensor Readout versions without zero-RPM marker support, enable \"Show stopped fans\" in the Fan Controls dialog to reveal this control while the fan is stopped.";
+
+        // Opt-in marker honoured by ShouldShowFanControl on hosts that support it: the paired fan
+        // idling at 0 RPM is normal for this device, so the control must not be hidden as an
+        // unused fan header. The value is explanatory text only; the KEY is the contract.
+        private const string PsuZeroRpmMarkerNote =
+            "This power supply stops its fan at low load. A reading of 0 RPM is normal and does not mean the control is unused.";
 
         private const string InteroperabilityNote =
             "Every Corsair transaction from this plug-in runs inside the shared Global\\CorsairLinkReadWriteGuardMutex, so reading here is safe alongside other Corsair tools. Do not run this plug-in together with Corsair iCUE -- iCUE and this plug-in would both try to drive the same hardware.";
@@ -648,6 +656,7 @@ namespace SensorReadout.CorsairPlugIn
             {
                 details["Safety"] = PsuControlSafetyNote;
                 details["Visibility"] = PsuVisibilityNote;
+                details["Zero RPM capable"] = PsuZeroRpmMarkerNote;
             }
 
             details["Interoperability"] = InteroperabilityNote;

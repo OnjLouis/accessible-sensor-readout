@@ -41,8 +41,9 @@ were validated on this machine (iCUE LINK Hub firmware 3.12.650, HX1200i 2025); 
    50% fans / 100% pump, not the hub's own curve).
 7. Pump test: the pump control never accepts below 50%. Try setting 30% — it must
    land at 50%. Do not attempt to stop the pump; the plug-in will refuse.
-8. PSU fan (optional): PSU control rows are hidden while the fan is at 0 RPM unless
-   "Show stopped" is ticked in the Fan Controls dialog. Set 40% and listen for the PSU
+8. PSU fan (optional): on hosts that support the zero-RPM marker the PSU control is
+   always visible; on older hosts it is hidden while the fan is at 0 RPM unless
+   "Show stopped" is ticked. Set 40% and listen for the PSU
    fan; watch the Debug log — if every PSU write logs an acknowledgement mismatch, stop
    and report (write framing was unverifiable until this moment). Reset returns the fan
    to the PSU's own zero-RPM logic. Values below 30% also mean "give it back to the PSU".
@@ -54,10 +55,12 @@ were validated on this machine (iCUE LINK Hub firmware 3.12.650, HX1200i 2025); 
 1. Preferences > Fan curves: create a curve using "Port 4 TITAN AIO liquid temperature"
    as input and a QX fan control as target; or use CPU temperature as input.
 2. Note: curve changes apply at most once per 10 seconds per control.
-3. **Caveat**: while Sensor Readout is minimized to the tray, plug-in readings (including
-   the liquid temperature) refresh only every 5 minutes (host-side cache), so a
-   liquid-temperature curve reacts slowly when minimized. CPU/GPU-temperature curves are
-   unaffected. Keeping the window open (not minimized) gives ~10-second updates.
+3. **Caveat**: on hosts without the fan-curve cache exemption, plug-in readings (including
+   the liquid temperature) refresh only every 5 minutes while Sensor Readout is minimized
+   to the tray, so a liquid-temperature curve reacts slowly when minimized. Hosts with the
+   exemption keep plug-in readings on the normal ~10-second interval whenever an enabled
+   fan curve uses one, so liquid-temperature curves stay responsive in the tray.
+   CPU/GPU-temperature curves are unaffected either way.
 
 ## Step 4 — Exit behavior and diagnostics
 
@@ -78,9 +81,12 @@ fight over duties (monitoring together is fine).
 
 ## Known limitations
 
-- Minimized-tray refresh of plug-in rows is 5 minutes (see Step 3 caveat).
+- Minimized-tray refresh of plug-in rows is 5 minutes — except on hosts with the
+  fan-curve cache exemption, where rows refresh at the normal 10-second interval
+  whenever an enabled fan curve uses a plug-in temperature (so liquid-temperature curves
+  stay responsive in the tray).
 - iCUE cannot run alongside (no shared-mutex support in iCUE).
-- The Fan row loses its Details entries while a control percent is attached to it
-  (host behavior); Temperature and Fan Control rows keep theirs.
+- On hosts without the Details-preserving fan-row rebuild, the Fan row loses its Details
+  entries while a control percent is attached to it; newer hosts preserve them.
 - Legacy Corsair devices (Commander PRO/CORE, Hydro AIOs, AXi PSUs) are not yet
   supported — the plug-in is structured so families can be added later.
