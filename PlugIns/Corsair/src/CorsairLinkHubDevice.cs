@@ -29,10 +29,19 @@ namespace SensorReadout.CorsairPlugIn
     /// Deliberate policy difference from the studied reference implementation: connecting is
     /// strictly read-only. <see cref="Connect"/> never changes the hub's mode and never writes a
     /// duty, so simply having this plug-in enabled cannot take the hub away from whatever program
-    /// (Fan Control, SignalRGB, ...) is already driving the user's fans. Software mode is entered
-    /// only from <see cref="SetChannelPercent"/>, <see cref="ResetChannel"/>, and
-    /// <see cref="ReassertControl"/> -- that is, only when the user has explicitly asked this
-    /// application to control a fan.
+    /// (Fan Control, SignalRGB, ...) is already driving the user's fans.
+    ///
+    /// Exactly two entry points can put the hub into software mode:
+    /// <list type="bullet">
+    /// <item><see cref="SetChannelPercent"/> -- takes control if this plug-in does not already have
+    /// it, because the user has explicitly asked for a duty.</item>
+    /// <item><see cref="ReassertControl"/> -- takes control *unconditionally*, baselining every
+    /// channel to its default and writing the whole set. It is a resume path, not a query: call it
+    /// only from a caller that has itself recorded prior ownership.</item>
+    /// </list>
+    /// <see cref="ResetChannel"/> is not one of them. When this plug-in does not own the hub, a
+    /// reset is bookkeeping only and sends nothing -- there is no control to hand back, and entering
+    /// software mode to "reset" would take the hub from its real owner.
     ///
     /// Every wire transaction runs inside the shared <see cref="CorsairDeviceGuard"/> mutex, held
     /// for a whole endpoint bracket (close, open, read/write, close) as the annex requires. The
@@ -52,6 +61,10 @@ namespace SensorReadout.CorsairPlugIn
 
         // constraints.md #8: bounded wait on the cross-process guard.
         private const int GuardTimeoutMs = 2000;
+
+        // Shutdown is on a budget (a ProcessExit handler gets roughly two seconds for everything),
+        // and the hardware-mode restore is best effort, so it does not get the full guard wait.
+        private const int ShutdownGuardTimeoutMs = 500;
 
         // Annex §8 duty policy.
         private const int DefaultFanPercent = 50;
@@ -77,7 +90,17 @@ namespace SensorReadout.CorsairPlugIn
         private bool ownsSoftwareControl;
         private bool lastReadWrongMode;
         private bool isGone;
+
+        // Same-thread recursion tripwire, not a cross-thread lock: the monitor above already
+        // serializes callers, and it is reentrant, so the only way back into ReassertControl is this
+        // thread re-entering through RefreshSensors' wrong-mode branch. Annex §10 calls for mode
+        // changes to be refused rather than nested when that happens.
         private bool reassertInFlight;
+
+        // Set when a full-set duty write did not reach the hub. While it is set, the in-memory
+        // RequestedPercent values do not describe what the fans are doing, so RefreshSensors re-sends
+        // the whole set once per tick until a write finally lands.
+        private bool dutiesDirty;
 
         // Status of the most recent failing command within the current bracket; both are reset when
         // a bracket starts and are only meaningful after that bracket reported failure.
@@ -124,6 +147,17 @@ namespace SensorReadout.CorsairPlugIn
         public bool IsGone
         {
             get { return isGone; }
+        }
+
+        /// <summary>
+        /// Response status byte recorded during the most recent transaction (annex §4.5: 0x00 OK,
+        /// 0x03 wrong mode, anything else an error). Reset to 0x00 when each transaction starts, so
+        /// it describes the last one only, and is meaningful only when that transaction reported
+        /// failure. Diagnostic surface for Task 8.
+        /// </summary>
+        public byte LastStatusByte
+        {
+            get { return lastStatus; }
         }
 
         public List<LinkChannelState> Channels
@@ -192,6 +226,13 @@ namespace SensorReadout.CorsairPlugIn
         /// Closes the session. The hardware-mode restore is sent only when this plug-in actually
         /// took software control AND the caller asks for it, so a read-only session can never push
         /// the hub out of the mode another program put it in.
+        ///
+        /// Shutdown-safe: the restore is best effort and fully contained, and releasing the HID
+        /// handle happens in a finally, so a throw on the way out (a disposed guard, a device that
+        /// vanished) can never leak the handle. The restore waits at most
+        /// <see cref="ShutdownGuardTimeoutMs"/> ms for the guard rather than the usual
+        /// <see cref="GuardTimeoutMs"/>, because a ProcessExit handler has roughly two seconds in
+        /// total for everything it needs to do.
         /// </summary>
         public void Disconnect(bool restoreHardwareMode)
         {
@@ -200,25 +241,45 @@ namespace SensorReadout.CorsairPlugIn
                 var localStream = stream;
                 if (localStream == null)
                 {
-                    ownsSoftwareControl = false;
+                    ClearSessionState();
                     return;
                 }
 
-                if (ownsSoftwareControl && restoreHardwareMode)
+                try
                 {
-                    Log("Debug", "Corsair plug-in: returning iCUE LINK hub " + serial + " to hardware mode.");
-                    if (RunDirectCommand(LinkHubData.EnterHardwareMode, null) == null)
+                    if (ownsSoftwareControl && restoreHardwareMode)
                     {
-                        // Best effort only (annex §2): the hub keeps the last written duties until it
-                        // resets or another program takes over, which is a safe steady state.
-                        Log("Debug", "Corsair plug-in: the hardware-mode restore did not complete; the hub keeps the last written duties.");
+                        Log("Debug", "Corsair plug-in: returning iCUE LINK hub " + serial + " to hardware mode.");
+                        if (RunDirectCommand(LinkHubData.EnterHardwareMode, null, "Error", ShutdownGuardTimeoutMs) == null)
+                        {
+                            // Best effort only (annex §2): the hub keeps the last written duties until
+                            // it resets or another program takes over, which is a safe steady state.
+                            Log("Error", "Corsair plug-in: the hardware-mode restore on iCUE LINK hub " + serial
+                                + " did not complete; the hub keeps the last written duties until it resets.");
+                        }
                     }
                 }
-
-                ownsSoftwareControl = false;
-                stream = null;
-                localStream.Dispose();
+                catch (Exception ex)
+                {
+                    // Never let a shutdown-path failure prevent the handle from being released.
+                    Log("Error", "Corsair plug-in: the hardware-mode restore on iCUE LINK hub " + serial
+                        + " threw during shutdown (" + ex.Message + "); closing the device anyway.");
+                }
+                finally
+                {
+                    ClearSessionState();
+                    stream = null;
+                    localStream.Dispose();
+                }
             }
+        }
+
+        private void ClearSessionState()
+        {
+            ownsSoftwareControl = false;
+            lastReadWrongMode = false;
+            dutiesDirty = false;
+            isGone = false;
         }
 
         // ---- Sensor reads --------------------------------------------------------------------
@@ -239,6 +300,16 @@ namespace SensorReadout.CorsairPlugIn
 
                 // Reflects the most recent refresh only.
                 lastReadWrongMode = false;
+
+                if (dutiesDirty && ownsSoftwareControl)
+                {
+                    // Annex §9 polling order: a pending duty write goes out ahead of the sensor
+                    // reads. Exactly one attempt per refresh -- WriteAllDuties clears the flag when
+                    // it lands, so this keeps retrying on later ticks until it does.
+                    Log("Debug", "Corsair plug-in: re-sending the duty set to iCUE LINK hub " + serial
+                        + " after an earlier write failed to reach it.");
+                    WriteAllDuties();
+                }
 
                 var reasserted = false;
                 var ok = true;
@@ -379,9 +450,24 @@ namespace SensorReadout.CorsairPlugIn
                     return false;
                 }
 
+                // Captured after EnsureSoftwareControl, which baselines every channel on the first
+                // take of control.
+                var previousPercent = state.RequestedPercent;
+                var previousWasDefault = state.PercentIsDefault;
+
                 state.RequestedPercent = target;
                 state.PercentIsDefault = false;
-                return WriteAllDuties();
+                if (WriteAllDuties())
+                {
+                    return true;
+                }
+
+                // The write never reached the hub, so this channel is not running at `target`.
+                // Reverting keeps the in-memory state honest about what the hardware is doing;
+                // WriteAllDuties has flagged the set as dirty, so the next refresh re-sends it.
+                state.RequestedPercent = previousPercent;
+                state.PercentIsDefault = previousWasDefault;
+                return false;
             }
         }
 
@@ -403,6 +489,9 @@ namespace SensorReadout.CorsairPlugIn
                     return false;
                 }
 
+                var previousPercent = state.RequestedPercent;
+                var previousWasDefault = state.PercentIsDefault;
+
                 state.RequestedPercent = DefaultPercentFor(state.Device);
                 state.PercentIsDefault = true;
 
@@ -418,7 +507,16 @@ namespace SensorReadout.CorsairPlugIn
                     return true;
                 }
 
-                return WriteAllDuties();
+                if (WriteAllDuties())
+                {
+                    return true;
+                }
+
+                // Same rollback as SetChannelPercent: the default never reached the hub, so claiming
+                // the channel is back at its default would be a lie.
+                state.RequestedPercent = previousPercent;
+                state.PercentIsDefault = previousWasDefault;
+                return false;
             }
         }
 
@@ -426,6 +524,11 @@ namespace SensorReadout.CorsairPlugIn
         /// Re-enters software mode and re-sends every requested duty. Used to resume after the hub
         /// silently fell back to its hardware profile (sleep/wake, hub reset, another program taking
         /// over) -- annex §2 and §10.
+        ///
+        /// Takes control unconditionally. If this plug-in was not already the owner, every channel is
+        /// baselined to its default (fans 50 %, pumps 100 %) and that set is written. Call it only
+        /// from a caller that has itself established that it previously held control; it is not a
+        /// safe "check and resume" probe.
         /// </summary>
         public bool ReassertControl()
         {
@@ -438,7 +541,9 @@ namespace SensorReadout.CorsairPlugIn
 
                 if (reassertInFlight)
                 {
-                    // Annex §10: mode changes are flag-guarded rather than nested.
+                    // Same-thread recursion tripwire (annex §10: mode changes are refused rather than
+                    // nested). The monitor is reentrant, so this is the guard against re-entering via
+                    // RefreshSensors' wrong-mode branch, not against another thread.
                     Log("Debug", "Corsair plug-in: a control re-assert is already running on iCUE LINK hub " + serial + "; ignoring the nested request.");
                     return false;
                 }
@@ -490,7 +595,7 @@ namespace SensorReadout.CorsairPlugIn
         private bool EnterSoftwareMode()
         {
             Log("Debug", "Corsair plug-in: taking software control of iCUE LINK hub " + serial + ".");
-            return RunDirectCommand(LinkHubData.EnterSoftwareMode, null) != null;
+            return RunDirectCommand(LinkHubData.EnterSoftwareMode, null, "Error", GuardTimeoutMs) != null;
         }
 
         private void ApplyDefaultPercents()
@@ -521,36 +626,44 @@ namespace SensorReadout.CorsairPlugIn
             if (entries.Count == 0)
             {
                 Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " has no controllable channels; skipping the duty write.");
+                dutiesDirty = false;
                 return true;
             }
 
             var block = LinkHubData.BuildWriteBlock(LinkHubData.DataTypeDuty, LinkHubData.BuildDutyInnerData(entries));
             if (WriteEndpointBracket(LinkHubData.EndpointDutyWrite, block))
             {
+                dutiesDirty = false;
                 return true;
             }
 
-            if (!lastStatusWrongMode)
+            if (lastStatusWrongMode)
             {
-                return false;
+                // The hub slipped back to hardware mode between the mode change and the write. Take
+                // it once more and retry the write exactly once (annex §10) -- no loop, no recursion.
+                Log("Error", "Corsair plug-in: the duty write hit hardware mode on iCUE LINK hub " + serial
+                    + "; retrying once after re-entering software mode.");
+                if (EnterSoftwareMode() && WriteEndpointBracket(LinkHubData.EndpointDutyWrite, block))
+                {
+                    dutiesDirty = false;
+                    return true;
+                }
             }
 
-            // The hub slipped back to hardware mode between the mode change and the write. Take it
-            // once more and retry the write exactly once (annex §10) -- no loop, no recursion.
-            Log("Debug", "Corsair plug-in: the duty write hit hardware mode on iCUE LINK hub " + serial + "; retrying once after re-entering software mode.");
-            if (!EnterSoftwareMode())
-            {
-                return false;
-            }
-
-            return WriteEndpointBracket(LinkHubData.EndpointDutyWrite, block);
+            // Nothing reached the hardware, so the requested duties are now out of sync with what the
+            // fans are actually doing. Flag it: the next refresh re-sends the whole set, and keeps
+            // re-sending until one write lands.
+            dutiesDirty = true;
+            Log("Error", "Corsair plug-in: the duty write to iCUE LINK hub " + serial
+                + " did not reach the hardware; the requested duties will be re-sent on the next refresh.");
+            return false;
         }
 
         // ---- Enumeration ---------------------------------------------------------------------
 
         private string ReadFirmwareVersion()
         {
-            var response = RunDirectCommand(LinkHubData.ReadFirmwareVersion, null);
+            var response = RunDirectCommand(LinkHubData.ReadFirmwareVersion, null, "Debug", GuardTimeoutMs);
             return response == null ? string.Empty : LinkHubData.ParseFirmwareVersion(response);
         }
 
@@ -681,14 +794,14 @@ namespace SensorReadout.CorsairPlugIn
                     // Annex §11.4: the hub tolerates closing an endpoint that is not open, and a
                     // crashed predecessor may have left this one open. A failure here is not fatal --
                     // the open below is the real gate.
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, CommandEcho(LinkHubData.CloseEndpoint));
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Debug");
 
-                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, CommandEcho(LinkHubData.OpenEndpoint)) == null)
+                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, false, "Debug") == null)
                     {
                         return false;
                     }
 
-                    first = SendCommand(LinkHubData.ReadEndpoint, null, dataType, -1);
+                    first = SendCommand(LinkHubData.ReadEndpoint, null, dataType, false, "Debug");
                     if (first == null)
                     {
                         return false;
@@ -698,14 +811,14 @@ namespace SensorReadout.CorsairPlugIn
                     {
                         // Annex §4.3/§6: the continuation report carries no data type, so it is taken
                         // as-is. A missing continuation is not fatal; the parser tolerates it.
-                        continuation = SendCommand(LinkHubData.ReadEndpoint, null, null, -1);
+                        continuation = SendCommand(LinkHubData.ReadEndpoint, null, null, true, "Debug");
                     }
 
                     return true;
                 }
                 finally
                 {
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, CommandEcho(LinkHubData.CloseEndpoint));
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Debug");
                 }
             }
             finally
@@ -727,7 +840,7 @@ namespace SensorReadout.CorsairPlugIn
 
             if (!guard.TryEnter(GuardTimeoutMs))
             {
-                Log("Debug", "Corsair plug-in: another Corsair program held the device guard for "
+                Log("Error", "Corsair plug-in: another Corsair program held the device guard for "
                     + GuardTimeoutMs.ToString(CultureInfo.InvariantCulture) + " ms; the endpoint 0x"
                     + endpoint.ToString("x2", CultureInfo.InvariantCulture) + " write was not sent.");
                 return false;
@@ -738,18 +851,18 @@ namespace SensorReadout.CorsairPlugIn
                 var endpointData = new byte[] { endpoint };
                 try
                 {
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, CommandEcho(LinkHubData.CloseEndpoint));
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Error");
 
-                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, CommandEcho(LinkHubData.OpenEndpoint)) == null)
+                    if (SendCommand(LinkHubData.OpenEndpoint, endpointData, null, false, "Error") == null)
                     {
                         return false;
                     }
 
-                    return SendCommand(LinkHubData.WriteEndpoint, writeBlock, null, CommandEcho(LinkHubData.WriteEndpoint)) != null;
+                    return SendCommand(LinkHubData.WriteEndpoint, writeBlock, null, false, "Error") != null;
                 }
                 finally
                 {
-                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, CommandEcho(LinkHubData.CloseEndpoint));
+                    SendCommand(LinkHubData.CloseEndpoint, endpointData, null, false, "Error");
                 }
             }
             finally
@@ -759,8 +872,9 @@ namespace SensorReadout.CorsairPlugIn
         }
 
         // Direct (non-endpoint) commands: firmware version and the two mode changes. One command,
-        // one response, guard held for the pair.
-        private byte[] RunDirectCommand(byte[] command, byte[] data)
+        // one response, guard held for the pair. The guard budget is a parameter because the
+        // shutdown path cannot afford the full 2000 ms wait.
+        private byte[] RunDirectCommand(byte[] command, byte[] data, string failureLevel, int guardTimeoutMs)
         {
             if (stream == null)
             {
@@ -770,16 +884,16 @@ namespace SensorReadout.CorsairPlugIn
             lastStatus = LinkHubData.StatusOk;
             lastStatusWrongMode = false;
 
-            if (!guard.TryEnter(GuardTimeoutMs))
+            if (!guard.TryEnter(guardTimeoutMs))
             {
-                Log("Debug", "Corsair plug-in: another Corsair program held the device guard for "
-                    + GuardTimeoutMs.ToString(CultureInfo.InvariantCulture) + " ms; the hub command was not sent.");
+                Log(failureLevel, "Corsair plug-in: another Corsair program held the device guard for "
+                    + guardTimeoutMs.ToString(CultureInfo.InvariantCulture) + " ms; the hub command was not sent.");
                 return null;
             }
 
             try
             {
-                return SendCommand(command, data, null, CommandEcho(command));
+                return SendCommand(command, data, null, false, failureLevel);
             }
             finally
             {
@@ -793,8 +907,17 @@ namespace SensorReadout.CorsairPlugIn
         /// Writes one command and returns its response report, or null when the command failed.
         /// MUST be called with the device guard already held -- callers are the bracket helpers
         /// above, which own the guard for the whole bracket (constraints.md #8).
+        ///
+        /// <paramref name="isContinuation"/> marks the second read of a two-report enumeration. That
+        /// read does not start a new exchange: its report may already be queued from the first read
+        /// command, so the input queue must NOT be drained beforehand (draining would swallow it),
+        /// and the report is taken as-is without filtering (annex §4.3 -- it carries no data type).
+        ///
+        /// <paramref name="failureLevel"/> is the log level used for a non-zero response status:
+        /// "Error" on the control path, where a failure means a fan command did not land, and
+        /// "Debug" for sensor reads, where wrong-mode answers are ordinary chatter.
         /// </summary>
-        private byte[] SendCommand(byte[] command, byte[] data, byte[] waitForType, int echoByte)
+        private byte[] SendCommand(byte[] command, byte[] data, byte[] waitForType, bool isContinuation, string failureLevel)
         {
             var localStream = stream;
             if (localStream == null)
@@ -802,11 +925,15 @@ namespace SensorReadout.CorsairPlugIn
                 return null;
             }
 
+            var echoByte = isContinuation ? -1 : CommandEcho(command);
             var packet = LinkHubData.BuildCommandPacket(info.OutputReportLength, command, data);
 
-            // Annex §4.5: the HID input queue also receives the responses other Corsair programs
-            // provoke, so everything queued before this write is stale by definition.
-            localStream.DrainInput();
+            if (!isContinuation)
+            {
+                // Annex §4.5: the HID input queue also receives the responses other Corsair programs
+                // provoke, so everything queued before a new exchange is stale by definition.
+                localStream.DrainInput();
+            }
 
             if (!localStream.Write(packet, WriteTimeoutMs))
             {
@@ -835,7 +962,7 @@ namespace SensorReadout.CorsairPlugIn
 
                 if (ReportMatches(buffer, waitForType, echoByte))
                 {
-                    return CheckStatus(buffer);
+                    return CheckStatus(buffer, failureLevel);
                 }
 
                 // unchecked: Environment.TickCount wraps roughly every 24.9 days, and unchecked
@@ -854,7 +981,13 @@ namespace SensorReadout.CorsairPlugIn
                 // turn a real response into a failure, so an unmatched poll falls back to the first
                 // report that arrived. Data-type matching gets no such fallback: mis-parsing another
                 // program's sensor report as ours would produce silently wrong readings.
-                return CheckStatus(firstReport);
+                if (IsWriteCommand(command))
+                {
+                    Log("Error", "Corsair plug-in: could not identify the acknowledgement for a duty write to iCUE LINK hub "
+                        + serial + "; falling back to the first report received, so this write's success is unverified.");
+                }
+
+                return CheckStatus(firstReport, failureLevel);
             }
 
             return null;
@@ -864,7 +997,17 @@ namespace SensorReadout.CorsairPlugIn
         {
             if (waitForType != null)
             {
-                return LinkHubData.ResponseTypeMatches(report, waitForType);
+                if (LinkHubData.ResponseTypeMatches(report, waitForType))
+                {
+                    return true;
+                }
+
+                // An error response to an endpoint read need not carry a data type at all -- the
+                // payload the type would label is exactly what the hub failed to produce. Without
+                // this clause a status-3 answer would simply never match, the poll would time out,
+                // and the wrong-mode recovery protocol would never fire. Such a report is still
+                // routed through CheckStatus, which returns null, so it can never be parsed as data.
+                return IsEchoedError(report, echoByte);
             }
 
             if (echoByte < 0)
@@ -872,10 +1015,23 @@ namespace SensorReadout.CorsairPlugIn
                 return true;
             }
 
+            return EchoMatches(report, echoByte);
+        }
+
+        private static bool EchoMatches(byte[] report, int echoByte)
+        {
             return report != null && report.Length > 3 && report[3] == (byte)echoByte;
         }
 
-        private byte[] CheckStatus(byte[] response)
+        private static bool IsEchoedError(byte[] report, int echoByte)
+        {
+            return echoByte >= 0
+                && EchoMatches(report, echoByte)
+                && report.Length > 4
+                && report[4] != LinkHubData.StatusOk;
+        }
+
+        private byte[] CheckStatus(byte[] response, string failureLevel)
         {
             var status = LinkHubData.ResponseStatus(response);
             if (status == LinkHubData.StatusOk)
@@ -884,18 +1040,27 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             lastStatus = status;
+            var level = string.IsNullOrEmpty(failureLevel) ? "Debug" : failureLevel;
             if (status == LinkHubData.StatusWrongMode)
             {
                 lastStatusWrongMode = true;
-                Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " answered with status 0x03 (the hub is in hardware mode).");
+                Log(level, "Corsair plug-in: iCUE LINK hub " + serial + " answered with status 0x03 (the hub is in hardware mode).");
             }
             else
             {
-                Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial + " answered with error status 0x"
+                Log(level, "Corsair plug-in: iCUE LINK hub " + serial + " answered with error status 0x"
                     + status.ToString("x2", CultureInfo.InvariantCulture) + ".");
             }
 
             return null;
+        }
+
+        private static bool IsWriteCommand(byte[] command)
+        {
+            return command != null
+                && command.Length > 0
+                && LinkHubData.WriteEndpoint.Length > 0
+                && command[0] == LinkHubData.WriteEndpoint[0];
         }
 
         private void NoteTransportFailure(CorsairHidStream localStream, string operation, int timeoutMs)
