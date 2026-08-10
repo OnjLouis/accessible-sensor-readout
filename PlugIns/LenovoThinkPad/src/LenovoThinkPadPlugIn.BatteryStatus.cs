@@ -243,7 +243,7 @@ namespace SensorReadout.LenovoThinkPadPlugIn
 
                         rows.Add(new SensorReading
                         {
-                            Type = "Performance",
+                            Type = "Battery",
                             Hardware = "ACPI battery",
                             Name = "Power state",
                             Identifier = StableIdentifier("acpi/battery/" + tag + "/power-state"),

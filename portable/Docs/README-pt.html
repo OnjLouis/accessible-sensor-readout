@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versão atual: 5.2.0.</p>
+<p>Versão atual: 5.2.1.</p>
 <h2 id="contents">Conteúdo</h2>
 <ul>
 <li><a href="#changelog">Registro de alterações</a></li>
@@ -46,6 +46,7 @@
 <li><a href="#license">Licença</a></li>
 </ul>
 <h2 id="changelog">Registro de alterações</h2>
+<h3>5.2.1</h3><ul><li>Corrigido: Desempenho/Visão geral já não mistura leituras de bateria, temperatura, firmware ou fonte de alimentação com Armazenamento. Armazenamento contém agora apenas leituras relacionadas com discos, volumes e unidades; o estado de alimentação ACPI aparece em Bateria e os restantes estados de hardware são agrupados em Outros.</li><li>Corrigido: as pesquisas DNS que falham após um curto tempo limite deixam de ser registadas incorretamente como erros de segundo plano não observados no registo de falhas.</li></ul>
 <h3>5.2.0</h3><ul><li>Adicionado: um plug-in experimental, opcional e apenas de leitura para monitorização do Corsair iCUE LINK e de fontes de alimentação pode mostrar, em dispositivos compatíveis, velocidades de bombas e ventoinhas, temperaturas do líquido ou do dispositivo e, em fontes digitais HXi/RMi, temperaturas, velocidade da ventoinha, tensão de entrada e potência de saída. Feche o Corsair iCUE antes de o ativar. Ao desativar o plug-in, o trabalho em segundo plano é interrompido e os acessos ao hardware são libertados. Esta versão não disponibiliza controlo de ventoinhas Corsair. Agradecemos a Robin Kipp pela implementação original.</li></ul>
 <h3>5.1.0</h3><ul><li>Adicionado: <code>Opções</code> &gt; <code>Ferramentas de rede...</code> (<code>Ctrl+Shift+T</code>) resolve endereços IP e nomes de anfitrião, classifica endereços IPv4 e IPv6, tenta a resolução DNS inversa e pode testar a latência e a perda de pacotes através de ping. Um endereço IP literal também pode mostrar os endereços IPv4 e IPv6 relacionados através do respetivo nome de anfitrião DNS inverso. Cada endereço público resolvido pode mostrar o respetivo fornecedor, organização, sistema autónomo, tipo de ligação e localização aproximada. Isto encerra a <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/24">questão #24</a>.</li><li>Privacidade: as Ferramentas de rede só são executadas quando solicitado. Endereços privados, locais, de loopback, link-local e de uso especial não são enviados ao serviço de metadados online. Não executa testes de velocidade, análises de portas ou consultas em segundo plano e não guarda um histórico de consultas.</li></ul>
 <h3>5.0.0</h3><ul><li>Adicionado: o diagnóstico de latência de áudio iniciado explicitamente mede as durações DPC e ISR do Windows, falhas de página físicas, controladores responsáveis e eventos de rastreio perdidos enquanto reproduz um problema de áudio. Um monitor em direto opcional fornece gráficos separados do histórico DPC e ISR e um resumo contínuo acessível, pode ser fechado e reaberto sem parar o teste e guarda automaticamente um relatório HTML no final. O resultado mais recente permanece disponível na categoria Latência de áudio.</li><li>Privacidade: os relatórios de latência de áudio explicam exatamente o que recolhem e excluem. Nenhum rastreio de latência é executado durante atualizações normais e as linhas de Latência de áudio são removidas dos relatórios anonimizados.</li></ul>

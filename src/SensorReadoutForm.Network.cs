@@ -12,6 +12,7 @@ using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 using Newtonsoft.Json.Linq;
@@ -609,6 +610,19 @@ public sealed partial class SensorReadoutForm : Form
 
     private static readonly Dictionary<string, string> ListeningPortHostCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    private static Task ObserveLateTaskFailure(Task task)
+    {
+        if (task == null)
+        {
+            return Task.FromResult(0);
+        }
+
+        return task.ContinueWith(delegate(Task completed)
+        {
+            var ignored = completed.Exception;
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
     private static string FormatEndpointHost(IPAddress address)
     {
         if (address == null)
@@ -653,6 +667,10 @@ public sealed partial class SensorReadoutForm : Form
             if (task.Wait(75) && task.Result != null && !string.IsNullOrWhiteSpace(task.Result.HostName))
             {
                 host = task.Result.HostName.Trim();
+            }
+            else if (!task.IsCompleted)
+            {
+                ObserveLateTaskFailure(task);
             }
         }
         catch

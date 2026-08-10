@@ -191,8 +191,11 @@ public sealed partial class SensorReadoutForm : Form
             parent.Children.Add(pciItem);
         }
 
-        var storageRows = rows
+        var remainingRows = rows
             .Where(r => !IsSystemPerformanceHardware(r.Hardware) && !IsOverviewHardware(r.Hardware) && !IsDataSourceSummaryRow(r) && !IsGpuPerformanceRow(r) && !IsPrinterPerformanceRow(r) && !IsPciExpansionPerformanceRow(r))
+            .ToList();
+        var storageRows = remainingRows
+            .Where(IsStoragePerformanceRow)
             .ToList();
         if (storageRows.Count > 0)
         {
@@ -200,6 +203,51 @@ public sealed partial class SensorReadoutForm : Form
             AddStorageHardwareGroups(storageItem, storageRows);
             parent.Children.Add(storageItem);
         }
+
+        var otherRows = remainingRows
+            .Where(r => !IsStoragePerformanceRow(r))
+            .ToList();
+        if (otherRows.Count > 0)
+        {
+            var otherItem = new ReadingTreeItem { Key = "performance|other", Text = T("group.Other", "Other") };
+            AddHardwareGroups(otherItem, otherRows);
+            parent.Children.Add(otherItem);
+        }
+    }
+
+    private static bool IsStoragePerformanceRow(SensorRow row)
+    {
+        if (row == null || !string.Equals(row.Type, "Performance", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var hardware = ShortHardwareName(row.Hardware);
+        if (string.Equals(hardware, "Storage", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(hardware, "Connected disks", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var identifier = row.Identifier ?? "";
+        if (identifier.StartsWith("logicaldisk/", StringComparison.OrdinalIgnoreCase) ||
+            identifier.StartsWith("logicaldisk|", StringComparison.OrdinalIgnoreCase) ||
+            identifier.StartsWith("storage/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var source = row.Source ?? "";
+        if (source.IndexOf("Windows Logical Disk", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            source.IndexOf("Windows network drive", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            source.IndexOf("Windows Storage", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        var name = CleanSensorName(row.Name);
+        return string.Equals(name, "BitLocker status", StringComparison.OrdinalIgnoreCase) ||
+            IsStoragePerformanceName(name);
     }
 
     private static void AddStorageHardwareGroups(ReadingTreeItem parent, IEnumerable<SensorRow> rows)

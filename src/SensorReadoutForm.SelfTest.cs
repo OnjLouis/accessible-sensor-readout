@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
 
@@ -50,6 +51,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Network tools privacy and shortcut", delegate { form.SelfTestNetworkToolsPrivacyAndShortcut(); });
             form.RunSelfTestStep(results, "USB SuperSpeedPlus speed decoding", delegate { form.SelfTestUsbSuperSpeedPlusSpeedDecoding(); });
             form.RunSelfTestStep(results, "Bluetooth and battery filtering", delegate { form.SelfTestBluetoothAndBatteryFiltering(); });
+            form.RunSelfTestStep(results, "Performance group boundaries", delegate { form.SelfTestPerformanceGroupBoundaries(); });
             form.RunSelfTestStep(results, "Category tree navigation", delegate { form.SelfTestCategoryNavigation(); });
             form.RunSelfTestStep(results, "Category speech modes", delegate { form.SelfTestCategorySpeechModes(); });
             form.RunSelfTestStep(results, "Expand and collapse commands", delegate { form.SelfTestExpandCollapse(); });
@@ -324,6 +326,11 @@ public sealed partial class SensorReadoutForm : Form
         Require(!ShouldShowNetworkToolPingBlockedNote(new NetworkToolPingResult { Sent = 4, Received = 3 }), "Network Tools showed a blocked-ping warning even though the host replied.");
         Require(ShouldShowNetworkToolPingBlockedNote(new NetworkToolPingResult { Sent = 4, Received = 0 }), "Network Tools omitted its ping warning when no replies were received.");
 
+        var delayedDnsFailure = new TaskCompletionSource<bool>();
+        var lateFailureObserver = ObserveLateTaskFailure(delayedDnsFailure.Task);
+        delayedDnsFailure.SetException(new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound));
+        Require(lateFailureObserver.Wait(TimeSpan.FromSeconds(1)) && lateFailureObserver.Status == TaskStatus.RanToCompletion, "Timed-out DNS failures were left unobserved for the task finalizer.");
+
         var reverseDnsResult = new NetworkToolResult { NormalizedTarget = "8.8.8.8" };
         var reverseDnsAddress = new NetworkToolAddressResult { Address = IPAddress.Parse("8.8.8.8"), Scope = "Public", ReverseDns = "dns.google" };
         reverseDnsAddress.ReverseDnsAddresses.Add(IPAddress.Parse("8.8.8.8"));
@@ -488,6 +495,54 @@ public sealed partial class SensorReadoutForm : Form
 
         settings.CategoryOrderKeys = new List<string>();
         settings.HiddenCategoryKeys = new List<string>();
+    }
+
+    private void SelfTestPerformanceGroupBoundaries()
+    {
+        var disk = new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "C: Test disk",
+            Name = "Read rate",
+            Identifier = "logicaldisk/C:/read",
+            Source = "Windows Logical Disk",
+            DisplayValue = "1.0 MB/s"
+        };
+        var thermal = new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Thermal",
+            Name = "System thermal state",
+            Identifier = "thermal-system-state",
+            Source = "Lenovo Laptop Support Plug-In",
+            DisplayValue = "Safe"
+        };
+        var powerSupply = new SensorRow
+        {
+            Type = "Performance",
+            Hardware = "Test PSU",
+            Name = "PSU output power",
+            Identifier = "test-psu/output-power",
+            Source = "Test PSU Plug-In",
+            DisplayValue = "100 W"
+        };
+        var parent = new ReadingTreeItem { Key = "type|Performance", Text = "Performance" };
+        AddPerformanceGroups(parent, new[] { disk, thermal, powerSupply });
+
+        var storage = parent.Children.FirstOrDefault(item => string.Equals(item.Key, "performance|storage", StringComparison.Ordinal));
+        var other = parent.Children.FirstOrDefault(item => string.Equals(item.Key, "performance|other", StringComparison.Ordinal));
+        Require(storage != null, "Performance grouping omitted the Storage branch.");
+        Require(other != null, "Performance grouping omitted the Other branch for non-storage readings.");
+        Require(ReadingTreeContainsRow(storage, disk), "A logical-disk row was not grouped under Storage.");
+        Require(!ReadingTreeContainsRow(storage, thermal), "A thermal row leaked into Storage.");
+        Require(!ReadingTreeContainsRow(storage, powerSupply), "A power-supply row leaked into Storage.");
+        Require(ReadingTreeContainsRow(other, thermal), "A thermal row was not retained under Other.");
+        Require(ReadingTreeContainsRow(other, powerSupply), "A power-supply row was not retained under Other.");
+    }
+
+    private static bool ReadingTreeContainsRow(ReadingTreeItem item, SensorRow row)
+    {
+        return item != null && (ReferenceEquals(item.Row, row) || item.Children.Any(child => ReadingTreeContainsRow(child, row)));
     }
 
     private void SelfTestCategorySpeechModes()

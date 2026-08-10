@@ -288,6 +288,7 @@ public sealed partial class SensorReadoutForm : Form
                 var task = Dns.GetHostAddressesAsync(normalizedTarget);
                 if (!task.Wait(TimeSpan.FromSeconds(5)))
                 {
+                    ObserveLateTaskFailure(task);
                     result.ResolutionError = T("value.DNS lookup timed out.", "DNS lookup timed out.");
                     return result;
                 }
@@ -542,7 +543,13 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             var task = Dns.GetHostEntryAsync(address);
-            return task.Wait(TimeSpan.FromSeconds(2)) && task.Result != null ? task.Result.HostName : "";
+            if (!task.Wait(TimeSpan.FromSeconds(2)))
+            {
+                ObserveLateTaskFailure(task);
+                return "";
+            }
+
+            return task.Result != null ? task.Result.HostName : "";
         }
         catch
         {
@@ -562,6 +569,7 @@ public sealed partial class SensorReadoutForm : Form
             var task = Dns.GetHostAddressesAsync(hostName.Trim().TrimEnd('.'));
             if (!task.Wait(TimeSpan.FromSeconds(5)))
             {
+                ObserveLateTaskFailure(task);
                 return new List<IPAddress>();
             }
 

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 5.2.0.
+Current version: 5.2.1.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -720,6 +720,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 5.2.1
+
+- Fixed: Performance/Overview no longer mixes battery, thermal, firmware, or power-supply readings into Storage. Storage now contains only disk, volume, and drive-related readings; ACPI power state appears under Battery, and other hardware status is grouped under Other.
+- Fixed: DNS lookups that fail after a short timeout no longer appear incorrectly as unobserved background errors in the crash log.
 
 ### 5.2.0
 

@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 5.2.0.</p>
+<p>Current version: 5.2.1.</p>
 <h2 id="contents">Contents</h2>
 <ul>
 <li><a href="#changelog">Changelog</a></li>
@@ -45,6 +45,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>5.2.1</h3><ul><li>Fixed: Performance/Overview no longer mixes battery, thermal, firmware, or power-supply readings into Storage. Storage now contains only disk, volume, and drive-related readings; ACPI power state appears under Battery, and other hardware status is grouped under Other.</li><li>Fixed: DNS lookups that fail after a short timeout no longer appear incorrectly as unobserved background errors in the crash log.</li></ul>
 <h3>5.2.0</h3><ul><li>Added: An experimental, opt-in, read-only Corsair iCUE LINK and PSU Monitoring plug-in can show supported hub pump and fan speeds, liquid or device temperatures, and HXi/RMi digital power-supply temperatures, fan speed, input voltage, and output power. Close Corsair iCUE before enabling it. Disabling the plug-in stops its background work and releases its hardware handles. This release does not expose Corsair fan controls. Thanks to Robin Kipp for contributing the original implementation.</li></ul>
 <h3>5.1.0</h3><ul><li>Added: <code>Options</code> &gt; <code>Network tools...</code> (<code>Ctrl+Shift+T</code>) resolves IP addresses and host names, classifies IPv4 and IPv6 addresses, attempts reverse DNS, and can test ping latency and packet loss. A literal IP can also show IPv4 and IPv6 addresses related through its reverse-DNS host name. Each resolved public address can show its own provider, organization, autonomous system, connection type, and approximate location. This closes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/24">issue #24</a>.</li><li>Privacy: Network Tools runs only when requested. Private, local, loopback, link-local, and special-use addresses are not sent to the online metadata service. It does not run connection-speed tests, scan ports, poll in the background, or keep a query history.</li></ul>
 <h3>5.0.0</h3><ul><li>Added: The explicitly started Audio Latency diagnostic measures Windows DPC and interrupt-service-routine duration, hard page faults, responsible drivers, and lost trace events while you reproduce an audio problem. An optional live monitor provides separate DPC and ISR history graphs plus an accessible rolling summary, can be closed and reopened without stopping the test, and the completed diagnostic is saved automatically as an HTML report. The latest result remains available in the Audio Latency category.</li><li>Privacy: Audio Latency reports explain exactly what they collect and exclude. No latency tracing runs during ordinary refreshes, and Audio Latency rows are removed from anonymized reports.</li></ul>
