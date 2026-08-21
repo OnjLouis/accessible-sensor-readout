@@ -1,6 +1,8 @@
 # Sensor Readout
 
-Current version: 6.1.0.
+Current version: 6.1.1.
+
+**Important update note:** If you are running 6.0.0 or 6.1.0, download 6.1.1 manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -742,6 +744,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.1.1
+
+- Fixed: The updater now carries the program files required to verify and install signed update packages. If you are running 6.0.0 or 6.1.0, download 6.1.1 manually once; your existing settings are kept, and later automatic updates work normally.
 
 ### 6.1.0
 

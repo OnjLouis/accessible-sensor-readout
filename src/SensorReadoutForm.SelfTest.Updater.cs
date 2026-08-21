@@ -7,6 +7,38 @@ using System.Windows.Forms;
 
 public sealed partial class SensorReadoutForm : Form
 {
+    private void SelfTestUpdaterLauncherDependencies(string outputFolder)
+    {
+        var appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var sourceExe = Application.ExecutablePath;
+        var sourceJson = Path.Combine(appDir, "Resources", "Newtonsoft.Json.dll");
+        Require(File.Exists(sourceJson), "The built application is missing the updater's JSON dependency.");
+
+        var updaterRoot = Path.Combine(outputFolder, "self-test-updater-launcher");
+        if (Directory.Exists(updaterRoot))
+        {
+            Directory.Delete(updaterRoot, true);
+        }
+
+        var updaterExe = Program.PrepareUpdaterLauncher(appDir, sourceExe, updaterRoot);
+        var updaterJson = Path.Combine(updaterRoot, "Resources", "Newtonsoft.Json.dll");
+        Require(File.Exists(updaterExe), "The temporary updater executable was not prepared.");
+        Require(File.Exists(updaterJson), "The temporary updater omitted its JSON dependency.");
+        Require(ComputeSha256ForSelfTest(sourceExe) == ComputeSha256ForSelfTest(updaterExe),
+            "The temporary updater executable differs from the running Sensor Readout executable.");
+        Require(ComputeSha256ForSelfTest(sourceJson) == ComputeSha256ForSelfTest(updaterJson),
+            "The temporary updater JSON dependency differs from the shipped copy.");
+
+        var sourceConfig = sourceExe + ".config";
+        if (File.Exists(sourceConfig))
+        {
+            var updaterConfig = updaterExe + ".config";
+            Require(File.Exists(updaterConfig), "The temporary updater omitted its application configuration.");
+            Require(ComputeSha256ForSelfTest(sourceConfig) == ComputeSha256ForSelfTest(updaterConfig),
+                "The temporary updater application configuration differs from the shipped copy.");
+        }
+    }
+
     private void SelfTestBundledPlugInManifestRepair(string outputFolder)
     {
         var sourcePlugIns = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plug-Ins");

@@ -14,6 +14,46 @@ public static partial class Program
     private const long MaximumUpdateDownloadBytes = 512L * 1024L * 1024L;
     private const long MaximumUpdateExtractedBytes = 2L * 1024L * 1024L * 1024L;
     private const int MaximumUpdateArchiveEntries = 20000;
+    private static readonly string[] UpdaterManagedDependencies =
+    {
+        "Newtonsoft.Json.dll"
+    };
+
+    internal static string PrepareUpdaterLauncher(string appDir, string exePath, string updaterRoot)
+    {
+        if (string.IsNullOrWhiteSpace(appDir) || string.IsNullOrWhiteSpace(exePath) || string.IsNullOrWhiteSpace(updaterRoot))
+        {
+            throw new ArgumentException("The updater launcher paths are incomplete.");
+        }
+
+        Directory.CreateDirectory(updaterRoot);
+        var updaterExe = Path.Combine(updaterRoot, "Sensor Readout Updater.exe");
+        File.Copy(exePath, updaterExe, true);
+
+        var sourceConfig = exePath + ".config";
+        if (File.Exists(sourceConfig))
+        {
+            File.Copy(sourceConfig, updaterExe + ".config", true);
+        }
+
+        var sourceResources = Path.Combine(appDir, "Resources");
+        var updaterResources = Path.Combine(updaterRoot, "Resources");
+        foreach (var dependencyName in UpdaterManagedDependencies)
+        {
+            var source = Path.Combine(sourceResources, dependencyName);
+            if (!File.Exists(source))
+            {
+                throw new FileNotFoundException(
+                    "Sensor Readout cannot start its updater because a required program file is missing.",
+                    source);
+            }
+
+            Directory.CreateDirectory(updaterResources);
+            File.Copy(source, Path.Combine(updaterResources, dependencyName), true);
+        }
+
+        return updaterExe;
+    }
 
     private static void ApplyUpdateFromCommandLine(string[] args)
     {

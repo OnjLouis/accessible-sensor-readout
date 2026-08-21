@@ -702,9 +702,7 @@ public sealed partial class SensorReadoutForm : Form
             var exePath = Application.ExecutablePath;
             var updaterTempDir = GetUpdaterTempDirectory(appDir);
             var updaterRoot = System.IO.Path.Combine(updaterTempDir, "SensorReadoutUpdater-" + Guid.NewGuid().ToString("N"));
-            System.IO.Directory.CreateDirectory(updaterRoot);
-            var updaterExe = System.IO.Path.Combine(updaterRoot, "Sensor Readout Updater.exe");
-            System.IO.File.Copy(exePath, updaterExe, true);
+            var updaterExe = Program.PrepareUpdaterLauncher(appDir, exePath, updaterRoot);
             Process.Start(new ProcessStartInfo
             {
                 FileName = updaterExe,

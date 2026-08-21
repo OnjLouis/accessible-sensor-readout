@@ -89,6 +89,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Community stats payload privacy", delegate { form.SelfTestCommunityStatsPayloadPrivacy(); });
             form.RunSelfTestStep(results, "Diagnostics ZIP creation", delegate { form.SelfTestDiagnosticsZip(outputFolder); });
             form.RunSelfTestStep(results, "Client update channel and replacement safety", delegate { form.SelfTestUpdateChannelSeparation(outputFolder); });
+            form.RunSelfTestStep(results, "Temporary updater launcher dependencies", delegate { form.SelfTestUpdaterLauncherDependencies(outputFolder); });
             form.RunSelfTestStep(results, "Language and manual files", delegate { form.SelfTestLanguageAndManualFiles(); });
             form.RunSelfTestStep(results, "Bundled plug-in manifest repair", delegate { form.SelfTestBundledPlugInManifestRepair(outputFolder); });
             form.RunSelfTestStep(results, "Bundled plug-in runtime state update", delegate { form.SelfTestBundledPlugInRuntimeStateUpdate(outputFolder); });
