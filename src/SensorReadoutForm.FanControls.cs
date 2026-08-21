@@ -214,7 +214,7 @@ public sealed partial class SensorReadoutForm : Form
         var refreshStopwatch = Stopwatch.StartNew();
         var generation = ++refreshGeneration;
         refreshInProgress = true;
-        refreshInProgressSinceAwakeMs = NativeMethods.TryGetAwakeMilliseconds();
+        refreshInProgressSinceAwakeMs = ReadAwakeMilliseconds();
         if (updateInteractiveUi)
         {
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
@@ -238,9 +238,17 @@ public sealed partial class SensorReadoutForm : Form
                     // refresh flag alone here: the successor owns it. See the comment there.
                     if (generation != refreshGeneration)
                     {
+                        // The duration is the point of this line as much as the skip is. A
+                        // superseded pass is the only one that never reaches LogRefreshDuration, and
+                        // it is precisely the pass whose duration anyone would want: how long the
+                        // collection the watchdog gave up on actually took to return. Wall-clock, so
+                        // across a sleep it includes the sleep - which is what tells a reader
+                        // straight away which of the two this was.
+                        refreshStopwatch.Stop();
                         LogMessage("Debug", "Sensor collection generation " + generation +
-                            " finished after generation " + refreshGeneration +
-                            " superseded it, so its readings are stale and were not published to the readings, the tray, the trend log or the alarms.");
+                            " finished after " + refreshStopwatch.ElapsedMilliseconds +
+                            " ms, by which time generation " + refreshGeneration +
+                            " had superseded it, so its readings are stale and were not published to the readings, the tray, the trend log or the alarms.");
                         return;
                     }
 
@@ -371,7 +379,26 @@ public sealed partial class SensorReadoutForm : Form
     // never fires, which is where this code was before the watchdog existed.
     private bool TrySupersedeStalledRefresh()
     {
-        return TrySupersedeStalledRefresh(NativeMethods.TryGetAwakeMilliseconds(), true);
+        return TrySupersedeStalledRefresh(ReadAwakeMilliseconds(), true);
+    }
+
+    // The watchdog standing down because Windows will not give an unbiased clock is a decision
+    // nothing else would ever surface: refreshes carry on normally and the only visible symptom is
+    // that a wedged collection is never reported. Once per process, on the first refusal, so it is
+    // findable in a Debug log without becoming noise. Latched from the UI thread only, which is
+    // where both callers run.
+    private long ReadAwakeMilliseconds()
+    {
+        var awakeMs = NativeMethods.TryGetAwakeMilliseconds();
+        if (awakeMs < 0 && !awakeClockUnavailableLogged)
+        {
+            awakeClockUnavailableLogged = true;
+            LogMessage("Debug", "Windows did not answer QueryUnbiasedInterruptTime, so there is no clock here that excludes time the machine spends asleep. " +
+                "The stalled-collection watchdog stands down for the life of this process rather than measure with a clock that counts sleep as elapsed time. " +
+                "Sensor refreshes are otherwise unaffected.");
+        }
+
+        return awakeMs;
     }
 
     // "Now" is a parameter so the self-test can drive the real method - latch, flag release and all -

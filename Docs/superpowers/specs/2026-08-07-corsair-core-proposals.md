@@ -281,7 +281,13 @@ carries `WindowsSettingsUri`. No further action is needed.
   machine: wall clock 22,750.6 s, `GetTickCount64` 22,750.7 s, QPC/Frequency 22,750.9 s,
   `QueryUnbiasedInterruptTime` 9,108.6 s. There is deliberately no fallback to a biased clock when
   the unbiased one is unavailable — mixing bases between the two readings either fires instantly or
-  never fires — so the watchdog simply stands down on a Windows that cannot answer. (For the
+  never fires — so the watchdog simply stands down on a Windows that cannot answer, logging one
+  Debug line the first time it does, since nothing else about the app would look any different.
+  **Scope, so this is not read as more than it is:** what is fixed is the watchdog's own Error line.
+  Every other duration this app logs still comes from a `Stopwatch` and still counts sleep — hence
+  `CollectSensorRows took 14405437 ms` and
+  `LibreHardwareMonitorLive=timed out after 13644254 ms` in the same logs. Those reporters are
+  unchanged on `main` and were left alone here. (For the
   avoidance of doubt: this app does **not** require Windows 10. `IsWindows10OrLater` has exactly one
   call site and it gates the Prism speech backend. The reason availability is a non-issue is that
   the export is Windows 7+ and .NET Framework 4.x does not install below Vista. There is also no

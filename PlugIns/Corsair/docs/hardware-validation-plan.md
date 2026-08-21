@@ -127,28 +127,48 @@ Each item lists the procedure and the single expected outcome that decides pass 
 
 #### P0 — Clean-exit hardware-mode restore under the new teardown path (re-run of V8)
 
-- **Status:** PENDING RE-RUN.
+- **Status:** PENDING RE-RUN, and now the **highest-priority** pending item. Section 2.3's "The one
+  clean exit" shows the only clean exit in the production corpus produced **no restore line at
+  all**, which makes it entirely possible this path has never run on this branch. P0 is no longer a
+  budget confirmation; it is the test that decides whether the clean-exit hand-back works.
 - **Why it is not simply carried over:** the device-level restore transactions are unchanged from
   the build V8 was observed on — same hand-back commands, same per-device `Disconnect(restore)`
   decisions, same PSU-before-hub ordering, verified byte-identical by the drift audit. What changed
   is *when* they run and on what budget. On this branch `IPluginLifecycle.Shutdown` deliberately
   touches no hardware, so a clean exit restores through the `AppDomain.ProcessExit` handler and its
-  1500 ms budget — the same handler the predecessor branch used, but now as the primary path for a
-  normal quit rather than a fallback, and with a tighter budget than the 15 s the old `Shutdown`
-  path had. That is orchestration and a budget change, so it needs one observation rather than a
-  full re-validation. The measured restore in the field log completed well inside one second, so
-  1500 ms should be ample; this run is what confirms it.
-- **Procedure (about 30 seconds):** set a fan and the pump to clearly audible manual percents and
-  set the PSU fan to 40 %. Quit Sensor Readout normally (File > Exit, not a kill). Listen for the
-  hub's own profile taking over, and read the tail of `Logs\<machine>.log`.
-- **Expected outcome:** within a few seconds of the quit, the log shows the PSU restore before the
-  hub restore and then "the Corsair worker has stopped and every device session is closed"; the
-  hub's own hardware profile is audibly back in charge; and the PSU fan has returned to automatic
-  (it spins down rather than holding 40 %). No shutdown-timeout warning about the worker thread
-  failing to stop. **Failure to watch for specifically:** a truncated restore, i.e. the log showing
-  the release line but not the PSU hand-back before the process disappears, or the PSU fan still
-  holding 40 % after the app is gone. That is the one thing the shorter ProcessExit budget could
-  cost, and it is a stop-and-report result.
+  `ProcessExitJoinMs = 1500` budget — the same handler the predecessor branch used, but now as the
+  primary path for a normal quit rather than a fallback, and with a tighter budget than the 15 s the
+  old `Shutdown` path had.
+- **What this run has to discriminate.** Two hypotheses explain the production observation, and the
+  hardware's end state cannot tell them apart because the hub's own firmware idle failsafe reaches
+  hardware mode on its own: **H1**, the restore ran and left no log line (implausible — see 2.3 —
+  and the null hypothesis to exclude); **H2**, the restore never ran. **Only the log lines separate
+  them**, so "the hub was in hardware mode afterwards" is *not* a pass.
+- **Procedure (about a minute), run twice — once for the hub, once with the PSU as well:**
+  1. Set a fan and the pump to clearly audible manual percents. For the PSU variant, also set the
+     PSU fan to 40 % **and confirm from the log that the manual write landed** — the PSU restore is
+     gated on `everSetManual`, so without this step its absence afterwards would prove nothing.
+  2. Note the wall-clock second, then quit Sensor Readout normally (File > Exit, not End task).
+  3. **Restart within about ten seconds**, so the hub's own idle failsafe cannot plausibly have
+     acted in the gap. In production the gap was 72 s, which is ample for the failsafe and is
+     precisely why that observation is uninformative.
+  4. Listen throughout, and read `Logs\<machine>.log` across the whole exit window.
+- **Pass criterion — explicit, and all of it inside the exit window:**
+  - the hub line **`returning iCUE LINK hub <serial> to hardware mode.`** appears; and
+  - for the PSU variant, **`returning the fan of Corsair PSU <id> to automatic control.`** appears
+    **and** the `0xF0 = 0x00` write is observably effective — the PSU fan spins down rather than
+    holding 40 %, with no `the automatic-control restore … did not complete` Error; and
+  - the PSU line precedes the hub line (PSU-before-hub ordering); and
+  - **`the Corsair worker has stopped and every device session is closed.`** appears as the
+    terminator — it is the last line `CleanupOnWorkerThread` writes, so its absence means cleanup
+    did not finish.
+- **Anything less is a fail, and is reported as-is.** In particular: the release line followed by
+  nothing (the production shape — that is H2 confirmed, and it means the clean-exit hand-back does
+  not work and, more seriously, that **a PSU left in manual would not be restored either**, since
+  the PSU has no failsafe to cover it); a hub line but no PSU line; or the PSU fan still holding
+  40 % after the app is gone. If the lines are absent, the next thing to establish is *why* —
+  whether the 1500 ms join elapsed, whether cleanup was killed before its first write, or whether
+  `RestoreHubsAtShutdown` computed `owned && !gone` as false — because each has a different fix.
 
 #### P1 — Sleep and resume under an active fan curve
 
@@ -313,12 +333,63 @@ Not met, or never exercised — these still need the deliberate runs in section 
 | --- | --- | --- |
 | Post-resume enumeration reliability | **NOT MET** | 1 failure in 5 resumes (20 %), 301 s recovery. Addressed by the rescan-cadence fix; needs a re-run to confirm |
 | Marker-file auto-resume (V9) | **NOT PROVEN — n = 1** | one clean restart only, never across a sleep |
-| Clean-exit hand-back to hardware mode (P0/V8) | **NOT PROVEN — n = 0** | `returning … to hardware mode` appears **0 times** in the whole corpus; the app was quit cleanly once and the hand-back left no trace, which is itself a finding — flush the log writer inside `OnProcessExit` first or the run will be as unobservable as this one was |
+| Clean-exit hand-back to hardware mode (P0/V8) | **NOT PROVEN — n = 0, and the one clean exit suggests it did not run at all** | `returning … to hardware mode` appears **0 times** in the whole corpus. See "The one clean exit" immediately below — this is the finding that most changes what P0 has to demonstrate |
 | PSU restore path | **NEVER EXERCISED** | all 13,066 control writes went to `corsair/link/…/control/N`; **zero** `corsair/psu` control lines anywhere. A PSU left in manual mode stays there until `0xF0 = 0x00` is written or it is power-cycled, so this is the highest-consequence untested path in the change |
 | USB disconnect / reconnect (P2) | **NEVER EXERCISED** | 0 `IsGone`, 0 disconnects; every re-enumeration in the corpus is a resume or the single restart |
 | Per-device backoff (5 failures / 30 s) | **NEVER EXERCISED** | 0 occurrences |
 | Preferences round-trip produces no traffic (P6) | **NOT COVERED HERE** | the corpus predates a deliberate Preferences exercise |
 | Genuine collection wedge → host watchdog recovery | **NEVER EXERCISED** | 0 real stalls in 122k lines. The host watchdog fired 5 times in this corpus and all five were hibernations counted as elapsed time, since fixed |
+
+#### The one clean exit, and what it does and does not tell us
+
+The corpus contains exactly one clean exit, at 2026-08-21 11:18:28, with the hub under software
+control and driving curves right up to it. What the log shows:
+
+```
+11:18:28  the host released the Corsair plug-in; its devices stay under this plug-in's control for up to NNNNN ms …
+11:18:28  Plug-In sensorreadout.corsair.experimental shut down cleanly.
+          (nothing further — no "returning iCUE LINK hub … to hardware mode",
+           and no "the Corsair worker has stopped and every device session is closed")
+11:19:40  (the app is restarted — 72 s after the exit)
+11:19:46  … answered with status 0x03 (the hub is in hardware mode), 0 channels
+```
+
+Note that "shut down cleanly" is the *host's* line, written once `IPluginLifecycle.Shutdown`
+returns — and on this branch `Shutdown` only *arms* the deferred hand-back. It says nothing about
+whether any hardware was handed back.
+
+**An earlier draft of this section explained the missing restore line as a logging problem and told
+the tester to "flush the log writer inside `OnProcessExit` first". That was wrong, and it would have
+sent the bench run looking in the wrong place.** `LogMessage` is a bare
+`File.AppendAllText` (`src/SensorReadoutForm.ReportsAndLogging.cs:868`) — it opens, writes and
+closes on every call, so there is no buffered writer to flush and nothing in flight to lose. And
+`returning iCUE LINK hub … to hardware mode` is an ordinary `Log("Debug", …)`
+(`PlugIns/Corsair/src/CorsairLinkHubDevice.cs:341`) emitted **before** the hand-back command goes on
+the wire, with Debug logging on for the whole corpus. A restore that ran and then failed, timed out
+or threw would still have left that line.
+
+So there are two hypotheses, and **the point of P0 is to discriminate between them**:
+
+- **H1 — the restore ran and produced no log line.** Given synchronous per-call logging and a log
+  line that precedes the write, this is implausible. Treat it as the null hypothesis P0 must
+  *exclude*, not as the explanation.
+- **H2 — the restore did not run.** Candidates: the `ProcessExitJoinMs = 1500` budget elapsed before
+  cleanup got that far; the CLR tore the process down before cleanup reached its first log write; or
+  cleanup ran but asked for no restore (`RestoreHubsAtShutdown` passes `owned && !gone`). The
+  absence of `the Corsair worker has stopped and every device session is closed` — the last line
+  `CleanupOnWorkerThread` writes — points the same way. Under H2 the hub reached hardware mode
+  **only via its own firmware idle failsafe**, and the 72 s between the exit and the restart is ample
+  for that.
+
+**The hub's end state on the next start therefore proves nothing.** Both hypotheses predict
+`status 0x03`. The only thing that separates them is whether the restore *lines* appear inside the
+exit window.
+
+If H2 holds, two things follow and both matter: the clean-exit hand-back is effectively unverified
+in every form, and — far more consequential — **a PSU left in manual duty would not be restored
+either.** The PSU has no failsafe. Per annex §7.4 it holds the last manual duty until something
+writes `0xF0 = 0x00` or it is power-cycled, so there is no equivalent of the hub's firmware fallback
+to quietly cover a restore that never ran. That is why P0's PSU variant below is not optional.
 
 ## 3. Reporting
 
