@@ -851,16 +851,41 @@ public sealed partial class SensorReadoutForm
 
     private static void SelfTestRemoteHealthResponses()
     {
-        Require(ProbeRemoteHealthResponse(200, "{\"Name\":\"Sensor Readout Server\",\"Version\":\"6.0.0\",\"ProtocolVersion\":1}") == null,
+        Require(ProbeRemoteHealthResponseWithRetry(200, "{\"Name\":\"Sensor Readout Server\",\"Version\":\"6.0.0\",\"ProtocolVersion\":1}") == null,
             "Remote health validation rejected a compatible Sensor Readout Server.");
-        Require(ProbeRemoteHealthResponse(200, "{\"Name\":\"Another service\",\"Version\":\"6.0.0\",\"ProtocolVersion\":1}") is InvalidDataException,
+        Require(ProbeRemoteHealthResponseWithRetry(200, "{\"Name\":\"Another service\",\"Version\":\"6.0.0\",\"ProtocolVersion\":1}") is InvalidDataException,
             "Remote health validation accepted an unrelated service.");
-        Require(ProbeRemoteHealthResponse(200, "{\"Name\":\"Sensor Readout Server\",\"Version\":\"7.0.0\",\"ProtocolVersion\":2}") is InvalidDataException,
+        Require(ProbeRemoteHealthResponseWithRetry(200, "{\"Name\":\"Sensor Readout Server\",\"Version\":\"7.0.0\",\"ProtocolVersion\":2}") is InvalidDataException,
             "Remote health validation accepted an unsupported protocol.");
-        Require(ProbeRemoteHealthResponse(200, "<html>Not a Sensor Readout Server</html>") != null,
+        Require(ProbeRemoteHealthResponseWithRetry(200, "<html>Not a Sensor Readout Server</html>") != null,
             "Remote health validation accepted an HTML page.");
-        Require(ProbeRemoteHealthResponse(302, "") != null,
+        Require(ProbeRemoteHealthResponseWithRetry(302, "") != null,
             "Remote health validation accepted a redirect as a Sensor Readout Server.");
+    }
+
+    private static Exception ProbeRemoteHealthResponseWithRetry(int statusCode, string body)
+    {
+        InvalidOperationException lastListenerError = null;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                return ProbeRemoteHealthResponse(statusCode, body);
+            }
+            catch (InvalidOperationException error)
+            {
+                var socketError = error.InnerException as SocketException;
+                if (socketError == null ||
+                    (socketError.SocketErrorCode != SocketError.Interrupted &&
+                     socketError.SocketErrorCode != SocketError.OperationAborted))
+                {
+                    throw;
+                }
+                lastListenerError = error;
+                Thread.Sleep(50);
+            }
+        }
+        throw lastListenerError;
     }
 
     private static Exception ProbeRemoteHealthResponse(int statusCode, string body)

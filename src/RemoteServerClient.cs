@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 internal sealed class RemoteServerClient
 {
-    private const string UserAgent = "SensorReadout/6.0";
+    private static readonly string UserAgent = "SensorReadout/" + SensorReadoutForm.AppVersion;
     private const int MaximumJsonResponseBytes = 24 * 1024 * 1024;
     private const int MaximumErrorResponseBytes = 64 * 1024;
     private const int MaximumMachineEntries = 256;
