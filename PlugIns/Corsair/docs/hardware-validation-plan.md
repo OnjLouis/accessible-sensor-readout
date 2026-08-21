@@ -152,7 +152,13 @@ Each item lists the procedure and the single expected outcome that decides pass 
 
 #### P1 — Sleep and resume under an active fan curve
 
-- **Status:** PENDING.
+- **Status:** PARTIALLY SATISFIED BY PRODUCTION EVIDENCE — see section 2.3. Stated honestly:
+  *in-memory intent replay across sleep/resume: 5/5 eventual recovery, 1/5 first-attempt
+  enumeration failure with a 301 s worst-case recovery.* Not "PROVEN": n = 5 on one machine, one
+  hub, one firmware, one user, over three calendar days; all five exercised the **in-memory** intent
+  replay only, because the process survived every sleep, so neither the marker-file path nor the
+  clean-exit hand-back was exercised across a sleep at all. The deliberate run below is still worth
+  doing, on a build carrying the post-resume rescan fix.
 - **Procedure:** Configure an enabled fan curve using a Corsair liquid temperature as input and a
   Corsair fan control as target. Confirm the curve is driving the fan (the control shows a manual
   percent that tracks the temperature). Put the machine into sleep (S3/Modern Standby) for at least
@@ -160,8 +166,19 @@ Each item lists the procedure and the single expected outcome that decides pass 
   minutes. Repeat three times, including once with the app minimized to the tray.
 - **Expected outcome:** After each resume the plug-in logs the resume path, re-opens the devices,
   re-asserts software control it previously held, re-applies the recorded duties, and the curve
-  resumes driving within roughly 30 seconds — with no interval in which a fan or the pump is
-  stopped and no duplicate/queued mode changes in the log.
+  resumes driving within roughly 20 seconds — with no interval in which a fan or the pump is
+  stopped and no duplicate/queued mode changes in the log. (Observed in production on the four
+  clean wakes: 19 s, 12 s, 9 s, 19 s from wake to the first duty write.)
+- **What governs recovery when the first attempt fails — corrected.** Earlier drafts attributed
+  post-resume recovery to "the 30 s hardware-mode retry". That is wrong, and the field log shows
+  exactly why. `ScanIntervalMs = 30000` only applies when *nothing at all* is connected. On
+  2026-08-21 the hub failed to re-open after a resume but the PSU session came back in the same
+  scan, so the worker was in the "devices present" cadence and scheduled its next attempt at
+  `PresentRescanMs = 300000` — recovery took **301 s**, to the second. Since then `ScanDevices`
+  distinguishes a third state, "this process is short a session it should have", and retries such a
+  scan at 30 s, doubling back up to the 5 min cadence. **A re-run of P1 should now show a failed
+  first attempt recovering in about 30 s rather than about 300**, and that is the specific thing to
+  look for if a resume does fail to enumerate.
 - **One extra pass, cheap and worth it:** disable the plug-in and put the machine to sleep
   immediately, i.e. inside the hand-back grace window, then resume. The hand-back must run *after*
   the resume has re-opened the devices, so expect the resume lines first and the hand-back
@@ -265,6 +282,43 @@ Each item lists the procedure and the single expected outcome that decides pass 
 - **Failure modes to report as-is:** no hand-back line at all after three minutes (the hub would be
   held in software mode indefinitely); the hand-back line without the PSU restore; or the PSU fan
   still holding 40 % afterwards.
+
+### 2.3 What 3.5 days of ordinary production use did and did not establish
+
+Source: the reference machine's own Debug logs, `SIMSTATION.log.old` (2026-08-18 00:22 →
+2026-08-20 16:44) and `SIMSTATION.log` (2026-08-20 16:44 → 2026-08-21 17:27), 122k lines, analysed
+2026-08-21 and independently re-derived line by line. This is *unsupervised* evidence — the user
+simply used the machine — so it is strong for the happy paths that ran thousands of times and says
+nothing at all about paths that never ran. **Every "0 occurrences" row below is an untested branch,
+not a passing test.** Five clean resumes are evidence that the happy path works, not evidence that
+the failure paths do.
+
+Satisfied by production evidence:
+
+| Property | Evidence |
+| --- | --- |
+| Duty writes reach hardware | 13,066 of 13,066 synchronous `WriteAllDuties()` successes; 0 `returned False`, 0 exceptions, 0 `Fan curve could not set` |
+| 10 s fan-curve rate limit | 13,055 transitions, none below 9 s (the eight 9 s gaps are decision-time stamping) |
+| `MinimumChangePercent` gate | a duty delta of 1 never occurs in 13,055 transitions |
+| Pump floor at or above 50 % | minimum 60 % across 321 pump writes, maximum 96 % |
+| A live curve change reaches the fan | the exhaust port's curve matches a closed-form model on 1,000 of 1,000 paired samples within rounding |
+| Plug-in row integrity | 14,557 of 14,558 polls returned the full 36 rows |
+| Sleep/resume, **in-memory** intent replay | 5 of 5 cycles recovered; the hub was re-taken with all 12 channels every time |
+| Hub fail-safe reverts to hardware mode on wake | `status 0x03` on 6 of 6 re-opens |
+| Read-path stability | exactly 1 HID timeout and 0 `IsGone` events in 3.5 days |
+
+Not met, or never exercised — these still need the deliberate runs in section 2.2:
+
+| Property | Status | Basis |
+| --- | --- | --- |
+| Post-resume enumeration reliability | **NOT MET** | 1 failure in 5 resumes (20 %), 301 s recovery. Addressed by the rescan-cadence fix; needs a re-run to confirm |
+| Marker-file auto-resume (V9) | **NOT PROVEN — n = 1** | one clean restart only, never across a sleep |
+| Clean-exit hand-back to hardware mode (P0/V8) | **NOT PROVEN — n = 0** | `returning … to hardware mode` appears **0 times** in the whole corpus; the app was quit cleanly once and the hand-back left no trace, which is itself a finding — flush the log writer inside `OnProcessExit` first or the run will be as unobservable as this one was |
+| PSU restore path | **NEVER EXERCISED** | all 13,066 control writes went to `corsair/link/…/control/N`; **zero** `corsair/psu` control lines anywhere. A PSU left in manual mode stays there until `0xF0 = 0x00` is written or it is power-cycled, so this is the highest-consequence untested path in the change |
+| USB disconnect / reconnect (P2) | **NEVER EXERCISED** | 0 `IsGone`, 0 disconnects; every re-enumeration in the corpus is a resume or the single restart |
+| Per-device backoff (5 failures / 30 s) | **NEVER EXERCISED** | 0 occurrences |
+| Preferences round-trip produces no traffic (P6) | **NOT COVERED HERE** | the corpus predates a deliberate Preferences exercise |
+| Genuine collection wedge → host watchdog recovery | **NEVER EXERCISED** | 0 real stalls in 122k lines. The host watchdog fired 5 times in this corpus and all five were hibernations counted as elapsed time, since fixed |
 
 ## 3. Reporting
 

@@ -267,18 +267,40 @@ carries `WindowsSettingsUri`. No further action is needed.
   it runs on a thread-pool thread that cannot be cancelled, so a "timeout" could only mean
   abandoning it, which is exactly what the watchdog does, more cheaply and without a second waiter.
   `RefreshSensors` records when the in-flight collection started
-  (`refreshInProgressSinceUtc`). When a refresh is requested while one is already in flight, it now
-  asks `TrySupersedeStalledRefresh()` before queueing: if the in-flight collection has been running
-  past the threshold, one Error line is logged, `refreshInProgress` is released, and the new
+  (`refreshInProgressSinceAwakeMs`). When a refresh is requested while one is already in flight, it
+  now asks `TrySupersedeStalledRefresh()` before queueing: if the in-flight collection has been
+  running past the threshold, one Error line is logged, `refreshInProgress` is released, and the new
   collection starts. No new thread and no new timer — the check rides the refresh request that
   would otherwise have been queued and dropped.
-- **Threshold — `max(60 s, 6 × the user's refresh interval)`.** Six intervals is far past anything
-  a healthy pass takes; the LibreHardwareMonitor phase is the only one that legitimately runs into
-  seconds and it is itself capped at 20 s by `AddTimedRowsWithTimeout`. The 60 s floor exists
-  because the interval can be as low as 1 s, where six intervals would supersede a merely slow
-  collection on a busy machine. A slow-but-completing refresh can never trip it: the check only runs
-  when a *new* refresh is requested while one is in flight, and the flag is cleared the moment the
-  in-flight one completes.
+- **The elapsed time is measured on the machine's *awake* clock**
+  (`NativeMethods.TryGetAwakeMilliseconds`, i.e. `QueryUnbiasedInterruptTime`), not the wall clock.
+  The first version used `DateTime.UtcNow` and every firing it ever produced in the field was a
+  hibernation rather than a stall — see the production-evidence bullet below. `DateTime.UtcNow` is
+  not alone in this: `GetTickCount64` and `QueryPerformanceCounter`, and therefore `Stopwatch` and
+  every phase timing this app logs, all count suspended time as elapsed. Measured on the reference
+  machine: wall clock 22,750.6 s, `GetTickCount64` 22,750.7 s, QPC/Frequency 22,750.9 s,
+  `QueryUnbiasedInterruptTime` 9,108.6 s. There is deliberately no fallback to a biased clock when
+  the unbiased one is unavailable — mixing bases between the two readings either fires instantly or
+  never fires — so the watchdog simply stands down on a Windows that cannot answer. (For the
+  avoidance of doubt: this app does **not** require Windows 10. `IsWindows10OrLater` has exactly one
+  call site and it gates the Prism speech backend. The reason availability is a non-issue is that
+  the export is Windows 7+ and .NET Framework 4.x does not install below Vista. There is also no
+  `WM_POWERBROADCAST` / `PBT_APM*` handling anywhere in this app; the `WndProc` override handles
+  hotkey messages only.)
+- **Threshold — `max(120 s, 6 × the user's refresh interval)`, doubled for the first collection of
+  the process.** Six intervals is far past anything a healthy pass takes. The floor exists because
+  the interval can be as low as 1 s, where six intervals would supersede a merely slow collection on
+  a busy machine; it started at 60 s and was raised after the field logs showed how little headroom
+  that left. The worst genuine collection observed was 20,371 ms
+  (`LibreHardwareMonitorFull=5876; SlowRowsRefresh=8440; Tasks=1941; Battery=1318;
+  OemProviders=1134`) — and only the LibreHardwareMonitor phase is bounded at all, by its own 20 s
+  guard, while the other thirteen phases are unguarded. The doubling covers the first collection
+  specifically: it is the expensive one (cold LibreHardwareMonitor, uncached slow rows, cold WMI,
+  every plug-in's first device scan), it is the one the check is guaranteed to run against at a 5 s
+  interval, and a false positive there tells the user to restart an app they have just launched. A
+  slow-but-completing refresh can never trip any of this: the check only runs when a *new* refresh
+  is requested while one is in flight, and the flag is cleared the moment the in-flight one
+  completes.
 - **Bounded recovery.** `CollectSensorRows` serializes on `sensorCollectionLock`, so if the wedged
   pass never returns, the replacement blocks behind it. Firing on every tick would therefore leave
   one blocked thread-pool thread per interval behind for the life of the process. A latch
@@ -293,6 +315,19 @@ carries `WindowsSettingsUri`. No further action is needed.
   `sensorCollectionLock` — so the stalled pass has already posted its continuation — and the
   WinForms synchronisation context dispatches posted continuations in order. If that ordering ever
   failed, stale rows would drive fan curves.
+- **A superseded pass publishes nothing at all.** The generation check above started life in the
+  continuation's `finally`, covering only the flag reset, which left every publishing call above it
+  running for an abandoned generation: `SetLatestRows`, `LogTrendRows`,
+  `TryApplySavedFanControlsOnStartupAsync`, the Preferences row update, the reading tree,
+  `UpdateTrayStatus`, the status line — and `CheckAlarms`, which ends in
+  `SpeakTextWithScreenReaderPolite`. A superseded pass is by construction an old one, and across a
+  sleep it can be hours old, so that was an abandoned collection showing, logging and *speaking* an
+  alarm derived from readings the machine no longer has, to a screen-reader user, seconds after they
+  wake it. The continuation now returns before any of that when `generation != refreshGeneration`,
+  and logs one Debug line naming both generations. The `finally` is unchanged and still runs for the
+  superseded pass, because its two remaining calls (`ApplyFanCurvesAsync`,
+  `RunPendingRefreshIfNeeded`) both early-out on `refreshInProgress` and are the bookkeeping a
+  superseded pass should still take part in.
 - **The Error line names the stall duration**, says refreshes had stopped and that readings, alarms
   and fan curves went unapplied, says a replacement is starting and that it is waiting on the
   stalled collection's lock, and tells the user what to do if refreshes do not resume. It is the
@@ -309,23 +344,54 @@ carries `WindowsSettingsUri`. No further action is needed.
   reading for a whole cache interval — up to five minutes with the app in the tray.
 - **Why generic:** nothing about this is plug-in-specific; it is the app's whole refresh pipeline.
 - **Files changed:** `src/SensorReadoutForm.cs` (three fields next to `refreshInProgress`),
-  `src/SensorReadoutForm.FanControls.cs` (the guard in `RefreshSensors`, the generation check in the
-  continuation, and two new private methods), `src/SensorReadoutForm.PlugIns.cs` (the two-line
-  null-safety fix).
-- **Test:** new self-test step "Stalled refresh watchdog" (`src/SensorReadoutForm.SelfTest.cs`).
-  The decision is a pure function of elapsed time and the refresh interval, so it is asserted
-  directly with no real stall: false for a collection that just started, false for a slow but recent
-  one, false at 59 s with a 1 s interval (the floor), true past the threshold, and both sides of the
-  six-intervals rule at a 300 s interval. It then drives the real `TrySupersedeStalledRefresh` to
-  assert that a healthy in-flight collection keeps the flag, that a ten-minute-old one releases it,
-  and that the latch refuses a second recovery attempt. Full `Build.ps1` green, Corsair plug-in
-  self-test still 65 checks.
+  `src/SensorReadoutForm.FanControls.cs` (the guard in `RefreshSensors`, the generation check at the
+  top of the continuation and in its `finally`, and the private decision methods),
+  `src/NativeInterop.cs` (the `QueryUnbiasedInterruptTime` P/Invoke, its cached probe and
+  `TryGetAwakeMilliseconds`), `src/SensorReadoutForm.PlugIns.cs` (the two-line null-safety fix).
+- **Test:** self-test step "Stalled refresh watchdog" (`src/SensorReadoutForm.SelfTest.cs`).
+  The decision is a pure function of elapsed time, the refresh interval and whether this is the
+  first collection of the process, so it is asserted directly with no real stall: false for a
+  collection that just started, false for a slow but recent one, false for the worst genuine
+  collection ever observed (20,371 ms), false at 61 s and 119 s (the raised floor), true at 121 s,
+  false at 121 s for a first collection and true at 241 s, and both sides of the six-intervals rule
+  at a 300 s interval. The clock is asserted separately: it must answer, it must never read ahead of
+  the biased tick count, a collection ten *awake*-seconds old must not be a stall while a
+  ten-awake-minute one must be, a machine without the clock must never report one, and a start stamp
+  ahead of "now" must not be one either. It then drives the real `TrySupersedeStalledRefresh` with
+  synthetic clock readings — including the production shape, hours of wall clock with no awake time
+  — to assert that a healthy in-flight collection keeps the flag, that a ten-minute-old one releases
+  it, and that the latch refuses a second recovery attempt. That real method's Error line is
+  suppressed under test and the step proves the suppression by counting the line in the log before
+  and after: written from a test it would be indistinguishable from a genuine firing in the one file
+  users are asked to send in for support. Full `Build.ps1` green, Corsair plug-in self-test 74
+  checks.
 - **What the test does *not* pin, stated so it is not mistaken for coverage:** the generation guard
-  in the continuation and the latch's clear-on-completion are not exercised — deleting
-  `if (generation == refreshGeneration)` still passes the suite, because reaching either needs a
-  collection that actually stalls and later returns. They are argued in the comments at the call
-  site instead. The call-site wiring is likewise unpinned: removing
+  in the continuation — both the publish skip and the flag reset — and the latch's
+  clear-on-completion are not exercised. Deleting `if (generation != refreshGeneration)` still
+  passes the suite, because reaching either needs a collection that actually stalls and later
+  returns, over a live form with real rows and the real alarm speaker. They are argued in the
+  comments at the call site instead. The call-site wiring is likewise unpinned: removing
   `&& !TrySupersedeStalledRefresh()` from `RefreshSensors` would not fail the step.
+- **Production evidence — 3.5 days of ordinary use, 2026-08-18 00:22 → 2026-08-21 17:27, 122k log
+  lines at Debug.** The watchdog fired **five times, and all five were false positives**: each was a
+  hibernation with a collection in flight from before the machine slept, measured with the
+  wall clock the first version used. The clearest of them reported "has not completed for 13642 s"
+  at a moment when the machine's accumulated sleep bias was 13,642 s — the whole of the reported
+  duration and none of it real. Reconstructed on an unbiased clock the five were 2, 2, 3, 2 and 0 s
+  old. **Zero genuine stalls were observed in that corpus**, so the recovery path this proposal
+  exists for has still never run in the field; what has been demonstrated is the false-positive
+  rate, and the fix for it. The cost of each false firing was one Error telling the user to restart
+  the app, an abandoned collection, and a replacement queued behind its lock.
+- **Scope, stated plainly.** What this watchdog actually recovers is a **starved continuation** —
+  a message pump that stopped dispatching, or a lost continuation — where the replacement runs and
+  the app comes back on its own. It does **not** recover a phase hung inside `sensorCollectionLock`:
+  `CollectSensorRows` wraps `CollectSensorRowsCore` in that lock, only the LibreHardwareMonitor
+  phase has a timeout guard, and the other thirteen phases use unguarded `AddTimedRows`, so for the
+  headline scenario in its own comment — a phase that hangs — the replacement blocks on the same
+  lock, `refreshStallReported` stays latched, and the pipeline is as dead as before plus one
+  permanently blocked thread-pool thread. The benefit in that case is the loud, single, duration-
+  naming Error line where there was previously complete silence. Which of the two the 2026-08-07
+  incident was is still unknown.
 - **The watchdog only fires when something asks for a refresh.** With auto-refresh paused, a wedged
   collection stays silent until the user unpauses or presses Refresh — at which point the check runs
   and the stall is logged. That is self-resolving rather than a hole: with no refreshes wanted,
