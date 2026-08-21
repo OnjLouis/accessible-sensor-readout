@@ -226,6 +226,24 @@ public sealed partial class SensorReadoutForm : Form
             {
                 try
                 {
+                    // A collection the watchdog gave up on may still return, minutes or hours later.
+                    // Everything below this point publishes: rows to the reading tree and the tray,
+                    // the trend log, the saved fan controls, the status line - and CheckAlarms, which
+                    // ends in SpeakTextWithScreenReaderPolite. A superseded pass is by construction
+                    // one that started long ago (across a sleep it can be hours), so publishing it
+                    // would show, log and *speak* readings the machine no longer has, to a user who
+                    // has no other way to tell. The successor is already collecting; it publishes.
+                    //
+                    // The finally below still runs, and its generation check deliberately leaves the
+                    // refresh flag alone here: the successor owns it. See the comment there.
+                    if (generation != refreshGeneration)
+                    {
+                        LogMessage("Debug", "Sensor collection generation " + generation +
+                            " finished after generation " + refreshGeneration +
+                            " superseded it, so its readings are stale and were not published to the readings, the tray, the trend log or the alarms.");
+                        return;
+                    }
+
                     if (IsDisposed)
                     {
                         return;
@@ -302,6 +320,12 @@ public sealed partial class SensorReadoutForm : Form
                     // holds: the replacement cannot start collecting until the stalled pass releases
                     // sensorCollectionLock, and this synchronisation context dispatches posted
                     // continuations in order, so the stale one always runs first.
+                    //
+                    // This block is reached by a superseded pass as well, which is why it is here
+                    // rather than above the publish guard at the top of the try: the two calls after
+                    // it are the bookkeeping a superseded pass must still take part in, and both
+                    // early-out on refreshInProgress, so neither does anything while the successor
+                    // is in flight.
                     if (generation == refreshGeneration)
                     {
                         refreshInProgress = false;
