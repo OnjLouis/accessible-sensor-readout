@@ -128,6 +128,13 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime categorySearchLastKey = DateTime.MinValue;
     private bool updatingFanControlBox;
     private bool refreshInProgress;
+    // Machine-awake milliseconds (NativeMethods.TryGetAwakeMilliseconds) at which the in-flight
+    // collection started, or -1 when none is in flight or this Windows has no unbiased clock.
+    // Not a wall-clock stamp on purpose: see TrySupersedeStalledRefresh.
+    private long refreshInProgressSinceAwakeMs = -1;
+    private bool awakeClockUnavailableLogged;
+    private int refreshGeneration;
+    private bool refreshStallReported;
     private bool minimizingToTray;
     private readonly bool startMinimizedRequested;
     private string lastReadingTreeSignature = "";

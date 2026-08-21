@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -64,6 +64,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Visual status badges and meters", delegate { form.SelfTestVisualStatusBadgesAndMeters(); });
             form.RunSelfTestStep(results, "Byte unit formatting modes", delegate { form.SelfTestByteUnitFormattingModes(); });
             form.RunSelfTestStep(results, "Pending refresh coalescing", delegate { form.SelfTestPendingRefreshCoalescing(); });
+            form.RunSelfTestStep(results, "Stalled refresh watchdog", delegate { form.SelfTestStalledRefreshWatchdog(); });
             form.RunSelfTestStep(results, "Background hotkey refresh cadence", delegate { form.SelfTestBackgroundHotKeyRefreshCadence(); });
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Fragile WMI row caches", delegate { form.SelfTestFragileWmiRowCaches(); });
@@ -77,9 +78,11 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
             form.RunSelfTestStep(results, "Plug-in preference identity", delegate { form.SelfTestPlugInPreferenceIdentity(); });
+            form.RunSelfTestStep(results, "Plug-in manager rebuild guard", delegate { form.SelfTestPlugInManagerRebuildGuard(); });
             form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
+            form.RunSelfTestStep(results, "Zero-RPM fan control visibility", delegate { form.SelfTestZeroRpmFanControlVisibility(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
             form.RunSelfTestStep(results, "Report reopening and ZIP selection", delegate { form.SelfTestReportReopen(outputFolder); });
             form.RunSelfTestStep(results, "Report tools and reading history", delegate { form.SelfTestReportToolsAndHistory(outputFolder); });

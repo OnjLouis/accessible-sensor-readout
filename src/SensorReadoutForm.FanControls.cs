@@ -205,14 +205,16 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
     {
-        if (refreshInProgress)
+        if (refreshInProgress && !TrySupersedeStalledRefresh())
         {
             QueuePendingRefresh(updateInteractiveUi, refreshSlowRows, reason);
             return;
         }
 
         var refreshStopwatch = Stopwatch.StartNew();
+        var generation = ++refreshGeneration;
         refreshInProgress = true;
+        refreshInProgressSinceAwakeMs = ReadAwakeMilliseconds();
         if (updateInteractiveUi)
         {
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
@@ -224,6 +226,39 @@ public sealed partial class SensorReadoutForm : Form
             {
                 try
                 {
+                    // A collection the watchdog gave up on may still return, minutes or hours later.
+                    // Everything below this point publishes: rows to the reading tree and the tray,
+                    // the trend log, the saved fan controls, the status line - and CheckAlarms, which
+                    // ends in SpeakTextWithScreenReaderPolite. A superseded pass is by construction
+                    // one that started long ago (across a sleep it can be hours), so publishing it
+                    // would show, log and *speak* readings the machine no longer has, to a user who
+                    // has no other way to tell. The successor is already collecting; it publishes.
+                    //
+                    // The finally below still runs, and its generation check deliberately leaves the
+                    // refresh flag alone here: the successor owns it. See the comment there.
+                    if (generation != refreshGeneration)
+                    {
+                        // The duration is the point of this line as much as the skip is. A
+                        // superseded pass is the only one that never reaches LogRefreshDuration, and
+                        // it is precisely the pass whose duration anyone would want: how long the
+                        // collection the watchdog gave up on actually took to return. Wall-clock, so
+                        // across a sleep it includes the sleep - which is what tells a reader
+                        // straight away which of the two this was.
+                        refreshStopwatch.Stop();
+                        // The fault, if any, is read here on purpose: this return skips the
+                        // IsFaulted branch below, and a Task whose exception is never observed
+                        // resurfaces at finalization as an "Unobserved background task exception"
+                        // crash-log entry - for a pass that merely ended by throwing, and with the
+                        // exception that actually ended the stall nowhere near the watchdog's line.
+                        var staleFault = task.IsFaulted && task.Exception != null ? task.Exception.GetBaseException() : null;
+                        LogMessage("Debug", "Sensor collection generation " + generation +
+                            (staleFault == null ? " finished after " : " faulted after ") + refreshStopwatch.ElapsedMilliseconds +
+                            " ms" + (staleFault == null ? "" : " (" + staleFault.GetType().Name + ": " + staleFault.Message + ")") +
+                            ", by which time generation " + refreshGeneration +
+                            " had superseded it, so its readings are stale and were not published to the readings, the tray, the trend log or the alarms.");
+                        return;
+                    }
+
                     if (IsDisposed)
                     {
                         return;
@@ -290,7 +325,32 @@ public sealed partial class SensorReadoutForm : Form
                 }
                 finally
                 {
-                    refreshInProgress = false;
+                    // Only the newest collection owns the flag. A collection the watchdog gave up on
+                    // may still return later; clearing the flag from there would declare the pipeline
+                    // idle while its replacement is running, and every timer tick after that would
+                    // start yet another collection behind the same lock. It also keeps the stale
+                    // pass's ApplyFanCurvesAsync below from running - it early-outs on
+                    // refreshInProgress - so abandoned rows never drive fans. That relies on the
+                    // stale continuation running while the replacement is still in flight, which
+                    // holds: the replacement cannot start collecting until the stalled pass releases
+                    // sensorCollectionLock, and this synchronisation context dispatches posted
+                    // continuations in order, so the stale one always runs first.
+                    //
+                    // This block is reached by a superseded pass as well, which is why it is here
+                    // rather than above the publish guard at the top of the try: the two calls after
+                    // it are the bookkeeping a superseded pass must still take part in, and both
+                    // early-out on refreshInProgress, so neither does anything while the successor
+                    // is in flight.
+                    if (generation == refreshGeneration)
+                    {
+                        refreshInProgress = false;
+                        refreshInProgressSinceAwakeMs = -1;
+                        // A collection completed, so whatever stall was reported is over. Faulted
+                        // counts too: the flag was cleared normally, which is the state the watchdog
+                        // exists to restore.
+                        refreshStallReported = false;
+                    }
+
                     if (!IsDisposed && !reportViewMode && task.Status == TaskStatus.RanToCompletion)
                     {
                         ApplyFanCurvesAsync(task.Result);
@@ -299,6 +359,139 @@ public sealed partial class SensorReadoutForm : Form
                     RunPendingRefreshIfNeeded();
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    // refreshInProgress is set on the UI thread and cleared in exactly one place, the continuation
+    // above. Anything that stops a collection from ever completing - a phase that hangs, or a message
+    // pump starved so the continuation never runs - therefore latches the flag for the life of the
+    // process: RefreshSensors only queues a pending refresh and RunPendingRefreshIfNeeded refuses to
+    // run it, so the app silently stops reading sensors and never says so. Plug-ins are only ever
+    // invoked from inside a collection, so plug-in readings and plug-in fan control stop with it.
+    //
+    // This gives up on a collection that has been in flight far longer than any healthy one and lets
+    // a replacement start. At most one replacement per stall episode: CollectSensorRows serializes on
+    // sensorCollectionLock, so if the wedged pass never returns the replacement just blocks behind it,
+    // and firing again on every tick would leave one blocked thread-pool thread per interval behind
+    // for the life of the process. The same latch keeps the Error line to one per episode; the
+    // continuation clears it as soon as any collection completes.
+    // Elapsed time here is measured on the machine's *awake* clock, not the wall clock. Every other
+    // clock this process can read - DateTime.UtcNow, GetTickCount64, and QueryPerformanceCounter and
+    // so Stopwatch - counts the time the machine spent suspended, and a suspended machine is not a
+    // stalled collection. In 3.5 days of production logs this watchdog fired five times and all
+    // five were hibernations: the last one reported a 13,642 s stall while the machine's accumulated
+    // sleep bias at that moment was 13,642 s, i.e. the whole of the reported duration and none of it
+    // real. Reconstructed on the awake clock the five firings were 2, 2, 3, 2 and 0 s old.
+    // NativeMethods.TryGetAwakeMilliseconds is the one clock that excludes suspended time; when it
+    // is unavailable it returns -1, refreshInProgressSinceAwakeMs stays -1 and the watchdog simply
+    // never fires, which is where this code was before the watchdog existed.
+    private bool TrySupersedeStalledRefresh()
+    {
+        return TrySupersedeStalledRefresh(ReadAwakeMilliseconds(), true);
+    }
+
+    // The watchdog standing down because Windows will not give an unbiased clock is a decision
+    // nothing else would ever surface: refreshes carry on normally and the only visible symptom is
+    // that a wedged collection is never reported. Once per process, on the first refusal, so it is
+    // findable in a Debug log without becoming noise. Latched from the UI thread only, which is
+    // where both callers run.
+    private long ReadAwakeMilliseconds()
+    {
+        var awakeMs = NativeMethods.TryGetAwakeMilliseconds();
+        if (awakeMs < 0 && !awakeClockUnavailableLogged)
+        {
+            awakeClockUnavailableLogged = true;
+            LogMessage("Debug", "Windows did not answer QueryUnbiasedInterruptTime, so there is no clock here that excludes time the machine spends asleep. " +
+                "The stalled-collection watchdog stands down for the life of this process rather than measure with a clock that counts sleep as elapsed time. " +
+                "Sensor refreshes are otherwise unaffected.");
+        }
+
+        return awakeMs;
+    }
+
+    // "Now" is a parameter so the self-test can drive the real method - latch, flag release and all -
+    // against synthetic clock readings instead of depending on how long the machine happens to have
+    // been awake when the test runs.
+    //
+    // reportToLog is false for exactly one caller, that self-test. This method's Error line is the
+    // app's loudest: it names a duration and tells the user to restart and send their log. Written
+    // from a test it is indistinguishable from a real firing, in the very file support asks for -
+    // and support would be reading it as evidence of the failure the test was only pretending to
+    // have. Everything else the method does still happens under the test, so nothing is left
+    // unasserted: the latch, the flag release and the decision are all still the real ones.
+    private bool TrySupersedeStalledRefresh(long awakeNowMs, bool reportToLog)
+    {
+        if (refreshStallReported || refreshInProgressSinceAwakeMs < 0)
+        {
+            return false;
+        }
+
+        // refreshGeneration is still the in-flight collection's own generation here: RefreshSensors
+        // asks this before it increments. So generation 1 is the first collection of the process.
+        var firstCollectionOfProcess = refreshGeneration <= 1;
+        if (!ShouldSupersedeStalledRefresh(awakeNowMs, refreshInProgressSinceAwakeMs, settings.RefreshIntervalSeconds, firstCollectionOfProcess))
+        {
+            return false;
+        }
+
+        var elapsed = TimeSpan.FromMilliseconds(awakeNowMs - refreshInProgressSinceAwakeMs);
+        refreshStallReported = true;
+        refreshInProgress = false;
+        if (reportToLog)
+        {
+            LogError("Sensor collection has not completed in " + (long)elapsed.TotalSeconds +
+                " s of machine-awake time, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
+                "The stalled collection still holds the collection lock, so the replacement waits for it to return; if refreshes do not resume, restart Sensor Readout and send Logs with logging set to Debug.");
+        }
+
+        return true;
+    }
+
+    // The clock-reading half of the decision, kept separate from the threshold rule below so both
+    // halves can be asserted without anything actually stalling. A negative reading from either side
+    // means the awake clock is unavailable on this Windows, and an unmeasurable stall is never
+    // reported as one.
+    private static bool ShouldSupersedeStalledRefresh(long awakeNowMs, long awakeStartedMs, int refreshIntervalSeconds, bool firstCollectionOfProcess)
+    {
+        if (awakeNowMs < 0 || awakeStartedMs < 0 || awakeNowMs < awakeStartedMs)
+        {
+            return false;
+        }
+
+        return ShouldSupersedeStalledRefresh(TimeSpan.FromMilliseconds(awakeNowMs - awakeStartedMs), refreshIntervalSeconds, firstCollectionOfProcess);
+    }
+
+    // Threshold: six refresh intervals, never less than two minutes, doubled for the first collection
+    // of the process. A slow-but-completing refresh is never affected either way - the check only runs
+    // when a new refresh is requested while one is still in flight, and the flag is cleared the moment
+    // the in-flight one completes - so the whole question is how much headroom a *slow machine* gets
+    // before a merely slow pass is called a stall and the user is told to restart the app.
+    //
+    // The original one-minute floor had about 3x. The worst genuine collection in 3.5 days of
+    // production logging on a fast desktop took 20,371 ms
+    // (LibreHardwareMonitorFull=5876; SlowRowsRefresh=8440; Tasks=1941; Battery=1318;
+    // OemProviders=1134), and only the LibreHardwareMonitor phase is bounded at all - its own guard
+    // allows it 20,000 ms on its own, and the other thirteen phases are unguarded AddTimedRows calls.
+    // Two minutes is roughly six times the observed worst case rather than three.
+    //
+    // The doubling is for where the risk actually is. That 20,371 ms pass was the first collection
+    // after launch, and the first collection is the expensive one everywhere: LibreHardwareMonitor
+    // opens and enumerates for the first time, the slow rows are collected rather than served from
+    // cache, WMI providers are cold, and every plug-in does its first device scan. It is also the
+    // pass where the check is guaranteed to run - at a 5 s interval the timer asks again long before
+    // a first collection finishes - and the one where a false positive costs most: an Error telling
+    // the user to restart an app they just launched, plus a replacement collection blocked on the
+    // lock behind it. Four minutes there, two minutes for the steady state, and a genuinely wedged
+    // first collection is still recovered, just later.
+    private static bool ShouldSupersedeStalledRefresh(TimeSpan elapsed, int refreshIntervalSeconds, bool firstCollectionOfProcess)
+    {
+        var seconds = Math.Max(1, Math.Min(300, refreshIntervalSeconds));
+        var thresholdSeconds = Math.Max(120, seconds * 6);
+        if (firstCollectionOfProcess)
+        {
+            thresholdSeconds *= 2;
+        }
+
+        return elapsed >= TimeSpan.FromSeconds(thresholdSeconds);
     }
 
     private void QueuePendingRefresh(bool updateInteractiveUi, bool refreshSlowRows, string reason)
@@ -697,6 +890,14 @@ public sealed partial class SensorReadoutForm : Form
         return control == null ? null : ExtractPercent(control);
     }
 
+    // Saved manual fan-control percents still waiting to be re-applied after start-up, by
+    // identifier: null until the first collection has been seen, empty once everything saved has
+    // been applied. Tracked per identifier rather than as one flag because plug-in control rows can
+    // arrive over several collections (a Corsair hub's appear only after the hub has been taken, and
+    // after the PSU's), and a flag latched by the first matching row left every later one unapplied
+    // for the whole session while the settings still claimed the saved percent.
+    private HashSet<string> pendingSavedManualFanControls;
+
     private void TryApplySavedFanControlsOnStartupAsync(List<SensorRow> rows)
     {
         if (savedFanControlsAppliedThisRun)
@@ -704,24 +905,23 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var saved = LoadFanControlSettings();
-        if (saved.Count == 0)
+        if (pendingSavedManualFanControls == null)
         {
-            savedFanControlsAppliedThisRun = true;
-            return;
+            pendingSavedManualFanControls = new HashSet<string>(
+                LoadFanControlSettings()
+                    .Where(i => i.Value != null && i.Value.Manual && !string.IsNullOrWhiteSpace(i.Key))
+                    .Select(i => i.Key),
+                StringComparer.OrdinalIgnoreCase);
         }
 
-        var manualSettings = saved
-            .Where(i => i.Value != null && i.Value.Manual)
-            .ToDictionary(i => i.Key, i => i.Value, StringComparer.OrdinalIgnoreCase);
-        if (manualSettings.Count == 0)
+        if (pendingSavedManualFanControls.Count == 0)
         {
             savedFanControlsAppliedThisRun = true;
             return;
         }
 
         var controls = (rows ?? new List<SensorRow>())
-            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && manualSettings.ContainsKey(r.Identifier))
+            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && pendingSavedManualFanControls.Contains(r.Identifier))
             .Select(r => r.Identifier)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -730,14 +930,22 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        savedFanControlsAppliedThisRun = true;
+        pendingSavedManualFanControls.ExceptWith(controls);
+        if (pendingSavedManualFanControls.Count == 0)
+        {
+            savedFanControlsAppliedThisRun = true;
+        }
+
+        // Re-read at apply time: a control that only now appeared may have had its saved setting
+        // changed by a reset in the meantime, and the saved value is the authority.
+        var manualSettings = LoadFanControlSettings();
         Task.Factory.StartNew(delegate
         {
             var applied = 0;
             foreach (var identifier in controls)
             {
                 FanControlSetting setting;
-                if (!manualSettings.TryGetValue(identifier, out setting) || setting == null)
+                if (!manualSettings.TryGetValue(identifier, out setting) || setting == null || !setting.Manual)
                 {
                     continue;
                 }
@@ -837,14 +1045,58 @@ public sealed partial class SensorReadoutForm : Form
         }
         fanPercentBox.Value = 50;
         var count = 0;
+        // Plug-in fan controls are not LibreHardwareMonitor sensors, so the bulk LHM reset below
+        // cannot reach them; collect their identifiers here (plug-in identifiers never start with
+        // "/") and reset each through the plug-in-aware path, like every other control action.
+        var plugInControlIdentifiers = latestRows
+            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && !r.Identifier.StartsWith("/", StringComparison.Ordinal))
+            .Select(r => r.Identifier)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        // A plug-in may decline a reset (device busy or absent, write failed). Such a control must
+        // not be recorded as automatic - the device still holds whatever it held - so its previous
+        // saved setting is kept, its curve is not resumed, and the status line says so, where the
+        // single-control path would have thrown.
+        var previousSettings = LoadFanControlSettings();
+        var declined = new List<string>();
         RunFanAction(
             "Returning all fan controls to automatic...",
-            delegate { count = SetAllLibreHardwareMonitorControlsDefault(); },
+            delegate
+            {
+                count = SetAllLibreHardwareMonitorControlsDefault();
+                foreach (var identifier in plugInControlIdentifiers)
+                {
+                    if (TryPlugInFanControl(identifier, 50, false))
+                    {
+                        count++;
+                    }
+                    else
+                    {
+                        declined.Add(identifier);
+                        LogMessage("Warning", "Plug-in fan control " + identifier + " did not accept the reset to automatic; its saved setting was left unchanged.");
+                    }
+                }
+            },
             delegate
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);
-                var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
-                SetFanActionStatus("Fan control: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
+                foreach (var identifier in declined)
+                {
+                    FanControlSetting previous;
+                    if (previousSettings.TryGetValue(identifier, out previous) && previous != null)
+                    {
+                        SaveFanControlSetting(identifier, previous.Manual, previous.Percent);
+                    }
+                }
+
+                var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows
+                    .Where(r => r.Type == "Fan Control")
+                    .Select(r => r.Identifier)
+                    .Where(identifier => !declined.Contains(identifier, StringComparer.OrdinalIgnoreCase)));
+                var declinedSuffix = declined.Count == 0
+                    ? ""
+                    : " " + declined.Count + " plug-in control" + (declined.Count == 1 ? "" : "s") + " did not accept the reset and kept " + (declined.Count == 1 ? "its" : "their") + " previous setting.";
+                SetFanActionStatus("Fan control: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + declinedSuffix + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }
@@ -1136,8 +1388,8 @@ public sealed partial class SensorReadoutForm : Form
             .OrderBy(r => ControlSortKey(r.Identifier))
             .ToList();
         controls = controls
-            .Select(c => EnrichFanControlRow(c, labels))
             .Where(c => settings.ShowStoppedFans || showStoppedFansCheckBox.Checked || ShouldShowFanControl(c))
+            .Select(c => EnrichFanControlRow(c, labels))
             .OrderBy(c => ControlSortKey(c.Identifier))
             .ToList();
 
@@ -1214,6 +1466,14 @@ public sealed partial class SensorReadoutForm : Form
     private bool ShouldShowFanControl(SensorRow control)
     {
         if (IsGpuControl(control.Identifier))
+        {
+            return true;
+        }
+
+        // A provider can mark a control as zero-RPM capable (the paired fan legitimately idles at
+        // 0 RPM, e.g. semi-passive power supplies) so it is not mistaken for an unused fan header
+        // and hidden. The key is an opt-in marker; its value is free-form explanatory text.
+        if (control.Details != null && control.Details.ContainsKey("Zero RPM capable"))
         {
             return true;
         }

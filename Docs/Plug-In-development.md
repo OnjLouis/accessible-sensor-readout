@@ -125,6 +125,16 @@ Sensor Readout calls `Shutdown` when a plug-in is disabled or reloaded and when 
 closes. The method must be idempotent, bounded, and safe before the plug-in's first reading. It
 should stop background work and release hardware handles without racing in-flight operations.
 
+The host does not tell the plug-in which of the three it is. A plug-in that owns hardware state and
+wants a reload not to hand that state back may defer the release briefly, as the bundled Corsair
+plug-in does (a bounded grace that the next `GetReadings` or fan-control call cancels), but it must
+still release when the process exits. To make that possible, Sensor Readout sets the AppDomain data
+slot `SensorReadout.ApplicationExiting` to `true` immediately before the `Shutdown` calls it makes on
+the way out of the process; a plug-in can read it with
+`AppDomain.CurrentDomain.GetData("SensorReadout.ApplicationExiting")` and release synchronously in
+that case instead of relying on `AppDomain.ProcessExit`, whose handlers share a budget of roughly two
+seconds.
+
 `GetReadings` is called during Sensor Readout refresh. Keep it fast.
 
 ## Minimal Plug-In Example
@@ -292,6 +302,13 @@ reading.Details["Firmware source"] = "Vendor API";
 reading.Details["Raw value"] = rawValue;
 ```
 
+One Details key carries meaning for the host: adding `"Zero RPM capable"` to a
+`Fan Control` reading tells Sensor Readout that the paired fan legitimately idles at
+0 RPM (semi-passive power supplies, hybrid coolers), so the control stays visible in the
+Fan Controls dialog instead of being hidden as an unused fan header. The value is
+free-form explanatory text shown in the details dialog; the key alone is the marker. Only
+add it when the hardware genuinely stops its fan by design.
+
 ## Performance Rules
 
 Sensor Readout is designed to feel responsive with a screen reader. Plug-Ins must respect that.
@@ -343,7 +360,6 @@ MSI laptops
 ```
 
 Each plug-in documents its own hardware scope and remains disabled until the user enables it.
-The Corsair plug-in is read-only in its initial release.
 
 ## Future SDK Direction
 

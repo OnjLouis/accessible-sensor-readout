@@ -99,6 +99,19 @@ public sealed partial class SensorReadoutForm : Form
         {
             EndActiveRemoteViewerPresence();
             StopEmbeddedRemoteServer();
+            // Announced before the plug-ins are shut down: IPluginLifecycle.Shutdown cannot say why
+            // it is being called, and a plug-in that defers its hardware hand-back on reloads needs
+            // to know that this time the process is going away and no reload follows - the
+            // ProcessExit handler it would otherwise rely on gets about two seconds for everything,
+            // which a restore under a contended device guard does not fit. See
+            // Docs/Plug-In-development.md, "IPluginLifecycle".
+            try
+            {
+                System.AppDomain.CurrentDomain.SetData("SensorReadout.ApplicationExiting", true);
+            }
+            catch (System.Exception)
+            {
+            }
             DisposePlugInManager();
             ConfigureWmiTelemetry(false, null);
             ScreenReaderOutput.Shutdown();

@@ -30,6 +30,70 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = false)]
     public static extern ulong GetTickCount64();
 
+    // 100 ns units since boot, NOT counting time the machine spent suspended. Windows 7 and later.
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryUnbiasedInterruptTime(out ulong unbiasedTime);
+
+    // 0 = not probed yet, 1 = the call works here, 2 = it does not and never will.
+    private static int unbiasedInterruptTimeProbe;
+
+    /// <summary>
+    /// Milliseconds this machine has been awake since boot, or -1 if Windows cannot say.
+    ///
+    /// Every other elapsed-time source available to this process counts time the machine spent
+    /// asleep: DateTime.UtcNow by construction, and GetTickCount64 and QueryPerformanceCounter
+    /// (which is what Stopwatch measures with) by measurement on this hardware, where all three
+    /// read 22,750 s against 9,108 s of unbiased time after a few hibernations. Anything that has
+    /// to answer "how long has this actually been running" across a sleep therefore has to use
+    /// this call and nothing else.
+    ///
+    /// There is deliberately no fallback to a biased clock when the probe fails. A caller
+    /// subtracts one reading from another, so a fallback that changes clock base between the two
+    /// readings does not degrade the answer, it inverts it: an unbiased start against a biased now
+    /// is inflated by every second the machine has slept since boot, and the reverse goes negative.
+    /// Callers get -1 and stand down instead. The decision is probed once and cached, so a call
+    /// site can never see the answer change underneath it either. In practice the fallback would be
+    /// unreachable: the export is Windows 7+, and the .NET Framework 4.x this app is built against
+    /// does not install below Vista.
+    /// </summary>
+    public static long TryGetAwakeMilliseconds()
+    {
+        if (unbiasedInterruptTimeProbe == 2)
+        {
+            return -1;
+        }
+
+        ulong unbiasedTime;
+        try
+        {
+            if (!QueryUnbiasedInterruptTime(out unbiasedTime))
+            {
+                unbiasedInterruptTimeProbe = 2;
+                return -1;
+            }
+        }
+        catch (Exception)
+        {
+            // EntryPointNotFoundException on a Windows without the export, DllNotFoundException if
+            // kernel32 itself cannot be reached. Either way the answer is "never again".
+            unbiasedInterruptTimeProbe = 2;
+            return -1;
+        }
+
+        unbiasedInterruptTimeProbe = 1;
+        return (long)(unbiasedTime / 10000UL);
+    }
+
+    /// <summary>
+    /// True once <see cref="TryGetAwakeMilliseconds"/> has answered at least once on this machine.
+    /// Only the self-test asks; production code just checks the value for -1.
+    /// </summary>
+    public static bool UnbiasedInterruptTimeAvailable
+    {
+        get { return unbiasedInterruptTimeProbe == 1; }
+    }
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool SetDllDirectory(string lpPathName);
 

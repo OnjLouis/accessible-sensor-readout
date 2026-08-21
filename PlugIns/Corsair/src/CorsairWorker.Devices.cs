@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -15,6 +16,20 @@ namespace SensorReadout.CorsairPlugIn
     // the intent bookkeeping, by whichever control method is calling in.
     public sealed partial class CorsairWorker
     {
+        // Sticky-control marker. Written into the plug-in's own directory while a hub under this
+        // plug-in's control has any channel off its default duty (a manual setting or a fan curve),
+        // removed again when a reset returns every channel to its default, and read on every later
+        // connect. See ResumeControlIfMarked for why it has to exist at all.
+        private const string HubControlMarkerPrefix = "corsair-hub-";
+        private const string HubControlMarkerSuffix = ".controlled";
+        private const string HubControlMarkerContent =
+            "Sensor Readout's Corsair plug-in has put the fans of this iCUE LINK hub under its control on this machine. While this file exists, the plug-in resumes fan control of that hub automatically at start-up instead of waiting for the hub to be readable. Sensor Readout removes it again when every channel of the hub is returned to its default (for example by \"All fans reset\"), and re-creates it when a fan is set; delete it yourself to go back to strictly read-only behaviour until a fan control is used again.";
+
+        // How often a hub that connected hardware-mode-blocked gets its marker-driven take retried
+        // from RefreshHub. Matches the device layer's own blocked-enumeration cadence: the take is a
+        // mode change plus an enumeration under the shared guard, not something to hammer.
+        private const int BlockedResumeRetryIntervalMs = 30000;
+
         // ---- Device refresh ---------------------------------------------------------------------
 
         /// <summary>
@@ -71,6 +86,16 @@ namespace SensorReadout.CorsairPlugIn
 
             NoteDeviceResult(entry, ok, "iCUE LINK hub " + entry.Serial);
 
+            // A hub that connected hardware-mode-blocked gets its marker-driven take retried here at
+            // a slow cadence, because nothing else would: the device layer's blocked retry only
+            // re-enumerates (a read must never take the hub), a guard timeout does not make the hub
+            // "gone" so no reconnect follows, and a blocked hub has no per-channel control rows
+            // through which the host could ask.
+            if (entry.Device.HardwareModeBlocked && unchecked(Environment.TickCount - entry.NextResumeAttemptTicks) >= 0)
+            {
+                ResumeControlIfMarked(entry, false);
+            }
+
             // Keep the recorded intent in step with what the device actually did: the device layer
             // can take software control on its own recovery path, and the shutdown restore has to
             // know about it.
@@ -79,11 +104,10 @@ namespace SensorReadout.CorsairPlugIn
             {
                 if (intent == null)
                 {
-                    intent = new HubIntent();
-                    hubIntents[entry.Serial] = intent;
+                    intent = CreateHubIntent(entry.Serial);
                 }
 
-                intent.EverOwned = true;
+                NoteHubOwned(entry, intent);
 
                 if (entry.Device.LastReadWrongMode)
                 {
@@ -263,6 +287,7 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             var added = 0;
+            var failedConnects = 0;
             lock (deviceLock)
             {
                 for (var i = 0; i < found.Count; i++)
@@ -275,25 +300,48 @@ namespace SensorReadout.CorsairPlugIn
 
                     if (info.ProductId == HubProductId)
                     {
-                        if (FindHubByPath(info.Path) == null && ConnectHub(info))
+                        if (FindHubByPath(info.Path) == null)
                         {
-                            added++;
+                            if (ConnectHub(info))
+                            {
+                                added++;
+                            }
+                            else
+                            {
+                                failedConnects++;
+                            }
                         }
                     }
                     else if (IsPsuProductId(info.ProductId))
                     {
-                        if (FindPsuByPath(info.Path) == null && ConnectPsu(info))
+                        if (FindPsuByPath(info.Path) == null)
                         {
-                            added++;
+                            if (ConnectPsu(info))
+                            {
+                                added++;
+                            }
+                            else
+                            {
+                                failedConnects++;
+                            }
                         }
                     }
                 }
 
-                statusMessage = (hubs.Count + psus.Count) > 0 ? string.Empty : NoDevicesStatus;
+                var open = hubs.Count + psus.Count;
+                statusMessage = open > 0 ? string.Empty : NoDevicesStatus;
 
-                // While nothing is found, look again soon; once something is, keep a slow re-scan
-                // so a device plugged in later is still noticed.
-                nextScanTicks = unchecked(Environment.TickCount + ((hubs.Count + psus.Count) > 0 ? PresentRescanMs : ScanIntervalMs));
+                if (open > peakDeviceSessions)
+                {
+                    peakDeviceSessions = open;
+                }
+
+                // "We are short a device we used to have, or the bus shows one we cannot open."
+                // Either way this process is missing a session it should have, which is a different
+                // situation from the steady state PresentRescanMs was chosen for.
+                var missing = failedConnects > 0 || open < peakDeviceSessions;
+                recoveryScans = missing ? recoveryScans + 1 : 0;
+                nextScanTicks = unchecked(Environment.TickCount + NextScanDelayMs(open, missing, recoveryScans));
             }
 
             if (added > 0)
@@ -301,6 +349,47 @@ namespace SensorReadout.CorsairPlugIn
                 Log("Debug", "Corsair plug-in: " + added.ToString(CultureInfo.InvariantCulture)
                     + " Corsair device session(s) opened.");
             }
+        }
+
+        /// <summary>
+        /// How long to wait before the next device scan.
+        ///
+        /// The steady state is a slow watch for a device plugged in later, and the empty state is a
+        /// brisk look for the first device. What was missing is the state in between: a session this
+        /// process had and lost, or a device the HID bus shows that will not open.
+        ///
+        /// That state cost five minutes of a water loop running its hub's own firmware curve on
+        /// 2026-08-21. The machine resumed at 17:10:56, a single HID read timed out one second
+        /// later, sub-device enumeration failed, and the hub session did not come back -- but the
+        /// PSU session did, so the scan that had just failed to re-open the hub counted "a device is
+        /// present" and scheduled its next attempt PresentRescanMs later. Recovery took 301 s and
+        /// the plug-in's rows sat at 6 instead of 36 for all of it.
+        ///
+        /// So a scan that comes up short retries at the absent-device cadence, then doubles up to
+        /// the present-device one. Bounded at both ends and it cannot spin: the first retry is
+        /// ScanIntervalMs away, not immediate, and a device that is never coming back (unplugged for
+        /// good, or held open by another program) settles onto exactly the slow cadence it has now
+        /// after four attempts rather than re-enumerating every 30 s for the life of the process.
+        /// </summary>
+        internal static int NextScanDelayMs(int openSessions, bool missingSession, int consecutiveRecoveryScans)
+        {
+            if (openSessions <= 0)
+            {
+                return ScanIntervalMs;
+            }
+
+            if (!missingSession)
+            {
+                return PresentRescanMs;
+            }
+
+            var delay = ScanIntervalMs;
+            for (var i = 1; i < consecutiveRecoveryScans && delay < PresentRescanMs; i++)
+            {
+                delay *= 2;
+            }
+
+            return delay > PresentRescanMs ? PresentRescanMs : delay;
         }
 
         // Called with deviceLock held.
@@ -353,13 +442,71 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             entry.NextDueTicks = Environment.TickCount;
+            entry.NextResumeAttemptTicks = Environment.TickCount;
             hubs.Add(entry);
 
             Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial + " is connected with "
                 + device.Channels.Count.ToString(CultureInfo.InvariantCulture) + " channel(s).");
 
             RestoreHubIntent(entry);
+
+            // After RestoreHubIntent, not before: a hub this worker has already owned in *this*
+            // process is resumed from the intent record, which also clears the blocked state, and
+            // there is then nothing left for the marker path to do.
+            ResumeControlIfMarked(entry, true);
             return true;
+        }
+
+        /// <summary>
+        /// Resumes fan control of a hub that connected in the hardware-mode-blocked state, but only
+        /// on a machine that has already used Sensor Readout for fan control.
+        ///
+        /// The problem this solves: a hub in hardware mode refuses sub-device enumeration outright
+        /// (annex §2/§7 editor's note, measured 2026-08-07 on firmware 3.12.650). So after a clean
+        /// exit -- which deliberately hands the hub back to its own profile -- the next launch has
+        /// no rows, no controls, and no temperature source for a fan curve, and nothing can ever ask
+        /// for software mode again. The marker file is the narrowest fact that breaks that deadlock:
+        /// this machine has used this plug-in to drive this hub's fans before, so resuming is
+        /// restoring the user's own arrangement rather than seizing someone else's hardware. Without
+        /// the marker the hub is left exactly as found, and the status row says how to start.
+        /// </summary>
+        private void ResumeControlIfMarked(HubEntry entry, bool announceWhenUnmarked)
+        {
+            if (entry.Device == null || !entry.Device.HardwareModeBlocked)
+            {
+                return;
+            }
+
+            // Whatever happens below, the next attempt is a retry interval away: RefreshHub keeps
+            // asking while the hub stays blocked, so a transient failure here (the shared guard held
+            // by another program for longer than the take's bounded wait, a post-resume HID timeout)
+            // no longer leaves the hub unreadable for the rest of the session.
+            entry.NextResumeAttemptTicks = unchecked(Environment.TickCount + BlockedResumeRetryIntervalMs);
+
+            if (!HubControlMarkerExists(entry.Serial))
+            {
+                if (announceWhenUnmarked)
+                {
+                    Log("Debug", "Corsair plug-in: iCUE LINK hub " + entry.Serial
+                        + " is running its own hardware profile and this machine has not used Sensor Readout for its fan control,"
+                        + " so it is left alone; its readings appear once its take-control entry or a fan control here is used, or another program takes the hub.");
+                }
+
+                return;
+            }
+
+            Log("Debug", "Corsair plug-in: resuming fan control of hub " + entry.Serial
+                + " (this machine previously used Sensor Readout for fan control).");
+
+            if (!entry.Device.TakeControlIfBlocked())
+            {
+                Log("Debug", "Corsair plug-in: taking software control of iCUE LINK hub " + entry.Serial
+                    + " did not succeed; it stays in hardware mode and the take will be retried in about "
+                    + (BlockedResumeRetryIntervalMs / 1000).ToString(CultureInfo.InvariantCulture) + " seconds.");
+                return;
+            }
+
+            RecordHubIntent(entry);
         }
 
         // Called with deviceLock held.
@@ -406,9 +553,10 @@ namespace SensorReadout.CorsairPlugIn
         /// Canonicalizes a hub serial into the key every row identifier,
         /// intent-dictionary lookup and <see cref="FindHub"/> comparison uses. <c>device.Serial</c>
         /// is already lower-cased by <c>CorsairLinkHubDevice.Connect</c>, but nothing there
-        /// guarantees it is free of '|' or '/' -- either would corrupt a
-        /// <c>SensorReading.Identifier</c> (host-conventions.md sec 1.3) and make this plug-in's own
-        /// <c>TryParseControlIdentifier</c> gate reject its own rows. Falls back to "hub0" when
+        /// guarantees it is free of '|' or '/' -- a <c>SensorReading.Identifier</c> may never
+        /// contain '|' or start with '/' (see <c>Docs/Plug-In-development.md</c>), and either
+        /// character would also make this plug-in's own <c>TryParseControlIdentifier</c> gate,
+        /// which splits on '/', reject its own rows. Falls back to "hub0" when
         /// nothing alphanumeric survives, matching <c>CorsairLinkHubDevice.FallbackSerial</c>'s
         /// intent for a device that reports no serial at all.
         /// </summary>
@@ -568,13 +716,12 @@ namespace SensorReadout.CorsairPlugIn
             var intent = FindHubIntent(entry.Serial);
             if (intent == null)
             {
-                intent = new HubIntent();
-                hubIntents[entry.Serial] = intent;
+                intent = CreateHubIntent(entry.Serial);
             }
 
             if (entry.Device.OwnsSoftwareControl)
             {
-                intent.EverOwned = true;
+                NoteHubOwned(entry, intent);
             }
 
             var channels = entry.Device.Channels;
@@ -653,6 +800,191 @@ namespace SensorReadout.CorsairPlugIn
             else if (intent.RequestedPercent >= PsuManualThresholdPercent)
             {
                 intent.EverSetManual = true;
+            }
+        }
+
+        // ---- Sticky-control marker ----------------------------------------------------------------
+        //
+        // The intent record above only lives as long as this process, which is all it needs for
+        // reconnects and sleep/wake. Surviving a restart is a different question with a different
+        // answer: the only thing recorded on disk is the single bit "fan control has been used for
+        // this hub on this machine", and its only effect is to let ResumeControlIfMarked take a hub
+        // that would otherwise be unreadable. No duty, no percentage, nothing about what the user
+        // asked for -- those still come from the host's own saved fan-control state.
+
+        /// <summary>
+        /// Records that this worker now owns the hub, and writes the marker file once the hub has a
+        /// channel off its default duty -- a manual setting or a curve, i.e. something the user would
+        /// want back after a restart. A bare take (the hub-wide take-control entry, or one-click
+        /// diagnostics after it has restored every control) leaves no marker, so it cannot by itself
+        /// make every later launch seize the hub. Both places that can observe ownership --
+        /// <see cref="RefreshHub"/> and <see cref="RecordHubIntent"/> -- go through here, so the
+        /// marker cannot depend on which of them happened to notice first.
+        /// </summary>
+        private void NoteHubOwned(HubEntry entry, HubIntent intent)
+        {
+            if (intent == null)
+            {
+                return;
+            }
+
+            intent.EverOwned = true;
+            if (!intent.MarkerPresent && AnyChannelOffDefault(entry.Device))
+            {
+                // Marked present before the attempt so a failed write is tried once per episode,
+                // not once per tick; the file's absence is what the next launch acts on anyway.
+                intent.MarkerPresent = true;
+                WriteHubControlMarker(entry.Serial);
+            }
+        }
+
+        // The intent record is keyed by the canonical serial; its marker flag is seeded from disk so
+        // a marker left by an earlier session can be cleared by this one.
+        private HubIntent CreateHubIntent(string serial)
+        {
+            var intent = new HubIntent();
+            intent.MarkerPresent = HubControlMarkerExists(serial);
+            hubIntents[serial] = intent;
+            return intent;
+        }
+
+        // Called with deviceLock held. True when the plug-in owns the hub and at least one channel
+        // that accepts a duty is off its default -- the state worth resuming after a restart.
+        private static bool AnyChannelOffDefault(CorsairLinkHubDevice device)
+        {
+            if (device == null || !device.OwnsSoftwareControl)
+            {
+                return false;
+            }
+
+            var channels = device.Channels;
+            for (var i = 0; i < channels.Count; i++)
+            {
+                var state = channels[i];
+                if (state != null && state.Device != null && state.Device.HasControl && !state.PercentIsDefault)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Called with deviceLock held, after a successful reset. Once every channel of an owned hub is
+        // back at its default there is nothing to resume at the next start, so the marker goes; the
+        // next manual setting or curve step writes it again. Only for an owned hub: a reset on a hub
+        // this plug-in does not own (a blocked hub at start-up, another program's hub) is bookkeeping
+        // and must not discard a marker the retry in RefreshHub is still waiting to act on.
+        private void ClearHubControlMarkerIfAllDefault(HubEntry entry)
+        {
+            var intent = FindHubIntent(entry.Serial);
+            if (intent == null || !intent.MarkerPresent || entry.Device == null
+                || !entry.Device.OwnsSoftwareControl || AnyChannelOffDefault(entry.Device))
+            {
+                return;
+            }
+
+            intent.MarkerPresent = false;
+            DeleteHubControlMarker(entry.Serial);
+        }
+
+        // Null whenever the marker feature is off (no plug-in directory was supplied) or there is no
+        // serial to key it by. entry.Serial is already sanitized to [a-z0-9] plus a possible "-N"
+        // uniqueness suffix (SanitizeHubKey / MakeUniqueHubKey), so it is safe as a file name.
+        private string HubControlMarkerPath(string serial)
+        {
+            var directory = pluginDirectory;
+            if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(serial))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Path.Combine(directory, HubControlMarkerPrefix + serial + HubControlMarkerSuffix);
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not build the fan-control marker path for iCUE LINK hub "
+                    + serial + " (" + ex.Message + "); the marker is not used for it.");
+                return null;
+            }
+        }
+
+        // Every marker operation is best effort: a read-only plug-in directory, a roaming profile, a
+        // locked file -- none of that is a reason to fail a control call the user asked for, and the
+        // only consequence is that the next launch waits to be asked again.
+        private void WriteHubControlMarker(string serial)
+        {
+            var path = HubControlMarkerPath(serial);
+            if (path == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    return;
+                }
+
+                File.WriteAllText(path, HubControlMarkerContent, Encoding.UTF8);
+                Log("Debug", "Corsair plug-in: iCUE LINK hub " + serial
+                    + " is now under this plug-in's fan control; recorded it in " + path
+                    + " so control resumes automatically the next time the app starts.");
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not write the fan-control marker file " + path + " ("
+                    + ex.Message + "); fan control will simply have to be used again after the next restart.");
+            }
+        }
+
+        private void DeleteHubControlMarker(string serial)
+        {
+            var path = HubControlMarkerPath(serial);
+            if (path == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    return;
+                }
+
+                File.Delete(path);
+                Log("Debug", "Corsair plug-in: every channel of iCUE LINK hub " + serial
+                    + " is back at its default, so " + path
+                    + " was removed; the next start leaves the hub alone until a fan control here is used again.");
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not remove the fan-control marker file " + path + " ("
+                    + ex.Message + "); the next start will still resume fan control of the hub.");
+            }
+        }
+
+        private bool HubControlMarkerExists(string serial)
+        {
+            var path = HubControlMarkerPath(serial);
+            if (path == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return File.Exists(path);
+            }
+            catch (Exception ex)
+            {
+                Log("Debug", "Corsair plug-in: could not check for the fan-control marker file " + path + " ("
+                    + ex.Message + "); treating it as absent.");
+                return false;
             }
         }
 

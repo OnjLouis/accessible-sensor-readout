@@ -15,19 +15,40 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetPlugInRows()
     {
-        return GetPlugInRows(false);
+        bool servedByLiveManager;
+        return GetPlugInRows(false, out servedByLiveManager);
     }
 
-    private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode)
+    // Read the field once: this and TryPlugInFanControl run on the collection thread,
+    // DisposePlugInManager runs on the UI thread and sets the field to null, so a dispose landing
+    // between the ensure and the call was a NullReferenceException that failed the whole refresh.
+    // Calling a manager that was disposed in the meantime is safe - it returns no rows.
+    //
+    // servedByLiveManager tells the caller whether that happened, because "no rows" from a torn-down
+    // manager must not be cached as if the plug-ins had genuinely returned nothing: the row cache
+    // holds for up to five minutes in the background, which would hide every plug-in reading for
+    // that long. DisposePlugInManager nulls the field before disposing, so the field still pointing
+    // at the same instance after the call means no teardown overlapped it.
+    private IEnumerable<SensorRow> GetPlugInRows(bool diagnosticsMode, out bool servedByLiveManager)
     {
         EnsurePlugInManager();
-        return plugInManager.GetRows(diagnosticsMode);
+        var manager = plugInManager;
+        if (manager == null)
+        {
+            servedByLiveManager = false;
+            return Enumerable.Empty<SensorRow>();
+        }
+
+        var rows = manager.GetRows(diagnosticsMode);
+        servedByLiveManager = ReferenceEquals(manager, plugInManager);
+        return rows;
     }
 
     private bool TryPlugInFanControl(string identifier, int percent, bool manual)
     {
         EnsurePlugInManager();
-        return plugInManager.TrySetFanControl(identifier, percent, manual);
+        var manager = plugInManager;
+        return manager != null && manager.TrySetFanControl(identifier, percent, manual);
     }
 
     public static List<PlugInPreferenceInfo> LoadPlugInPreferenceInfos(AppSettings settings)
@@ -53,6 +74,36 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         plugInManager = new PlugInManager(settings, GetPlugInsFolderPath(), LogMessage);
+    }
+
+    // Disposing the manager calls IPluginLifecycle.Shutdown on every loaded plug-in and leaves the
+    // process with no plug-in instance until the next sensor collection runs, so it must happen only
+    // when it is actually needed. The one thing that needs it is a changed enabled-plug-in set:
+    // PlugInManager reads that set exactly once, in EnsureLoaded, and never re-reads it. Nothing else
+    // a preference can change reaches a plug-in through the manager - the PlugInContext handed to
+    // GetReadings (machine identity, plug-in directory, diagnostics flag, logger) is rebuilt on every
+    // GetRows call, so no plug-in state goes stale by keeping the manager alive.
+    //
+    // The comparison is against the set the live manager actually holds - the one EnsureLoaded read,
+    // or until then the one current when it was constructed - not against settings before and after
+    // the apply: PreferencesForm shares this AppSettings instance (liveSettings == settings) and
+    // writes the new enabled set into it before it raises LivePreferencesSaved, so a before/after
+    // capture on this path always sees the same value and would never rebuild. Asking the manager,
+    // rather than a signature captured alongside its construction, also closes the window in which a
+    // toggle landed while the manager was still being constructed (a synchronous WMI query) and the
+    // manager then loaded the new set under a signature that no longer described it. Returns true
+    // when the manager was torn down, so the caller can have the replacement loaded promptly.
+    private bool DisposePlugInManagerIfEnabledSetChanged()
+    {
+        var manager = plugInManager;
+        if (manager == null ||
+            string.Equals(manager.EnabledSetSignature, GetOemProviderRowsCacheSignature(settings), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        DisposePlugInManager();
+        return true;
     }
 
     private void DisposePlugInManager()
@@ -81,12 +132,29 @@ public sealed partial class SensorReadoutForm : Form
         private bool loadedOnce;
         private bool disposed;
 
+        // The enabled-plug-in set this manager stands for: taken again in EnsureLoaded at the moment
+        // the set is actually read, so the host's rebuild check compares against what was loaded
+        // rather than against what was current when construction began.
+        private string enabledSetSignature;
+
         public PlugInManager(AppSettings settings, string folder, Action<string, string> log)
         {
             this.settings = settings ?? new AppSettings();
             this.folder = folder ?? "";
             this.log = log ?? delegate { };
             machine = ReadMachineInfo(log);
+            enabledSetSignature = GetOemProviderRowsCacheSignature(this.settings);
+        }
+
+        public string EnabledSetSignature
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return enabledSetSignature;
+                }
+            }
         }
 
         public IEnumerable<SensorRow> GetRows()
@@ -181,7 +249,9 @@ public sealed partial class SensorReadoutForm : Form
                     try
                     {
                         ((IPluginLifecycle)plugIn.Instance).Shutdown();
-                        log("Debug", "Plug-In " + plugIn.Id + " shut down cleanly.");
+                        // "Returned", not "released": a plug-in may defer its hardware hand-back past
+                        // this call (see Docs/Plug-In-development.md, IPluginLifecycle).
+                        log("Debug", "Plug-In " + plugIn.Id + " Shutdown returned without error.");
                     }
                     catch (Exception ex)
                     {
@@ -262,6 +332,9 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             loadedOnce = true;
+            // The set is read per descriptor below through IsEnabled; its signature is taken at the
+            // same moment so it describes exactly what gets loaded.
+            enabledSetSignature = GetOemProviderRowsCacheSignature(settings);
             var manifestCount = 0;
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var manifest in FindManifestPaths(folder))
