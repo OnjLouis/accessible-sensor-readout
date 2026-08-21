@@ -256,12 +256,10 @@ namespace SensorReadout.CorsairPlugIn
             return (row.Hardware ?? string.Empty) + "|" + (row.Name ?? string.Empty) + "|" + (row.DisplayValue ?? string.Empty);
         }
 
-        // Regression test for the Preferences teardown bug. The host disposes and rebuilds its
-        // whole plug-in manager on every live preference save -- including the one it fires the
-        // instant the Preferences window appears -- and calls IPluginLifecycle.Shutdown each time.
-        // Handing the hardware back there dropped the iCUE LINK hub to its own loud firmware
-        // profile every time the user opened Preferences. So a release must be deferred, the next
-        // host refresh must cancel it, and an elapsed grace period must still hand the devices
+        // Regression test for host-driven plug-in manager rebuilds. Ordinary preference saves no
+        // longer rebuild the manager, but changing the enabled plug-in set still does and the SDK
+        // does not identify which plug-in caused it. A release must therefore be deferred, the
+        // next host refresh must cancel it, and an elapsed grace period must still hand the devices
         // back so a genuinely disabled plug-in does not keep the hub in software mode.
         //
         // The worker is never started here, so nothing in this test reaches a device: what is

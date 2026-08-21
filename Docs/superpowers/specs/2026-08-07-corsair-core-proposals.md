@@ -23,7 +23,8 @@ was restarted. Both are core-side, and **both are now implemented on this branch
 each. The plug-in-side fix that also ships here works around proposal 4 entirely and merely
 softens proposal 5, so neither core change is load-bearing for the Corsair plug-in; they are here
 because the two defects they fix affect every plug-in and, in proposal 5's case, the app itself.
-Full evidence: `.superpowers/sdd/2026-08-07-corsair-plugin/preferences-teardown-fix.md`.
+The hardware evidence and remaining limits are recorded in
+`PlugIns/Corsair/docs/hardware-validation-plan.md`.
 
 ### Disclosure up front: the Corsair plug-in now deviates from the documented `Shutdown` contract
 

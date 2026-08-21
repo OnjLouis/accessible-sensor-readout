@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.0.0.
+Current version: 6.1.0.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -424,7 +424,7 @@ Experimental laptop plug-ins are also bundled for opt-in tester feedback. They a
 - Lenovo Laptop Support is read-only and probes Lenovo fan WMI, Windows fan, ACPI fan presence, ACPI thermal zones, ACPI battery data, IdeaPad battery information, thermal throttle state, storage health, Lenovo thermal drivers, and Lenovo WMI interfaces.
 - MSI Laptop Support can expose MSI ACPI fan-table controls on compatible models after the user enables it.
 - Asus ROG Support is based in part on G-Helper ACPI research and can expose ASUS WMI/ATKACPI fan tachometer and temperature data where available. Fan controls appear only on compatible ROG, TUF, Zephyrus, Strix, Scar, and Flow gaming laptop families; other ASUS systems remain read-only.
-- Corsair iCUE Link and PSU Support is an experimental, opt-in plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It can show pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power, and it can drive iCUE LINK hub and PSU fan speeds. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Monitoring alongside HWiNFO or Fan Control is safe, but only one program should drive the fans. The plug-in writes nothing until a fan control is used, pump channels never run below 50 percent, and closing the app returns the hub and the PSU fan to automatic control and releases its hardware handles. Disabling the plug-in does the same, but after a short grace period of up to about 90 seconds rather than instantly, because Sensor Readout also shuts plug-ins down and re-creates them whenever preferences change and the plug-in must not drop the fans to the hub's own profile every time you open Preferences.
+- Corsair iCUE Link and PSU Support is a bundled, opt-in plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It shows pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power, and can control supported hub and PSU fans. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Monitoring alongside HWiNFO or Fan Control is safe, but only one program should drive the fans. The plug-in writes nothing until you use a fan control, never drives pump channels below 50 percent, and returns the hub and PSU fan to automatic control when Sensor Readout closes. A short grace period protects active cooling when the shared plug-in manager reloads. If a manual setting or fan curve was active, Sensor Readout remembers that control state across restarts and app updates without storing fan percentages in the plug-in folder.
 
 For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
@@ -675,7 +675,7 @@ Configuration and logging created by the app:
 - `Plug-Ins\AsusRog`: experimental optional Asus ROG plug-in. This plug-in includes its own notice and GPL text because it uses G-Helper-derived ACPI research.
 - `Plug-Ins\LenovoThinkPad`: experimental optional Lenovo/ThinkPad read-only plug-in.
 - `Plug-Ins\MsiLaptop`: experimental optional MSI laptop plug-in for MSI ACPI temperature, fan, and fan-control support where exposed.
-- `Plug-Ins\Corsair`: experimental optional Corsair iCUE LINK Hub and HXi/RMi digital power-supply monitoring and fan-control plug-in.
+- `Plug-Ins\Corsair`: bundled optional Corsair iCUE LINK Hub and HXi/RMi digital power-supply monitoring and fan-control plug-in.
 - Users can add third-party plug-ins in their own subfolders.
 - `Docs\Plug-In-development.md`: plug-in SDK and manifest guide.
 - `Docs\Coding-agent-plug-in-rules.md`: strict guidance for coding agents working on plug-ins. Existing plug-in work must stay inside the relevant plug-in folder unless a core app change is explicitly approved.
@@ -742,6 +742,15 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.1.0
+
+- Added: The bundled Corsair iCUE Link and PSU Support plug-in can now control supported iCUE LINK Hub pumps and fans and HXi/RMi power-supply fans. It remains opt-in and performs no control write until the user acts. Pump channels never run below 50 percent, low PSU requests return the fan to its automatic curve, and closing Sensor Readout restores automatic hardware control. Thanks to Robin Kipp for the implementation and extensive real-hardware validation.
+- Improved: Fan curves that use a plug-in temperature now keep that temperature current while the curve is active, without increasing normal background polling for other plug-ins.
+- Improved: All fans reset now includes supported plug-in controls, including MSI, ASUS, and Corsair hardware.
+- Fixed: Opening or editing Preferences no longer needlessly tears down and reloads every enabled hardware plug-in.
+- Fixed: Sensor Readout can recover when a sensor collection stops completing, without allowing an older superseded collection to publish stale readings or alarms after recovery or wake from sleep.
+- Fixed: Corsair fan-control resume state survives Sensor Readout updates without being mistaken for a modified plug-in or creating an unnecessary backup.
 
 ### 6.0.0
 

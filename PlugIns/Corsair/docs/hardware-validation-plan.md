@@ -140,8 +140,9 @@ them is a stop-and-report result, not a retry.
 4. **Fail-loud, never fail-silent.** Every failure mode leaves the cooling running: a hub that stops
    being driven falls back to its own profile (possibly loud), a PSU keeps its last duty. No path
    may end with a fan or pump stopped.
-5. **Exit restores, and only where a restore is actually meant.** A plug-in *reload* — which is
-   what the host performs on every preference change — restores nothing at all and must not
+5. **Exit restores, and only where a restore is actually meant.** A plug-in *reload* — which the
+   pre-fix host performed on every preference change and the corrected host still performs when
+   the enabled plug-in set changes — restores nothing at all and must not
    disturb the hardware in any way; see the deferred hand-back note below. A clean exit and a
    genuine plug-in disable both do restore, and there power supplies are restored first, then
    hubs. The PSU is first because a PSU left in manual mode keeps that duty until something
@@ -385,7 +386,7 @@ reasoning and what stays untested as an accepted consequence.
   rest of the session. It must be observed, not assumed.
 - **Procedure (about three minutes):** With the pump and at least one fan under clearly audible
   manual control and the PSU fan set to 40 %, open Options > Preferences > Plug-Ins, untick
-  **Corsair iCUE Link and PSU Support (experimental)**, and close Preferences. Do **not** quit the
+  **Corsair iCUE Link and PSU Support**, and close Preferences. Do **not** quit the
   app. Note the wall-clock time. Listen and watch `Logs\<machine>.log` for the next three minutes.
   Then re-tick the plug-in and confirm it comes back.
 - **Expected outcome:** Within about 90 seconds plus one poll interval — typically around 30

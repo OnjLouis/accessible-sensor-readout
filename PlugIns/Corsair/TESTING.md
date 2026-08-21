@@ -1,6 +1,6 @@
 # Corsair Plug-In Test Guide
 
-The Corsair plug-in provides experimental, opt-in monitoring and fan control for supported
+The Corsair plug-in provides opt-in monitoring and fan control for supported
 iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. Monitoring is passive;
 nothing is written to the hardware until a fan control is used.
 
@@ -29,9 +29,9 @@ For the supervised hardware-validation matrix that accompanies the fan-control r
 5. Disable the plug-in. Its background worker keeps running for a short grace period and
    then stops, closing its HID sessions and handing the hub and the PSU fan back --
    typically about 30 seconds, at most about 90. The Debug log says "the Corsair devices
-   are being handed back now" when it happens. The delay is deliberate: Sensor Readout
-   rebuilds its whole plug-in manager on every preference change, and stopping instantly
-   would drop the hub to its own (loud) profile every time you touch Preferences.
+    are being handed back now" when it happens. The delay is deliberate: changing the enabled
+    plug-in set rebuilds the shared plug-in manager, and the lifecycle call cannot tell whether
+    this plug-in was disabled or an unrelated plug-in changed.
    Re-enable it to confirm monitoring starts again without restarting Sensor Readout.
 6. Open and close Preferences while fans are under Corsair control. Nothing should change
    audibly, and the Debug log should contain no "returning iCUE LINK hub ... to hardware
@@ -120,15 +120,13 @@ duties. Monitoring together is fine.
   default, so "All fans reset" -- or one-click diagnostics, which restores every control
   afterwards -- leaves none behind. Deleting the file returns the plug-in to strictly
   read-only-until-touched behaviour: the hub is then left in hardware mode at start-up and
-  its rows stay hidden until a fan control is used again. An app update also clears the
-  marker (the updater archives it into its backup ZIP), so after updating, use the "Take fan
-  control" entry or any fan control once to restore automatic resume; a saved manual setting
-  for that entry re-takes the hub at start-up by itself. The file records only that fan
+  its rows stay hidden until a fan control is used again. Sensor Readout preserves this marker
+  through app updates without treating it as a user-modified plug-in file. The file records only that fan
   control is in use -- no duties, no percentages; those live in Sensor Readout's own
   settings.
 - **Disabling the plug-in hands the hardware back after a delay, not instantly.** Sensor
-  Readout shuts a plug-in down and re-creates it on every preference change, and gives the
-  plug-in no way to tell that apart from being disabled for good. So the plug-in defers the
+  Readout rebuilds the shared plug-in manager when the enabled plug-in set changes, and gives
+  each plug-in no way to tell whether it was disabled or another plug-in changed. So this plug-in defers the
   hand-back and cancels it if the app asks for readings again -- which is what keeps opening
   Preferences from dropping the hub to its own loud profile. The wait is three of the app's
   observed refresh intervals, clamped to between 20 and 90 seconds (refresh intervals above

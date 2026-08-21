@@ -570,6 +570,7 @@ public static partial class Program
 
         var existing = Path.Combine(targetRoot, "Plug-Ins");
         Directory.CreateDirectory(existing);
+        var preservedRuntimeFiles = CaptureBundledPlugInRuntimeFiles(existing);
         BackupCustomPlugInFiles(existing, incoming, sourceRoot, backupRoot, previousPlugInHashes);
 
         foreach (var incomingItem in Directory.GetFileSystemEntries(incoming))
@@ -598,6 +599,13 @@ public static partial class Program
                 File.Copy(incomingItem, destination, true);
             }
         }
+
+        RestoreBundledPlugInRuntimeFiles(existing, preservedRuntimeFiles);
+    }
+
+    internal static void ReplacePlugInsFolderForTest(string sourceRoot, string targetRoot, string backupRoot, Dictionary<string, string> previousPlugInHashes)
+    {
+        ReplacePlugInsFolder(sourceRoot, targetRoot, backupRoot, previousPlugInHashes);
     }
 
     private static void BackupCustomPlugInFiles(string existingPlugIns, string incomingPlugIns, string sourceRoot, string backupRoot, Dictionary<string, string> previousPlugInHashes)
@@ -632,6 +640,11 @@ public static partial class Program
                 continue;
             }
 
+            if (IsPreservedBundledPlugInRuntimeFile(relative, new FileInfo(file).Length))
+            {
+                continue;
+            }
+
             var currentHash = GetFileSha256(file);
             var previousHash = previousPlugInHashes.ContainsKey(relative) ? previousPlugInHashes[relative] : "";
             var incomingHash = incomingPlugInHashes.ContainsKey(relative) ? incomingPlugInHashes[relative] : "";
@@ -652,6 +665,78 @@ public static partial class Program
             NewBackupZip(customRoot, backupRoot, "Custom-Bundled-Plug-Ins");
             TryDeleteDirectory(customRoot);
         }
+    }
+
+    private static Dictionary<string, byte[]> CaptureBundledPlugInRuntimeFiles(string plugInsRoot)
+    {
+        var captured = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(plugInsRoot))
+        {
+            return captured;
+        }
+
+        foreach (var file in Directory.GetFiles(plugInsRoot, "*.controlled", SearchOption.AllDirectories))
+        {
+            var relative = RelativePath(plugInsRoot, file);
+            var length = new FileInfo(file).Length;
+            if (IsPreservedBundledPlugInRuntimeFile(relative, length))
+            {
+                captured[relative] = File.ReadAllBytes(file);
+            }
+        }
+
+        return captured;
+    }
+
+    private static void RestoreBundledPlugInRuntimeFiles(string plugInsRoot, Dictionary<string, byte[]> captured)
+    {
+        foreach (var pair in captured)
+        {
+            var destination = Path.Combine(plugInsRoot, pair.Key);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination));
+            File.WriteAllBytes(destination, pair.Value);
+        }
+    }
+
+    private static bool IsPreservedBundledPlugInRuntimeFile(string relative, long length)
+    {
+        if (string.IsNullOrWhiteSpace(relative) || length < 0 || length > 4096)
+        {
+            return false;
+        }
+
+        var normalized = relative.Replace('/', '\\');
+        var parts = normalized.Split('\\');
+        if (parts.Length != 2 || !string.Equals(parts[0], "Corsair", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        const string prefix = "corsair-hub-";
+        const string suffix = ".controlled";
+        var name = parts[1];
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+            !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var keyLength = name.Length - prefix.Length - suffix.Length;
+        if (keyLength < 1 || keyLength > 256)
+        {
+            return false;
+        }
+
+        for (var i = prefix.Length; i < prefix.Length + keyLength; i++)
+        {
+            var c = name[i];
+            if (!char.IsLetterOrDigit(c) && c != '-')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsBundledPlugInBinaryBackupCandidate(string relativePath)
@@ -894,7 +979,7 @@ public static partial class Program
 
     private static bool IsBundledPlugInFolderName(string folderName)
     {
-        foreach (var known in new[] { "AsusRog", "DellLatitude", "Framework", "HP", "HuaweiMateBook", "LenovoThinkPad", "MsiLaptop" })
+        foreach (var known in new[] { "AsusRog", "Corsair", "DellLatitude", "Framework", "HP", "HuaweiMateBook", "LenovoThinkPad", "MsiLaptop" })
         {
             if (string.Equals(folderName, known, StringComparison.OrdinalIgnoreCase))
             {

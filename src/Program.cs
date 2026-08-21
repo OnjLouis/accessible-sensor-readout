@@ -381,6 +381,7 @@ public static partial class Program
         var knownBundledFolders = new[]
         {
             "AsusRog",
+            "Corsair",
             "DellLatitude",
             "Framework",
             "HP",

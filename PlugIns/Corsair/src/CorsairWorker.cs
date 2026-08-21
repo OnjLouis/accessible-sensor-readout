@@ -807,12 +807,11 @@ namespace SensorReadout.CorsairPlugIn
         /// What the host's <c>IPluginLifecycle.Shutdown</c> calls. It does **not** hand the
         /// hardware back; it arms a hand-back that the next <see cref="EnsureStarted"/> cancels.
         ///
-        /// The host uses one call for two unrelated things and gives the plug-in nothing to tell
-        /// them apart. Sensor Readout disposes and rebuilds its whole plug-in manager on every
-        /// live preference save -- including the one it fires the moment the Preferences window
-        /// appears -- so treating Shutdown as "give the hardware back" meant the iCUE LINK hub
-        /// dropped to its own (loud) firmware profile every time the user opened Preferences, and
-        /// then had to re-baseline when the reload took control again.
+        /// The host uses one call for unrelated shutdown reasons and gives the plug-in nothing to
+        /// tell them apart. Sensor Readout no longer rebuilds the manager for ordinary preference
+        /// saves, but changing the enabled plug-in set still rebuilds it. Treating every Shutdown
+        /// as "give the hardware back" would therefore disturb a controlled hub when an unrelated
+        /// plug-in is enabled or disabled.
         ///
         /// The three ways out of the deferred state, all bounded:
         /// <list type="bullet">

@@ -17,9 +17,9 @@ namespace SensorReadout.CorsairPlugIn
     /// the app is closing) and gives the plug-in no way to tell them apart, so ReleaseFromHost
     /// arms a hand-back rather than performing one: the next <c>GetReadings</c> cancels it, an
     /// elapsed grace period runs it, and process exit runs it immediately. See the comments on
-    /// <see cref="CorsairWorker.ReleaseFromHost"/> for why -- rebuilding the plug-in manager is
-    /// what Sensor Readout does on every live preference save, including the one it fires the
-    /// instant the Preferences window appears.
+    /// <see cref="CorsairWorker.ReleaseFromHost"/> for why. Sensor Readout now keeps the manager
+    /// alive for ordinary preference saves, but still rebuilds it when the enabled plug-in set
+    /// changes, and the lifecycle contract does not identify which plug-in caused that rebuild.
     /// </summary>
     public sealed partial class CorsairPlugIn : ISensorReadoutPlugin, IFanControllablePlugin, IPluginLifecycle
     {
@@ -37,10 +37,10 @@ namespace SensorReadout.CorsairPlugIn
         private readonly PluginInfo info = new PluginInfo
         {
             Id = "sensorreadout.corsair.experimental",
-            Name = "Corsair iCUE Link and PSU Support (experimental)",
-            Version = "0.3.0",
+            Name = "Corsair iCUE Link and PSU Support",
+            Version = "1.0.0",
             Author = "Robin Kipp and Sensor Readout contributors",
-            Description = "Experimental, opt-in monitoring and fan control for Corsair iCUE LINK Hub cooling devices and Corsair HXi/RMi digital power supplies."
+            Description = "Opt-in monitoring and fan control for supported Corsair iCUE LINK Hub cooling devices and Corsair HXi/RMi digital power supplies."
         };
 
         // The SDK does not pass a context into TrySetFanPercent/TryResetFan, so the most recent
