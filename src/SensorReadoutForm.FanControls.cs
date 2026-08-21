@@ -384,7 +384,10 @@ public sealed partial class SensorReadoutForm : Form
             return false;
         }
 
-        if (!ShouldSupersedeStalledRefresh(awakeNowMs, refreshInProgressSinceAwakeMs, settings.RefreshIntervalSeconds))
+        // refreshGeneration is still the in-flight collection's own generation here: RefreshSensors
+        // asks this before it increments. So generation 1 is the first collection of the process.
+        var firstCollectionOfProcess = refreshGeneration <= 1;
+        if (!ShouldSupersedeStalledRefresh(awakeNowMs, refreshInProgressSinceAwakeMs, settings.RefreshIntervalSeconds, firstCollectionOfProcess))
         {
             return false;
         }
@@ -402,28 +405,48 @@ public sealed partial class SensorReadoutForm : Form
     // halves can be asserted without anything actually stalling. A negative reading from either side
     // means the awake clock is unavailable on this Windows, and an unmeasurable stall is never
     // reported as one.
-    private static bool ShouldSupersedeStalledRefresh(long awakeNowMs, long awakeStartedMs, int refreshIntervalSeconds)
+    private static bool ShouldSupersedeStalledRefresh(long awakeNowMs, long awakeStartedMs, int refreshIntervalSeconds, bool firstCollectionOfProcess)
     {
         if (awakeNowMs < 0 || awakeStartedMs < 0 || awakeNowMs < awakeStartedMs)
         {
             return false;
         }
 
-        return ShouldSupersedeStalledRefresh(TimeSpan.FromMilliseconds(awakeNowMs - awakeStartedMs), refreshIntervalSeconds);
+        return ShouldSupersedeStalledRefresh(TimeSpan.FromMilliseconds(awakeNowMs - awakeStartedMs), refreshIntervalSeconds, firstCollectionOfProcess);
     }
 
-    // Threshold: six refresh intervals, never less than a minute. Six intervals is far past anything
-    // a healthy pass takes - the LibreHardwareMonitor phase is the only one that legitimately runs
-    // into seconds and it is itself capped at 20 s by AddTimedRowsWithTimeout - and the one-minute
-    // floor keeps a fast interval (the minimum is 1 s) from superseding a merely slow collection on a
-    // busy machine. A slow-but-completing refresh is never affected: the check only runs when a new
-    // refresh is requested while one is still in flight, and the flag is cleared the moment the
-    // in-flight one completes.
-    private static bool ShouldSupersedeStalledRefresh(TimeSpan elapsed, int refreshIntervalSeconds)
+    // Threshold: six refresh intervals, never less than two minutes, doubled for the first collection
+    // of the process. A slow-but-completing refresh is never affected either way - the check only runs
+    // when a new refresh is requested while one is still in flight, and the flag is cleared the moment
+    // the in-flight one completes - so the whole question is how much headroom a *slow machine* gets
+    // before a merely slow pass is called a stall and the user is told to restart the app.
+    //
+    // The original one-minute floor had about 3x. The worst genuine collection in 3.5 days of
+    // production logging on a fast desktop took 20,371 ms
+    // (LibreHardwareMonitorFull=5876; SlowRowsRefresh=8440; Tasks=1941; Battery=1318;
+    // OemProviders=1134), and only the LibreHardwareMonitor phase is bounded at all - its own guard
+    // allows it 20,000 ms on its own, and the other thirteen phases are unguarded AddTimedRows calls.
+    // Two minutes is roughly six times the observed worst case rather than three.
+    //
+    // The doubling is for where the risk actually is. That 20,371 ms pass was the first collection
+    // after launch, and the first collection is the expensive one everywhere: LibreHardwareMonitor
+    // opens and enumerates for the first time, the slow rows are collected rather than served from
+    // cache, WMI providers are cold, and every plug-in does its first device scan. It is also the
+    // pass where the check is guaranteed to run - at a 5 s interval the timer asks again long before
+    // a first collection finishes - and the one where a false positive costs most: an Error telling
+    // the user to restart an app they just launched, plus a replacement collection blocked on the
+    // lock behind it. Four minutes there, two minutes for the steady state, and a genuinely wedged
+    // first collection is still recovered, just later.
+    private static bool ShouldSupersedeStalledRefresh(TimeSpan elapsed, int refreshIntervalSeconds, bool firstCollectionOfProcess)
     {
         var seconds = Math.Max(1, Math.Min(300, refreshIntervalSeconds));
-        var threshold = TimeSpan.FromSeconds(Math.Max(60, seconds * 6));
-        return elapsed >= threshold;
+        var thresholdSeconds = Math.Max(120, seconds * 6);
+        if (firstCollectionOfProcess)
+        {
+            thresholdSeconds *= 2;
+        }
+
+        return elapsed >= TimeSpan.FromSeconds(thresholdSeconds);
     }
 
     private void QueuePendingRefresh(bool updateInteractiveUi, bool refreshSlowRows, string reason)

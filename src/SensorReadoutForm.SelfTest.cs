@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -905,12 +905,19 @@ public sealed partial class SensorReadoutForm : Form
     // real method, which writes one Error line to the log by design.
     private void SelfTestStalledRefreshWatchdog()
     {
-        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(2), 5), "A refresh that has just started must not be superseded.");
-        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(45), 5), "A slow but recent refresh must not be superseded.");
-        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(59), 1), "The one-minute floor must protect the shortest refresh interval.");
-        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(61), 5), "A collection in flight past the threshold must be superseded.");
-        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(300), 300), "Six intervals must win over the floor at long refresh intervals.");
-        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(1801), 300), "A stall past six long intervals must still be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(2), 5, false), "A refresh that has just started must not be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(45), 5, false), "A slow but recent refresh must not be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromMilliseconds(20371), 5, false),
+            "The slowest genuine collection seen in production was 20371 ms; the threshold must keep real headroom over it.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(61), 5, false),
+            "A collection past the old one-minute floor must not be superseded any more; that floor left only about three times the observed worst case.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(119), 1, false), "The two-minute floor must protect the shortest refresh interval.");
+        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(121), 5, false), "A collection in flight past the threshold must be superseded.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(121), 5, true),
+            "The first collection of the process must get double the threshold: it is the expensive one, and a false stall there tells the user to restart an app they just launched.");
+        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(241), 5, true), "A genuinely wedged first collection must still be superseded eventually.");
+        Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(300), 300, false), "Six intervals must win over the floor at long refresh intervals.");
+        Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(1801), 300, false), "A stall past six long intervals must still be superseded.");
 
         // The clock half. Elapsed time has to be measured on a clock that excludes time the machine
         // spent suspended: all five watchdog firings in 3.5 days of production logs were
@@ -923,22 +930,26 @@ public sealed partial class SensorReadoutForm : Form
             "QueryUnbiasedInterruptTime, the only clock that does not count suspended time, is not answering on this machine.");
         Require(awakeNowMs <= (long)NativeMethods.GetTickCount64(),
             "The awake clock read ahead of the biased tick count, which an unbiased clock cannot do.");
-        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - 10000, 5),
+        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - 10000, 5, false),
             "A collection ten awake-seconds old was treated as stalled; a sleep must not be counted as elapsed time.");
-        Require(ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - (10 * 60 * 1000), 5),
+        Require(ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - (10 * 60 * 1000), 5, false),
             "A collection ten awake-minutes old was not treated as stalled.");
-        Require(!ShouldSupersedeStalledRefresh(-1, -1, 5),
+        Require(!ShouldSupersedeStalledRefresh(-1, -1, 5, false),
             "Without an unbiased clock a stall cannot be measured, so it must never be reported.");
-        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs + 60000, 5),
+        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs + 60000, 5, false),
             "A start stamp ahead of the current reading must not be read as a stall.");
 
         var previousRefreshInProgress = refreshInProgress;
         var previousRefreshInProgressSinceAwakeMs = refreshInProgressSinceAwakeMs;
         var previousRefreshStallReported = refreshStallReported;
+        var previousRefreshGeneration = refreshGeneration;
         try
         {
             refreshInProgress = true;
             refreshStallReported = false;
+            // Past the first collection of the process, so the threshold under test here is the
+            // steady-state one rather than the doubled start-up one.
+            refreshGeneration = 2;
             refreshInProgressSinceAwakeMs = awakeBaseMs;
             Require(!TrySupersedeStalledRefresh(awakeBaseMs + 2000), "A collection that had just started was treated as stalled.");
             Require(refreshInProgress, "A healthy in-flight collection had the refresh flag cleared under it.");
@@ -961,6 +972,7 @@ public sealed partial class SensorReadoutForm : Form
             refreshInProgress = previousRefreshInProgress;
             refreshInProgressSinceAwakeMs = previousRefreshInProgressSinceAwakeMs;
             refreshStallReported = previousRefreshStallReported;
+            refreshGeneration = previousRefreshGeneration;
         }
     }
 
