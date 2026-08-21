@@ -371,13 +371,20 @@ public sealed partial class SensorReadoutForm : Form
     // never fires, which is where this code was before the watchdog existed.
     private bool TrySupersedeStalledRefresh()
     {
-        return TrySupersedeStalledRefresh(NativeMethods.TryGetAwakeMilliseconds());
+        return TrySupersedeStalledRefresh(NativeMethods.TryGetAwakeMilliseconds(), true);
     }
 
     // "Now" is a parameter so the self-test can drive the real method - latch, flag release and all -
     // against synthetic clock readings instead of depending on how long the machine happens to have
     // been awake when the test runs.
-    private bool TrySupersedeStalledRefresh(long awakeNowMs)
+    //
+    // reportToLog is false for exactly one caller, that self-test. This method's Error line is the
+    // app's loudest: it names a duration and tells the user to restart and send their log. Written
+    // from a test it is indistinguishable from a real firing, in the very file support asks for -
+    // and support would be reading it as evidence of the failure the test was only pretending to
+    // have. Everything else the method does still happens under the test, so nothing is left
+    // unasserted: the latch, the flag release and the decision are all still the real ones.
+    private bool TrySupersedeStalledRefresh(long awakeNowMs, bool reportToLog)
     {
         if (refreshStallReported || refreshInProgressSinceAwakeMs < 0)
         {
@@ -395,9 +402,13 @@ public sealed partial class SensorReadoutForm : Form
         var elapsed = TimeSpan.FromMilliseconds(awakeNowMs - refreshInProgressSinceAwakeMs);
         refreshStallReported = true;
         refreshInProgress = false;
-        LogError("Sensor collection has not completed in " + (long)elapsed.TotalSeconds +
-            " s of machine-awake time, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
-            "The stalled collection still holds the collection lock, so the replacement waits for it to return; if refreshes do not resume, restart Sensor Readout and send Logs with logging set to Debug.");
+        if (reportToLog)
+        {
+            LogError("Sensor collection has not completed in " + (long)elapsed.TotalSeconds +
+                " s of machine-awake time, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
+                "The stalled collection still holds the collection lock, so the replacement waits for it to return; if refreshes do not resume, restart Sensor Readout and send Logs with logging set to Debug.");
+        }
+
         return true;
     }
 

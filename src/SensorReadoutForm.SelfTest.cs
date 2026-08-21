@@ -900,9 +900,13 @@ public sealed partial class SensorReadoutForm : Form
     }
 
     // The watchdog that stops one wedged collection from latching the refresh pipeline for the life
-    // of the process. Its decision is a pure function of elapsed time and the user's refresh interval
-    // so it can be checked here without anything actually stalling; the latch is checked against the
-    // real method, which writes one Error line to the log by design.
+    // of the process. Its decision is a pure function of elapsed time, the user's refresh interval
+    // and whether this is the first collection of the process, so it can be checked here without
+    // anything actually stalling; the latch and the flag release are checked against the real
+    // method, driven with synthetic clock readings and with its Error line suppressed. Suppressed
+    // because that line names a stall duration and tells the user to restart the app and send their
+    // log: written from a test it is indistinguishable from a real firing, in the one file support
+    // reads as evidence.
     private void SelfTestStalledRefreshWatchdog()
     {
         Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(2), 5, false), "A refresh that has just started must not be superseded.");
@@ -939,6 +943,13 @@ public sealed partial class SensorReadoutForm : Form
         Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs + 60000, 5, false),
             "A start stamp ahead of the current reading must not be read as a stall.");
 
+        // Proved rather than trusted: the self-test forces debug logging on and writes to the same
+        // log file users are asked to send in for support, so an Error line written from here would
+        // be read as a genuine watchdog firing. Counted by phrase rather than by file size because
+        // the running app appends to that file too.
+        const string stallErrorPhrase = "Sensor collection has not completed in";
+        var stallErrorsBefore = SelfTestCountLogLinesContaining(stallErrorPhrase);
+
         var previousRefreshInProgress = refreshInProgress;
         var previousRefreshInProgressSinceAwakeMs = refreshInProgressSinceAwakeMs;
         var previousRefreshStallReported = refreshStallReported;
@@ -951,20 +962,20 @@ public sealed partial class SensorReadoutForm : Form
             // steady-state one rather than the doubled start-up one.
             refreshGeneration = 2;
             refreshInProgressSinceAwakeMs = awakeBaseMs;
-            Require(!TrySupersedeStalledRefresh(awakeBaseMs + 2000), "A collection that had just started was treated as stalled.");
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs + 2000, false), "A collection that had just started was treated as stalled.");
             Require(refreshInProgress, "A healthy in-flight collection had the refresh flag cleared under it.");
 
             // The production shape: four hours of wall clock across a hibernation, no awake time.
-            Require(!TrySupersedeStalledRefresh(awakeBaseMs), "A collection superseded across a sleep would have been reported as a stall.");
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs, false), "A collection superseded across a sleep would have been reported as a stall.");
             Require(refreshInProgress, "A sleep released the refresh pipeline under a healthy collection.");
 
-            Require(TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000)), "A ten-minute-old collection was not treated as stalled.");
+            Require(TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000), false), "A ten-minute-old collection was not treated as stalled.");
             Require(!refreshInProgress, "Superseding a stalled collection did not release the refresh pipeline.");
 
             // One recovery attempt and one Error line per stall episode. Without the latch every
             // later timer tick would start another collection behind the wedged one's lock.
             refreshInProgress = true;
-            Require(!TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000)), "The stall latch did not stop a second recovery attempt.");
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000), false), "The stall latch did not stop a second recovery attempt.");
             Require(refreshInProgress, "A second recovery attempt released the refresh pipeline again.");
         }
         finally
@@ -973,6 +984,44 @@ public sealed partial class SensorReadoutForm : Form
             refreshInProgressSinceAwakeMs = previousRefreshInProgressSinceAwakeMs;
             refreshStallReported = previousRefreshStallReported;
             refreshGeneration = previousRefreshGeneration;
+        }
+
+        Require(SelfTestCountLogLinesContaining(stallErrorPhrase) == stallErrorsBefore,
+            "Driving the stall watchdog wrote its Error line into the user's log, where it is indistinguishable from a genuine firing of the failure this test only pretends to have.");
+    }
+
+    // Read-only, and tolerant of the log being written by the running app at the same time: the
+    // share flags let the append through, and an unreadable log counts as zero on both sides of the
+    // comparison rather than failing the step.
+    private int SelfTestCountLogLinesContaining(string phrase)
+    {
+        try
+        {
+            var path = GetLogFilePath();
+            if (!File.Exists(path))
+            {
+                return 0;
+            }
+
+            var count = 0;
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (line.IndexOf(phrase, StringComparison.Ordinal) >= 0)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
+        }
+        catch (Exception)
+        {
+            return 0;
         }
     }
 
