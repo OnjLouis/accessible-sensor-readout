@@ -59,7 +59,7 @@ public sealed partial class SensorReadoutForm : Form
     private void ToggleSelectedReadingTrendLogging()
     {
         var row = GetSelectedReadingRow();
-        if (reportViewMode || !IsSelectableReadoutRow(row))
+        if (IsExternalDataView || !IsSelectableReadoutRow(row))
         {
             System.Media.SystemSounds.Beep.Play();
             statusLabel.Text = T("status.Select a reading that can be logged.", "Select a reading that can be logged.");
@@ -87,7 +87,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool CanToggleSelectedReadingTrendLogging()
     {
-        return !reportViewMode && IsSelectableReadoutRow(GetSelectedReadingRow());
+        return !IsExternalDataView && IsSelectableReadoutRow(GetSelectedReadingRow());
     }
 
     private string SelectedTrendLoggingMenuText()

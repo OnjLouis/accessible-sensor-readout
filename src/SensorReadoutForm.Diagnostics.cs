@@ -40,7 +40,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        if (reportViewMode)
+        if (IsExternalDataView)
         {
             ReturnToLiveReadings();
         }

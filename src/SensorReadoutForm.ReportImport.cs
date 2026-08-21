@@ -42,8 +42,10 @@ public sealed partial class SensorReadoutForm : Form
     {
         using (var dialog = new OpenFileDialog())
         {
-            dialog.Title = T("ui.Open Sensor Readout report", "Open Sensor Readout report");
-            dialog.Filter = "Sensor Readout reports (*.html;*.htm;*.zip)|*.html;*.htm;*.zip|All files (*.*)|*.*";
+            dialog.Title = T("ui.Open Sensor Readout file", "Open Sensor Readout file");
+            dialog.Filter = T(
+                "ui.Sensor Readout open file filter",
+                "Sensor Readout files (*.html;*.htm;*.zip;*.srconnection)|*.html;*.htm;*.zip;*.srconnection|Reports and updates (*.html;*.htm;*.zip)|*.html;*.htm;*.zip|Server connections (*.srconnection)|*.srconnection|All files (*.*)|*.*");
             dialog.InitialDirectory = GetReportsFolderPath();
             dialog.CheckFileExists = true;
             dialog.Multiselect = false;
@@ -61,6 +63,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         try
         {
+            if (string.Equals(Path.GetExtension(path), ".srconnection", StringComparison.OrdinalIgnoreCase))
+            {
+                OpenRemoteMonitoringFromStartup(path);
+                return;
+            }
+
             if (IsSensorReadoutUpdateZip(path))
             {
                 StartSelfUpdateFromLocalZip(path);
@@ -107,6 +115,13 @@ public sealed partial class SensorReadoutForm : Form
 
     private void EnterReportView(ReportSnapshot snapshot, string path)
     {
+        EndActiveRemoteViewerPresence();
+        remoteViewGeneration++;
+        remoteViewMode = false;
+        activeRemoteConnection = null;
+        activeRemoteSnapshot = null;
+        activeRemoteMachineId = "";
+        activeRemoteLastPollUtc = DateTime.MinValue;
         reportViewMode = true;
         loadedReportPath = path ?? "";
         loadedReportTitle = string.IsNullOrWhiteSpace(snapshot.Title) ? Path.GetFileName(path) : snapshot.Title;
@@ -115,10 +130,6 @@ public sealed partial class SensorReadoutForm : Form
         loadedReportMemoryUnitMode = NormalizeByteUnitMode(snapshot.MemoryUnitMode);
         loadedReportStorageUnitMode = NormalizeByteUnitMode(snapshot.StorageUnitMode);
         loadedReportTransferUnitMode = NormalizeByteUnitMode(snapshot.TransferUnitMode);
-        if (timer != null)
-        {
-            timer.Stop();
-        }
         if (visibleRefreshTimer != null)
         {
             visibleRefreshTimer.Stop();
@@ -139,12 +150,19 @@ public sealed partial class SensorReadoutForm : Form
 
     private void ReturnToLiveReadings()
     {
-        if (!reportViewMode)
+        if (!reportViewMode && !remoteViewMode)
         {
             return;
         }
 
+        EndActiveRemoteViewerPresence();
         reportViewMode = false;
+        remoteViewGeneration++;
+        remoteViewMode = false;
+        activeRemoteConnection = null;
+        activeRemoteSnapshot = null;
+        activeRemoteMachineId = "";
+        activeRemoteLastPollUtc = DateTime.MinValue;
         loadedReportPath = "";
         loadedReportTitle = "";
         loadedReportMachineName = "";
@@ -169,8 +187,12 @@ public sealed partial class SensorReadoutForm : Form
     {
         if (returnToLiveReadingsMenuItem != null)
         {
-            returnToLiveReadingsMenuItem.Visible = reportViewMode;
-            returnToLiveReadingsMenuItem.Enabled = reportViewMode;
+            returnToLiveReadingsMenuItem.Visible = reportViewMode || remoteViewMode;
+            returnToLiveReadingsMenuItem.Enabled = reportViewMode || remoteViewMode;
+            var returnText = remoteViewMode
+                ? T("ui.Return to this computer", "Return to this computer")
+                : T("ui.Return to live readings", "Return to live readings");
+            returnToLiveReadingsMenuItem.Text = WithShortcutText(returnText, "Ctrl+R");
         }
     }
 
@@ -184,6 +206,10 @@ public sealed partial class SensorReadoutForm : Form
             {
                 title += " - " + T("ui.Report", "Report") + ": " + reportTitle;
             }
+        }
+        else if (remoteViewMode && activeRemoteSnapshot != null)
+        {
+            title += " - " + T("ui.Remote", "Remote") + ": " + (activeRemoteSnapshot.MachineName ?? "");
         }
         else
         {
@@ -239,6 +265,11 @@ public sealed partial class SensorReadoutForm : Form
             return loadedReportMachineName.Trim();
         }
 
+        if (remoteViewMode && activeRemoteSnapshot != null && !string.IsNullOrWhiteSpace(activeRemoteSnapshot.MachineName))
+        {
+            return activeRemoteSnapshot.MachineName.Trim();
+        }
+
         return Environment.MachineName ?? "";
     }
 
@@ -249,11 +280,24 @@ public sealed partial class SensorReadoutForm : Form
             return loadedReportGeneratedLocal.Trim();
         }
 
+        if (remoteViewMode && activeRemoteSnapshot != null)
+        {
+            DateTime generatedUtc;
+            if (DateTime.TryParse(activeRemoteSnapshot.GeneratedUtc, out generatedUtc))
+            {
+                return generatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            }
+        }
+
         return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
     private string CurrentReportMemoryUnitMode()
     {
+        if (remoteViewMode && activeRemoteSnapshot != null && !string.IsNullOrWhiteSpace(activeRemoteSnapshot.MemoryUnitMode))
+        {
+            return NormalizeByteUnitMode(activeRemoteSnapshot.MemoryUnitMode);
+        }
         return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportMemoryUnitMode)
             ? loadedReportMemoryUnitMode
             : activeMemoryUnitMode;
@@ -261,6 +305,10 @@ public sealed partial class SensorReadoutForm : Form
 
     private string CurrentReportStorageUnitMode()
     {
+        if (remoteViewMode && activeRemoteSnapshot != null && !string.IsNullOrWhiteSpace(activeRemoteSnapshot.StorageUnitMode))
+        {
+            return NormalizeByteUnitMode(activeRemoteSnapshot.StorageUnitMode);
+        }
         return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportStorageUnitMode)
             ? loadedReportStorageUnitMode
             : activeStorageUnitMode;
@@ -268,6 +316,10 @@ public sealed partial class SensorReadoutForm : Form
 
     private string CurrentReportTransferUnitMode()
     {
+        if (remoteViewMode && activeRemoteSnapshot != null && !string.IsNullOrWhiteSpace(activeRemoteSnapshot.TransferUnitMode))
+        {
+            return NormalizeByteUnitMode(activeRemoteSnapshot.TransferUnitMode);
+        }
         return reportViewMode && !string.IsNullOrWhiteSpace(loadedReportTransferUnitMode)
             ? loadedReportTransferUnitMode
             : activeTransferUnitMode;

@@ -9,6 +9,8 @@ bin/
 obj/
 *.log
 *.tmp
+__pycache__/
+*.pyc
 Test-ReleasePrivacy.ps1
 GITHUB-RELEASE-RULES.md
 ClipmanShared.md
@@ -19,3 +21,5 @@ SmokeTest.ps1
 Release.ps1
 Publish-GitHubRelease.ps1
 HANDOVER.md
+*SigningKey*.xml
+*.srkeybackup

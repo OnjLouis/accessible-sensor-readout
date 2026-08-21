@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -20,9 +21,10 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             var releases = FetchReleases();
-            var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
+            var release = LatestVersionedRelease(releases);
             var latest = (release == null ? "" : release.TagName) ?? "";
-            var latestVersion = latest.Trim().TrimStart('v', 'V');
+            var parsedLatest = ReleaseVersion(release);
+            var latestVersion = parsedLatest == null ? "" : parsedLatest.ToString();
             if (string.IsNullOrWhiteSpace(latestVersion))
             {
                 if (showErrors)
@@ -147,9 +149,10 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 var releases = FetchReleases();
-                var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
+                var release = LatestVersionedRelease(releases);
                 var latest = (release == null ? "" : release.TagName) ?? "";
-                var latestVersion = latest.Trim().TrimStart('v', 'V');
+                var parsedLatest = ReleaseVersion(release);
+                var latestVersion = parsedLatest == null ? "" : parsedLatest.ToString();
                 Version current;
                 Version remote;
                 if (!Version.TryParse(AppVersion, out current) || !Version.TryParse(latestVersion, out remote) || remote <= current)
@@ -222,17 +225,6 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static GitHubReleaseInfo FetchLatestRelease()
-    {
-        ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
-        using (var client = new WebClient())
-        {
-            client.Headers.Add("User-Agent", "Sensor Readout " + AppVersion);
-            var json = client.DownloadString(ProjectUrl.Replace("https://github.com/", "https://api.github.com/repos/") + "/releases/latest");
-            return JsonConvert.DeserializeObject<GitHubReleaseInfo>(json);
-        }
-    }
-
     private static List<GitHubReleaseInfo> FetchReleases()
     {
         ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
@@ -248,7 +240,7 @@ public sealed partial class SensorReadoutForm : Form
     {
         return (releases ?? new List<GitHubReleaseInfo>())
             .Select(r => new { Release = r, Version = ReleaseVersion(r) })
-            .Where(i => i.Version != null)
+            .Where(i => i.Version != null && !i.Release.Draft && !i.Release.Prerelease)
             .OrderByDescending(i => i.Version)
             .Select(i => i.Release)
             .FirstOrDefault();
@@ -261,8 +253,12 @@ public sealed partial class SensorReadoutForm : Form
             return null;
         }
 
+        var match = System.Text.RegularExpressions.Regex.Match(
+            release.TagName.Trim(),
+            @"^v(?<version>[0-9]+\.[0-9]+\.[0-9]+)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         Version version;
-        return Version.TryParse(release.TagName.Trim().TrimStart('v', 'V'), out version) ? version : null;
+        return match.Success && Version.TryParse(match.Groups["version"].Value, out version) ? version : null;
     }
 
     private string BuildUpdateReleaseNotes(IEnumerable<GitHubReleaseInfo> releases, Version current, Version latest)
@@ -442,7 +438,7 @@ public sealed partial class SensorReadoutForm : Form
             return false;
         }
 
-        StartSelfUpdate(zipAsset.BrowserDownloadUrl, true);
+        StartSelfUpdate(zipAsset, true);
         return true;
     }
 
@@ -514,7 +510,7 @@ public sealed partial class SensorReadoutForm : Form
                 {
                     dialog.DialogResult = DialogResult.OK;
                     dialog.Close();
-                    StartSelfUpdate(zipAsset.BrowserDownloadUrl, false);
+                    StartSelfUpdate(zipAsset, false);
                 };
                 buttons.Controls.Add(installButton);
                 dialog.AcceptButton = installButton;
@@ -537,7 +533,7 @@ public sealed partial class SensorReadoutForm : Form
         {
             UseWaitCursor = true;
             var releases = FetchReleases();
-            var release = LatestVersionedRelease(releases) ?? FetchLatestRelease();
+            var release = LatestVersionedRelease(releases);
             var version = release == null ? AppVersion : (release.TagName ?? AppVersion).Trim().TrimStart('v', 'V');
             var releaseUrl = release == null || string.IsNullOrWhiteSpace(release.HtmlUrl) ? ProjectUrl + "/releases" : release.HtmlUrl;
             var notesText = FormatReleaseNotesForDialog(release == null ? "" : release.Body, T("message.noReleaseNotes", "No release notes were provided for this update."));
@@ -625,23 +621,46 @@ public sealed partial class SensorReadoutForm : Form
             return null;
         }
 
-        return release.Assets
+        var version = ReleaseVersion(release);
+        if (version == null || release.Draft || release.Prerelease)
+        {
+            return null;
+        }
+
+        var expectedName = "SensorReadout-" + version + ".zip";
+        var matches = release.Assets
             .Where(a => a != null && !string.IsNullOrWhiteSpace(a.BrowserDownloadUrl) && !string.IsNullOrWhiteSpace(a.Name))
-            .Where(a => a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(a => a.Name.IndexOf("portable", StringComparison.OrdinalIgnoreCase) >= 0)
-            .ThenByDescending(a => a.Name.IndexOf("sensor", StringComparison.OrdinalIgnoreCase) >= 0)
-            .FirstOrDefault();
+            .Where(a => string.Equals(a.Name, expectedName, StringComparison.OrdinalIgnoreCase))
+            .Where(a => ValidGitHubSha256(a.Digest) != null)
+            .ToList();
+        return matches.Count == 1 ? matches[0] : null;
     }
 
-    private void StartSelfUpdate(string zipUrl, bool quiet)
+    private static string ValidGitHubSha256(string digest)
     {
+        var value = (digest ?? "").Trim();
+        return Regex.IsMatch(value, "\\Asha256:[0-9A-Fa-f]{64}\\z")
+            ? value.Substring("sha256:".Length).ToUpperInvariant()
+            : null;
+    }
+
+    private void StartSelfUpdate(GitHubReleaseAsset asset, bool quiet)
+    {
+        var zipUrl = asset == null ? "" : asset.BrowserDownloadUrl;
+        var expectedSha256 = asset == null ? null : ValidGitHubSha256(asset.Digest);
         if (string.IsNullOrWhiteSpace(zipUrl))
         {
             MessageBox.Show(this, T("message.noUpdatePackage", "This GitHub release does not include a downloadable ZIP package. Please open the release page instead."), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        StartSelfUpdate(zipUrl, "", quiet);
+        if (string.IsNullOrWhiteSpace(expectedSha256))
+        {
+            MessageBox.Show(this, T("message.noUpdatePackage", "This GitHub release does not include a downloadable ZIP package. Please open the release page instead."), UpdateCheckDialogTitle(), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        StartSelfUpdate(zipUrl, "", expectedSha256, quiet);
     }
 
     private void StartSelfUpdateFromLocalZip(string zipPath)
@@ -662,10 +681,10 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        StartSelfUpdate("", zipPath, true);
+        StartSelfUpdate("", zipPath, "", true);
     }
 
-    private void StartSelfUpdate(string zipUrl, string zipPath, bool quiet)
+    private void StartSelfUpdate(string zipUrl, string zipPath, string expectedSha256, bool quiet)
     {
         var hasLocalZip = !string.IsNullOrWhiteSpace(zipPath);
 
@@ -694,6 +713,9 @@ public sealed partial class SensorReadoutForm : Form
                     (hasLocalZip
                         ? " --update-zip " + CommandLineQuote(zipPath)
                         : " --update-url " + CommandLineQuote(zipUrl)) +
+                    (!string.IsNullOrWhiteSpace(expectedSha256)
+                        ? " --update-sha256 " + CommandLineQuote(expectedSha256)
+                        : "") +
                     " --update-target " + CommandLineQuote(appDir) +
                     " --update-exe " + CommandLineQuote(exePath) +
                     " --update-temp " + CommandLineQuote(updaterTempDir) +

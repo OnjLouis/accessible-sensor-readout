@@ -206,6 +206,13 @@ public sealed partial class SensorReadoutForm : Form
         machine.FanLabels = new Dictionary<string, string>();
         machine.FanControlSettings = new Dictionary<string, FanControlSetting>();
         machine.CommunityStatsClientId = "";
+        machine.RemoteMachineId = "";
+        machine.ProtectedRemoteMachineWriteToken = "";
+        machine.RemoteConnections = new List<RemoteConnectionSetting>();
+        machine.RemoteHostEnabled = false;
+        machine.RemoteHostPort = 48673;
+        machine.RemoteHostConnectionUrl = "";
+        machine.ProtectedRemoteHostAccessToken = "";
         package.MachineSettings = includeMachine ? machine : null;
         return package;
     }

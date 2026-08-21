@@ -145,6 +145,11 @@ public sealed partial class SensorReadoutForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (remotePollTimer != null)
+        {
+            remotePollTimer.Stop();
+        }
+        StopEmbeddedRemoteServer();
         StopAudioLatencyForShutdown();
         HideTrayIconBeforeExit();
         PlaySoundFileSync(settings.ShutdownSoundFile);

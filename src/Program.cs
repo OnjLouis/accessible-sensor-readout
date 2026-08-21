@@ -86,6 +86,9 @@ public static partial class Program
         string communityStatsPath;
         var saveCommunityStatsPayload = TryGetOptionValue(args, "--community-stats-json", out communityStatsPath);
         var runUninstall = HasArg(args, "--uninstall");
+        RemoteStartupCommand remoteStartupCommand;
+        string remoteStartupError;
+        var hasRemoteStartupCommand = RemoteStartupCommand.TryParse(args, out remoteStartupCommand, out remoteStartupError);
 
         if (HasArg(args, "--help") || HasArg(args, "-?") || HasArg(args, "/?"))
         {
@@ -97,6 +100,11 @@ public static partial class Program
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+        if (hasRemoteStartupCommand && remoteStartupCommand == null)
+        {
+            MessageBox.Show(remoteStartupError, "Sensor Readout", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         if (runUninstall)
         {
             SensorReadoutForm.RunUninstallFromCommandLine();
@@ -140,8 +148,21 @@ public static partial class Program
             return;
         }
 
+        if (remoteStartupCommand != null && RemoteStartupIpcServer.TrySend(remoteStartupCommand, 2500))
+        {
+            return;
+        }
+
         if (ShowExistingInstanceFromSameExecutable())
         {
+            if (remoteStartupCommand != null && !RemoteStartupIpcServer.TrySend(remoteStartupCommand, 2500))
+            {
+                MessageBox.Show(
+                    "The running Sensor Readout copy could not accept the remote monitoring command. Close it and try again.",
+                    "Sensor Readout",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
             return;
         }
 
@@ -152,11 +173,72 @@ public static partial class Program
         {
             if (!createdNew)
             {
-                SignalShowRequest();
+                if (remoteStartupCommand == null || !RemoteStartupIpcServer.TrySend(remoteStartupCommand, 2500))
+                {
+                    SignalShowRequest();
+                }
                 return;
             }
 
-            Application.Run(new SensorReadoutForm(ShouldStartMinimized(args)));
+            using (var form = new SensorReadoutForm(ShouldStartMinimized(args)))
+            {
+                var unusedHandle = form.Handle;
+                using (var remoteStartupServer = new RemoteStartupIpcServer(delegate(RemoteStartupCommand command)
+                {
+                    if (form.IsDisposed)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        form.BeginInvoke((MethodInvoker)delegate { DispatchRemoteStartupCommand(form, command); });
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }))
+                {
+                    if (remoteStartupCommand != null)
+                    {
+                        form.Shown += delegate { DispatchRemoteStartupCommand(form, remoteStartupCommand); };
+                    }
+                    Application.Run(form);
+                }
+            }
+        }
+    }
+
+    private static void DispatchRemoteStartupCommand(SensorReadoutForm form, RemoteStartupCommand command)
+    {
+        if (form == null || form.IsDisposed || command == null)
+        {
+            return;
+        }
+        try
+        {
+            if (command.Kind == RemoteStartupCommandKind.DisconnectRemote)
+            {
+                form.DisconnectRemoteFromStartup();
+                return;
+            }
+
+            if (command.Kind == RemoteStartupCommandKind.ConnectRemote)
+            {
+                form.ConnectRemoteFromStartup(command.Path, command.Target);
+                return;
+            }
+
+            form.OpenRemoteMonitoringFromStartup(
+                command.Kind == RemoteStartupCommandKind.ImportConnection ? command.Path : "");
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show(
+                form,
+                "Could not complete the remote monitoring command: " + error.Message,
+                "Sensor Readout",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
     }
 
@@ -665,6 +747,13 @@ public static partial class Program
             return true;
         }
 
+        RemoteStartupCommand remoteCommand;
+        string remoteCommandError;
+        if (RemoteStartupCommand.TryParse(startupArgs, out remoteCommand, out remoteCommandError))
+        {
+            return false;
+        }
+
         return !HasArg(startupArgs, "--close") &&
                !HasOption(startupArgs, "--report-txt") &&
                !HasOption(startupArgs, "--report-html") &&
@@ -1117,6 +1206,14 @@ public static partial class Program
             "Start minimized to the notification area." + Environment.NewLine + Environment.NewLine +
             "--close" + Environment.NewLine +
             "Close any running Sensor Readout instance and exit." + Environment.NewLine + Environment.NewLine +
+            "--import-remote-connection path" + Environment.NewLine +
+            "Import a .srconnection file in the running Sensor Readout copy." + Environment.NewLine + Environment.NewLine +
+            "--remote-computers" + Environment.NewLine +
+            "Open Remote computers in the running Sensor Readout copy." + Environment.NewLine + Environment.NewLine +
+            "--connect-remote \"server\" \"computer\"" + Environment.NewLine +
+            "Connect using an enabled saved server and remote computer name or ID. Monitoring passwords are never accepted on the command line." + Environment.NewLine + Environment.NewLine +
+            "--return-to-this-computer or --disconnect-remote" + Environment.NewLine +
+            "Stop viewing a remote computer or report and return to this computer." + Environment.NewLine + Environment.NewLine +
             "--report-txt [path]" + Environment.NewLine +
             "Save a text report and exit. If no path is supplied, a timestamped file is created in the Reports folder." + Environment.NewLine + Environment.NewLine +
             "--report-html [path]" + Environment.NewLine +

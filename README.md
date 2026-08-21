@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 5.2.1.
+Current version: 6.0.0.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -59,6 +59,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Supports fan profiles that apply several fan controls at once, with optional global hotkeys and optional toggle-back-to-automatic behavior.
 - Saves TXT or HTML sensor reports.
 - Opens saved HTML reports directly, including HTML reports sent inside a diagnostics ZIP file.
+- Connects Sensor Readout computers through an encrypted remote-monitoring relay, presenting live remote readings in the same accessible categories and tree used for local readings.
 - Shows a Devices category with Windows PnP inventory, including PCI/system devices, storage controllers, input devices, Bluetooth, printers, security devices, and concise cross-linked entries for USB, audio, display, and network hardware.
 - Puts devices with Windows problem codes, driver failures, or non-OK status into a clear Non-working devices group at the top of Devices, while keeping them in their normal hardware group too.
 - Adds a Category summary row at the top of each main section, giving a quick count of readings, groups, rows with Details, and section-specific health signals where useful.
@@ -197,8 +198,9 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | Options commands | `Ctrl+Shift+W` | Start or stop watching one running process in the background, then save a resource report when stopped. |
 | Options commands | `Ctrl+Shift+D` | Start the Audio Latency diagnostic setup, or stop the active test and save its HTML report. |
 | Options commands | `Ctrl+Shift+T` | Open Network Tools to look up an IP address or host name, optionally test ping latency and packet loss, and review public network information. |
+| Options commands | `Ctrl+Shift+R` | Open Remote computers to add, import, manage, or view remote Sensor Readout computers. |
 | File commands | `Ctrl+Shift+A` | Save an anonymized report for sharing. |
-| File commands | `Ctrl+R` | Return from a static report to live readings. |
+| File commands | `Ctrl+R` | Return from a static report or remote computer to this computer's live readings. |
 | File commands | `Ctrl+E` | Export selected settings and profiles to a transfer package. |
 | File commands | `Ctrl+Shift+E` | Export a portable copy ZIP of the current app and settings. |
 | File commands | `Ctrl+I` | Import selected settings and profiles from a transfer package. |
@@ -474,6 +476,26 @@ Use `Edit` > `Find reading...` or `F3` to search readings across all categories.
 
 Use the `Edit` menu, Application key, or right-click on a reading or group to copy it, review the exact text in a read-only edit box, open Details where available, open a related Windows Settings page or task file location where available, rename a fan, or hide it. In Details, `Copy matching...` or `Ctrl+M` asks for search text and copies only matching lines from the detailed tree. When a related Windows Settings page is known, the main window offers `Alt+Enter` and Details offers `Open Windows setting...`; this appears only for safe local Windows Settings pages such as accessibility, Bluetooth, printers, USB, sound, display, network, storage, battery/power, startup apps, and Windows Update. When a Tasks row has an executable path, the same flow offers `Open file location...`. Hidden items can be restored from `Options` > `Preferences` > `Hidden items`; checked items in that tab are hidden.
 
+## Remote Monitoring
+
+Use `Options` > `Remote computers...` or `Ctrl+Shift+R` to add or import a Sensor Readout Server connection, enable it, and choose whether this computer shares its readings. Importing a `.srconnection` file supplies the server address and access token automatically; enter only a friendly connection name and the same monitoring password used by the other computers. Computers using the same server access token and monitoring password appear in the Computers list. Choose `View computer` to open its live readings in the normal Sensor Readout categories and tree. F3 search, F4 review, Details, copying, and report export continue to work. The title bar, status line, and spoken-hotkey output identify the computer as remote.
+
+Remote sharing includes the complete collected reading set even when a category or reading is hidden on the source computer. Hiding is a local viewing preference: the receiving computer applies its own hidden-item and category choices. Expanded and collapsed branches remain as the viewing user leaves them while remote values refresh.
+
+On Windows, check `Host this computer` to start the encrypted relay inside Sensor Readout; uncheck it to stop hosting. Choose a listening port and a monitoring password of at least eight characters, then save a `.srconnection` file for the other computers. When saving, choose a detected LAN or VPN address or type the complete DNS, private-network, public, or reverse-proxy address and port that those computers will actually use. Loopback and wildcard addresses are refused because another computer cannot reach them. The listening address and exported address may differ when a VPN, router port-forward, or reverse proxy is involved. Both host and connection dialogs can generate a strong random monitoring password, fill the protected field, and copy it for transfer to the other computers; it is never stored in the connection file or logs. Sensor Readout creates its own inbound Windows Firewall rule for that TCP port on private and domain networks, updates it when the port changes, and removes it when hosting is disabled or the installed app is uninstalled. For an always-on Linux host, download the separate `SensorReadout-Server-<version>.zip` release asset. Its accessible HTML manual provides copyable commands, and `sudo python3 sensor_readout_server_control.py install` opens a guided private-network or HTTPS setup and creates the connection file automatically.
+
+Managed Linux installations check daily for verified server updates by default. Run `sudo sensor-readout-server-control setup` at any time to review the listening address and port, reachable client URL, request timeout, inactive-computer retention, server access token, and automatic-update choice. Changes restart and health-check the service, with the previous settings restored if the new configuration does not start correctly. The server follows its own stable `server-vX.Y.Z` release channel and accepts only the exact `SensorReadout-Server-X.Y.Z.zip` asset with matching SHA-256 verification and a valid Sensor Readout RSA signature; ordinary Windows Sensor Readout releases are ignored. The Windows app enforces the same independent signature check on its own `vX.Y.Z` archive, so neither component can install the other's update and altered packages are refused before files are replaced. The monitoring password remains client-side and cannot be viewed or changed by server setup.
+
+To test Remote Monitoring without running a server, download the [Sensor Readout public test connection](https://onj.me/srserver/SensorReadout-Public-Test.srconnection). Installed copies can open the downloaded `.srconnection` file directly; portable copies can use `Ctrl+O`. Choose your own monitoring password and use it only on the computers you want to connect. The public relay uses HTTPS, cannot read the encrypted sensor values or computer names, and removes inactive encrypted data periodically; it is a test and remote-access service, not permanent storage or backup.
+
+The first upload is a complete encrypted snapshot. Later uploads normally contain only encrypted changes, reducing traffic while keeping the remote view current. Sequence numbers detect missing changes; after an interruption, Sensor Readout reconnects and requests a complete snapshot when necessary. Use `File` > `Return to this computer` or `Ctrl+R` to leave remote view. Diagnostics and community stats always return to this computer first so they cannot accidentally describe a remote machine.
+
+The monitoring password never leaves a Sensor Readout client. It selects the private monitoring space and derives separate encryption and authentication keys. The relay stores only opaque encrypted blobs, random identifiers, revisions, and timestamps; it does not receive readable sensor rows or computer names. A `.srconnection` file contains the server address and access token, but never the monitoring password, so treat it as a server credential. Anyone who has both the connection file and monitoring password can read that monitoring space. Each publishing computer also keeps its own private write credential; the relay stores only its hash, preventing another computer in the same space from replacing that computer's data. Plain HTTP is suitable only for a trusted local network or protected private network such as a VPN. Use HTTPS through a reverse proxy before exposing a relay to the public Internet.
+
+Only the publishing computer can stop sharing and remove its own stored encrypted entry from the relay. Select that computer and use `Remove this computer from server` or press Delete. Viewers cannot remove another computer, even when they have the shared connection file and monitoring password. Remote fan control is off by default. If `Allow this server to run saved fan profiles on this computer` is enabled, another authenticated client may request only a saved profile that this computer has advertised. The target computer checks that the permission and profile still exist before applying the newest valid request; arbitrary percentages, hardware identifiers, and unsaved controls are not accepted.
+
+The relay keeps one encrypted checkpoint so computers remain visible across server restarts and while publishers are temporarily offline. Frequent encrypted changes stay in bounded memory instead of becoming individual disk files. Activity metadata is persisted no more than hourly, and the publishing client periodically replaces the checkpoint with a fresh complete snapshot. If a relay stops unexpectedly, the client detects any missing in-memory changes and automatically resynchronizes. This keeps recovery reliable while greatly reducing writes on Raspberry Pi microSD cards and other flash storage.
+
 ## Network Tools
 
 Use `Options` > `Network tools...` or `Ctrl+Shift+T` to look up an IP address or host name. Sensor Readout resolves DNS, classifies IPv4 and IPv6 addresses, attempts reverse DNS, and can send four ping requests to show latency and packet loss. When you enter a literal IP address and reverse DNS returns a host name, Sensor Readout also resolves that name and lists its related IPv4 and IPv6 addresses in a separate branch. For each resolved public address, it can show provider, organization, autonomous system, connection type, and approximate location inside that address's branch, using the same online lookup service as the Network category.
@@ -720,6 +742,19 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.0.0
+
+- Added: Remote Monitoring connects Sensor Readout computers through a password-protected server and presents live remote readings in the same accessible categories and tree used for local readings. Search, review, Details, copying, spoken hotkeys, and report export remain available while the title bar and spoken output clearly identify remote data.
+- Added: One Sensor Readout copy can host remote monitoring on Windows and configures the required private and domain firewall access automatically. A separate lightweight Linux server download supports an always-available host, and connection files make adding the same server to another computer straightforward. Saving a connection file lets you choose or type the local-network, private-network, VPN, DNS, public, or reverse-proxy address and port that other computers should use.
+- Privacy: Remote Monitoring encrypts shared readings before they leave each computer. The server cannot read sensor values, computer names, or the monitoring password.
+- Security: Only a publishing computer can remove its own encrypted server entry; another viewer cannot remove it with shared connection credentials. Delete provides the same guarded command from the computer list.
+- Improved: Windows and Linux relays retain an encrypted checkpoint but buffer frequent live changes in bounded memory, greatly reducing disk writes on Raspberry Pi microSD cards and other flash storage while preserving automatic restart recovery.
+- Added: Saved fan profiles can be made available remotely only when the monitored computer explicitly permits it. Remote users can select only profiles already saved on that computer.
+- Improved: Remote Monitoring remains responsive on lower-powered computers and preserves branches that the viewing user has expanded or collapsed while readings update.
+- Improved: The separate Linux server now has a guided installer that detects reachable LAN and VPN addresses, explains private-network and HTTPS choices, verifies the release, installs and health-checks the service, and creates an owner-only connection file. Its accessible HTML manual provides copy buttons for complete commands and clearly distinguishes real commands from placeholder syntax.
+- Added: Managed Linux servers can review or change their network, timeout, retention, access-token, and automatic-update settings through a guided setup. Verified server updates are enabled by default, use a dedicated server-only release channel, and automatically restore the previous version or settings if a health check fails. Windows and Linux update channels explicitly ignore one another.
+- Improved: Windows and Linux server updates now require an RSA-signed file manifest in addition to GitHub's SHA-256 download digest. Packages with missing, altered, or invalid signatures are refused before program files are replaced.
 
 ### 5.2.1
 

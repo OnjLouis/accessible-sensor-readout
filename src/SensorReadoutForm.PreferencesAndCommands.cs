@@ -406,7 +406,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool IsHiddenSearchRow(SensorRow row)
     {
-        if (reportViewMode || settings.HiddenReadingKeys == null || row == null)
+        if (IsExternalDataView || settings.HiddenReadingKeys == null || row == null)
         {
             return false;
         }
@@ -1178,7 +1178,7 @@ public sealed partial class SensorReadoutForm : Form
     private void RenameSelectedTreeNode()
     {
         var row = GetSelectedReadingRow();
-        if (!CanRenameReadingRow(row))
+        if (IsExternalDataView || !CanRenameReadingRow(row))
         {
             statusLabel.Text = L("status.Select a fan reading before renaming.", "Select a fan reading before renaming.");
             return;
@@ -1289,7 +1289,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool CanRenameSelectedTreeNode()
     {
-        return CanRenameReadingRow(GetSelectedReadingRow());
+        return !IsExternalDataView && CanRenameReadingRow(GetSelectedReadingRow());
     }
 
     private static bool CanRenameReadingRow(SensorRow row)
@@ -1305,7 +1305,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool CanAssignSelectedReadingToSpokenHotKey()
     {
-        if (reportViewMode)
+        if (IsExternalDataView)
         {
             return false;
         }
@@ -1317,7 +1317,7 @@ public sealed partial class SensorReadoutForm : Form
     private bool ShowSpokenHotKeyAssignmentDialog()
     {
         var row = GetSelectedReadingRow();
-        if (reportViewMode || !IsSelectableReadoutRow(row))
+        if (IsExternalDataView || !IsSelectableReadoutRow(row))
         {
             System.Media.SystemSounds.Beep.Play();
             statusLabel.Text = L("status.Select a reading that can be spoken by a hotkey.", "Select a reading that can be spoken by a hotkey.");

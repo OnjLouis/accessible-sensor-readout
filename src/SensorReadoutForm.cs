@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "5.2.1";
+    public const string AppVersion = "6.0.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -72,6 +72,7 @@ public sealed partial class SensorReadoutForm : Form
     private readonly ToolStripMenuItem trayStatusMenuItem;
     private readonly ToolStripMenuItem trendLoggingMenuItem;
     private readonly ToolStripMenuItem networkToolsMenuItem;
+    private readonly ToolStripMenuItem remoteComputersMenuItem;
     private readonly ToolStripMenuItem processWatchMenuItem;
     private readonly ToolStripMenuItem audioLatencyMenuItem;
     private readonly ToolStripMenuItem audioLatencyMonitorMenuItem;
@@ -104,6 +105,22 @@ public sealed partial class SensorReadoutForm : Form
     private Icon alarmTrayIcon;
     private readonly List<SensorRow> latestRows = new List<SensorRow>();
     private readonly Dictionary<string, SensorRow> latestRowsBySettingsKey = new Dictionary<string, SensorRow>(StringComparer.OrdinalIgnoreCase);
+    private readonly List<SensorRow> localRows = new List<SensorRow>();
+    private readonly Dictionary<string, RemotePublishState> remotePublishStates = new Dictionary<string, RemotePublishState>(StringComparer.OrdinalIgnoreCase);
+    private readonly object remotePublishStatesLock = new object();
+    private bool remotePublishInProgress;
+    private readonly HashSet<long> remotePollGenerations = new HashSet<long>();
+    private long remoteViewGeneration;
+    private bool remoteViewMode;
+    private RemoteConnectionSetting activeRemoteConnection;
+    private RemoteMachineSnapshot activeRemoteSnapshot;
+    private string activeRemoteMachineId = "";
+    private DateTime activeRemoteLastPollUtc = DateTime.MinValue;
+    private string activeRemoteViewerSessionId = "";
+    private DateTime activeRemotePresenceLastSentUtc = DateTime.MinValue;
+    private readonly Dictionary<string, RemoteViewerPresenceState> remoteViewerPresenceStates = new Dictionary<string, RemoteViewerPresenceState>(StringComparer.Ordinal);
+    private readonly Timer remotePollTimer;
+    private EmbeddedRemoteServer embeddedRemoteServer;
     private readonly object lhmLock = new object();
     private Computer lhmComputer;
     private string selectedFilterKey = "type|Performance";
@@ -177,6 +194,7 @@ public sealed partial class SensorReadoutForm : Form
     private DateTime cachedLhmRowsUtc = DateTime.MinValue;
     private Timer visibleRefreshTimer;
     private bool reportViewMode;
+    private bool IsExternalDataView { get { return reportViewMode || remoteViewMode; } }
     private string loadedReportPath = "";
     private string loadedReportTitle = "";
     private string loadedReportMachineName = "";
@@ -257,7 +275,7 @@ public sealed partial class SensorReadoutForm : Form
         menuStrip = new MenuStrip();
         var fileMenu = new ToolStripMenuItem("&File");
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Save report...", Keys.Control | Keys.S, delegate { SaveReport(); }));
-        fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Open report or update...", Keys.Control | Keys.O, delegate { OpenReport(); }));
+        fileMenu.DropDownItems.Add(CreateShortcutMenuItem(T("ui.&Open report, update, or connection...", "&Open report, update, or connection..."), Keys.Control | Keys.O, delegate { OpenReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Co&mpare reports...", Keys.Control | Keys.Shift | Keys.M, delegate { CompareReports(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("Save &anonymized report...", Keys.Control | Keys.Shift | Keys.A, delegate { SaveAnonymizedReport(); }));
         fileMenu.DropDownItems.Add(CreateShortcutMenuItem("&Export settings and profiles...", Keys.Control | Keys.E, delegate { ExportSettingsAndProfiles(); }));
@@ -396,6 +414,8 @@ public sealed partial class SensorReadoutForm : Form
         audioLatencyMonitorMenuItem.Available = false;
         audioLatencyMonitorMenuItem.Click += delegate { ShowAudioLatencyLiveMonitor(); };
         optionsMenu.DropDownItems.Add(audioLatencyMonitorMenuItem);
+        remoteComputersMenuItem = CreateShortcutMenuItem(T("ui.Remote &computers...", "Remote &computers..."), Keys.Control | Keys.Shift | Keys.R, delegate { ShowRemoteMonitoringDialog(); });
+        optionsMenu.DropDownItems.Add(remoteComputersMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem(T("ui.&Spoken feedback...", "Spoken and visual feed&back..."), "", delegate { ShowPreferences("Spoken feedback"); }));
@@ -723,6 +743,13 @@ public sealed partial class SensorReadoutForm : Form
             visibleRefreshPending = false;
             UpdateVisibleReadingUi();
         };
+        remotePollTimer = new Timer { Interval = 1000 };
+        remotePollTimer.Tick += delegate
+        {
+            PollActiveRemoteMachineIfDue();
+            ExpireRemoteViewerPresenceSessions();
+        };
+        remotePollTimer.Start();
 
         Shown += delegate
         {
@@ -731,6 +758,7 @@ public sealed partial class SensorReadoutForm : Form
             RefreshInstalledAppRegistration();
             CheckPrerequisitesOnFirstRun();
             LogMessage("Normal", "Sensor Readout " + AppVersion + " started. Log file: " + GetLogFilePath());
+            StartEmbeddedRemoteServerIfEnabled();
             RefreshSensors();
             timer.Start();
             languageTimer.Start();
@@ -834,7 +862,7 @@ public sealed partial class SensorReadoutForm : Form
             return true;
         }
 
-        if (modifiers == Keys.Control && keyCode == Keys.R && reportViewMode)
+        if (modifiers == Keys.Control && keyCode == Keys.R && IsExternalDataView)
         {
             ReturnToLiveReadings();
             return true;
@@ -897,6 +925,12 @@ public sealed partial class SensorReadoutForm : Form
         if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.T)
         {
             ShowNetworkToolsDialog();
+            return true;
+        }
+
+        if (modifiers == (Keys.Control | Keys.Shift) && keyCode == Keys.R)
+        {
+            ShowRemoteMonitoringDialog();
             return true;
         }
 
@@ -1097,6 +1131,7 @@ public sealed partial class SensorReadoutForm : Form
         return settings.TrendLoggingEnabled ||
             (settings.Alarms != null && settings.Alarms.Any(a => a != null && a.Enabled)) ||
             (settings.FanCurves != null && settings.FanCurves.Any(c => c != null && c.Enabled)) ||
+            IsRemotePublicationDue() ||
             HasConfiguredBackgroundHotKeyReadouts();
     }
 

@@ -42,6 +42,9 @@ public sealed partial class SensorReadoutForm : Form
             form.ConfigureSelfTestSettings();
             form.LogMessage("Debug", "Self-test started. Output folder: " + outputFolder);
             form.RunSelfTestStep(results, "Settings save and reload", delegate { form.SelfTestSettingsRoundTrip(); });
+            form.RunSelfTestStep(results, "Remote monitoring encryption and identity", delegate { form.SelfTestRemoteMonitoringCrypto(); });
+            form.RunSelfTestStep(results, "Remote monitoring server round-trip and privacy", delegate { form.SelfTestRemoteMonitoringServer(outputFolder); });
+            form.RunSelfTestStep(results, "Embedded remote server round-trip and privacy", delegate { form.SelfTestEmbeddedRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });
@@ -82,6 +85,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Report tools and reading history", delegate { form.SelfTestReportToolsAndHistory(outputFolder); });
             form.RunSelfTestStep(results, "Community stats payload privacy", delegate { form.SelfTestCommunityStatsPayloadPrivacy(); });
             form.RunSelfTestStep(results, "Diagnostics ZIP creation", delegate { form.SelfTestDiagnosticsZip(outputFolder); });
+            form.RunSelfTestStep(results, "Client update channel and replacement safety", delegate { form.SelfTestUpdateChannelSeparation(outputFolder); });
             form.RunSelfTestStep(results, "Language and manual files", delegate { form.SelfTestLanguageAndManualFiles(); });
             form.RunSelfTestStep(results, "Bundled plug-in manifest repair", delegate { form.SelfTestBundledPlugInManifestRepair(outputFolder); });
             form.LogMessage("Debug", "Self-test complete.");
@@ -142,6 +146,26 @@ public sealed partial class SensorReadoutForm : Form
         settings.VisualSpokenFeedbackEnabled = true;
         settings.VisualSpokenFeedbackPlacement = "TopLeft";
         settings.VisualSpokenFeedbackTimeoutSeconds = 9;
+        settings.RemoteMachineId = RemotePayloadCrypto.CreateRandomId();
+        settings.RemoteConnections = new List<RemoteConnectionSetting>
+        {
+            new RemoteConnectionSetting
+            {
+                Id = RemotePayloadCrypto.CreateRandomId(),
+                Name = "Self-test server",
+                ServerUrl = "http://127.0.0.1:48673/",
+                ProtectedAccessToken = RemotePayloadCrypto.ProtectSecret("self-test-token"),
+                ProtectedPassword = RemotePayloadCrypto.ProtectSecret("self-test-password"),
+                PublishThisComputer = true,
+                AllowRemoteFanProfiles = true,
+                Enabled = true,
+                PollIntervalSeconds = 7
+            }
+        };
+        settings.RemoteHostEnabled = true;
+        settings.RemoteHostPort = 49673;
+        settings.RemoteHostConnectionUrl = "http://192.0.2.44:49673/";
+        settings.ProtectedRemoteHostAccessToken = RemotePayloadCrypto.ProtectSecret("self-test-host-token");
         SaveSettings(settings);
         var reloaded = LoadSettings();
         Require(string.Equals(reloaded.ShowHideHotKey, "Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase), "Show/hide hotkey did not round-trip.");
@@ -154,8 +178,18 @@ public sealed partial class SensorReadoutForm : Form
         Require(reloaded.VisualSpokenFeedbackEnabled, "Visual spoken feedback setting did not round-trip.");
         Require(string.Equals(reloaded.VisualSpokenFeedbackPlacement, "TopLeft", StringComparison.Ordinal), "Visual spoken feedback placement did not round-trip.");
         Require(reloaded.VisualSpokenFeedbackTimeoutSeconds == 9, "Visual spoken feedback timeout did not round-trip.");
+        Require(!string.IsNullOrWhiteSpace(reloaded.RemoteMachineId), "Remote machine identity did not round-trip.");
+        Require(reloaded.RemoteConnections != null && reloaded.RemoteConnections.Count == 1 && reloaded.RemoteConnections[0].PollIntervalSeconds == 7, "Remote connection settings did not round-trip.");
+        Require(reloaded.RemoteConnections[0].AllowRemoteFanProfiles, "Remote fan profile permission did not round-trip.");
+        Require(string.Equals(RemotePayloadCrypto.UnprotectSecret(reloaded.RemoteConnections[0].ProtectedAccessToken), "self-test-token", StringComparison.Ordinal), "Protected remote server token did not round-trip.");
+        Require(reloaded.RemoteHostEnabled && reloaded.RemoteHostPort == 49673, "Embedded remote server settings did not round-trip.");
+        Require(string.Equals(reloaded.RemoteHostConnectionUrl, "http://192.0.2.44:49673/", StringComparison.Ordinal), "Embedded remote server connection address did not round-trip.");
+        Require(string.Equals(RemotePayloadCrypto.UnprotectSecret(reloaded.ProtectedRemoteHostAccessToken), "self-test-host-token", StringComparison.Ordinal), "Protected embedded server token did not round-trip.");
         var transferPackage = BuildSettingsTransferPackage(new HashSet<string>(new[] { TransferTray }, StringComparer.OrdinalIgnoreCase));
         Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.CommunityStatsClientId), "Settings transfer exported the local community stats client ID.");
+        Require(transferPackage.MachineSettings == null || string.IsNullOrWhiteSpace(transferPackage.MachineSettings.RemoteMachineId), "Settings transfer exported the remote machine identity.");
+        Require(transferPackage.MachineSettings == null || transferPackage.MachineSettings.RemoteConnections == null || transferPackage.MachineSettings.RemoteConnections.Count == 0, "Settings transfer exported remote connection credentials.");
+        Require(transferPackage.MachineSettings == null || (!transferPackage.MachineSettings.RemoteHostEnabled && string.IsNullOrWhiteSpace(transferPackage.MachineSettings.RemoteHostConnectionUrl) && string.IsNullOrWhiteSpace(transferPackage.MachineSettings.ProtectedRemoteHostAccessToken)), "Settings transfer exported embedded server credentials.");
     }
 
     private void SelfTestGlobalHotKeyValidation()
@@ -179,6 +213,10 @@ public sealed partial class SensorReadoutForm : Form
     private void SelfTestInstalledAppRegistration(string outputFolder)
     {
         var testKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sensor Readout SelfTest " + Guid.NewGuid().ToString("N");
+        var associationRoot = @"Software\SensorReadoutSelfTest\RemoteConnection " + Guid.NewGuid().ToString("N");
+        var extensionKeyPath = associationRoot + @"\.srconnection";
+        var testProgId = "SensorReadout.RemoteConnection.SelfTest";
+        var progIdKeyPath = associationRoot + @"\" + testProgId;
         var installFolder = Path.Combine(outputFolder, "InstalledAppRegistration");
         Directory.CreateDirectory(installFolder);
         var exePath = Path.Combine(installFolder, "Sensor Readout.exe");
@@ -201,10 +239,38 @@ public sealed partial class SensorReadoutForm : Form
                 Require(Convert.ToInt32(key.GetValue("NoRepair")) == 1, "NoRepair was not registered.");
                 Require(Convert.ToInt32(key.GetValue("EstimatedSize")) > 0, "EstimatedSize was not registered.");
             }
+
+            RegisterRemoteConnectionFileAssociation(exePath, extensionKeyPath, testProgId, progIdKeyPath, false);
+            using (var extensionKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(extensionKeyPath))
+            {
+                Require(extensionKey != null, ".srconnection registry key was not created.");
+                Require(string.Equals(Convert.ToString(extensionKey.GetValue("")), testProgId, StringComparison.Ordinal), ".srconnection ProgID was not registered.");
+                Require(string.Equals(Convert.ToString(extensionKey.GetValue("Content Type")), RemoteConnectionContentType, StringComparison.Ordinal), ".srconnection content type was not registered.");
+                using (var openWithKey = extensionKey.OpenSubKey("OpenWithProgids"))
+                {
+                    Require(openWithKey != null && openWithKey.GetValueNames().Any(name => string.Equals(name, testProgId, StringComparison.Ordinal)), ".srconnection OpenWithProgids entry was not registered.");
+                }
+            }
+            using (var progIdKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(progIdKeyPath))
+            {
+                Require(progIdKey != null, ".srconnection ProgID key was not created.");
+                using (var iconKey = progIdKey.OpenSubKey("DefaultIcon"))
+                {
+                    Require(iconKey != null && Convert.ToString(iconKey.GetValue("")).IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0, ".srconnection icon does not reference the installed executable.");
+                }
+                using (var commandKey = progIdKey.OpenSubKey(@"shell\open\command"))
+                {
+                    var command = commandKey == null ? "" : Convert.ToString(commandKey.GetValue("")) ?? "";
+                    Require(command.IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0, ".srconnection open command does not reference the installed executable.");
+                    Require(command.IndexOf("--import-remote-connection", StringComparison.OrdinalIgnoreCase) >= 0, ".srconnection open command does not use the remote import path.");
+                    Require(command.IndexOf("\"%1\"", StringComparison.Ordinal) >= 0, ".srconnection open command does not preserve a quoted file path.");
+                }
+            }
         }
         finally
         {
             UnregisterInstalledAppEntry(testKeyPath);
+            Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(associationRoot, false);
         }
     }
 
@@ -838,6 +904,13 @@ public sealed partial class SensorReadoutForm : Form
         var previousTrendLogging = settings.TrendLoggingEnabled;
         var previousAlarms = settings.Alarms;
         var previousFanCurves = settings.FanCurves;
+        var previousRemoteConnections = settings.RemoteConnections;
+        Dictionary<string, RemotePublishState> previousRemotePublishStates;
+        lock (remotePublishStatesLock)
+        {
+            previousRemotePublishStates = remotePublishStates.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
+            remotePublishStates.Clear();
+        }
         try
         {
             settings.SpeakTrayHotKey = "";
@@ -846,7 +919,38 @@ public sealed partial class SensorReadoutForm : Form
             settings.TrendLoggingEnabled = false;
             settings.Alarms = new List<AlarmSetting>();
             settings.FanCurves = new List<FanCurveSetting>();
+            settings.RemoteConnections = new List<RemoteConnectionSetting>();
             Require(!RequiresRealtimeBackgroundRefresh(), "Empty background configuration should not force realtime refresh.");
+
+            const string cadenceConnectionId = "selftestremotecadence000000000001";
+            settings.RemoteConnections = new List<RemoteConnectionSetting>
+            {
+                new RemoteConnectionSetting
+                {
+                    Id = cadenceConnectionId,
+                    Name = "Self-test remote",
+                    ServerUrl = "http://127.0.0.1:9137/",
+                    ProtectedAccessToken = "self-test-access-token",
+                    ProtectedPassword = "self-test-monitoring-password",
+                    Enabled = true,
+                    PublishThisComputer = true,
+                    PollIntervalSeconds = 5
+                }
+            };
+            Require(RequiresRealtimeBackgroundRefresh(), "An initial remote publication should request a hidden refresh.");
+            lock (remotePublishStatesLock)
+            {
+                var state = new RemotePublishState();
+                remotePublishStates[cadenceConnectionId] = state;
+                Require(RemoteMonitoringEngine.TryBeginPublish(settings.RemoteConnections[0], state, DateTime.UtcNow), "The remote cadence fixture could not begin its first publication.");
+            }
+            Require(!RequiresRealtimeBackgroundRefresh(), "Remote publishing forced fast hidden refresh before its own interval was due.");
+            lock (remotePublishStatesLock)
+            {
+                remotePublishStates[cadenceConnectionId].LastAttemptUtc = DateTime.UtcNow.AddSeconds(-6);
+            }
+            Require(RequiresRealtimeBackgroundRefresh(), "Remote publishing did not request fresh rows when its own interval became due.");
+            settings.RemoteConnections = new List<RemoteConnectionSetting>();
 
             settings.SpeakTrayHotKey = "Ctrl+Shift+F11";
             settings.TrayItemKeys = new List<string> { "self-test-reading" };
@@ -918,6 +1022,15 @@ public sealed partial class SensorReadoutForm : Form
             settings.TrendLoggingEnabled = previousTrendLogging;
             settings.Alarms = previousAlarms;
             settings.FanCurves = previousFanCurves;
+            settings.RemoteConnections = previousRemoteConnections;
+            lock (remotePublishStatesLock)
+            {
+                remotePublishStates.Clear();
+                foreach (var item in previousRemotePublishStates)
+                {
+                    remotePublishStates[item.Key] = item.Value;
+                }
+            }
         }
     }
 
@@ -1448,6 +1561,23 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
+        using (var remote = new RemoteMonitoringDialog(
+            new List<RemoteConnectionSetting>(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            delegate { return false; },
+            delegate { return ""; },
+            delegate { return ""; },
+            T))
+        {
+            remote.CreateControl();
+            RequireUniqueControlMnemonics("Remote monitoring dialog", remote.Controls);
+        }
+
         RequireUniqueMenuMnemonics("Main menu bar", menuStrip.Items);
         foreach (ToolStripItem item in menuStrip.Items)
         {
@@ -1572,6 +1702,16 @@ public sealed partial class SensorReadoutForm : Form
             DisplayValue = "Off"
         };
         Require(GetWindowsSettingsTargetForSelfTest(accessibilityRow) != null, "Accessibility row should open a related Windows setting.");
+
+        remoteViewMode = true;
+        try
+        {
+            Require(GetWindowsSettingsTargetForSelfTest(displayRow) == null, "A remote row must not open a Windows setting on the local computer.");
+        }
+        finally
+        {
+            remoteViewMode = false;
+        }
     }
 
     private void SelfTestPlugInPreferenceIdentity()
@@ -1625,9 +1765,9 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static object GetWindowsSettingsTargetForSelfTest(SensorRow row)
+    private object GetWindowsSettingsTargetForSelfTest(SensorRow row)
     {
-        var method = typeof(SensorReadoutForm).GetMethod("GetRelatedWindowsSettingsTarget", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(SensorReadoutForm).GetMethod("GetRelatedWindowsSettingsTarget", BindingFlags.Instance | BindingFlags.NonPublic);
         if (method == null)
         {
             throw new InvalidOperationException("GetRelatedWindowsSettingsTarget not found for self-test.");
@@ -1635,7 +1775,7 @@ public sealed partial class SensorReadoutForm : Form
 
         try
         {
-            return method.Invoke(null, new object[] { row });
+            return method.Invoke(this, new object[] { row });
         }
         catch (TargetInvocationException ex)
         {
@@ -2383,6 +2523,22 @@ public sealed partial class SensorReadoutForm : Form
                 Require(values.TryGetValue(key, out value) && TryGetMnemonicKey(value, out mnemonic), Path.GetFileName(languageFile) + " missing a Network Tools mnemonic for " + key + ".");
                 Require(networkToolMnemonics.Add(mnemonic), Path.GetFileName(languageFile) + " has a duplicate Network Tools mnemonic: Alt+" + char.ToUpperInvariant(mnemonic) + ".");
             }
+
+
+            var remoteMnemonics = new HashSet<char>();
+            foreach (var key in new[]
+            {
+                "ui.&Add server...", "ui.&Edit server...", "ui.&Import connection...", "ui.&Remove server",
+                "ui.&Host this computer", "ui.Save host &connection...",
+                "ui.Re&fresh computers", "ui.&View computer", "ui.Run fan &profile...",
+                "ui.E&nable this server", "ui.&Share this computer", "ui.A&llow remote saved fan profiles"
+            })
+            {
+                string value;
+                char mnemonic = '\0';
+                Require(values.TryGetValue(key, out value) && TryGetMnemonicKey(value, out mnemonic), Path.GetFileName(languageFile) + " missing a Remote Monitoring mnemonic for " + key + ".");
+                Require(remoteMnemonics.Add(mnemonic), Path.GetFileName(languageFile) + " has a duplicate Remote Monitoring mnemonic: Alt+" + char.ToUpperInvariant(mnemonic) + ".");
+            }
         }
 
         var frenchLanguagePath = Path.Combine(GetLanguagesFolderPath(), "Francais.txt");
@@ -2413,11 +2569,21 @@ public sealed partial class SensorReadoutForm : Form
             Require(html.IndexOf("<h3>" + AppVersion + "</h3>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing changelog entry for " + AppVersion + ".");
             Require(html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Categories and Readings section.");
             var categoriesHeading = html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase);
+            var remoteMonitoringHeading = html.IndexOf("<h2 id=\"remote-monitoring\"", StringComparison.OrdinalIgnoreCase);
             var networkToolsHeading = html.IndexOf("<h2 id=\"network-tools\"", StringComparison.OrdinalIgnoreCase);
             var audioLatencyHeading = html.IndexOf("<h2 id=\"audio-latency-diagnostic\"", StringComparison.OrdinalIgnoreCase);
             Require(networkToolsHeading >= 0, Path.GetFileName(manual) + " missing a top-level Network Tools section outside the changelog.");
+            Require(remoteMonitoringHeading >= 0, Path.GetFileName(manual) + " missing a top-level Remote Monitoring section outside the changelog.");
+            Require(html.IndexOf("href=\"#remote-monitoring\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Remote Monitoring from the table of contents.");
             Require(html.IndexOf("href=\"#network-tools\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Network Tools from the table of contents.");
-            Require(categoriesHeading < networkToolsHeading && networkToolsHeading < audioLatencyHeading, Path.GetFileName(manual) + " has Network Tools nested in or misplaced around Categories and Audio Latency.");
+            Require(categoriesHeading < remoteMonitoringHeading && remoteMonitoringHeading < networkToolsHeading && networkToolsHeading < audioLatencyHeading, Path.GetFileName(manual) + " has Remote Monitoring or Network Tools nested in or misplaced around Categories and Audio Latency.");
+            Require(html.IndexOf(".srconnection", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " does not explain remote server connection files.");
+            Require(html.IndexOf("SensorReadout-Server-", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " does not document the separate Linux relay download.");
+            Require(html.IndexOf("sudo python3 sensor_readout_server_control.py install", StringComparison.Ordinal) >= 0, Path.GetFileName(manual) + " does not document the guided Linux relay installer.");
+            Require(html.IndexOf("sensor-readout-server-control setup", StringComparison.Ordinal) >= 0, Path.GetFileName(manual) + " does not document post-install Linux relay setup.");
+            Require(html.IndexOf("server-vX.Y.Z", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " does not document the dedicated Linux relay update channel.");
+            Require(html.IndexOf("VPN", StringComparison.OrdinalIgnoreCase) >= 0 && html.IndexOf("HTTPS", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " does not explain safe remote relay network exposure.");
+            Require(html.IndexOf("Tailscale", StringComparison.OrdinalIgnoreCase) < 0, Path.GetFileName(manual) + " favors one VPN product instead of using generic private-network guidance.");
             var networkToolShortcutCount = Regex.Matches(html,
                 @"(?i)(Ctrl\+Shift\+T|Strg\+Umschalt\+T|Ctrl\+Maj\+T|Ctrl\+Mayús\+T|Ctrl\+Maiusc\+T)").Count;
             Require(networkToolShortcutCount >= 3, Path.GetFileName(manual) + " does not document the Network Tools shortcut in its changelog, shortcut table, and normal guidance.");
@@ -2425,6 +2591,63 @@ public sealed partial class SensorReadoutForm : Form
             Require(html.IndexOf("<code>Enter</code> / <code>Alt+Enter</code>", StringComparison.OrdinalIgnoreCase) < 0, Path.GetFileName(manual) + " still describes Alt+Enter as a Details shortcut.");
             Require(!Regex.IsMatch(html, @"(?i)(Enter\s+or\s+Alt\+Enter|Enter\s+oder\s+Alt\+Enter|Enter\s+ou\s+Alt\+Enter|Enter\s+o\s+Alt\+Enter)"), Path.GetFileName(manual) + " contains stale Enter/Alt+Enter Details wording.");
         }
+    }
+
+    private void SelfTestUpdateChannelSeparation(string outputFolder)
+    {
+        var serverRelease = new GitHubReleaseInfo
+        {
+            TagName = "server-v99.0.0",
+            Assets = new List<GitHubReleaseAsset>
+            {
+                new GitHubReleaseAsset { Name = "SensorReadout-Server-99.0.0.zip", BrowserDownloadUrl = "https://example.invalid/server.zip", Digest = "sha256:" + new string('a', 64) }
+            }
+        };
+        var draftClient = new GitHubReleaseInfo
+        {
+            TagName = "v98.0.0",
+            Draft = true,
+            Assets = new List<GitHubReleaseAsset>
+            {
+                new GitHubReleaseAsset { Name = "SensorReadout-98.0.0.zip", BrowserDownloadUrl = "https://example.invalid/draft.zip", Digest = "sha256:" + new string('b', 64) }
+            }
+        };
+        var clientRelease = new GitHubReleaseInfo
+        {
+            TagName = "v6.0.1",
+            Assets = new List<GitHubReleaseAsset>
+            {
+                new GitHubReleaseAsset { Name = "SensorReadout-Server-6.0.1.zip", BrowserDownloadUrl = "https://example.invalid/wrong.zip", Digest = "sha256:" + new string('c', 64) },
+                new GitHubReleaseAsset { Name = "SensorReadout-6.0.1.zip", BrowserDownloadUrl = "https://example.invalid/client.zip", Digest = "sha256:" + new string('d', 64) }
+            }
+        };
+        var selected = LatestVersionedRelease(new[] { serverRelease, draftClient, clientRelease });
+        Require(object.ReferenceEquals(clientRelease, selected), "The Windows updater did not ignore server and draft release channels.");
+        Require(ReleaseVersion(serverRelease) == null, "The Windows updater accepted a server release tag.");
+        var asset = FindPortableZipAsset(clientRelease);
+        Require(asset != null && asset.Name == "SensorReadout-6.0.1.zip", "The Windows updater did not require the exact client archive name.");
+        clientRelease.Assets.Add(new GitHubReleaseAsset { Name = "sensorreadout-6.0.1.ZIP", BrowserDownloadUrl = "https://example.invalid/duplicate.zip", Digest = "sha256:" + new string('e', 64) });
+        Require(FindPortableZipAsset(clientRelease) == null, "The Windows updater accepted duplicate matching client archives.");
+        clientRelease.Assets.RemoveAt(clientRelease.Assets.Count - 1);
+        clientRelease.Assets[1].Digest = "";
+        Require(FindPortableZipAsset(clientRelease) == null, "The Windows updater accepted a client archive without a valid GitHub SHA-256 digest.");
+
+        Require(!Program.WaitForProcessExit(Process.GetCurrentProcess().Id, 1), "The Windows updater treated a still-running process as exited.");
+
+        var deleteRoot = Path.Combine(outputFolder, "updater-required-delete-self-test");
+        Directory.CreateDirectory(deleteRoot);
+        var lockedFile = Path.Combine(deleteRoot, "obsolete-shipped.dll");
+        File.WriteAllText(lockedFile, "self-test");
+        var rejectedLockedRemoval = false;
+        using (var lockedStream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            try { Program.DeleteDirectoryRequired(deleteRoot); }
+            catch (IOException) { rejectedLockedRemoval = true; }
+            catch (UnauthorizedAccessException) { rejectedLockedRemoval = true; }
+        }
+        Require(rejectedLockedRemoval && Directory.Exists(deleteRoot), "The Windows updater ignored a failed shipped-folder removal.");
+        Program.DeleteDirectoryRequired(deleteRoot);
+        Require(!Directory.Exists(deleteRoot), "The Windows updater did not remove an unlocked shipped folder completely.");
     }
 
     private void SelfTestBundledPlugInManifestRepair(string outputFolder)

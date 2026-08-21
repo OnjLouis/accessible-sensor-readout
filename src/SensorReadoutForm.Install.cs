@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -58,6 +59,7 @@ public sealed partial class SensorReadoutForm : Form
             CopyDirectoryContents(sourceFolder, installFolder);
 
             RegisterInstalledAppEntry(targetExe, installFolder);
+            RegisterRemoteConnectionFileAssociation(targetExe);
             SetDesktopShortcut(options.CreateDesktopShortcut, targetExe, installFolder);
             SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray, targetExe, installFolder);
 
@@ -108,7 +110,13 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
             SetRunAtStartup(false, false);
             SetDesktopShortcut(false);
+            UnregisterRemoteConnectionFileAssociation();
             UnregisterInstalledAppEntry();
+            string firewallError;
+            if (!RemoteFirewallManager.TryRemoveInboundRule(out firewallError))
+            {
+                LogMessage("Normal", "Windows Firewall access for remote monitoring could not be removed during uninstall: " + firewallError);
+            }
             StartUninstallScript(installFolder, Process.GetCurrentProcess().Id, options.DeleteUserData);
             Application.Exit();
         }
@@ -295,6 +303,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         RegisterInstalledAppEntry(Application.ExecutablePath, AppDomain.CurrentDomain.BaseDirectory);
+        RegisterRemoteConnectionFileAssociation(Application.ExecutablePath);
     }
 
     public static void RunUninstallFromCommandLine()
@@ -306,6 +315,142 @@ public sealed partial class SensorReadoutForm : Form
     }
 
     private const string UninstallRegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sensor Readout";
+    private const string RemoteConnectionExtensionKeyPath = @"Software\Classes\.srconnection";
+    private const string RemoteConnectionProgId = "SensorReadout.RemoteConnection";
+    private const string RemoteConnectionProgIdKeyPath = @"Software\Classes\SensorReadout.RemoteConnection";
+    private const string RemoteConnectionContentType = "application/vnd.sensor-readout.remote-connection+json";
+    private const uint ShellAssociationChanged = 0x08000000;
+    private const uint ShellNotifyIdList = 0x0000;
+
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
+
+    private static void RegisterRemoteConnectionFileAssociation(string targetExe)
+    {
+        RegisterRemoteConnectionFileAssociation(
+            targetExe,
+            RemoteConnectionExtensionKeyPath,
+            RemoteConnectionProgId,
+            RemoteConnectionProgIdKeyPath,
+            true);
+    }
+
+    private static void RegisterRemoteConnectionFileAssociation(
+        string targetExe,
+        string extensionKeyPath,
+        string progId,
+        string progIdKeyPath,
+        bool notifyShell)
+    {
+        if (string.IsNullOrWhiteSpace(targetExe))
+        {
+            return;
+        }
+        try
+        {
+            using (var extensionKey = Registry.CurrentUser.CreateSubKey(extensionKeyPath))
+            {
+                if (extensionKey != null)
+                {
+                    extensionKey.SetValue("", progId, RegistryValueKind.String);
+                    extensionKey.SetValue("Content Type", RemoteConnectionContentType, RegistryValueKind.String);
+                    using (var openWithKey = extensionKey.CreateSubKey("OpenWithProgids"))
+                    {
+                        if (openWithKey != null)
+                        {
+                            openWithKey.SetValue(progId, new byte[0], RegistryValueKind.None);
+                        }
+                    }
+                }
+            }
+            using (var progIdKey = Registry.CurrentUser.CreateSubKey(progIdKeyPath))
+            {
+                if (progIdKey != null)
+                {
+                    progIdKey.SetValue("", "Sensor Readout remote connection", RegistryValueKind.String);
+                    using (var iconKey = progIdKey.CreateSubKey("DefaultIcon"))
+                    {
+                        if (iconKey != null)
+                        {
+                            iconKey.SetValue("", QuoteArgument(targetExe) + ",0", RegistryValueKind.String);
+                        }
+                    }
+                    using (var commandKey = progIdKey.CreateSubKey(@"shell\open\command"))
+                    {
+                        if (commandKey != null)
+                        {
+                            commandKey.SetValue("", QuoteArgument(targetExe) + " --import-remote-connection \"%1\"", RegistryValueKind.String);
+                        }
+                    }
+                }
+            }
+            if (notifyShell)
+            {
+                NotifyShellAssociationChanged();
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void UnregisterRemoteConnectionFileAssociation()
+    {
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(RemoteConnectionProgIdKeyPath, false);
+            using (var extensionKey = Registry.CurrentUser.OpenSubKey(RemoteConnectionExtensionKeyPath, true))
+            {
+                if (extensionKey != null)
+                {
+                    if (string.Equals(Convert.ToString(extensionKey.GetValue("", "")), RemoteConnectionProgId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        extensionKey.DeleteValue("", false);
+                    }
+                    if (string.Equals(Convert.ToString(extensionKey.GetValue("Content Type", "")), RemoteConnectionContentType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        extensionKey.DeleteValue("Content Type", false);
+                    }
+                    using (var openWithKey = extensionKey.OpenSubKey("OpenWithProgids", true))
+                    {
+                        if (openWithKey != null)
+                        {
+                            openWithKey.DeleteValue(RemoteConnectionProgId, false);
+                        }
+                    }
+                }
+            }
+            RemoveEmptyRegistryKey(RemoteConnectionExtensionKeyPath + @"\OpenWithProgids");
+            RemoveEmptyRegistryKey(RemoteConnectionExtensionKeyPath);
+            NotifyShellAssociationChanged();
+        }
+        catch
+        {
+        }
+    }
+
+    private static void RemoveEmptyRegistryKey(string keyPath)
+    {
+        using (var key = Registry.CurrentUser.OpenSubKey(keyPath, false))
+        {
+            if (key == null || key.ValueCount != 0 || key.SubKeyCount != 0)
+            {
+                return;
+            }
+        }
+        Registry.CurrentUser.DeleteSubKey(keyPath, false);
+    }
+
+    private static void NotifyShellAssociationChanged()
+    {
+        try
+        {
+            SHChangeNotify(ShellAssociationChanged, ShellNotifyIdList, IntPtr.Zero, IntPtr.Zero);
+        }
+        catch
+        {
+        }
+    }
 
     private static void RegisterInstalledAppEntry(string targetExe, string installFolder)
     {
@@ -450,6 +595,7 @@ public sealed partial class SensorReadoutForm : Form
             "$preserve = @('Config','Logs','Reports')\r\n" +
             "while (Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 300 }\r\n" +
             "Remove-Item -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Sensor Readout' -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
+            "Remove-Item -LiteralPath 'HKCU:\\Software\\Classes\\SensorReadout.RemoteConnection' -Recurse -Force -ErrorAction SilentlyContinue\r\n" +
             "if (Test-Path -LiteralPath $target) {\r\n" +
             "  if ($deleteUserData) {\r\n" +
             "    Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction SilentlyContinue\r\n" +

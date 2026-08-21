@@ -102,11 +102,17 @@ public sealed partial class SensorReadoutForm : Form
 
     private bool CanWatchSelectedProcessFromTree()
     {
-        return IsTaskProcessInventoryRow(GetSelectedReadingRow());
+        return !IsExternalDataView && IsTaskProcessInventoryRow(GetSelectedReadingRow());
     }
 
     private bool WatchSelectedProcessFromTree()
     {
+        if (IsExternalDataView)
+        {
+            statusLabel.Text = T("status.Process watch unavailable for external data.", "Process watch is unavailable while viewing a report or another computer.");
+            System.Media.SystemSounds.Beep.Play();
+            return false;
+        }
         if (IsProcessWatchActive())
         {
             statusLabel.Text = T("status.Process watch already active.", "A process watch is already active. Stop it before starting another.");

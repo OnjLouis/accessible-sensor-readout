@@ -9,6 +9,11 @@ public sealed partial class SensorReadoutForm : Form
 {
     private void ShowFanCurvesDialog()
     {
+        if (IsExternalDataView)
+        {
+            MessageBox.Show(this, T("message.fanControlsUnavailableExternal", "Fan controls and curves are unavailable while viewing another computer or a static report. Return to this computer first."), T("ui.Fan Curves", "Fan Curves"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         using (var dialog = new Form())
         {
             dialog.Text = T("ui.Fan Curves", "Fan Curves");
@@ -244,10 +249,10 @@ public sealed partial class SensorReadoutForm : Form
             editor.Controls.Add(showStoppedCheckBox, 1, 2);
             AddLabeledControl(editor, 3, T("ui.Temperature:", "Temperature:"), tempBox);
             editor.Controls.Add(enabledCheckBox, 1, 4);
-            AddLabeledControl(editor, 5, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), lowPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 6, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), highPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 7, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(T("ui.Celsius unit label", " Celsius, fan ")), emergencyPercentBox, LabelText(T("ui.Percent unit label", " percent"))));
-            AddLabeledControl(editor, 8, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText(T("ui.Percent unit label", " percent"))));
+            AddLabeledControl(editor, 5, T("ui.Low point:", "Low point:"), PairControls(lowTempBox, LabelText(T("ui.Celsius unit label", "Celsius, fan")), lowPercentBox, LabelText(T("ui.Percent unit label", "percent"))));
+            AddLabeledControl(editor, 6, T("ui.High point:", "High point:"), PairControls(highTempBox, LabelText(T("ui.Celsius unit label", "Celsius, fan")), highPercentBox, LabelText(T("ui.Percent unit label", "percent"))));
+            AddLabeledControl(editor, 7, T("ui.Emergency:", "Emergency:"), PairControls(emergencyTempBox, LabelText(T("ui.Celsius unit label", "Celsius, fan")), emergencyPercentBox, LabelText(T("ui.Percent unit label", "percent"))));
+            AddLabeledControl(editor, 8, T("ui.Minimum change:", "Minimum change:"), PairControls(minChangeBox, LabelText(T("ui.Percent unit label", "percent"))));
             editor.Controls.Add(status, 1, 9);
             outer.Controls.Add(editor, 1, 0);
 

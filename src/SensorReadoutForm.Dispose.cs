@@ -70,6 +70,11 @@ public sealed partial class SensorReadoutForm : Form
             visibleRefreshTimer.Dispose();
         }
 
+        if (disposing && remotePollTimer != null)
+        {
+            remotePollTimer.Dispose();
+        }
+
         if (disposing && visualSpokenFeedbackTimer != null)
         {
             visualSpokenFeedbackTimer.Dispose();
@@ -92,6 +97,8 @@ public sealed partial class SensorReadoutForm : Form
 
         if (disposing)
         {
+            EndActiveRemoteViewerPresence();
+            StopEmbeddedRemoteServer();
             DisposePlugInManager();
             ConfigureWmiTelemetry(false, null);
             ScreenReaderOutput.Shutdown();

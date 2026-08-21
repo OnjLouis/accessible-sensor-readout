@@ -1,0 +1,35 @@
+[Unit]
+Description=Sensor Readout encrypted remote monitoring relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sensor-readout
+Group=sensor-readout
+WorkingDirectory=/opt/sensor-readout-server/current
+ExecStart=/usr/bin/python3 -B /opt/sensor-readout-server/current/sensor_readout_server.py --config /etc/sensor-readout-server/settings.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/sensor-readout-server /var/log/sensor-readout-server
+MemoryMax=256M
+TasksMax=64
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target

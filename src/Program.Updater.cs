@@ -11,6 +11,10 @@ using System.Windows.Forms;
 
 public static partial class Program
 {
+    private const long MaximumUpdateDownloadBytes = 512L * 1024L * 1024L;
+    private const long MaximumUpdateExtractedBytes = 2L * 1024L * 1024L * 1024L;
+    private const int MaximumUpdateArchiveEntries = 20000;
+
     private static void ApplyUpdateFromCommandLine(string[] args)
     {
         try
@@ -21,12 +25,14 @@ public static partial class Program
             string exePath;
             string tempBase;
             string pidText;
+            string expectedSha256;
             TryGetOptionValue(args, "--update-url", out zipUrl);
             TryGetOptionValue(args, "--update-zip", out zipPath);
             TryGetOptionValue(args, "--update-target", out targetDir);
             TryGetOptionValue(args, "--update-exe", out exePath);
             TryGetOptionValue(args, "--update-temp", out tempBase);
             TryGetOptionValue(args, "--update-wait-pid", out pidText);
+            TryGetOptionValue(args, "--update-sha256", out expectedSha256);
 
             if ((string.IsNullOrWhiteSpace(zipUrl) && string.IsNullOrWhiteSpace(zipPath)) ||
                 (!string.IsNullOrWhiteSpace(zipUrl) && !string.IsNullOrWhiteSpace(zipPath)) ||
@@ -41,34 +47,49 @@ public static partial class Program
                 throw new FileNotFoundException("The local update ZIP could not be found.", zipPath);
             }
 
+            if (!string.IsNullOrWhiteSpace(zipUrl) && NormalizeExpectedSha256(expectedSha256) == null)
+            {
+                throw new InvalidOperationException("The online update did not include a valid SHA-256 digest.");
+            }
+
             WriteUpdateHistory(targetDir, "Update command received. Source=" + (string.IsNullOrWhiteSpace(zipPath) ? "online" : "local ZIP") + "; noRestart=" + HasArg(args, "--update-no-restart") + ".");
             int processId;
             if (int.TryParse(pidText, out processId) && processId > 0)
             {
                 WriteUpdateHistory(targetDir, "Waiting for Sensor Readout process " + processId + " to exit.");
-                WaitForProcessExit(processId);
+                if (!WaitForProcessExit(processId, 30000))
+                {
+                    throw new InvalidOperationException("Sensor Readout did not close within 30 seconds. The update was not started.");
+                }
             }
 
-            ApplyUpdate(zipUrl, zipPath, targetDir, exePath, string.IsNullOrWhiteSpace(tempBase) ? Path.GetTempPath() : tempBase, HasArg(args, "--update-no-restart"));
+            ApplyUpdate(zipUrl, zipPath, expectedSha256, targetDir, exePath, string.IsNullOrWhiteSpace(tempBase) ? Path.GetTempPath() : tempBase, HasArg(args, "--update-no-restart"));
+            Environment.ExitCode = 0;
         }
         catch (Exception ex)
         {
+            Environment.ExitCode = 1;
             WriteUpdateHistory(args, "ERROR: " + ex.Message);
             WriteUpdaterLog(args, ex);
-            MessageBox.Show(
-                "Sensor Readout update failed:" + Environment.NewLine + Environment.NewLine + ex.Message,
-                "Sensor Readout updater",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            if (!HasArg(args, "--update-no-ui"))
+            {
+                MessageBox.Show(
+                    "Sensor Readout update failed:" + Environment.NewLine + Environment.NewLine + ex.Message,
+                    "Sensor Readout updater",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
     }
 
-    private static void ApplyUpdate(string zipUrl, string zipPath, string targetDir, string exePath, string tempBase, bool noRestart)
+    private static void ApplyUpdate(string zipUrl, string zipPath, string expectedSha256, string targetDir, string exePath, string tempBase, bool noRestart)
     {
         Directory.CreateDirectory(tempBase);
         var root = Path.Combine(tempBase, "SensorReadoutUpdate_" + Guid.NewGuid().ToString("N"));
         var zip = Path.Combine(root, "update.zip");
         var stage = Path.Combine(root, "stage");
+        var rollback = Path.Combine(root, "rollback");
+        var rollbackReady = false;
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(stage);
 
@@ -85,8 +106,10 @@ public static partial class Program
                 DownloadUpdateZip(zipUrl, zip);
             }
 
+            VerifyUpdateSha256(zip, expectedSha256, !string.IsNullOrWhiteSpace(zipUrl));
+
             WriteUpdateHistory(targetDir, "Extracting update ZIP.");
-            ZipFile.ExtractToDirectory(zip, stage);
+            SafeExtractUpdateArchive(zip, stage);
 
             var source = FindUpdateSourceFolder(stage);
             if (string.IsNullOrWhiteSpace(source))
@@ -94,8 +117,13 @@ public static partial class Program
                 throw new InvalidOperationException("The update ZIP does not contain Sensor Readout.exe.");
             }
 
+            WriteUpdateHistory(targetDir, "Verifying Sensor Readout update signature and packaged files.");
+            UpdatePackageSignature.VerifyAndRemove(source);
+
             WriteUpdateHistory(targetDir, "Update source located. Applying files.");
             Directory.CreateDirectory(targetDir);
+            CreateUpdateRollback(targetDir, rollback);
+            rollbackReady = true;
             var backupRoot = Path.Combine(Path.Combine(targetDir, "Backups\\Updates"), DateTime.Now.ToString("yyyyMMdd-HHmmss"));
             var legacyBackups = Path.Combine(targetDir, "Config\\Update Backups");
             if (Directory.Exists(legacyBackups))
@@ -141,7 +169,7 @@ public static partial class Program
                 {
                     if (Directory.Exists(destination))
                     {
-                        TryDeleteDirectory(destination);
+                        DeleteDirectoryRequired(destination);
                     }
 
                     CopyDirectory(path, destination);
@@ -158,10 +186,31 @@ public static partial class Program
             CleanupObsoleteBundledPlugInBackups(targetDir);
             CleanupObsoleteShippedFolderBackups(targetDir);
             CleanupEmptyBackupFolders(targetDir);
-            TryDeleteFile(Path.Combine(targetDir, "README.md"));
+            DeleteFileRequired(Path.Combine(targetDir, "README.md"));
             DeleteObsoleteRootFiles(targetDir);
             DeleteMarkdownFiles(Path.Combine(targetDir, "Docs"));
             DeleteMarkdownFiles(Path.Combine(targetDir, "docs"));
+        }
+        catch (Exception updateError)
+        {
+            if (rollbackReady)
+            {
+                try
+                {
+                    WriteUpdateHistory(targetDir, "Update failed during replacement. Restoring the previous program files.");
+                    RestoreUpdateRollback(targetDir, rollback);
+                    WriteUpdateHistory(targetDir, "Previous program files restored successfully.");
+                }
+                catch (Exception rollbackError)
+                {
+                    throw new AggregateException(
+                        "The update failed and Sensor Readout could not completely restore the previous program files.",
+                        updateError,
+                        rollbackError);
+                }
+            }
+
+            throw;
         }
         finally
         {
@@ -223,10 +272,11 @@ public static partial class Program
             "System.Numerics.Vectors.dll",
             "System.Runtime.CompilerServices.Unsafe.dll",
             "Tolk.dll",
-            "Tolk.NVDA-LICENSE.txt"
+            "Tolk.NVDA-LICENSE.txt",
+            UpdatePackageSignature.ManifestFileName
         })
         {
-            TryDeleteFile(Path.Combine(targetDir, fileName));
+            DeleteFileRequired(Path.Combine(targetDir, fileName));
         }
     }
 
@@ -278,36 +328,174 @@ public static partial class Program
         {
         }
 
-        using (var client = new WebClient())
+        Uri updateUri;
+        if (!Uri.TryCreate(zipUrl, UriKind.Absolute, out updateUri) || !IsAllowedUpdateDownloadUri(updateUri))
         {
-            client.Headers[HttpRequestHeader.UserAgent] = "Sensor Readout updater";
-            client.DownloadFile(zipUrl, destination);
+            throw new InvalidOperationException("The update download address is not a permitted HTTPS or local test address.");
+        }
+
+        var request = (HttpWebRequest)WebRequest.Create(updateUri);
+        request.Method = "GET";
+        request.UserAgent = "Sensor Readout updater";
+        request.Accept = "application/octet-stream";
+        request.AllowAutoRedirect = true;
+        request.MaximumAutomaticRedirections = 5;
+        request.Timeout = 90000;
+        request.ReadWriteTimeout = 90000;
+        using (var response = (HttpWebResponse)request.GetResponse())
+        {
+            if (response.ResponseUri == null || !IsAllowedUpdateDownloadUri(response.ResponseUri))
+            {
+                throw new InvalidOperationException("The update download redirected to an untrusted address.");
+            }
+            if (response.ContentLength > MaximumUpdateDownloadBytes)
+            {
+                throw new InvalidOperationException("The update package was unexpectedly large.");
+            }
+
+            using (var input = response.GetResponseStream())
+            using (var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                var buffer = new byte[64 * 1024];
+                long total = 0;
+                int read;
+                while (input != null && (read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    total += read;
+                    if (total > MaximumUpdateDownloadBytes)
+                    {
+                        throw new InvalidOperationException("The update package was unexpectedly large.");
+                    }
+                    output.Write(buffer, 0, read);
+                }
+            }
+        }
+    }
+
+    private static bool IsAllowedUpdateDownloadUri(Uri uri)
+    {
+        return uri != null &&
+            (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+             (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) && uri.IsLoopback));
+    }
+
+    private static string NormalizeExpectedSha256(string value)
+    {
+        var normalized = (value ?? "").Trim();
+        if (normalized.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized.Substring("sha256:".Length);
+        }
+        return Regex.IsMatch(normalized, "\\A[0-9A-Fa-f]{64}\\z") ? normalized.ToUpperInvariant() : null;
+    }
+
+    private static void VerifyUpdateSha256(string zipPath, string expectedSha256, bool required)
+    {
+        var expected = NormalizeExpectedSha256(expectedSha256);
+        if (expected == null)
+        {
+            if (required)
+            {
+                throw new InvalidOperationException("The online update did not include a valid SHA-256 digest.");
+            }
+            return;
+        }
+
+        var actual = GetFileSha256(zipPath);
+        if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The downloaded update failed its SHA-256 verification.");
+        }
+    }
+
+    private static void SafeExtractUpdateArchive(string zipPath, string destination)
+    {
+        var destinationRoot = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var destinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var archive = ZipFile.OpenRead(zipPath))
+        {
+            if (archive.Entries.Count > MaximumUpdateArchiveEntries)
+            {
+                throw new InvalidOperationException("The update archive contains too many entries.");
+            }
+
+            long extractedBytes = 0;
+            foreach (var entry in archive.Entries)
+            {
+                extractedBytes += entry.Length;
+                if (entry.Length > MaximumUpdateDownloadBytes || extractedBytes > MaximumUpdateExtractedBytes)
+                {
+                    throw new InvalidOperationException("The extracted update would be unexpectedly large.");
+                }
+
+                var name = (entry.FullName ?? "").Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+                if (string.IsNullOrWhiteSpace(name) || Path.IsPathRooted(name) || Regex.IsMatch(name, "\\A[A-Za-z]:"))
+                {
+                    throw new InvalidOperationException("The update archive contains an unsafe path.");
+                }
+                var parts = name.Split(new[] { Path.DirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Any(part => part == ".." || part == "."))
+                {
+                    throw new InvalidOperationException("The update archive contains an unsafe path.");
+                }
+                var unixType = (entry.ExternalAttributes >> 16) & 0xF000;
+                if (unixType == 0xA000)
+                {
+                    throw new InvalidOperationException("The update archive contains a symbolic link.");
+                }
+
+                var outputPath = Path.GetFullPath(Path.Combine(destinationRoot, name));
+                if (!outputPath.StartsWith(destinationRoot, StringComparison.OrdinalIgnoreCase) || !destinations.Add(outputPath))
+                {
+                    throw new InvalidOperationException("The update archive contains an unsafe or duplicated path.");
+                }
+                var directoryEntry = entry.FullName.EndsWith("/", StringComparison.Ordinal) || entry.FullName.EndsWith("\\", StringComparison.Ordinal);
+                if (directoryEntry)
+                {
+                    Directory.CreateDirectory(outputPath);
+                    continue;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+                using (var input = entry.Open())
+                using (var output = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    input.CopyTo(output);
+                }
+            }
         }
     }
 
     private static string FindUpdateSourceFolder(string stage)
     {
-        var direct = Path.Combine(stage, "Sensor Readout.exe");
-        if (File.Exists(direct))
+        var candidates = Directory.GetFiles(stage, "*", SearchOption.AllDirectories)
+            .Where(path => string.Equals(Path.GetFileName(path), "Sensor Readout.exe", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (candidates.Length != 1)
         {
-            return stage;
+            return "";
         }
 
-        var candidates = Directory.GetFiles(stage, "Sensor Readout.exe", SearchOption.AllDirectories);
-        return candidates.Length == 0 ? "" : Path.GetDirectoryName(candidates[0]);
+        var source = Path.GetDirectoryName(candidates[0]);
+        return Directory.Exists(Path.Combine(source, "Resources")) &&
+            Directory.Exists(Path.Combine(source, "Data")) &&
+            Directory.Exists(Path.Combine(source, "Langs"))
+            ? source
+            : "";
     }
 
-    private static void WaitForProcessExit(int processId)
+    internal static bool WaitForProcessExit(int processId, int timeoutMilliseconds)
     {
         try
         {
             using (var process = Process.GetProcessById(processId))
             {
-                process.WaitForExit(30000);
+                return process.WaitForExit(Math.Max(0, timeoutMilliseconds));
             }
         }
-        catch
+        catch (ArgumentException)
         {
+            return true;
         }
     }
 
@@ -327,7 +515,7 @@ public static partial class Program
                 BackupCustomLanguages(existing, incoming, sourceRoot, backupRoot, previousLanguageHashes);
             }
 
-            TryDeleteDirectory(existing);
+            DeleteDirectoryRequired(existing);
         }
 
         CopyDirectory(incoming, existing);
@@ -390,11 +578,11 @@ public static partial class Program
             var oldPath = Path.Combine(existing, name);
             if (Directory.Exists(oldPath))
             {
-                TryDeleteDirectory(oldPath);
+                DeleteDirectoryRequired(oldPath);
             }
             else
             {
-                TryDeleteFile(oldPath);
+                DeleteFileRequired(oldPath);
             }
         }
 
@@ -840,7 +1028,7 @@ public static partial class Program
             var nested = Path.Combine(folder, Path.GetFileName(folder));
             if (Directory.Exists(nested))
             {
-                TryDeleteDirectory(nested);
+                DeleteDirectoryRequired(nested);
             }
         }
     }
@@ -858,6 +1046,86 @@ public static partial class Program
             var target = Path.Combine(destination, RelativePath(source, file));
             Directory.CreateDirectory(Path.GetDirectoryName(target));
             File.Copy(file, target, true);
+        }
+    }
+
+    private static bool PreserveDuringProgramRollback(string name)
+    {
+        return string.Equals(name, "Config", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "Logs", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "Reports", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, "Backups", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CreateUpdateRollback(string targetRoot, string rollbackRoot)
+    {
+        Directory.CreateDirectory(rollbackRoot);
+        foreach (var path in Directory.GetFileSystemEntries(targetRoot))
+        {
+            var name = Path.GetFileName(path);
+            if (PreserveDuringProgramRollback(name))
+            {
+                continue;
+            }
+
+            var destination = Path.Combine(rollbackRoot, name);
+            if (Directory.Exists(path))
+            {
+                CopyDirectory(path, destination);
+            }
+            else
+            {
+                File.Copy(path, destination, true);
+            }
+        }
+    }
+
+    private static void RestoreUpdateRollback(string targetRoot, string rollbackRoot)
+    {
+        if (!Directory.Exists(rollbackRoot))
+        {
+            throw new DirectoryNotFoundException("The temporary update rollback folder could not be found.");
+        }
+
+        foreach (var path in Directory.GetFileSystemEntries(targetRoot))
+        {
+            var name = Path.GetFileName(path);
+            if (!PreserveDuringProgramRollback(name))
+            {
+                DeleteUpdateEntry(path);
+            }
+        }
+
+        foreach (var path in Directory.GetFileSystemEntries(rollbackRoot))
+        {
+            var destination = Path.Combine(targetRoot, Path.GetFileName(path));
+            if (Directory.Exists(path))
+            {
+                CopyDirectory(path, destination);
+            }
+            else
+            {
+                File.Copy(path, destination, true);
+            }
+        }
+    }
+
+    private static void DeleteUpdateEntry(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+            {
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
+            Directory.Delete(path, true);
+            return;
+        }
+
+        if (File.Exists(path))
+        {
+            File.SetAttributes(path, FileAttributes.Normal);
+            File.Delete(path);
         }
     }
 
@@ -885,7 +1153,7 @@ public static partial class Program
 
         foreach (var file in Directory.GetFiles(folder, "*.md"))
         {
-            TryDeleteFile(file);
+            DeleteFileRequired(file);
         }
     }
 
@@ -914,6 +1182,34 @@ public static partial class Program
         }
         catch
         {
+        }
+    }
+
+    internal static void DeleteDirectoryRequired(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        Directory.Delete(path, true);
+        if (Directory.Exists(path))
+        {
+            throw new IOException("The updater could not completely remove the shipped folder: " + path);
+        }
+    }
+
+    private static void DeleteFileRequired(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        File.Delete(path);
+        if (File.Exists(path))
+        {
+            throw new IOException("The updater could not remove the obsolete shipped file: " + path);
         }
     }
 

@@ -480,6 +480,13 @@ public sealed partial class SensorReadoutForm : Form
             TrendLoggingEnabled = value.TrendLoggingEnabled,
             TrendLoggingKeys = new List<string>(value.TrendLoggingKeys ?? new List<string>()),
             CommunityStatsClientId = value.CommunityStatsClientId ?? "",
+            RemoteMachineId = value.RemoteMachineId ?? "",
+            ProtectedRemoteMachineWriteToken = value.ProtectedRemoteMachineWriteToken ?? "",
+            RemoteConnections = CloneRemoteConnections(value.RemoteConnections),
+            RemoteHostEnabled = value.RemoteHostEnabled,
+            RemoteHostPort = value.RemoteHostPort,
+            RemoteHostConnectionUrl = value.RemoteHostConnectionUrl ?? "",
+            ProtectedRemoteHostAccessToken = value.ProtectedRemoteHostAccessToken ?? "",
             Alarms = (value.Alarms ?? new List<AlarmSetting>())
                 .Select(a => new AlarmSetting
                 {
@@ -923,6 +930,33 @@ public sealed partial class SensorReadoutForm : Form
         value.VisualSpokenFeedbackPlacement = NormalizeVisualSpokenFeedbackPlacement(value.VisualSpokenFeedbackPlacement);
         value.VisualSpokenFeedbackTimeoutSeconds = NormalizeVisualSpokenFeedbackTimeoutSeconds(value.VisualSpokenFeedbackTimeoutSeconds);
         value.CommunityStatsClientId = (value.CommunityStatsClientId ?? "").Trim();
+        value.RemoteMachineId = NormalizeRemoteIdentifier(value.RemoteMachineId);
+        if (string.IsNullOrWhiteSpace(value.RemoteMachineId))
+        {
+            value.RemoteMachineId = RemotePayloadCrypto.CreateRandomId();
+        }
+        value.ProtectedRemoteMachineWriteToken = (value.ProtectedRemoteMachineWriteToken ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(value.ProtectedRemoteMachineWriteToken))
+        {
+            value.ProtectedRemoteMachineWriteToken = RemotePayloadCrypto.ProtectSecret(RemotePayloadCrypto.CreateRandomId());
+        }
+        var normalizedRemoteConnections = CloneRemoteConnections(value.RemoteConnections);
+        if (value.RemoteConnections == null)
+        {
+            value.RemoteConnections = normalizedRemoteConnections;
+        }
+        else
+        {
+            value.RemoteConnections.Clear();
+            value.RemoteConnections.AddRange(normalizedRemoteConnections);
+        }
+        value.RemoteHostPort = Math.Max(1024, Math.Min(65535, value.RemoteHostPort));
+        value.RemoteHostConnectionUrl = (value.RemoteHostConnectionUrl ?? "").Trim();
+        value.ProtectedRemoteHostAccessToken = (value.ProtectedRemoteHostAccessToken ?? "").Trim();
+        if (value.RemoteHostEnabled && string.IsNullOrWhiteSpace(value.ProtectedRemoteHostAccessToken))
+        {
+            value.ProtectedRemoteHostAccessToken = RemotePayloadCrypto.ProtectSecret(RemotePayloadCrypto.CreateRandomId());
+        }
         if (!string.IsNullOrWhiteSpace(value.ShowHideHotKey) &&
             string.Equals(value.ShowHideHotKey, value.SpeakTrayHotKey, StringComparison.OrdinalIgnoreCase))
         {
@@ -973,6 +1007,61 @@ public sealed partial class SensorReadoutForm : Form
         {
             value.TrayStatusEnabled = true;
         }
+    }
+
+    private static List<RemoteConnectionSetting> CloneRemoteConnections(IEnumerable<RemoteConnectionSetting> connections)
+    {
+        var result = new List<RemoteConnectionSetting>();
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in connections ?? new List<RemoteConnectionSetting>())
+        {
+            if (source == null)
+            {
+                continue;
+            }
+
+            Uri serverUri;
+            if (!Uri.TryCreate((source.ServerUrl ?? "").Trim(), UriKind.Absolute, out serverUri) ||
+                (serverUri.Scheme != Uri.UriSchemeHttp && serverUri.Scheme != Uri.UriSchemeHttps) ||
+                string.IsNullOrWhiteSpace(source.ProtectedAccessToken) ||
+                string.IsNullOrWhiteSpace(source.ProtectedPassword))
+            {
+                continue;
+            }
+
+            var id = NormalizeRemoteIdentifier(source.Id);
+            if (string.IsNullOrWhiteSpace(id) || usedIds.Contains(id))
+            {
+                id = RemotePayloadCrypto.CreateRandomId();
+            }
+            usedIds.Add(id);
+            result.Add(new RemoteConnectionSetting
+            {
+                Id = id,
+                Name = string.IsNullOrWhiteSpace(source.Name) ? serverUri.Host : source.Name.Trim(),
+                ServerUrl = serverUri.AbsoluteUri.TrimEnd('/') + "/",
+                ProtectedAccessToken = source.ProtectedAccessToken.Trim(),
+                ProtectedPassword = source.ProtectedPassword.Trim(),
+                PublishThisComputer = source.PublishThisComputer,
+                AllowRemoteFanProfiles = source.AllowRemoteFanProfiles,
+                AnnounceRemoteViewers = source.AnnounceRemoteViewers,
+                RemoteViewerSoundFile = System.IO.Path.GetFileName(source.RemoteViewerSoundFile ?? ""),
+                IsEmbeddedHostConnection = source.IsEmbeddedHostConnection,
+                Enabled = source.Enabled,
+                PollIntervalSeconds = Math.Max(2, Math.Min(300, source.PollIntervalSeconds))
+            });
+        }
+        return result;
+    }
+
+    private static string NormalizeRemoteIdentifier(string value)
+    {
+        var text = (value ?? "").Trim();
+        if (text.Length < 32 || text.Length > 128)
+        {
+            return "";
+        }
+        return text.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-') ? text : "";
     }
 
     private static bool IsEmptyPlaceholderSpokenHotKeyProfile(SpokenHotKeySetting profile)

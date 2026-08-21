@@ -137,9 +137,11 @@ public sealed partial class SensorReadoutForm : Form
             if (registeredFanProfileHotKeys.TryGetValue(id, out fanProfile))
             {
                 LogMessage("Debug", "Fan profile hotkey pressed: " + (fanProfile == null ? "" : fanProfile.Name));
-                if (reportViewMode)
+                if (IsExternalDataView)
                 {
-                    var message = T("speech.fanProfilesUnavailableInReport", "Fan profile hotkeys are unavailable while viewing a static report. Return to live readings first.");
+                    var message = remoteViewMode
+                        ? T("speech.fanProfilesUnavailableInRemote", "Fan profile hotkeys are unavailable while viewing another computer. Return to this computer first.")
+                        : T("speech.fanProfilesUnavailableInReport", "Fan profile hotkeys are unavailable while viewing a static report. Return to live readings first.");
                     SpeakTextWithScreenReader(message, "fan profile hotkey");
                     statusLabel.Text = message;
                     return true;
@@ -924,6 +926,23 @@ public sealed partial class SensorReadoutForm : Form
             : string.Format(T("speech.staticReportForMissingReadings", "The static report for {0} does not contain the selected readings."), reportTitle);
     }
 
+    private string RemoteSpeechPrefix()
+    {
+        var machineName = activeRemoteSnapshot == null ? "" : activeRemoteSnapshot.MachineName ?? "";
+        var prefix = string.IsNullOrWhiteSpace(machineName)
+            ? T("speech.remoteComputerPrefix", "Remote computer:")
+            : string.Format(T("speech.remoteComputerNamedPrefix", "Remote computer {0}:"), machineName);
+        return prefix.TrimEnd() + " ";
+    }
+
+    private string RemoteMissingReadingsMessage()
+    {
+        var machineName = activeRemoteSnapshot == null ? "" : activeRemoteSnapshot.MachineName ?? "";
+        return string.IsNullOrWhiteSpace(machineName)
+            ? T("speech.remoteComputerMissingReadings", "The remote computer does not contain the selected readings.")
+            : string.Format(T("speech.remoteComputerNamedMissingReadings", "The remote computer {0} does not contain the selected readings."), machineName);
+    }
+
     private List<SensorRow> GetTrayStatusRows()
     {
         return GetTrayStatusRows(false);
@@ -1316,6 +1335,10 @@ public sealed partial class SensorReadoutForm : Form
             {
                 return StaticReportMissingReadingsMessage();
             }
+            if (remoteViewMode)
+            {
+                return RemoteMissingReadingsMessage();
+            }
 
             if (skippedUnavailable)
             {
@@ -1329,7 +1352,8 @@ public sealed partial class SensorReadoutForm : Form
         var text = settings.SpeechIncludesDeviceNames
             ? string.Join("; ", items.ToArray())
             : CompactRepeatedSpeechLabels(items);
-        return reportViewMode ? StaticReportSpeechPrefix() + text : text;
+        if (reportViewMode) return StaticReportSpeechPrefix() + text;
+        return remoteViewMode ? RemoteSpeechPrefix() + text : text;
     }
 
     private List<SensorRow> FilterUnavailableAnnouncementRows(List<SensorRow> rows)
@@ -1492,7 +1516,12 @@ public sealed partial class SensorReadoutForm : Form
         var count = selectedRows == null ? 0 : selectedRows.Count;
         if (count <= 0)
         {
-            return ShortenTrayText(reportViewMode ? StaticReportMissingReadingsMessage() : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait."), true);
+            var missing = reportViewMode
+                ? StaticReportMissingReadingsMessage()
+                : remoteViewMode
+                    ? RemoteMissingReadingsMessage()
+                    : T("speech.dataNotReady", "Sensor data is not ready yet. Please wait.");
+            return ShortenTrayText(missing, true);
         }
 
         if (!settings.TrayTooltipShowsPartialReadings)

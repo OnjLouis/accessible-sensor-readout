@@ -115,6 +115,13 @@ public sealed class AppSettings
     public bool TrendLoggingEnabled = false;
     public List<string> TrendLoggingKeys = new List<string>();
     public string CommunityStatsClientId = "";
+    public string RemoteMachineId = "";
+    public string ProtectedRemoteMachineWriteToken = "";
+    public List<RemoteConnectionSetting> RemoteConnections = new List<RemoteConnectionSetting>();
+    public bool RemoteHostEnabled = false;
+    public int RemoteHostPort = 48673;
+    public string RemoteHostConnectionUrl = "";
+    public string ProtectedRemoteHostAccessToken = "";
 }
 
 public sealed class SharedAppSettings
@@ -201,6 +208,13 @@ public sealed class MachineAppSettings
     public bool TrendLoggingEnabled = false;
     public List<string> TrendLoggingKeys = new List<string>();
     public string CommunityStatsClientId = "";
+    public string RemoteMachineId = "";
+    public string ProtectedRemoteMachineWriteToken = "";
+    public List<RemoteConnectionSetting> RemoteConnections = new List<RemoteConnectionSetting>();
+    public bool RemoteHostEnabled = false;
+    public int RemoteHostPort = 48673;
+    public string RemoteHostConnectionUrl = "";
+    public string ProtectedRemoteHostAccessToken = "";
 }
 
 public sealed class SettingsTransferPackage
@@ -527,6 +541,21 @@ public sealed class MeterProgressBar : ProgressBar
     }
 }
 
+public sealed class AccessibleStatusLabel : Label
+{
+    public AccessibleStatusLabel()
+    {
+        AccessibleRole = AccessibleRole.StatusBar;
+    }
+
+    public void SetStatus(string value)
+    {
+        Text = value ?? "";
+        AccessibilityNotifyClients(AccessibleEvents.NameChange, -1);
+        AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+    }
+}
+
 public sealed class HotKeyWindow : NativeWindow, IDisposable
 {
     private readonly SensorReadoutForm owner;
@@ -571,6 +600,12 @@ public sealed class GitHubReleaseInfo
     [JsonProperty("body")]
     public string Body;
 
+    [JsonProperty("draft")]
+    public bool Draft;
+
+    [JsonProperty("prerelease")]
+    public bool Prerelease;
+
     [JsonProperty("assets")]
     public List<GitHubReleaseAsset> Assets;
 }
@@ -582,6 +617,9 @@ public sealed class GitHubReleaseAsset
 
     [JsonProperty("browser_download_url")]
     public string BrowserDownloadUrl;
+
+    [JsonProperty("digest")]
+    public string Digest;
 }
 
 public sealed class UsbDiagnosticSnapshot

@@ -45,6 +45,14 @@ if ($Matches[1] -ne $buildVersion) {
     throw "Version mismatch: manifest assemblyIdentity version is $($Matches[1]) but AssemblyFileVersion is $buildVersion."
 }
 
+$serverSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'server\remote-monitor\sensor_readout_server.py') -Raw
+if ($serverSource -notmatch '(?m)^SERVER_VERSION\s*=\s*"([^"]+)"') {
+    throw 'Could not find SERVER_VERSION in server\remote-monitor\sensor_readout_server.py.'
+}
+if ($Matches[1] -ne $appVersion) {
+    throw "Version mismatch: Linux server version is $($Matches[1]) but AppVersion is $appVersion."
+}
+
 function Measure-SourceFileSize {
     $warnAtLines = 2000
     $failAtLines = 3000
@@ -54,7 +62,7 @@ function Measure-SourceFileSize {
         (Join-Path $PSScriptRoot 'server')
     ) | Where-Object { Test-Path -LiteralPath $_ }
     $sourceFiles = foreach ($root in $sourceRoots) {
-        Get-ChildItem -LiteralPath $root -Recurse -File -Include '*.cs', '*.ps1', '*.php' |
+        Get-ChildItem -LiteralPath $root -Recurse -File -Include '*.cs', '*.ps1', '*.php', '*.py' |
             Where-Object { $_.FullName -notmatch '\\obj\\|\\bin\\|\\GeneratedAssemblyInfo\\' }
     }
 
@@ -98,6 +106,49 @@ function Measure-SourceFileSize {
 
 Measure-SourceFileSize
 
+function Assert-LiteralTranslationKeysExist {
+    $englishPath = Join-Path $PSScriptRoot 'portable\Langs\English.txt'
+    if (-not (Test-Path -LiteralPath $englishPath)) {
+        throw "Primary language file is missing: $englishPath"
+    }
+
+    $englishKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($line in [IO.File]::ReadLines($englishPath)) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith('#')) {
+            continue
+        }
+
+        $separator = $line.IndexOf('=')
+        if ($separator -gt 0) {
+            [void]$englishKeys.Add($line.Substring(0, $separator).Trim())
+        }
+    }
+
+    $missing = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $literalPattern = 'T\(\s*"(?<key>(?:a11y|detail|group|message|reading|speech|status|ui|value)\.[^"]+)"\s*,'
+    foreach ($sourcePath in $sources) {
+        $sourceText = [IO.File]::ReadAllText($sourcePath)
+        foreach ($match in [regex]::Matches($sourceText, $literalPattern)) {
+            $key = $match.Groups['key'].Value
+            if ($key -in @('ui.', 'reading.', 'value.') -or $key.EndsWith(' ')) {
+                continue
+            }
+
+            if (-not $englishKeys.Contains($key)) {
+                [void]$missing.Add($key)
+            }
+        }
+    }
+
+    if ($missing.Count -gt 0) {
+        throw "Literal translation keys are missing from English.txt: $($missing -join '; ')"
+    }
+
+    Write-Host "Literal translation key audit passed ($($englishKeys.Count) primary keys)."
+}
+
+Assert-LiteralTranslationKeysExist
+
 if ([string]::IsNullOrWhiteSpace($BuildWorkRoot)) {
     $BuildWorkRoot = Join-Path ([IO.Path]::GetTempPath()) 'SensorReadout-build'
 }
@@ -105,8 +156,11 @@ $generatedRoot = Join-Path ([IO.Path]::GetFullPath($BuildWorkRoot)) 'GeneratedAs
 Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $generatedRoot | Out-Null
 trap {
-    Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
-    throw
+    $buildError = $_
+    if (-not [string]::IsNullOrWhiteSpace($generatedRoot)) {
+        Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    throw $buildError
 }
 
 function New-GeneratedAssemblyInfo {
@@ -143,6 +197,7 @@ $references = @(
     'System.Drawing.dll',
     'System.Windows.Forms.dll',
     'System.Management.dll',
+    'System.Security.dll',
     'System.IO.Compression.dll',
     'System.IO.Compression.FileSystem.dll',
     (Join-Path $resources 'LibreHardwareMonitorLib.dll'),
@@ -264,20 +319,19 @@ if (Test-Path $plugInRoot) {
         }
 
         $plugInTarget = Join-Path (Join-Path $portable 'Plug-Ins') $plugIn.Name
-        if (Test-Path -LiteralPath $plugInTarget) {
-            Remove-Item -LiteralPath $plugInTarget -Recurse -Force
-        }
-        New-Item -ItemType Directory -Force -Path $plugInTarget | Out-Null
+        $plugInStage = Join-Path (Join-Path $generatedRoot 'PackagedPlugIns') $plugIn.Name
+        Remove-Item -LiteralPath $plugInStage -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path $plugInStage | Out-Null
         $packagedPlugInFiles = @('plugin.json', 'LICENSE', 'LICENSE.txt', 'GPL-3.0.txt', 'NOTICE.txt', 'README.md')
         foreach ($fileName in $packagedPlugInFiles) {
             $sourceFile = Join-Path $plugIn.FullName $fileName
             if (Test-Path -LiteralPath $sourceFile) {
-                Copy-Item -LiteralPath $sourceFile -Destination (Join-Path $plugInTarget $fileName) -Force
+                Copy-Item -LiteralPath $sourceFile -Destination (Join-Path $plugInStage $fileName) -Force
             }
         }
 
         if ($plugInSources.Count -gt 0) {
-            $plugInOutput = Join-Path $plugInTarget ($plugIn.Name + 'PlugIn.dll')
+            $plugInOutput = Join-Path $plugInStage ($plugIn.Name + 'PlugIn.dll')
             $plugInReferences = @(
                 'System.dll',
                 'System.Core.dll',
@@ -322,12 +376,28 @@ if (Test-Path $plugInRoot) {
         }
 
         if ($helperSources.Count -gt 0) {
-            $helperOutput = Join-Path $plugInTarget ($plugIn.Name + 'Helper.exe')
+            $helperOutput = Join-Path $plugInStage ($plugIn.Name + 'Helper.exe')
             $helperAssemblyInfo = New-GeneratedAssemblyInfo -Title ("Sensor Readout " + $plugIn.Name + " Helper") -OutputName ($plugIn.Name + '.Helper.AssemblyInfo.cs')
             & $csc /nologo /target:exe /platform:x64 /out:$helperOutput @(@($helperSources) + @($helperAssemblyInfo))
             if ($LASTEXITCODE -ne 0) {
                 throw "Plug-In helper build failed for $($plugIn.Name) with exit code $LASTEXITCODE"
             }
+        }
+
+        $plugInBackup = $plugInTarget + '.build-backup'
+        Remove-Item -LiteralPath $plugInBackup -Recurse -Force -ErrorAction SilentlyContinue
+        try {
+            if (Test-Path -LiteralPath $plugInTarget) {
+                Move-Item -LiteralPath $plugInTarget -Destination $plugInBackup
+            }
+            Copy-Item -LiteralPath $plugInStage -Destination $plugInTarget -Recurse -Force
+            Remove-Item -LiteralPath $plugInBackup -Recurse -Force -ErrorAction SilentlyContinue
+        } catch {
+            Remove-Item -LiteralPath $plugInTarget -Recurse -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $plugInBackup) {
+                Move-Item -LiteralPath $plugInBackup -Destination $plugInTarget
+            }
+            throw
         }
     }
 }
@@ -379,6 +449,12 @@ if (Test-Path $docsSource) {
     if ($docsFiles.Count -gt 0) {
         Copy-Item -LiteralPath $docsFiles.FullName -Destination $docsTarget -Force
     }
+}
+
+$staleServerTarget = Join-Path $portable 'Server'
+Remove-Item -LiteralPath $staleServerTarget -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path -LiteralPath $staleServerTarget) {
+    throw 'Windows portable output still contains the separately distributed Linux server folder.'
 }
 
 $installScriptsTarget = Join-Path $portable 'Install_Scripts'
@@ -451,6 +527,16 @@ Write-Host "Built $OutputPath"
 Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($SelfTest) {
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -eq $python) {
+        throw 'Python is required to run the bundled Sensor Readout Server self-tests.'
+    }
+    $serverTestRoot = Join-Path $PSScriptRoot 'server\remote-monitor'
+    & $python.Source -B -m unittest discover -s $serverTestRoot -p 'test_*.py' -v
+    if ($LASTEXITCODE -ne 0) {
+        throw "Sensor Readout Server self-tests failed with exit code $LASTEXITCODE"
+    }
+
     $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $selfTestRoot = Join-Path ([System.IO.Path]::GetFullPath($BuildWorkRoot)) "SelfTest-$stamp"
     $selfTestApp = Join-Path $selfTestRoot 'App'
@@ -467,7 +553,19 @@ if ($SelfTest) {
         New-Item -ItemType Directory -Force -Path (Join-Path $selfTestApp $folder) | Out-Null
     }
 
+    $remoteServerSource = Join-Path $PSScriptRoot 'server\remote-monitor'
+    $remoteServerTestTarget = Join-Path $selfTestApp 'Server\Linux'
+    New-Item -ItemType Directory -Force -Path $remoteServerTestTarget | Out-Null
+    foreach ($serverFile in @('sensor_readout_server.py', 'sensor-readout-server-settings.example.json', 'sensor-readout-server-systemd-settings.example.json', 'Manual.html', 'sensor-readout-server.service.example')) {
+        $source = Join-Path $remoteServerSource $serverFile
+        if (!(Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Sensor Readout Server self-test fixture is missing $serverFile."
+        }
+        Copy-Item -LiteralPath $source -Destination (Join-Path $remoteServerTestTarget $serverFile) -Force
+    }
+
     $selfTestExe = Join-Path $selfTestApp 'Sensor Readout.exe'
+    Copy-Item -LiteralPath $OutputPath -Destination $selfTestExe -Force
     $selfTestProcess = Start-Process -FilePath $selfTestExe -ArgumentList @('--self-test', $selfTestOutput) -WorkingDirectory $selfTestApp -WindowStyle Hidden -Wait -PassThru
     $selfTestExit = $selfTestProcess.ExitCode
     $summary = Join-Path $selfTestOutput 'SelfTest-summary.txt'

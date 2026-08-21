@@ -33,7 +33,7 @@ Do not touch these for plug-in-only work:
 - `src\PreferencesForm*.cs`
 - `src\PluginSdk\PluginSdk.cs`
 - `Build.ps1`
-- `Release.ps1`
+- private maintainer release tooling
 - shared language/manual/source-map files
 
 Those files are core app or release infrastructure. Changing them for one laptop brand risks breaking every user.

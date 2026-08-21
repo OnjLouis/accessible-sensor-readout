@@ -21,7 +21,7 @@ public sealed partial class SensorReadoutForm : Form
         communityStatsDialogActive = true;
         try
         {
-        if (reportViewMode)
+        if (IsExternalDataView)
         {
             ReturnToLiveReadings();
         }

@@ -470,7 +470,7 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private static void UpdateTreeNodes(TreeNodeCollection nodes, Dictionary<string, ReadingTreeItem> itemByKey)
+    private void UpdateTreeNodes(TreeNodeCollection nodes, Dictionary<string, ReadingTreeItem> itemByKey)
     {
         foreach (TreeNode node in nodes)
         {
@@ -818,6 +818,10 @@ public sealed partial class SensorReadoutForm : Form
         {
             return T("message.staticReportCategoryEmpty", "This static report does not contain readings for this category.");
         }
+        if (remoteViewMode)
+        {
+            return T("message.remoteComputerCategoryEmpty", "This remote computer does not currently contain readings for this category.");
+        }
 
         var emptyLead = T("message.noDataCurrentlyAvailableForCategory", "No data currently available for this category.");
         var hideHint = " " + T("message.hideEmptyCategoryHint", "You can hide this category from Preferences if you do not want it in the category list.");
@@ -953,7 +957,7 @@ public sealed partial class SensorReadoutForm : Form
         return copy;
     }
 
-    private static TreeNode CreateTreeNode(ReadingTreeItem item)
+    private TreeNode CreateTreeNode(ReadingTreeItem item)
     {
         var node = new TreeNode(item.Text) { Name = item.Key, Tag = item.Row, ToolTipText = GetTreeNodeDetailsHint(item) };
         foreach (var child in item.Children)
@@ -964,7 +968,7 @@ public sealed partial class SensorReadoutForm : Form
         return node;
     }
 
-    private static string GetTreeNodeDetailsHint(ReadingTreeItem item)
+    private string GetTreeNodeDetailsHint(ReadingTreeItem item)
     {
         if (item == null || item.Row == null)
         {
@@ -1000,7 +1004,7 @@ public sealed partial class SensorReadoutForm : Form
             : "";
     }
 
-    private static bool HasDetailsOrWindowsSetting(SensorRow row)
+    private bool HasDetailsOrWindowsSetting(SensorRow row)
     {
         return row != null &&
             ((row.Details != null && row.Details.Count > 0) ||

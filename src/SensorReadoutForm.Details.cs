@@ -142,9 +142,9 @@ public sealed partial class SensorReadoutForm : Form
         return true;
     }
 
-    private static WindowsSettingsTarget GetRelatedWindowsSettingsTarget(SensorRow row)
+    private WindowsSettingsTarget GetRelatedWindowsSettingsTarget(SensorRow row)
     {
-        if (row == null)
+        if (IsExternalDataView || row == null)
         {
             return null;
         }

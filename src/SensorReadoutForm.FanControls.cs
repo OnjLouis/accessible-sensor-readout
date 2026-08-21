@@ -10,6 +10,11 @@ public sealed partial class SensorReadoutForm : Form
 {
     private void ShowFanControlsDialog()
     {
+        if (IsExternalDataView)
+        {
+            MessageBox.Show(this, T("message.fanControlsUnavailableExternal", "Fan controls and curves are unavailable while viewing another computer or a static report. Return to this computer first."), T("ui.Fan Controls", "Fan Controls"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         EnsureFanControlControls();
         UpdateFanControlBox();
 
@@ -188,18 +193,18 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        if (remoteViewMode)
+        {
+            PollActiveRemoteMachineAsync(true);
+            return;
+        }
+
         InvalidateInternetIpCache();
         RefreshSensors(true, true, "manual");
     }
 
     private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
     {
-        if (reportViewMode)
-        {
-            ReturnToLiveReadings();
-            return;
-        }
-
         if (refreshInProgress)
         {
             QueuePendingRefresh(updateInteractiveUi, refreshSlowRows, reason);
@@ -231,13 +236,17 @@ public sealed partial class SensorReadoutForm : Form
                         return;
                     }
 
+                    var rows = task.Result;
+                    SetLocalRows(rows);
+                    PublishRemoteRowsAsync(rows);
                     if (reportViewMode)
                     {
                         return;
                     }
-
-                    var rows = task.Result;
-                    SetLatestRows(rows);
+                    if (!remoteViewMode)
+                    {
+                        SetLatestRows(rows);
+                    }
                     LogTrendRows(rows);
                     MigrateLegacyStoragePerformanceSettings();
                     TryApplySavedFanControlsOnStartupAsync(rows);
@@ -245,7 +254,7 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         openPreferencesDialog.UpdateSensorRows(rows);
                     }
-                    if (updateInteractiveUi && !IsMinimizedOrHidden())
+                    if (!remoteViewMode && updateInteractiveUi && !IsMinimizedOrHidden())
                     {
                         if (ShouldDeferVisibleReadingUiUpdate())
                         {
@@ -256,10 +265,17 @@ public sealed partial class SensorReadoutForm : Form
                             UpdateVisibleReadingUi();
                         }
                     }
-                    UpdateTrayStatus();
+                    if (!remoteViewMode)
+                    {
+                        UpdateTrayStatus();
+                    }
                     CheckAlarms(rows);
 
-                    if (rows.Count == 0)
+                    if (remoteViewMode)
+                    {
+                        UpdateRemoteStatusText();
+                    }
+                    else if (rows.Count == 0)
                     {
                         statusLabel.Text = T("status.noSensorRows", "No sensor rows returned yet.");
                     }
@@ -420,6 +436,12 @@ public sealed partial class SensorReadoutForm : Form
                 latestRowsBySettingsKey[key] = row;
             }
         }
+    }
+
+    private void SetLocalRows(IEnumerable<SensorRow> rows)
+    {
+        localRows.Clear();
+        localRows.AddRange((rows ?? Enumerable.Empty<SensorRow>()).Where(row => row != null).Select(CloneSensorRow));
     }
 
     private void AddTimedRows(List<SensorRow> target, string name, Func<IEnumerable<SensorRow>> producer, List<string> timings)
@@ -883,8 +905,15 @@ public sealed partial class SensorReadoutForm : Form
             });
     }
 
-    private void ApplyFanProfile(FanProfileSetting profile, bool speakCompletion)
+    private void ApplyFanProfile(FanProfileSetting profile, bool speakCompletion, bool allowExternalDataView = false)
     {
+        if (IsExternalDataView && !allowExternalDataView)
+        {
+            var unavailable = T("message.fanControlsUnavailableExternal", "Fan controls and curves are unavailable while viewing another computer or a static report. Return to this computer first.");
+            statusLabel.Text = unavailable;
+            if (speakCompletion) SpeakTextWithScreenReader(unavailable, "fan profile");
+            return;
+        }
         if (profile == null || profile.Actions == null || profile.Actions.Count == 0)
         {
             var message = T("status.fanProfileNoActions", "Fan profile has no fan actions.");
