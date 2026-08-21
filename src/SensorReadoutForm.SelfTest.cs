@@ -912,31 +912,54 @@ public sealed partial class SensorReadoutForm : Form
         Require(!ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(300), 300), "Six intervals must win over the floor at long refresh intervals.");
         Require(ShouldSupersedeStalledRefresh(TimeSpan.FromSeconds(1801), 300), "A stall past six long intervals must still be superseded.");
 
+        // The clock half. Elapsed time has to be measured on a clock that excludes time the machine
+        // spent suspended: all five watchdog firings in 3.5 days of production logs were
+        // hibernations, and the last one reported exactly the machine's accumulated sleep bias as a
+        // stall. Ten hours of synthetic awake time as a base, so none of the arithmetic below
+        // depends on how long this machine has actually been awake.
+        const long awakeBaseMs = 10L * 60 * 60 * 1000;
+        var awakeNowMs = NativeMethods.TryGetAwakeMilliseconds();
+        Require(awakeNowMs >= 0 && NativeMethods.UnbiasedInterruptTimeAvailable,
+            "QueryUnbiasedInterruptTime, the only clock that does not count suspended time, is not answering on this machine.");
+        Require(awakeNowMs <= (long)NativeMethods.GetTickCount64(),
+            "The awake clock read ahead of the biased tick count, which an unbiased clock cannot do.");
+        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - 10000, 5),
+            "A collection ten awake-seconds old was treated as stalled; a sleep must not be counted as elapsed time.");
+        Require(ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - (10 * 60 * 1000), 5),
+            "A collection ten awake-minutes old was not treated as stalled.");
+        Require(!ShouldSupersedeStalledRefresh(-1, -1, 5),
+            "Without an unbiased clock a stall cannot be measured, so it must never be reported.");
+        Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs + 60000, 5),
+            "A start stamp ahead of the current reading must not be read as a stall.");
+
         var previousRefreshInProgress = refreshInProgress;
-        var previousRefreshInProgressSinceUtc = refreshInProgressSinceUtc;
+        var previousRefreshInProgressSinceAwakeMs = refreshInProgressSinceAwakeMs;
         var previousRefreshStallReported = refreshStallReported;
         try
         {
             refreshInProgress = true;
             refreshStallReported = false;
-            refreshInProgressSinceUtc = DateTime.UtcNow;
-            Require(!TrySupersedeStalledRefresh(), "A collection that had just started was treated as stalled.");
+            refreshInProgressSinceAwakeMs = awakeBaseMs;
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs + 2000), "A collection that had just started was treated as stalled.");
             Require(refreshInProgress, "A healthy in-flight collection had the refresh flag cleared under it.");
 
-            refreshInProgressSinceUtc = DateTime.UtcNow.AddMinutes(-10);
-            Require(TrySupersedeStalledRefresh(), "A ten-minute-old collection was not treated as stalled.");
+            // The production shape: four hours of wall clock across a hibernation, no awake time.
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs), "A collection superseded across a sleep would have been reported as a stall.");
+            Require(refreshInProgress, "A sleep released the refresh pipeline under a healthy collection.");
+
+            Require(TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000)), "A ten-minute-old collection was not treated as stalled.");
             Require(!refreshInProgress, "Superseding a stalled collection did not release the refresh pipeline.");
 
             // One recovery attempt and one Error line per stall episode. Without the latch every
             // later timer tick would start another collection behind the wedged one's lock.
             refreshInProgress = true;
-            Require(!TrySupersedeStalledRefresh(), "The stall latch did not stop a second recovery attempt.");
+            Require(!TrySupersedeStalledRefresh(awakeBaseMs + (10 * 60 * 1000)), "The stall latch did not stop a second recovery attempt.");
             Require(refreshInProgress, "A second recovery attempt released the refresh pipeline again.");
         }
         finally
         {
             refreshInProgress = previousRefreshInProgress;
-            refreshInProgressSinceUtc = previousRefreshInProgressSinceUtc;
+            refreshInProgressSinceAwakeMs = previousRefreshInProgressSinceAwakeMs;
             refreshStallReported = previousRefreshStallReported;
         }
     }

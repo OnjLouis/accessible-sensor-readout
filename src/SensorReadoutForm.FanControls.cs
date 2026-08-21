@@ -214,7 +214,7 @@ public sealed partial class SensorReadoutForm : Form
         var refreshStopwatch = Stopwatch.StartNew();
         var generation = ++refreshGeneration;
         refreshInProgress = true;
-        refreshInProgressSinceUtc = DateTime.UtcNow;
+        refreshInProgressSinceAwakeMs = NativeMethods.TryGetAwakeMilliseconds();
         if (updateInteractiveUi)
         {
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
@@ -329,7 +329,7 @@ public sealed partial class SensorReadoutForm : Form
                     if (generation == refreshGeneration)
                     {
                         refreshInProgress = false;
-                        refreshInProgressSinceUtc = DateTime.MinValue;
+                        refreshInProgressSinceAwakeMs = -1;
                         // A collection completed, so whatever stall was reported is over. Faulted
                         // counts too: the flag was cleared normally, which is the state the watchdog
                         // exists to restore.
@@ -359,25 +359,57 @@ public sealed partial class SensorReadoutForm : Form
     // and firing again on every tick would leave one blocked thread-pool thread per interval behind
     // for the life of the process. The same latch keeps the Error line to one per episode; the
     // continuation clears it as soon as any collection completes.
+    // Elapsed time here is measured on the machine's *awake* clock, not the wall clock. Every other
+    // clock this process can read - DateTime.UtcNow, GetTickCount64, and QueryPerformanceCounter and
+    // so Stopwatch - counts the time the machine spent suspended, and a suspended machine is not a
+    // stalled collection. In 3.5 days of production logs this watchdog fired five times and all
+    // five were hibernations: the last one reported a 13,642 s stall while the machine's accumulated
+    // sleep bias at that moment was 13,642 s, i.e. the whole of the reported duration and none of it
+    // real. Reconstructed on the awake clock the five firings were 2, 2, 3, 2 and 0 s old.
+    // NativeMethods.TryGetAwakeMilliseconds is the one clock that excludes suspended time; when it
+    // is unavailable it returns -1, refreshInProgressSinceAwakeMs stays -1 and the watchdog simply
+    // never fires, which is where this code was before the watchdog existed.
     private bool TrySupersedeStalledRefresh()
     {
-        if (refreshStallReported || refreshInProgressSinceUtc == DateTime.MinValue)
+        return TrySupersedeStalledRefresh(NativeMethods.TryGetAwakeMilliseconds());
+    }
+
+    // "Now" is a parameter so the self-test can drive the real method - latch, flag release and all -
+    // against synthetic clock readings instead of depending on how long the machine happens to have
+    // been awake when the test runs.
+    private bool TrySupersedeStalledRefresh(long awakeNowMs)
+    {
+        if (refreshStallReported || refreshInProgressSinceAwakeMs < 0)
         {
             return false;
         }
 
-        var elapsed = DateTime.UtcNow - refreshInProgressSinceUtc;
-        if (!ShouldSupersedeStalledRefresh(elapsed, settings.RefreshIntervalSeconds))
+        if (!ShouldSupersedeStalledRefresh(awakeNowMs, refreshInProgressSinceAwakeMs, settings.RefreshIntervalSeconds))
         {
             return false;
         }
 
+        var elapsed = TimeSpan.FromMilliseconds(awakeNowMs - refreshInProgressSinceAwakeMs);
         refreshStallReported = true;
         refreshInProgress = false;
-        LogError("Sensor collection has not completed for " + (long)elapsed.TotalSeconds +
-            " s, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
+        LogError("Sensor collection has not completed in " + (long)elapsed.TotalSeconds +
+            " s of machine-awake time, so sensor refreshes had stopped. Starting a replacement collection. Readings, alarms and fan curves were not updated for that period. " +
             "The stalled collection still holds the collection lock, so the replacement waits for it to return; if refreshes do not resume, restart Sensor Readout and send Logs with logging set to Debug.");
         return true;
+    }
+
+    // The clock-reading half of the decision, kept separate from the threshold rule below so both
+    // halves can be asserted without anything actually stalling. A negative reading from either side
+    // means the awake clock is unavailable on this Windows, and an unmeasurable stall is never
+    // reported as one.
+    private static bool ShouldSupersedeStalledRefresh(long awakeNowMs, long awakeStartedMs, int refreshIntervalSeconds)
+    {
+        if (awakeNowMs < 0 || awakeStartedMs < 0 || awakeNowMs < awakeStartedMs)
+        {
+            return false;
+        }
+
+        return ShouldSupersedeStalledRefresh(TimeSpan.FromMilliseconds(awakeNowMs - awakeStartedMs), refreshIntervalSeconds);
     }
 
     // Threshold: six refresh intervals, never less than a minute. Six intervals is far past anything
