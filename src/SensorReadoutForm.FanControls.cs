@@ -245,9 +245,16 @@ public sealed partial class SensorReadoutForm : Form
                         // across a sleep it includes the sleep - which is what tells a reader
                         // straight away which of the two this was.
                         refreshStopwatch.Stop();
+                        // The fault, if any, is read here on purpose: this return skips the
+                        // IsFaulted branch below, and a Task whose exception is never observed
+                        // resurfaces at finalization as an "Unobserved background task exception"
+                        // crash-log entry - for a pass that merely ended by throwing, and with the
+                        // exception that actually ended the stall nowhere near the watchdog's line.
+                        var staleFault = task.IsFaulted && task.Exception != null ? task.Exception.GetBaseException() : null;
                         LogMessage("Debug", "Sensor collection generation " + generation +
-                            " finished after " + refreshStopwatch.ElapsedMilliseconds +
-                            " ms, by which time generation " + refreshGeneration +
+                            (staleFault == null ? " finished after " : " faulted after ") + refreshStopwatch.ElapsedMilliseconds +
+                            " ms" + (staleFault == null ? "" : " (" + staleFault.GetType().Name + ": " + staleFault.Message + ")") +
+                            ", by which time generation " + refreshGeneration +
                             " had superseded it, so its readings are stale and were not published to the readings, the tray, the trend log or the alarms.");
                         return;
                     }
@@ -883,6 +890,14 @@ public sealed partial class SensorReadoutForm : Form
         return control == null ? null : ExtractPercent(control);
     }
 
+    // Saved manual fan-control percents still waiting to be re-applied after start-up, by
+    // identifier: null until the first collection has been seen, empty once everything saved has
+    // been applied. Tracked per identifier rather than as one flag because plug-in control rows can
+    // arrive over several collections (a Corsair hub's appear only after the hub has been taken, and
+    // after the PSU's), and a flag latched by the first matching row left every later one unapplied
+    // for the whole session while the settings still claimed the saved percent.
+    private HashSet<string> pendingSavedManualFanControls;
+
     private void TryApplySavedFanControlsOnStartupAsync(List<SensorRow> rows)
     {
         if (savedFanControlsAppliedThisRun)
@@ -890,24 +905,23 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        var saved = LoadFanControlSettings();
-        if (saved.Count == 0)
+        if (pendingSavedManualFanControls == null)
         {
-            savedFanControlsAppliedThisRun = true;
-            return;
+            pendingSavedManualFanControls = new HashSet<string>(
+                LoadFanControlSettings()
+                    .Where(i => i.Value != null && i.Value.Manual && !string.IsNullOrWhiteSpace(i.Key))
+                    .Select(i => i.Key),
+                StringComparer.OrdinalIgnoreCase);
         }
 
-        var manualSettings = saved
-            .Where(i => i.Value != null && i.Value.Manual)
-            .ToDictionary(i => i.Key, i => i.Value, StringComparer.OrdinalIgnoreCase);
-        if (manualSettings.Count == 0)
+        if (pendingSavedManualFanControls.Count == 0)
         {
             savedFanControlsAppliedThisRun = true;
             return;
         }
 
         var controls = (rows ?? new List<SensorRow>())
-            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && manualSettings.ContainsKey(r.Identifier))
+            .Where(r => r.Type == "Fan Control" && !string.IsNullOrWhiteSpace(r.Identifier) && pendingSavedManualFanControls.Contains(r.Identifier))
             .Select(r => r.Identifier)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -916,14 +930,22 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        savedFanControlsAppliedThisRun = true;
+        pendingSavedManualFanControls.ExceptWith(controls);
+        if (pendingSavedManualFanControls.Count == 0)
+        {
+            savedFanControlsAppliedThisRun = true;
+        }
+
+        // Re-read at apply time: a control that only now appeared may have had its saved setting
+        // changed by a reset in the meantime, and the saved value is the authority.
+        var manualSettings = LoadFanControlSettings();
         Task.Factory.StartNew(delegate
         {
             var applied = 0;
             foreach (var identifier in controls)
             {
                 FanControlSetting setting;
-                if (!manualSettings.TryGetValue(identifier, out setting) || setting == null)
+                if (!manualSettings.TryGetValue(identifier, out setting) || setting == null || !setting.Manual)
                 {
                     continue;
                 }
@@ -1031,6 +1053,12 @@ public sealed partial class SensorReadoutForm : Form
             .Select(r => r.Identifier)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        // A plug-in may decline a reset (device busy or absent, write failed). Such a control must
+        // not be recorded as automatic - the device still holds whatever it held - so its previous
+        // saved setting is kept, its curve is not resumed, and the status line says so, where the
+        // single-control path would have thrown.
+        var previousSettings = LoadFanControlSettings();
+        var declined = new List<string>();
         RunFanAction(
             "Returning all fan controls to automatic...",
             delegate
@@ -1042,13 +1070,33 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         count++;
                     }
+                    else
+                    {
+                        declined.Add(identifier);
+                        LogMessage("Warning", "Plug-in fan control " + identifier + " did not accept the reset to automatic; its saved setting was left unchanged.");
+                    }
                 }
             },
             delegate
             {
                 SaveFanControlSettingsForAllKnownControls(false, 50);
-                var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows.Where(r => r.Type == "Fan Control").Select(r => r.Identifier));
-                SetFanActionStatus("Fan control: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
+                foreach (var identifier in declined)
+                {
+                    FanControlSetting previous;
+                    if (previousSettings.TryGetValue(identifier, out previous) && previous != null)
+                    {
+                        SaveFanControlSetting(identifier, previous.Manual, previous.Percent);
+                    }
+                }
+
+                var resumedCurveCount = ResumeFanCurvesForAutomaticControls(latestRows
+                    .Where(r => r.Type == "Fan Control")
+                    .Select(r => r.Identifier)
+                    .Where(identifier => !declined.Contains(identifier, StringComparer.OrdinalIgnoreCase)));
+                var declinedSuffix = declined.Count == 0
+                    ? ""
+                    : " " + declined.Count + " plug-in control" + (declined.Count == 1 ? "" : "s") + " did not accept the reset and kept " + (declined.Count == 1 ? "its" : "their") + " previous setting.";
+                SetFanActionStatus("Fan control: reset " + count + " fan control" + (count == 1 ? "" : "s") + " to automatic/default." + declinedSuffix + FanCurveResumedSuffix(resumedCurveCount), resumedCurveCount, true);
                 RefreshSensorsAfterFanAction();
             });
     }

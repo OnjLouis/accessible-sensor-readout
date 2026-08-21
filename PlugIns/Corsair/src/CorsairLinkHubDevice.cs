@@ -82,6 +82,17 @@ namespace SensorReadout.CorsairPlugIn
         private const int DefaultPumpPercent = 100;
         private const int MinimumPumpPercent = 50;
 
+        /// <summary>
+        /// The channel number of the hub-wide "take fan control" entry the row builder exposes for
+        /// a hub that connected hardware-mode-blocked. Such a hub has no channel map, and every host
+        /// path that can ask this plug-in to take a hub starts from a Fan Control row, so without
+        /// this entry a machine with no marker file yet (a first install, or right after an app
+        /// update replaced the plug-in folder) could never get the hub out of hardware mode. Ports
+        /// are numbered from 1, so 0 can never collide with a real channel. Setting it takes software
+        /// control of the whole hub; resetting it sends nothing.
+        /// </summary>
+        public const int HubWideControlChannel = 0;
+
         // A hub that floods input reports must not be able to hold a response poll open for the
         // whole budget one 0-ms read at a time.
         private const int MaxResponseReads = 64;
@@ -120,6 +131,11 @@ namespace SensorReadout.CorsairPlugIn
         // rather than a transport failure or another error status. Recorded by EnumerateChannels
         // itself, because Connect has to tell the two apart long after the bracket has finished.
         private bool lastEnumerationWrongMode;
+
+        // One Error line per session for SendCommand's echo-mismatch fallback (see there), then
+        // Debug: a hub whose acknowledgements never echo-match would otherwise log at Error on
+        // every duty write for the life of the process.
+        private bool unverifiedAcknowledgementReported;
 
         // Same-thread recursion tripwire, not a cross-thread lock: the monitor above already
         // serializes callers, and it is reentrant, so the only way back into ReassertControl is this
@@ -253,6 +269,7 @@ namespace SensorReadout.CorsairPlugIn
                 lastReadWrongMode = false;
                 hardwareModeBlocked = false;
                 lastEnumerationWrongMode = false;
+                unverifiedAcknowledgementReported = false;
                 channels.Clear();
 
                 if (info.OutputReportLength < 7 || info.InputReportLength < 9)
@@ -369,6 +386,7 @@ namespace SensorReadout.CorsairPlugIn
             lastReadWrongMode = false;
             hardwareModeBlocked = false;
             lastEnumerationWrongMode = false;
+            unverifiedAcknowledgementReported = false;
             dutiesDirty = false;
             dutyFailureReported = false;
             isGone = false;
@@ -561,6 +579,15 @@ namespace SensorReadout.CorsairPlugIn
         {
             lock (sync)
             {
+                if (channel == HubWideControlChannel)
+                {
+                    // The hub-wide take-control entry: the percent is irrelevant, the request is "put
+                    // this hub under Sensor Readout's control". A blocked hub is taken through the
+                    // blocked path (mode change, enumeration, baseline); a readable one simply
+                    // through the ordinary first take, and a hub already owned has nothing to do.
+                    return hardwareModeBlocked ? TakeControlWhileBlocked() : EnsureSoftwareControl();
+                }
+
                 if (hardwareModeBlocked && !TakeControlWhileBlocked())
                 {
                     // Before FindChannel on purpose: a blocked hub has no channel map at all, so
@@ -621,6 +648,15 @@ namespace SensorReadout.CorsairPlugIn
         {
             lock (sync)
             {
+                if (channel == HubWideControlChannel)
+                {
+                    // Resetting the hub-wide take-control entry asks for nothing: there is no channel
+                    // behind it, and giving a hub back mid-session is what exit and disable do. Its
+                    // only effect is host-side -- a saved "automatic" for it does not re-take the hub
+                    // at the next start, where a saved manual setting would.
+                    return true;
+                }
+
                 if (hardwareModeBlocked)
                 {
                     // "Reset" means "let the hub manage this channel itself", and a blocked hub is
@@ -1279,18 +1315,30 @@ namespace SensorReadout.CorsairPlugIn
                 }
             }
 
-            if (waitForType == null && firstReport != null)
+            if (waitForType == null && firstReport != null && !IsCloseEndpointCommand(command))
             {
                 // Echo matching (annex §4.5, response offset 3) is a best-effort extra filter on
                 // commands that have no data type. It may only ever pick a *better* report, never
                 // turn a real response into a failure, so an unmatched poll falls back to the first
                 // report that arrived. Data-type matching gets no such fallback: mis-parsing another
                 // program's sensor report as ours would produce silently wrong readings.
-                if (IsWriteCommand(command))
-                {
-                    Log(ControlFailureLevel(), "Corsair plug-in: could not identify the acknowledgement for a duty write to iCUE LINK hub "
-                        + serial + "; falling back to the first report received, so this write's success is unverified.");
-                }
+                //
+                // Not for the defensive CloseEndpoint sends, whose result nobody reads: the only thing
+                // a fallback could do there is let a stray status-0x03 report set lastStatusWrongMode
+                // inside a bracket that then fails for a transport reason, which would be misread as
+                // "the hub is in hardware mode".
+                //
+                // Logged for every command that takes the fallback, not only duty writes: a mode
+                // change accepted this way sets ownsSoftwareControl on an acknowledgement the hub may
+                // never have sent, and a duty write clears dutiesDirty. Once at Error per session,
+                // then at Debug -- a hub whose acknowledgements never echo-match would otherwise
+                // write an Error line per duty write for the life of the process.
+                Log(unverifiedAcknowledgementReported ? "Debug" : "Error",
+                    "Corsair plug-in: could not identify the acknowledgement for a "
+                    + (IsWriteCommand(command) ? "duty write" : "mode or endpoint command")
+                    + " to iCUE LINK hub " + serial + "; falling back to the first report received, so its success is unverified."
+                    + (unverifiedAcknowledgementReported ? "" : " Further such fallbacks on this hub are logged at Debug."));
+                unverifiedAcknowledgementReported = true;
 
                 return CheckStatus(firstReport, failureLevel);
             }
@@ -1366,6 +1414,14 @@ namespace SensorReadout.CorsairPlugIn
                 && command.Length > 0
                 && LinkHubData.WriteEndpoint.Length > 0
                 && command[0] == LinkHubData.WriteEndpoint[0];
+        }
+
+        private static bool IsCloseEndpointCommand(byte[] command)
+        {
+            return command != null
+                && command.Length > 0
+                && LinkHubData.CloseEndpoint.Length > 0
+                && command[0] == LinkHubData.CloseEndpoint[0];
         }
 
         private void NoteTransportFailure(CorsairHidStream localStream, string operation, int timeoutMs)

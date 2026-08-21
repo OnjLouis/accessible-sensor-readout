@@ -79,7 +79,23 @@ namespace SensorReadout.CorsairPlugIn
         // it that does not involve some program taking software control. Worth its own wording
         // because the way out is a concrete action the reader can take.
         private const string HubHardwareModeBlockedDisplayValue =
-            "This iCUE LINK hub is running its own hardware fan profile, so it does not report the devices connected to it and no readings are available. Readings and fan controls appear as soon as Sensor Readout takes fan control of it: set any Corsair fan to a manual percent once, or restart the app after fan control has been used on this machine. They also appear if another supported program puts the hub into software mode.";
+            "This iCUE LINK hub is running its own hardware fan profile, so it does not report the devices connected to it and no readings are available. Readings and fan controls appear as soon as Sensor Readout takes fan control of it: open the Fan Controls dialog and set the hub's \"Take fan control\" entry to any manual percent once, or restart the app after fan control has been used on this machine. They also appear if another supported program puts the hub into software mode.";
+
+        // The one row that exists purely to be acted on. A hardware-mode-blocked hub has no channel
+        // map, so it has no per-channel Fan Control rows -- and every host path that can ask this
+        // plug-in to take a hub (the Fan Controls dialog, saved settings at start-up, curves,
+        // diagnostics, fan profiles) starts from a Fan Control row. Without this entry a machine with
+        // no marker file yet (a first install, or right after an app update, which replaces the
+        // plug-in folder) could never get the hub out of hardware mode. Setting it to any manual
+        // percent puts the hub into software mode, after which the real channel rows replace it on
+        // the next refresh; a saved manual setting for it also re-takes the hub at the next start.
+        private const string HubTakeControlName = "Take fan control";
+        private const string HubTakeControlDisplayValue =
+            "hardware managed; set any manual percent to put this hub under Sensor Readout's control";
+        private const string HubTakeControlNote =
+            "This entry exists because the hub is running its own hardware profile and does not list its fans. Setting it to any manual percent takes software control of the whole hub (fans 50 percent, pump 100 percent until a curve or a manual setting changes them) and the individual fan controls then appear in its place. Returning it to automatic sends nothing; it only means the hub is not re-taken automatically at the next start.";
+        private const string HubTakeControlZeroRpmNote =
+            "There is no fan reading paired with this entry; it is a control for the hub as a whole, so it stays visible without one.";
 
         // ---- Identifier helpers -------------------------------------------------------------
 
@@ -257,6 +273,13 @@ namespace SensorReadout.CorsairPlugIn
             if (!emittedAnyChannelRow)
             {
                 rows.Add(MakeHubUnavailableRow(hub, nameSuffix));
+
+                // And give a hub that is merely running its own profile the one control through
+                // which it can be taken at all (see HubTakeControlName).
+                if (hub.HardwareModeBlocked)
+                {
+                    rows.Add(MakeHubTakeControlRow(hub, nameSuffix, hardwareName));
+                }
             }
         }
 
@@ -283,6 +306,29 @@ namespace SensorReadout.CorsairPlugIn
                 // Still exactly one row, with the same identifier, either way -- only the
                 // explanation changes when the cause is known to be the hub's own profile.
                 DisplayValue = hub.HardwareModeBlocked ? HubHardwareModeBlockedDisplayValue : HubUnavailableDisplayValue,
+                Source = SourceName,
+                Details = details
+            };
+        }
+
+        private static SensorReading MakeHubTakeControlRow(HubSnapshot hub, string nameSuffix, string hardwareName)
+        {
+            var details = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            details["Purpose"] = HubTakeControlNote;
+            details["Safety"] = HubControlSafetyNote;
+            details["Interoperability"] = InteroperabilityNote;
+            // The host hides a fan control whose paired fan reads no RPM unless it carries this key;
+            // this entry has no paired fan at all, and hiding it would defeat its purpose.
+            details["Zero RPM capable"] = HubTakeControlZeroRpmNote;
+
+            return new SensorReading
+            {
+                Type = "Fan Control",
+                Hardware = hardwareName,
+                Name = AppendHubNameSuffix(HubTakeControlName, nameSuffix),
+                Identifier = HubIdentifier(hub.Serial, "control", CorsairLinkHubDevice.HubWideControlChannel),
+                Value = null,
+                DisplayValue = HubTakeControlDisplayValue,
                 Source = SourceName,
                 Details = details
             };

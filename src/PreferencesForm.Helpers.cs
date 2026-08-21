@@ -244,6 +244,14 @@ public sealed partial class PreferencesForm : Form
             return true;
         }
 
+        // The same opt-in marker SensorReadoutForm.ShouldShowFanControl honours: a provider whose
+        // fan legitimately idles at 0 RPM (a semi-passive PSU) keeps its control listed here too,
+        // or it could never be added to a fan profile while the fan is stopped.
+        if (control != null && control.Details != null && control.Details.ContainsKey("Zero RPM capable"))
+        {
+            return true;
+        }
+
         var rpm = GetFanRpmForControl(control == null ? "" : control.Identifier, source);
         return rpm.HasValue && rpm.Value > 0;
     }

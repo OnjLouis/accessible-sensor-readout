@@ -125,6 +125,16 @@ Sensor Readout calls `Shutdown` when a plug-in is disabled or reloaded and when 
 closes. The method must be idempotent, bounded, and safe before the plug-in's first reading. It
 should stop background work and release hardware handles without racing in-flight operations.
 
+The host does not tell the plug-in which of the three it is. A plug-in that owns hardware state and
+wants a reload not to hand that state back may defer the release briefly, as the bundled Corsair
+plug-in does (a bounded grace that the next `GetReadings` or fan-control call cancels), but it must
+still release when the process exits. To make that possible, Sensor Readout sets the AppDomain data
+slot `SensorReadout.ApplicationExiting` to `true` immediately before the `Shutdown` calls it makes on
+the way out of the process; a plug-in can read it with
+`AppDomain.CurrentDomain.GetData("SensorReadout.ApplicationExiting")` and release synchronously in
+that case instead of relying on `AppDomain.ProcessExit`, whose handlers share a budget of roughly two
+seconds.
+
 `GetReadings` is called during Sensor Readout refresh. Keep it fast.
 
 ## Minimal Plug-In Example

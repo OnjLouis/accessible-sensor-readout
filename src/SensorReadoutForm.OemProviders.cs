@@ -52,6 +52,13 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
+    // Decided from the curve's temperature identifier alone, not from the row cache: plug-in
+    // identifiers never start with "/" (Docs/Plug-In-development.md) and LibreHardwareMonitor's
+    // always do. Consulting the cache's contents instead meant that a cache filled while the plug-in
+    // had not yet produced its temperature rows (a status-only first snapshot, a hub still in
+    // hardware mode) kept the five-minute interval for the whole five minutes - in precisely the
+    // start-minimized case this exemption exists for - because nothing clears that cache when a
+    // plug-in's rows change.
     private bool AnyEnabledFanCurveUsesPlugInReading()
     {
         var curves = settings == null ? null : settings.FanCurves;
@@ -60,33 +67,17 @@ public sealed partial class SensorReadoutForm : Form
             return false;
         }
 
-        lock (oemProviderRowsLock)
+        foreach (var curve in curves)
         {
-            if (cachedOemProviderRows.Count == 0)
+            if (curve == null || !curve.Enabled || curve.SuspendedByManualControl || string.IsNullOrWhiteSpace(curve.TemperatureReadingKey))
             {
-                return false;
+                continue;
             }
 
-            foreach (var curve in curves)
+            var identifier = IdentifierFromSettingsKey(curve.TemperatureReadingKey);
+            if (!string.IsNullOrWhiteSpace(identifier) && !identifier.StartsWith("/", StringComparison.Ordinal))
             {
-                if (curve == null || !curve.Enabled || curve.SuspendedByManualControl || string.IsNullOrWhiteSpace(curve.TemperatureReadingKey))
-                {
-                    continue;
-                }
-
-                var identifier = IdentifierFromSettingsKey(curve.TemperatureReadingKey);
-                if (string.IsNullOrWhiteSpace(identifier))
-                {
-                    continue;
-                }
-
-                foreach (var row in cachedOemProviderRows)
-                {
-                    if (row != null && string.Equals(row.Identifier, identifier, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
+                return true;
             }
         }
 

@@ -186,6 +186,26 @@ namespace SensorReadout.CorsairPlugIn
                 "The semi-passive PSU fan control must carry the zero-RPM marker so the host keeps it visible at 0 RPM.");
             Require(psuControl.Details.ContainsKey("Safety") && hubControl.Details.ContainsKey("Safety"),
                 "Every control row must carry its safety note.");
+
+            // A hub that is running its own hardware profile has no channel map and therefore no
+            // per-channel control rows; the hub-wide take-control entry is the only way in for a
+            // machine without a marker file, so it must be there, be a Fan Control row the host will
+            // list, and stay visible although it has no paired fan reading.
+            var blockedRows = CorsairPlugIn.BuildRows(new CorsairSnapshot
+            {
+                CapturedUtc = DateTime.UtcNow,
+                Status = string.Empty,
+                Hubs = new List<HubSnapshot>
+                {
+                    new HubSnapshot { Serial = "blockedhub", FirmwareVersion = "3.12.650", HardwareModeBlocked = true, Channels = new List<HubChannelSnapshot>() }
+                },
+                Psus = new List<PsuSnapshot>()
+            }, false, null);
+            var takeControl = blockedRows.FirstOrDefault(row => string.Equals(row.Type, "Fan Control", StringComparison.OrdinalIgnoreCase));
+            Require(takeControl != null
+                && string.Equals(takeControl.Identifier, "corsair/link/blockedhub/control/" + CorsairLinkHubDevice.HubWideControlChannel.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
+                && takeControl.Details != null && takeControl.Details.ContainsKey("Zero RPM capable"),
+                "A hardware-mode-blocked hub must expose its hub-wide take-control entry, or nothing could ever take it on a machine without a marker file.");
             Require(rows.Any(row => (row.Name ?? string.Empty).IndexOf("Hub 1", StringComparison.OrdinalIgnoreCase) >= 0),
                 "The first of multiple hubs needs a neutral visible suffix.");
             Require(rows.Any(row => (row.Name ?? string.Empty).IndexOf("Hub 2", StringComparison.OrdinalIgnoreCase) >= 0),

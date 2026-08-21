@@ -83,8 +83,9 @@ For the supervised hardware-validation matrix that accompanies the fan-control r
    reappear, and the fans re-baseline (pump 100 %, fans 50 %) before the saved
    fan-control settings are re-applied. The Debug log says "resuming fan control of hub
    ...". If instead the tree shows a single "Corsair Plug-In" row saying the hub is
-   running its own hardware fan profile, the marker file below is missing -- set any
-   Corsair fan to a manual percent once and the rows appear immediately.
+   running its own hardware fan profile, the marker file below is missing -- open the Fan
+   Controls dialog, set the hub's "Take fan control" entry to any manual percent once, and
+   the rows appear on the next refresh.
 3. Help > One-click diagnostics briefly sets every visible fan control to 100 % for about
    1.5 seconds and restores it -- loud but harmless, and by design.
 4. After a crash or a killed process (not a normal exit): the hub reverts to its own
@@ -109,22 +110,30 @@ duties. Monitoring together is fine.
 
 - A hub in hardware mode refuses to enumerate its sub-devices (measured on firmware
   3.12.650), so after a clean exit there is nothing at all to read until some program takes
-  software control. The plug-in resumes control by itself only on a machine that has used it
-  for fan control before; that fact is recorded in a marker file next to the plug-in,
-  `Plug-Ins\Corsair\corsair-hub-<serial>.controlled` (one per hub, written the first time a
-  Corsair fan control is used -- one-click diagnostics also counts, since it exercises the
-  controls). Deleting the file returns the plug-in to strictly read-only-until-touched
-  behaviour: the hub is then left in hardware mode at start-up and its rows stay hidden
-  until a fan control is used again. An app update also clears the marker (the updater
-  archives it into its backup ZIP), so after updating, use any fan control once to restore
-  automatic resume. The file records only that fan control was used -- no duties, no
-  percentages; those live in Sensor Readout's own settings.
+  software control. While the hub is in that state the plug-in shows one Fan Control entry
+  for it, "Take fan control": set it to any manual percent and the hub goes into software
+  mode and its real controls appear in its place. The plug-in resumes control by itself only
+  on a machine where a hub channel was last left off its default -- a manual setting or a
+  fan curve; that fact is recorded in a marker file next to the plug-in,
+  `Plug-Ins\Corsair\corsair-hub-<serial>.controlled` (one per hub). The marker is written
+  when a channel is set and removed again when every channel of the hub is returned to its
+  default, so "All fans reset" -- or one-click diagnostics, which restores every control
+  afterwards -- leaves none behind. Deleting the file returns the plug-in to strictly
+  read-only-until-touched behaviour: the hub is then left in hardware mode at start-up and
+  its rows stay hidden until a fan control is used again. An app update also clears the
+  marker (the updater archives it into its backup ZIP), so after updating, use the "Take fan
+  control" entry or any fan control once to restore automatic resume; a saved manual setting
+  for that entry re-takes the hub at start-up by itself. The file records only that fan
+  control is in use -- no duties, no percentages; those live in Sensor Readout's own
+  settings.
 - **Disabling the plug-in hands the hardware back after a delay, not instantly.** Sensor
   Readout shuts a plug-in down and re-creates it on every preference change, and gives the
   plug-in no way to tell that apart from being disabled for good. So the plug-in defers the
   hand-back and cancels it if the app asks for readings again -- which is what keeps opening
   Preferences from dropping the hub to its own loud profile. The wait is three of the app's
-  observed refresh intervals, clamped to between 20 and 90 seconds. Quitting Sensor Readout
+  observed refresh intervals, clamped to between 20 and 90 seconds (refresh intervals above
+  90 seconds count as 90; after a genuine plug-in reload the app asks for readings again at
+  once, which cancels the wait, and so does any fan-control action). Quitting Sensor Readout
   is unaffected and restores immediately.
 - Legacy Commander PRO/CORE, Hydro AIO, and AXi device families are not supported.
 - Some hub readings are unavailable while the hub is in hardware mode or controlled by

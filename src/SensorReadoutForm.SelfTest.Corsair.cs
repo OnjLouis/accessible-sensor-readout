@@ -45,8 +45,14 @@ public sealed partial class SensorReadoutForm : Form
         var awakeNowMs = NativeMethods.TryGetAwakeMilliseconds();
         Require(awakeNowMs >= 0 && NativeMethods.UnbiasedInterruptTimeAvailable,
             "QueryUnbiasedInterruptTime, the only clock that does not count suspended time, is not answering on this machine.");
-        Require(awakeNowMs <= (long)NativeMethods.GetTickCount64(),
-            "The awake clock read ahead of the biased tick count, which an unbiased clock cannot do.");
+        // The two clocks are quantised differently: GetTickCount64 floors to whole clock ticks (up
+        // to ~16 ms behind) while the interrupt time advances at the current timer resolution, so
+        // on a machine that has never slept since boot the unbiased value reads a few milliseconds
+        // *ahead* of the tick count most of the time. The invariant worth asserting is that it never
+        // runs ahead by more than that quantisation: anything larger would mean the "unbiased"
+        // clock counts time the tick count does not, which is impossible.
+        Require(awakeNowMs <= (long)NativeMethods.GetTickCount64() + 1000,
+            "The awake clock read more than a second ahead of the biased tick count, which an unbiased clock cannot do.");
         Require(!ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - 10000, 5, false),
             "A collection ten awake-seconds old was treated as stalled; a sleep must not be counted as elapsed time.");
         Require(ShouldSupersedeStalledRefresh(awakeBaseMs, awakeBaseMs - (10 * 60 * 1000), 5, false),
@@ -67,8 +73,13 @@ public sealed partial class SensorReadoutForm : Form
         var previousRefreshInProgressSinceAwakeMs = refreshInProgressSinceAwakeMs;
         var previousRefreshStallReported = refreshStallReported;
         var previousRefreshGeneration = refreshGeneration;
+        var previousRefreshIntervalSeconds = settings.RefreshIntervalSeconds;
         try
         {
+            // TrySupersedeStalledRefresh reads the live refresh interval; pinned so the ten-minute
+            // assertions below hold against any saved configuration (at 101 s or more the threshold
+            // itself exceeds ten minutes), not only the isolated self-test copy's default.
+            settings.RefreshIntervalSeconds = 5;
             refreshInProgress = true;
             refreshStallReported = false;
             // Past the first collection of the process, so the threshold under test here is the
@@ -97,6 +108,7 @@ public sealed partial class SensorReadoutForm : Form
             refreshInProgressSinceAwakeMs = previousRefreshInProgressSinceAwakeMs;
             refreshStallReported = previousRefreshStallReported;
             refreshGeneration = previousRefreshGeneration;
+            settings.RefreshIntervalSeconds = previousRefreshIntervalSeconds;
         }
 
         Require(SelfTestCountLogLinesContaining(stallErrorPhrase) == stallErrorsBefore,
@@ -159,10 +171,22 @@ public sealed partial class SensorReadoutForm : Form
             using (var preferences = new PreferencesForm(settings, latestRows, LoadLanguageChoices(), "Plug-Ins"))
             {
                 preferences.CreateControl();
+                // Populate the dialog's list properties the way a shown dialog would (only
+                // SaveLivePreferences/CommitPreferences assign them): ApplyPreferencesFromDialog
+                // copies them into settings unguarded, and on a never-shown dialog they are null,
+                // which would wipe alarms, fan profiles, hotkeys and hidden keys for the rest of the
+                // run.
+                SetPrivateField(preferences, "loadingPreferences", false);
+                InvokePrivate(preferences, "SaveLivePreferences");
                 var plugInList = FindControls<CheckedListBox>(preferences.Controls)
                     .FirstOrDefault(list => list.Items.Cast<object>().Any(item => item is PlugInPreferenceInfo));
                 Require(plugInList != null && plugInList.Items.Count > 0, "Preferences plug-in list was not found.");
 
+                // Start from a manager built under the all-false set installed above: a manager an
+                // earlier step left behind (built under the loaded configuration's set) would be
+                // compared against that set and torn down by the first save, failing the step for
+                // the wrong reason on any configuration with a plug-in enabled.
+                DisposePlugInManager();
                 EnsurePlugInManager();
                 var manager = plugInManager;
                 Require(manager != null, "The plug-in manager was not created for the rebuild guard test.");
