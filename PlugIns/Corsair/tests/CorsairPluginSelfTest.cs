@@ -18,6 +18,7 @@ namespace SensorReadout.CorsairPlugIn
                 TestPacketBounds();
                 TestProtocolParsers();
                 TestRowsAndPrivacy();
+                TestScanCadenceAfterSessionLoss();
                 TestDeferredTeardownAcrossReload();
                 TestUnstartedLifecycle();
                 // Last: it leaves a worker that can never complete a hand-back, so the singleton
@@ -270,6 +271,36 @@ namespace SensorReadout.CorsairPlugIn
             Require(!worker.AdoptHostContact(), "A worker that has handed its devices back must report itself finished.");
             Require(!object.ReferenceEquals(worker, CorsairWorker.Instance),
                 "After the hand-back a re-enable must start from a fresh worker.");
+        }
+
+        // 2026-08-21 17:10:56 the machine resumed; a single HID read timed out one second later and
+        // sub-device enumeration on the iCUE LINK hub failed, so its session did not come back. The
+        // PSU session did, and the scan that had just failed to re-open the hub therefore counted "a
+        // device is present" and scheduled its next attempt at the five-minute present-device
+        // cadence. Recovery took 301 s, during which the loop ran the hub's own firmware curve --
+        // safe, but not the user's curves -- and the plug-in published 6 rows instead of 36. A scan
+        // that comes up short must retry at the absent-device cadence instead.
+        //
+        // Numbers rather than the constants on purpose: the constants are what is under test.
+        private static void TestScanCadenceAfterSessionLoss()
+        {
+            Require(CorsairWorker.NextScanDelayMs(0, false, 0) == 30000,
+                "With nothing connected the scan cadence must stay the brisk 30 s one.");
+            Require(CorsairWorker.NextScanDelayMs(2, false, 0) == 300000,
+                "With every device connected the scan must go back to the slow 5 min hot-plug watch.");
+
+            Require(CorsairWorker.NextScanDelayMs(1, true, 1) == 30000,
+                "A scan that could not re-open a device this process had must retry at the absent-device cadence, not inherit the five-minute present-device one; that inheritance is what took 301 s to get the hub back after a resume.");
+            Require(CorsairWorker.NextScanDelayMs(1, true, 2) == 60000, "The second recovery scan must back off rather than repeat at 30 s.");
+            Require(CorsairWorker.NextScanDelayMs(1, true, 3) == 120000, "The recovery backoff must keep doubling.");
+            Require(CorsairWorker.NextScanDelayMs(1, true, 4) == 240000, "The recovery backoff must keep doubling.");
+            Require(CorsairWorker.NextScanDelayMs(1, true, 5) == 300000,
+                "A device that is not coming back must settle onto the slow watch rather than re-enumerating every 30 s for the life of the process.");
+            Require(CorsairWorker.NextScanDelayMs(1, true, 500) == 300000, "The recovery backoff must be capped, not unbounded.");
+
+            // Nothing here may ever schedule a scan for "now": the worker would re-enumerate HID in
+            // a tight loop with the device guard held.
+            Require(CorsairWorker.NextScanDelayMs(1, true, 0) >= 30000, "A recovery scan must never be scheduled immediately.");
         }
 
         private static void TestUnstartedLifecycle()

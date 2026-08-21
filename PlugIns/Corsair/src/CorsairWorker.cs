@@ -202,6 +202,8 @@ namespace SensorReadout.CorsairPlugIn
         private bool appDomainHooked;           // lifecycleLock
         private bool idleOwnedLogged;           // worker thread only
         private int nextScanTicks;              // worker thread only
+        private int peakDeviceSessions;         // worker thread only: most sessions held at once
+        private int recoveryScans;              // worker thread only: consecutive scans still missing one
 
         private CorsairWorker()
         {

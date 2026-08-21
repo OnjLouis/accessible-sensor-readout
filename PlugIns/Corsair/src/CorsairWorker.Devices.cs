@@ -272,6 +272,7 @@ namespace SensorReadout.CorsairPlugIn
             }
 
             var added = 0;
+            var failedConnects = 0;
             lock (deviceLock)
             {
                 for (var i = 0; i < found.Count; i++)
@@ -284,25 +285,48 @@ namespace SensorReadout.CorsairPlugIn
 
                     if (info.ProductId == HubProductId)
                     {
-                        if (FindHubByPath(info.Path) == null && ConnectHub(info))
+                        if (FindHubByPath(info.Path) == null)
                         {
-                            added++;
+                            if (ConnectHub(info))
+                            {
+                                added++;
+                            }
+                            else
+                            {
+                                failedConnects++;
+                            }
                         }
                     }
                     else if (IsPsuProductId(info.ProductId))
                     {
-                        if (FindPsuByPath(info.Path) == null && ConnectPsu(info))
+                        if (FindPsuByPath(info.Path) == null)
                         {
-                            added++;
+                            if (ConnectPsu(info))
+                            {
+                                added++;
+                            }
+                            else
+                            {
+                                failedConnects++;
+                            }
                         }
                     }
                 }
 
-                statusMessage = (hubs.Count + psus.Count) > 0 ? string.Empty : NoDevicesStatus;
+                var open = hubs.Count + psus.Count;
+                statusMessage = open > 0 ? string.Empty : NoDevicesStatus;
 
-                // While nothing is found, look again soon; once something is, keep a slow re-scan
-                // so a device plugged in later is still noticed.
-                nextScanTicks = unchecked(Environment.TickCount + ((hubs.Count + psus.Count) > 0 ? PresentRescanMs : ScanIntervalMs));
+                if (open > peakDeviceSessions)
+                {
+                    peakDeviceSessions = open;
+                }
+
+                // "We are short a device we used to have, or the bus shows one we cannot open."
+                // Either way this process is missing a session it should have, which is a different
+                // situation from the steady state PresentRescanMs was chosen for.
+                var missing = failedConnects > 0 || open < peakDeviceSessions;
+                recoveryScans = missing ? recoveryScans + 1 : 0;
+                nextScanTicks = unchecked(Environment.TickCount + NextScanDelayMs(open, missing, recoveryScans));
             }
 
             if (added > 0)
@@ -310,6 +334,47 @@ namespace SensorReadout.CorsairPlugIn
                 Log("Debug", "Corsair plug-in: " + added.ToString(CultureInfo.InvariantCulture)
                     + " Corsair device session(s) opened.");
             }
+        }
+
+        /// <summary>
+        /// How long to wait before the next device scan.
+        ///
+        /// The steady state is a slow watch for a device plugged in later, and the empty state is a
+        /// brisk look for the first device. What was missing is the state in between: a session this
+        /// process had and lost, or a device the HID bus shows that will not open.
+        ///
+        /// That state cost five minutes of a water loop running its hub's own firmware curve on
+        /// 2026-08-21. The machine resumed at 17:10:56, a single HID read timed out one second
+        /// later, sub-device enumeration failed, and the hub session did not come back -- but the
+        /// PSU session did, so the scan that had just failed to re-open the hub counted "a device is
+        /// present" and scheduled its next attempt PresentRescanMs later. Recovery took 301 s and
+        /// the plug-in's rows sat at 6 instead of 36 for all of it.
+        ///
+        /// So a scan that comes up short retries at the absent-device cadence, then doubles up to
+        /// the present-device one. Bounded at both ends and it cannot spin: the first retry is
+        /// ScanIntervalMs away, not immediate, and a device that is never coming back (unplugged for
+        /// good, or held open by another program) settles onto exactly the slow cadence it has now
+        /// after four attempts rather than re-enumerating every 30 s for the life of the process.
+        /// </summary>
+        internal static int NextScanDelayMs(int openSessions, bool missingSession, int consecutiveRecoveryScans)
+        {
+            if (openSessions <= 0)
+            {
+                return ScanIntervalMs;
+            }
+
+            if (!missingSession)
+            {
+                return PresentRescanMs;
+            }
+
+            var delay = ScanIntervalMs;
+            for (var i = 1; i < consecutiveRecoveryScans && delay < PresentRescanMs; i++)
+            {
+                delay *= 2;
+            }
+
+            return delay > PresentRescanMs ? PresentRescanMs : delay;
         }
 
         // Called with deviceLock held.
