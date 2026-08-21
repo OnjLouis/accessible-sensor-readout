@@ -19,6 +19,12 @@ rebased onto upstream 6.0.0):
   untested path in the change.
 - Marker-file auto-resume: re-confirmed on a clean restart. Still n = small, still restarts only
   — see below and section 2.3.
+- Per-device backoff (5 failures / 30 s): **VALIDATED**, and with no hardware disconnected —
+  holding the shared `Global\CorsairLinkReadWriteGuardMutex` from a throwaway program starves
+  every read exactly the way a non-cooperating third-party Corsair tool would, and both the hub
+  and the PSU backed off after 5 failures and self-healed once the guard was released, with no
+  manual intervention. See section 2.3, "Per-device backoff, validated by holding the shared
+  guard".
 
 **What 3.5 days of production logs separately proved**, unsupervised (full detail in section 2.3):
 every duty write reached the hardware (13,066/13,066), the 10 s fan-curve rate limit and the
@@ -41,9 +47,6 @@ the ordinary teardown at every clean app exit, not by an induced disconnect.
 - A forced collection wedge — the watchdog is only known to recover a starved continuation, not a
   phase genuinely hung inside the collection lock (section 2.3), so this test would characterise
   the failure shape rather than validate a fix for it.
-- Per-device backoff (5 failures / 30 s) — still never exercised, but it does not need hardware to
-  be unplugged: it fires when an already-open session's reads keep failing, not when a device
-  disappears. See section 2.3 for how it could be reached.
 - P1's deliberate sleep/resume pass, P3 (process kill), P4 (multi-hour soak), P5 (second machine),
   P6/P7 (Preferences round-trip and plug-in disable) — untouched by today's session; see section 2.2.
 
@@ -420,7 +423,7 @@ Satisfied by production evidence:
 | Read-path stability | exactly 1 HID timeout and 0 `IsGone` events in 3.5 days |
 
 Not met, or never exercised by this passive corpus — most still need the deliberate runs in
-section 2.2; two have since been resolved by the 2026-08-21 bench session and one has been
+section 2.2; three have since been resolved by the 2026-08-21 bench session and one has been
 reclassified, as their rows note:
 
 | Property | Status | Basis |
@@ -430,7 +433,7 @@ reclassified, as their rows note:
 | Clean-exit hand-back to hardware mode (P0/V8) | **RESOLVED BY BENCH TEST, 2026-08-21 — PASS x2, see P0** | Still **0** occurrences of `returning … to hardware mode` in this passive 3.5-day corpus (that fact about the unsupervised logs does not change — see "The one clean exit" below). What changed is that the deliberate, supervised P0 re-run on 2026-08-21 produced the full restore sequence twice, in the required order, so the question this corpus could not answer is now answered: the restore path works on a normal exit |
 | PSU restore path | **EXERCISED AND CONFIRMED, 2026-08-21 — see P0 run 2** | Still zero `corsair/psu` control lines in this passive production corpus — this was the highest-consequence untested path in the change. Today's deliberate P0 run 2 exercised it directly: a manual PSU duty was set, saved, and re-applied at start-up (the first `corsair/psu/…/control/0` write ever recorded on this project), and the shutdown restore was confirmed not just in the log but on the wire by a read-only probe (fan mode `automatic (PSU curve, zero-RPM capable)`, 376 rpm, down from 1084 rpm manual) |
 | USB disconnect / reconnect (P2) | **RECLASSIFIED — NOT APPLICABLE, see section 2.4** | 0 `IsGone`, 0 disconnects in this corpus either way; the hardware owner has ruled out inducing one (physical risk to a powered, running system), rather than this remaining an open gap |
-| Per-device backoff (5 failures / 30 s) | **STILL PENDING** | 0 occurrences. Unlike P2, this does not need an induced disconnect: it fires when an *already open* device session's reads keep failing five times running (`NoteDeviceResult`, `CorsairWorker.Devices.cs:144-178`) — e.g. a device that is busy, wedged, or held exclusively by a program that does not share the read/write mutex — not when the device goes fully `IsGone`, which is the separate path P2 covered. It is also distinct from the post-resume reconnect cadence fix 4 addressed (`NextScanDelayMs` retries a missing *session*; this counts failing *reads* on a session that is still open). A hardware-safe way to reach it would be running Corsair iCUE alongside Sensor Readout for a few polls (already discouraged in normal use, for this exact reason) or catching a hub in a genuinely marginal state; neither has been attempted |
+| Per-device backoff (5 failures / 30 s) | **VALIDATED, 2026-08-21 — see below** | 0 occurrences in the passive corpus, as before — that fact does not change. Resolved by a deliberate bench test the same day: holding the shared `Global\CorsairLinkReadWriteGuardMutex` from a throwaway program starves every read exactly the way a non-cooperating third-party Corsair tool would, without touching or disconnecting any device. Both the hub and the PSU reached the 5-failure threshold and backed off, then self-healed once the guard was released. See "Per-device backoff, validated by holding the shared guard" below for the method and the full log evidence |
 | Preferences round-trip produces no traffic (P6) | **NOT COVERED HERE** | the corpus predates a deliberate Preferences exercise |
 | Genuine collection wedge → host watchdog recovery | **STILL PENDING** | 0 real stalls in 122k lines. The host watchdog fired 5 times in this corpus and all five were hibernations counted as elapsed time, since fixed. Worth flagging before this is attempted: the watchdog only recovers a *starved continuation* (one that never got scheduled), not a phase genuinely hung inside the collection lock — in the latter case the replacement collection blocks on the same lock and only the Error line helps. A forced-wedge test would therefore characterise which failure shape actually occurs, not validate that the watchdog fixes it, since it is not designed to fix the second one |
 
@@ -498,6 +501,56 @@ the current reading of the evidence, not a settled fact: the historical exit was
 closely enough at the time (no process-list or event-log correlation was captured) to say with
 certainty which termination path it actually took.
 
+#### Per-device backoff, validated by holding the shared guard
+
+**Status: VALIDATED, 2026-08-21, this branch's build.** No hardware was disconnected and nothing
+was written to a device.
+
+**Method — the interesting part.** A small throwaway program acquired
+`Global\CorsairLinkReadWriteGuardMutex` and simply held it. That is exactly what a third-party
+Corsair tool doing a long transaction looks like from this plug-in's side: every read bracket
+blocks on the guard, times out at `GuardTimeoutMs = 2000` ms, and reports failure, while the
+devices themselves stay perfectly healthy and untouched throughout. Releasing the guard is the
+only intervention needed to restore normal operation. This is the reachable route the previous
+version of this row said existed, and it needs no hardware access at all.
+
+**Evidence (log timestamps, all Debug):**
+
+- Guard held from 19:49:32; 43 `Corsair plug-in: another Corsair program held the device guard for
+  2000 ms; …` lines followed, naming the skipped hub endpoints (0x17, 0x21) and the un-sent PSU
+  commands (0x8d, 0x8e, 0x90, 0xf0, 0x88, 0xee).
+- `19:50:47 iCUE LINK hub 0f14…e46f has failed 5 reads in a row; slowing it to one attempt every
+  30 s until one succeeds.`
+- `19:50:59 Corsair PSU 1c27 has failed 5 reads in a row; slowing it to one attempt every 30 s
+  until one succeeds.`
+- Guard released 19:51:27.
+- `19:51:29 Corsair PSU 1c27 is answering again; it is back on the normal polling interval.`
+  (2 s after release.)
+- `19:52:02` fan curves resume writing duties (pump 87 %, radiators 49 %).
+- `19:52:23 iCUE LINK hub … is answering again; it is back on the normal polling interval.`
+  (~56 s after release — consistent with the 30 s retry cadence landing on an attempt that was
+  itself made while the guard was still held, so recovery took two retry slots rather than one.)
+- Afterwards: 36 rows per refresh, zero Error lines, curves back to normal. No manual intervention
+  at any point — both devices recovered entirely on their own.
+
+**New observation: sustained guard contention inflates a worker tick by roughly 18x.** Under
+sustained contention every command waits its full 2000 ms guard timeout instead of completing in
+milliseconds, so a full worker tick — 2 hub endpoint reads plus 6 PSU commands — stretches from
+well under a second to roughly 18 s. That is why an earlier attempt at this test, holding the
+guard for only 35 s, produced just 2 consecutive failures per device and never reached the
+5-failure threshold; the test had to be repeated with a ~115 s hold to actually trip the backoff.
+**Practical consequence:** when the cause is guard contention rather than a genuinely unresponsive
+device, the 5-failure backoff threshold is reached in wall-clock terms far later than "5 ticks"
+suggests. Throughout, the plug-in stayed responsive and non-destructive: fans simply held their
+last commanded duty, and no duty write was attempted against a device that could not be reached.
+
+**What this validates, and what it does not.** This confirms the backoff/recovery state machine —
+both `ConsecutiveFailures` reaching `MaxConsecutiveFailures` and `NextDueTicks` re-arming at
+`DeviceBackoffMs`, for both the hub and the PSU — behaves correctly under *guard starvation*, a
+real and reachable condition (a Corsair-aware program that does not share the mutex). It does
+**not** validate behaviour under a genuinely faulty or wedged device, which is a narrower and less
+actionable gap than "the backoff path has never run at all."
+
 ### 2.4 Not applicable — not to be attempted
 
 These items are not part of the outstanding validation work. Each has been ruled out deliberately,
@@ -521,11 +574,12 @@ and the reasoning is recorded here so the decision is not later mistaken for an 
   already covered by the invariants in section 1 and by code inspection, without needing to induce
   the failure physically.
 - **What stays untested, and that this is accepted.** The surprise-removal code paths — `IsGone`
-  detection, the per-device session teardown (`DropHub`/`DropPsu`), and the reconnect/backoff
-  cadence built for fix 4 — remain in the plug-in as defensive handling. They are exercised only by
-  code inspection and by the ordinary device-session teardown that already happens at every clean
-  app exit, not by an induced mid-session disconnect. That is a documented limitation, accepted by
-  the hardware owner, not an outstanding task.
+  detection, the per-device session teardown (`DropHub`/`DropPsu`), and the missing-session
+  reconnect cadence built for fix 4 (`NextScanDelayMs` — not the same mechanism as the per-device
+  read-failure backoff validated in section 2.3) — remain in the plug-in as defensive handling.
+  They are exercised only by code inspection and by the ordinary device-session teardown that
+  already happens at every clean app exit, not by an induced mid-session disconnect. That is a
+  documented limitation, accepted by the hardware owner, not an outstanding task.
 
 ## 3. Reporting
 
