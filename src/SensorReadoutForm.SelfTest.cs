@@ -46,6 +46,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Remote monitoring server round-trip and privacy", delegate { form.SelfTestRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Embedded remote server round-trip and privacy", delegate { form.SelfTestEmbeddedRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
+            form.RunSelfTestStep(results, "Portable spoken hotkey resolution", delegate { form.SelfTestPortableReadingKeyResolution(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });
@@ -321,6 +322,21 @@ public sealed partial class SensorReadoutForm : Form
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2, itemSize) == 2, "WLAN BSS list count did not use dwNumberOfItems.");
         Require(SafeWlanBssEntryCount(8 + (itemSize * 2), 2000, itemSize) == 2, "WLAN BSS list count was not capped by buffer size.");
         Require(SafeWlanBssEntryCount(4, 1, itemSize) == 0, "WLAN BSS list accepted a header smaller than the entry offset.");
+
+        uint width;
+        bool nonContiguous;
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 61, 2, 36, 0 }, out width, out nonContiguous) && width == 20 && !nonContiguous, "HT 20 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 61, 2, 36, 5 }, out width, out nonContiguous) && width == 40 && !nonContiguous, "HT 40 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 192, 3, 1, 42, 0 }, out width, out nonContiguous) && width == 80 && !nonContiguous, "VHT 80 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 192, 3, 1, 42, 50 }, out width, out nonContiguous) && width == 160 && !nonContiguous, "VHT revised-signalling 160 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 192, 3, 3, 42, 106 }, out width, out nonContiguous) && width == 160 && nonContiguous, "VHT 80+80 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 255, 12, 36, 0, 0, 2, 0, 0, 0, 5, 2, 7, 0, 0 }, out width, out nonContiguous) && width == 80 && !nonContiguous, "HE 6 GHz 80 MHz channel width was not parsed.");
+        Require(TryGetWifiChannelWidthMhz(new byte[] { 255, 9, 106, 1, 0, 0, 0, 0, 4, 0, 0 }, out width, out nonContiguous) && width == 320 && !nonContiguous, "EHT 320 MHz channel width was not parsed.");
+        Require(!TryGetWifiChannelWidthMhz(new byte[] { 192, 3, 1 }, out width, out nonContiguous), "Truncated Wi-Fi information element was accepted.");
+
+        var wifi = new WifiInterfaceInfo { Connected = true, ChannelWidthMhz = 80 };
+        var widthRow = BuildWifiRows("Wi-Fi adapter", wifi).FirstOrDefault(r => string.Equals(r.Name, "Wi-Fi channel width", StringComparison.OrdinalIgnoreCase));
+        Require(widthRow != null && widthRow.Value == 80 && string.Equals(widthRow.DisplayValue, "80 MHz", StringComparison.Ordinal), "Wi-Fi channel width row was not emitted as a selectable numeric reading.");
     }
 
     private void SelfTestListeningPortDetailsSplit()

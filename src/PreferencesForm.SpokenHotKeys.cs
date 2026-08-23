@@ -277,8 +277,9 @@ public sealed partial class PreferencesForm : Form
             FindPresetRow("Network", "Receive rate", null),
             FindPresetRow("Network", "Send rate", null),
             FindPresetRow("Network", "Wi-Fi signal strength", null),
-            FindPresetRow("Network", "Wi-Fi RSSI", null),
-            FindPresetRow("Network", "Wi-Fi channel", null));
+            FindPresetRow("Network", "Wi-Fi signal RSSI", null),
+            FindPresetRow("Network", "Wi-Fi channel", null),
+            FindPresetRow("Network", "Wi-Fi channel width", null));
         AddSpokenPresetIfAny(presets, "Disk activity", "Read/write rates and disk activity for the first fixed drive found.",
             FindPresetRow("Performance", "Read rate", null),
             FindPresetRow("Performance", "Write rate", null),
@@ -539,16 +540,25 @@ public sealed partial class PreferencesForm : Form
                     var resolvedKeys = new List<string>();
                     foreach (var key in imported.ReadingKeys ?? new List<string>())
                     {
-                        var resolved = ResolveImportedSpokenReadingKey(key);
-                        if (string.IsNullOrWhiteSpace(resolved))
+                        var resolvedRow = SensorReadoutForm.ResolveReadingKeyAgainstRows(key, rows);
+                        if (resolvedRow == null)
                         {
                             skippedReadings++;
                             continue;
                         }
 
+                        var resolved = SensorReadoutForm.RowSettingsKey(resolvedRow);
                         if (!resolvedKeys.Contains(resolved, StringComparer.OrdinalIgnoreCase))
                         {
                             resolvedKeys.Add(resolved);
+                        }
+
+                        string customLabel;
+                        if (importedSettings.ReadingSpeechLabels != null &&
+                            importedSettings.ReadingSpeechLabels.TryGetValue(key, out customLabel) &&
+                            !string.IsNullOrWhiteSpace(customLabel))
+                        {
+                            readingSpeechLabels[resolved] = customLabel.Trim();
                         }
                     }
 
@@ -583,47 +593,6 @@ public sealed partial class PreferencesForm : Form
                 System.Media.SystemSounds.Beep.Play();
             }
         }
-    }
-
-    private string ResolveImportedSpokenReadingKey(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return "";
-        }
-
-        var exact = rows.FirstOrDefault(r => string.Equals(SensorReadoutForm.RowSettingsKey(r), key, StringComparison.OrdinalIgnoreCase));
-        if (exact != null)
-        {
-            return SensorReadoutForm.RowSettingsKey(exact);
-        }
-
-        var parts = key.Split('|');
-        if (parts.Length < 3)
-        {
-            return "";
-        }
-
-        var type = parts[0];
-        var hardware = parts[1];
-        var name = SensorReadoutForm.CleanSensorName(parts[2]);
-        var portableHardware = IsPortableImportedHardware(hardware);
-        var matches = rows
-            .Where(r =>
-                string.Equals(r.Type ?? "", type, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(SensorReadoutForm.CleanSensorName(r.Name), name, StringComparison.OrdinalIgnoreCase) &&
-                (portableHardware || string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        return matches.Count == 1 ? SensorReadoutForm.RowSettingsKey(matches[0]) : "";
-    }
-
-    private static bool IsPortableImportedHardware(string hardware)
-    {
-        return string.Equals(hardware ?? "", "CPU", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Memory", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Battery", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Overview", StringComparison.OrdinalIgnoreCase);
     }
 
     private string UniqueSpokenHotKeyName(string name)

@@ -1099,12 +1099,12 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        return latestRows.FirstOrDefault(r =>
-            string.Equals(r.Type ?? "", type, StringComparison.OrdinalIgnoreCase) &&
-            (string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(NormalizeHardwareName(r.Hardware), normalizedHardware, StringComparison.OrdinalIgnoreCase)) &&
-            (string.IsNullOrWhiteSpace(identifier) || string.Equals(r.Identifier ?? "", identifier, StringComparison.OrdinalIgnoreCase)) &&
-            string.Equals(CleanSensorName(r.Name), cleanName, StringComparison.OrdinalIgnoreCase));
+        var resolved = ResolveReadingKeyAgainstRows(key, latestRows);
+        if (resolved != null && promoteLabels)
+        {
+            PromoteSpeechLabelToResolvedRow(key, resolved);
+        }
+        return resolved;
     }
 
     private void PromoteSpeechLabelToResolvedRow(string oldKey, SensorRow resolvedRow)

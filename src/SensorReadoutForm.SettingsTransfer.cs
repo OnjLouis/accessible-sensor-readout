@@ -244,6 +244,11 @@ public sealed partial class SensorReadoutForm : Form
         {
             var importedProfiles = new List<SpokenHotKeySetting>();
             var skippedReadings = 0;
+            var equivalentReadings = 0;
+            if (settings.ReadingSpeechLabels == null)
+            {
+                settings.ReadingSpeechLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
             foreach (var profile in machine.SpokenHotKeys ?? new List<SpokenHotKeySetting>())
             {
                 if (profile == null)
@@ -264,6 +269,16 @@ public sealed partial class SensorReadoutForm : Form
                     if (!resolved.Contains(match, StringComparer.OrdinalIgnoreCase))
                     {
                         resolved.Add(match);
+                        if (!string.Equals(match, key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            equivalentReadings++;
+                        }
+
+                        var importedLabel = ImportedSpeechLabel(machine.ReadingSpeechLabels, key);
+                        if (!string.IsNullOrWhiteSpace(importedLabel))
+                        {
+                            settings.ReadingSpeechLabels[match] = importedLabel;
+                        }
                     }
                 }
 
@@ -277,7 +292,7 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             settings.SpokenHotKeys = importedProfiles;
-            lines.Add(L("message.Imported spoken hotkey profiles with key assignments left blank:", "Imported spoken hotkey profiles with key assignments left blank:") + " " + importedProfiles.Count + ". " + L("message.Skipped readings:", "Skipped readings:") + " " + skippedReadings + ".");
+            lines.Add(L("message.Imported spoken hotkey profiles with key assignments left blank:", "Imported spoken hotkey profiles with key assignments left blank:") + " " + importedProfiles.Count + ". " + L("message.Matched equivalent readings:", "Matched equivalent readings:") + " " + equivalentReadings + ". " + L("message.Skipped readings:", "Skipped readings:") + " " + skippedReadings + ".");
         }
 
         if (categories.Contains(TransferFanProfiles))
@@ -556,43 +571,26 @@ public sealed partial class SensorReadoutForm : Form
 
     private string ResolveImportedReadingKey(string key)
     {
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return "";
-        }
-
-        var exact = latestRows.FirstOrDefault(r => string.Equals(RowSettingsKey(r), key, StringComparison.OrdinalIgnoreCase));
-        if (exact != null)
-        {
-            return RowSettingsKey(exact);
-        }
-
-        var parts = key.Split('|');
-        if (parts.Length < 3)
-        {
-            return "";
-        }
-
-        var type = parts[0];
-        var hardware = parts[1];
-        var name = CleanSensorName(parts[2]);
-        var portableHardware = IsPortableImportedHardware(hardware);
-        var matches = latestRows
-            .Where(r =>
-                string.Equals(r.Type ?? "", type, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(CleanSensorName(r.Name), name, StringComparison.OrdinalIgnoreCase) &&
-                (portableHardware || string.Equals(r.Hardware ?? "", hardware, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        return matches.Count == 1 ? RowSettingsKey(matches[0]) : "";
+        var match = ResolveReadingKeyAgainstRows(key, latestRows);
+        return match == null ? "" : RowSettingsKey(match);
     }
 
-    private static bool IsPortableImportedHardware(string hardware)
+    private static string ImportedSpeechLabel(Dictionary<string, string> labels, string key)
     {
-        return string.Equals(hardware ?? "", "CPU", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Memory", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Battery", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(hardware ?? "", "Overview", StringComparison.OrdinalIgnoreCase);
+        if (labels == null || string.IsNullOrWhiteSpace(key))
+        {
+            return "";
+        }
+
+        foreach (var item in labels)
+        {
+            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return (item.Value ?? "").Trim();
+            }
+        }
+
+        return "";
     }
 
     private void RefreshAfterSettingsTransferImport()

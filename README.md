@@ -1,8 +1,8 @@
 # Sensor Readout
 
-Current version: 6.1.1.
+Current version: 6.2.0.
 
-**Important update note:** If you are running 6.0.0 or 6.1.0, download 6.1.1 manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
+**Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
 Sensor Readout is an accessibility-first Windows hardware information and troubleshooting tool for reading sensors, checking connected devices, investigating audio latency, reviewing system and accessibility details, creating support reports, and controlling supported fans with a keyboard-first, screen-reader-friendly interface.
 
@@ -40,7 +40,7 @@ Submitting stats is explicit opt-in from inside Sensor Readout. The app shows th
 - Shows a Performance/Overview category for uptime, BIOS details, GPU details, CPU usage, CPU model/core/thread/cache information, memory usage, paging file usage, physical + virtual memory totals, PCIe/expansion-slot information, connected-disk totals, accessibility status, and storage read/write activity, grouped so related information stays together.
 - Shows Windows printer information in Performance/Overview, including default printer, status, driver, port, configuration, queued jobs, and ink or toner percentages when the printer driver exposes them to Windows.
 - Opens the main UI immediately while the first sensor refresh continues in the background.
-- Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel, frequency, radio type, link speeds, and security where Windows provides them.
+- Shows a Network category for adapter status, IP addresses, link speed, send/receive rates, total traffic, and Wi-Fi details such as connection state, SSID, signal strength, RSSI, channel and channel width, frequency, radio type, link speeds, and security where Windows provides them.
 - Shows a Bluetooth category for Windows-exposed Bluetooth radios and paired or connected devices, including adapter/device address, type, services, manufacturer, connection state, pairing state, and last seen/used timestamps where available.
 - Shows a Tasks category for compact current-activity readings, including the highest CPU process, highest memory process, highest GPU process, and highest GPU memory process where Windows exposes those counters.
 - Shows a Spoken Hotkeys category that mirrors notification-area status and spoken hotkey profiles in the main tree, so sighted users can review what those hotkeys currently contain without opening Preferences.
@@ -339,6 +339,7 @@ The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Sp
 - Spoken hotkey presets: create starter profiles with useful reading groups such as system status, memory status, C drive activity, Tasks summary, network, GPU, battery, or cooling readings. Presets are created without key assignments, so assign the key you want before using them. Use `Alt+P` for Presets here and in the Alarms tab.
 - Spoken labels: rename selected readings for shorter speech, such as changing `Receive rate` to `Rx`.
 - Copy, cut, and paste readings: use `Ctrl+C`, `Ctrl+X`, and `Ctrl+V`, or the matching buttons, to copy readings between notification area status and spoken hotkey profiles without rebuilding each list from scratch.
+- Import spoken hotkeys: Sensor Readout keeps drive letters exact and cautiously matches equivalent CPU, GPU, memory, battery, network, system, task, and other portable readings when the source computer uses different hardware names. The same matching is used while viewing loaded reports and remote computers. Custom spoken labels follow matched readings, while ambiguous choices remain unavailable instead of being guessed.
 
 Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
 
@@ -450,7 +451,7 @@ The Performance section summarizes live system counters and storage activity. It
 
 Windows reports hardware virtual-machine memory translation as SLAT. Intel documentation often calls the same class of feature EPT, while AMD documentation often calls it NPT or RVI. Sensor Readout spells this out as `CPU hardware VM memory translation (SLAT/EPT/NPT)` so the reading is less cryptic.
 
-The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Network also includes a passive local listening-port summary from Windows, with endpoint Details that can identify the owning process where Windows exposes it, plus public IP lookup rows for country, region, city, coordinates, provider, autonomous system, and connection type where the online lookup provider returns them. A combined Public IP summary reading can be added to notification area status or a spoken hotkey, so one reading can speak the public-IP fields returned by the provider. Public IP location data is approximate; use Refresh Now or F5 to request a fresh public-IP lookup if the online provider changes its result. Wi-Fi connection state, signal, RSSI, channel, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
+The Network section shows each adapter under one common tree, including status, IP address, link speed, send and receive rates, and total traffic counters. Wi-Fi adapters can also show connection state, network name, access point, signal strength, RSSI in dBm, channel, current channel width, frequency, radio type, receive/transmit link speeds, and security details where Windows provides them. Wi-Fi rows use concise labels inside the adapter tree instead of repeating Wi-Fi before every item. Network also includes a passive local listening-port summary from Windows, with endpoint Details that can identify the owning process where Windows exposes it, plus public IP lookup rows for country, region, city, coordinates, provider, autonomous system, and connection type where the online lookup provider returns them. A combined Public IP summary reading can be added to notification area status or a spoken hotkey, so one reading can speak the public-IP fields returned by the provider. Public IP location data is approximate; use Refresh Now or F5 to request a fresh public-IP lookup if the online provider changes its result. Wi-Fi connection state, signal, RSSI, channel, channel width, frequency, and link speeds can be used in notification area status, spoken hotkeys, and alarms where numeric thresholds make sense.
 
 The Bluetooth section shows Windows-exposed Bluetooth radios and paired or connected Bluetooth devices. Adapter rows can include address, type, services, manufacturer, and LMP subversion. Device rows can include connection state, paired/remembered state, device address, type, services, and last seen or last used timestamps. Bluetooth device battery percentages remain in the Battery section when Windows exposes them, because those readings behave like battery readings and can already be used in spoken hotkeys, notification-area status, and alarms. Sensor Readout does not invent Bluetooth signal strength; classic Windows Bluetooth APIs do not expose reliable live RSSI/dBm for ordinary paired devices in the same way Windows exposes Wi-Fi RSSI.
 
@@ -649,7 +650,7 @@ Use `Options` > `Enable reading history logging` to turn short-term CSV logging 
 
 Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items and category order, or plug-in choices.
 
-Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Portable readings such as memory, CPU, System uptime, and many overview values are matched when possible. Hardware-specific items that could be unsafe or wrong on another computer are imported cautiously: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
+Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Spoken hotkeys keep drive letters exact and cautiously match equivalent CPU, GPU, memory, battery, network, system, task, and other portable readings when hardware names differ. This same matching helps configured hotkeys follow corresponding readings in loaded reports and remote computers. Custom spoken labels follow matched readings, while ambiguous choices remain unavailable rather than being guessed. Other hardware-specific items that could be unsafe or wrong on another computer remain cautious: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
 
 Use `File` > `Export portable copy...` or `Ctrl+Shift+E` when you want the whole customized app as a ZIP. It includes Sensor Readout, `Config`, Plug-Ins, language files, custom sounds, and the other files needed to run from another folder or another PC. Reports and logs are optional checkboxes because they can be large or private.
 
@@ -745,13 +746,18 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 6.2.0
+
+- Added: Connected Wi-Fi adapters can now show the current channel width, including 20, 40, 80, 160, 80+80, or 320 MHz where Windows advertises it. Wi-Fi rows also use shorter labels inside their existing adapter tree instead of repeating Wi-Fi before every reading.
+- Improved: Spoken hotkeys now follow equivalent readings more reliably across different local hardware, imported profiles, loaded reports, and remote computers. Drive letters remain exact even when volume labels differ; equivalent CPU and GPU sensors and other portable readings are matched cautiously; custom spoken labels follow imported matches; and ambiguous choices remain unavailable instead of being guessed.
+
 ### 6.1.1
 
 - Fixed: The updater now carries the program files required to verify and install signed update packages. If you are running 6.0.0 or 6.1.0, download 6.1.1 manually once; your existing settings are kept, and later automatic updates work normally.
 
 ### 6.1.0
 
-- Added: The bundled Corsair iCUE Link and PSU Support plug-in can now control supported iCUE LINK Hub pumps and fans and HXi/RMi power-supply fans. It remains opt-in and performs no control write until the user acts. Pump channels never run below 50 percent, low PSU requests return the fan to its automatic curve, and closing Sensor Readout restores automatic hardware control. Thanks to Robin Kipp for the implementation and extensive real-hardware validation.
+- Added: The bundled Corsair iCUE Link and PSU Support plug-in can now control supported iCUE LINK Hub pumps and fans and HXi/RMi power-supply fans. It remains opt-in and performs no control write until the user acts. Pump channels never run below 50 percent, low PSU requests return the fan to its automatic curve, and closing Sensor Readout restores automatic hardware control. Thanks to Robin Kipp for the implementation and extensive real-hardware validation in [pull request #26](https://github.com/OnjLouis/accessible-sensor-readout/pull/26).
 - Improved: Fan curves that use a plug-in temperature now keep that temperature current while the curve is active, without increasing normal background polling for other plug-ins.
 - Improved: All fans reset now includes supported plug-in controls, including MSI, ASUS, and Corsair hardware.
 - Fixed: Opening or editing Preferences no longer needlessly tears down and reloads every enabled hardware plug-in.

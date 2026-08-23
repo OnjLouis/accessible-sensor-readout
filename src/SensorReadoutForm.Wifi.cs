@@ -23,6 +23,8 @@ public sealed partial class SensorReadoutForm
         public int? RssiDbm;
         public uint? Channel;
         public uint? FrequencyMhz;
+        public uint? ChannelWidthMhz;
+        public bool ChannelWidthNonContiguous;
         public uint ReceiveRateKbps;
         public uint TransmitRateKbps;
     }
@@ -158,11 +160,13 @@ public sealed partial class SensorReadoutForm
             }
 
             var itemSize = Marshal.SizeOf(typeof(WlanBssEntry));
-            var count = SafeWlanBssEntryCount(Marshal.ReadInt32(bssList, 0), Marshal.ReadInt32(bssList, 4), itemSize);
+            var totalSize = Marshal.ReadInt32(bssList, 0);
+            var count = SafeWlanBssEntryCount(totalSize, Marshal.ReadInt32(bssList, 4), itemSize);
             const int itemOffset = 8;
             for (var i = 0; i < count; i++)
             {
-                var itemPtr = IntPtr.Add(bssList, itemOffset + (i * itemSize));
+                var entryOffset = itemOffset + (i * itemSize);
+                var itemPtr = IntPtr.Add(bssList, entryOffset);
                 var entry = (WlanBssEntry)Marshal.PtrToStructure(itemPtr, typeof(WlanBssEntry));
                 var bssid = FormatMacAddress(entry.Bssid);
                 if (!string.Equals(bssid, info.Bssid, StringComparison.OrdinalIgnoreCase))
@@ -186,6 +190,16 @@ public sealed partial class SensorReadoutForm
                 if (string.IsNullOrWhiteSpace(info.RadioType))
                 {
                     info.RadioType = FormatPhyType(entry.PhyType);
+                }
+
+                byte[] informationElements;
+                uint channelWidthMhz;
+                bool nonContiguous;
+                if (TryCopyWifiInformationElements(bssList, totalSize, entryOffset, itemSize, entry, out informationElements) &&
+                    TryGetWifiChannelWidthMhz(informationElements, out channelWidthMhz, out nonContiguous))
+                {
+                    info.ChannelWidthMhz = channelWidthMhz;
+                    info.ChannelWidthNonContiguous = nonContiguous;
                 }
 
                 return;
@@ -218,6 +232,262 @@ public sealed partial class SensorReadoutForm
         }
 
         return Math.Min(reportedCount, maxItemsBySize);
+    }
+
+    private static bool TryCopyWifiInformationElements(IntPtr bssList, int totalSize, int entryOffset, int entrySize, WlanBssEntry entry, out byte[] informationElements)
+    {
+        informationElements = null;
+        if (bssList == IntPtr.Zero || totalSize <= 0 || entryOffset < 0 || entrySize <= 0 || entry.IeSize == 0 || entry.IeSize > 2324 || entry.IeOffset < entrySize)
+        {
+            return false;
+        }
+
+        var start = (long)entryOffset + entry.IeOffset;
+        var end = start + entry.IeSize;
+        if (start < entryOffset || end < start || end > totalSize || start > int.MaxValue)
+        {
+            return false;
+        }
+
+        informationElements = new byte[(int)entry.IeSize];
+        Marshal.Copy(IntPtr.Add(bssList, (int)start), informationElements, 0, informationElements.Length);
+        return true;
+    }
+
+    private static bool TryGetWifiChannelWidthMhz(byte[] informationElements, out uint widthMhz, out bool nonContiguous)
+    {
+        widthMhz = 0;
+        nonContiguous = false;
+        if (informationElements == null || informationElements.Length < 2)
+        {
+            return false;
+        }
+
+        uint? htWidth = null;
+        uint? vhtWidth = null;
+        uint? heWidth = null;
+        uint? ehtWidth = null;
+        var vhtNonContiguous = false;
+        var heNonContiguous = false;
+        var offset = 0;
+        while (offset + 2 <= informationElements.Length)
+        {
+            var elementId = informationElements[offset];
+            var length = informationElements[offset + 1];
+            var dataOffset = offset + 2;
+            var next = dataOffset + length;
+            if (next < dataOffset || next > informationElements.Length)
+            {
+                break;
+            }
+
+            if (elementId == 61 && length >= 2)
+            {
+                var htParameter = informationElements[dataOffset + 1];
+                var secondaryOffset = htParameter & 0x03;
+                htWidth = (htParameter & 0x04) != 0 && (secondaryOffset == 1 || secondaryOffset == 3) ? 40u : 20u;
+            }
+            else if (elementId == 192 && length >= 3)
+            {
+                uint parsedWidth;
+                bool parsedNonContiguous;
+                if (TryParseVhtChannelWidth(informationElements, dataOffset, out parsedWidth, out parsedNonContiguous))
+                {
+                    vhtWidth = parsedWidth;
+                    vhtNonContiguous = parsedNonContiguous;
+                }
+            }
+            else if (elementId == 255 && length >= 1)
+            {
+                var extensionId = informationElements[dataOffset];
+                if (extensionId == 36)
+                {
+                    uint parsedWidth;
+                    bool parsedNonContiguous;
+                    if (TryParseHeChannelWidth(informationElements, dataOffset, length, out parsedWidth, out parsedNonContiguous))
+                    {
+                        heWidth = parsedWidth;
+                        heNonContiguous = parsedNonContiguous;
+                    }
+                }
+                else if (extensionId == 106)
+                {
+                    uint parsedWidth;
+                    if (TryParseEhtChannelWidth(informationElements, dataOffset, length, out parsedWidth))
+                    {
+                        ehtWidth = parsedWidth;
+                    }
+                }
+            }
+
+            offset = next;
+        }
+
+        if (ehtWidth.HasValue)
+        {
+            widthMhz = ehtWidth.Value;
+            return true;
+        }
+
+        if (heWidth.HasValue)
+        {
+            widthMhz = heWidth.Value;
+            nonContiguous = heNonContiguous;
+            return true;
+        }
+
+        if (vhtWidth.HasValue)
+        {
+            widthMhz = vhtWidth.Value;
+            nonContiguous = vhtNonContiguous;
+            return true;
+        }
+
+        if (htWidth.HasValue)
+        {
+            widthMhz = htWidth.Value;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseVhtChannelWidth(byte[] data, int offset, out uint widthMhz, out bool nonContiguous)
+    {
+        widthMhz = 0;
+        nonContiguous = false;
+        if (data == null || offset < 0 || offset + 3 > data.Length)
+        {
+            return false;
+        }
+
+        var widthCode = data[offset];
+        if (widthCode == 0)
+        {
+            return false;
+        }
+
+        if (widthCode == 2)
+        {
+            widthMhz = 160;
+            return true;
+        }
+
+        if (widthCode == 3)
+        {
+            widthMhz = 160;
+            nonContiguous = true;
+            return true;
+        }
+
+        if (widthCode != 1)
+        {
+            return false;
+        }
+
+        var segment0 = data[offset + 1];
+        var segment1 = data[offset + 2];
+        var difference = Math.Abs(segment1 - segment0);
+        if (segment1 != 0 && difference == 8)
+        {
+            widthMhz = 160;
+        }
+        else if (segment1 != 0 && difference > 16)
+        {
+            widthMhz = 160;
+            nonContiguous = true;
+        }
+        else
+        {
+            widthMhz = 80;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseHeChannelWidth(byte[] data, int offset, int length, out uint widthMhz, out bool nonContiguous)
+    {
+        widthMhz = 0;
+        nonContiguous = false;
+        if (data == null || offset < 0 || length < 7 || offset + length > data.Length || data[offset] != 36)
+        {
+            return false;
+        }
+
+        var parameters = (uint)(data[offset + 1] |
+            (data[offset + 2] << 8) |
+            (data[offset + 3] << 16) |
+            (data[offset + 4] << 24));
+        var optionalOffset = offset + 7;
+        var end = offset + length;
+        uint? vhtWidth = null;
+        var vhtNonContiguous = false;
+        if ((parameters & 0x00004000) != 0)
+        {
+            if (optionalOffset + 3 > end)
+            {
+                return false;
+            }
+
+            uint parsedWidth;
+            bool parsedNonContiguous;
+            if (TryParseVhtChannelWidth(data, optionalOffset, out parsedWidth, out parsedNonContiguous))
+            {
+                vhtWidth = parsedWidth;
+                vhtNonContiguous = parsedNonContiguous;
+            }
+            optionalOffset += 3;
+        }
+
+        if ((parameters & 0x00008000) != 0)
+        {
+            optionalOffset++;
+        }
+
+        if ((parameters & 0x00020000) != 0)
+        {
+            if (optionalOffset + 5 > end)
+            {
+                return false;
+            }
+
+            var widthCode = data[optionalOffset + 1] & 0x03;
+            widthMhz = widthCode == 0 ? 20u : widthCode == 1 ? 40u : widthCode == 2 ? 80u : 160u;
+            return true;
+        }
+
+        if (vhtWidth.HasValue)
+        {
+            widthMhz = vhtWidth.Value;
+            nonContiguous = vhtNonContiguous;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseEhtChannelWidth(byte[] data, int offset, int length, out uint widthMhz)
+    {
+        widthMhz = 0;
+        if (data == null || offset < 0 || length < 9 || offset + length > data.Length || data[offset] != 106)
+        {
+            return false;
+        }
+
+        var parameters = data[offset + 1];
+        if ((parameters & 0x01) == 0)
+        {
+            return false;
+        }
+
+        var widthCode = data[offset + 6] & 0x07;
+        if (widthCode > 4)
+        {
+            return false;
+        }
+
+        widthMhz = widthCode == 0 ? 20u : widthCode == 1 ? 40u : widthCode == 2 ? 80u : widthCode == 3 ? 160u : 320u;
+        return true;
     }
 
     private static IEnumerable<SensorRow> BuildWifiRows(string hardware, WifiInterfaceInfo wifi)
@@ -265,6 +535,14 @@ public sealed partial class SensorReadoutForm
         if (wifi.Channel.HasValue)
         {
             yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi channel", Value = wifi.Channel.Value, DisplayValue = wifi.Channel.Value.ToString(), Source = "Windows WLAN", Details = CloneDetails(details) };
+        }
+
+        if (wifi.ChannelWidthMhz.HasValue)
+        {
+            var widthText = wifi.ChannelWidthNonContiguous
+                ? "80+80 MHz"
+                : wifi.ChannelWidthMhz.Value + " MHz";
+            yield return new SensorRow { Type = "Network", Hardware = hardware, Name = "Wi-Fi channel width", Value = wifi.ChannelWidthMhz.Value, DisplayValue = widthText, Source = "Windows WLAN", Details = CloneDetails(details) };
         }
 
         if (wifi.FrequencyMhz.HasValue)
@@ -322,6 +600,7 @@ public sealed partial class SensorReadoutForm
         AddDetail(details, "Wi-Fi signal strength", FormatNumber(wifi.SignalQuality, "0") + "%");
         if (wifi.RssiDbm.HasValue) AddDetail(details, "Wi-Fi signal RSSI", wifi.RssiDbm.Value + " dBm");
         if (wifi.Channel.HasValue) AddDetail(details, "Wi-Fi channel", wifi.Channel.Value.ToString());
+        if (wifi.ChannelWidthMhz.HasValue) AddDetail(details, "Wi-Fi channel width", wifi.ChannelWidthNonContiguous ? "80+80 MHz" : wifi.ChannelWidthMhz.Value + " MHz");
         if (wifi.FrequencyMhz.HasValue) AddDetail(details, "Wi-Fi frequency", wifi.FrequencyMhz.Value + " MHz");
         AddDetail(details, "Wi-Fi radio type", wifi.RadioType);
         AddDetail(details, "Wi-Fi connection type", wifi.BssType);
