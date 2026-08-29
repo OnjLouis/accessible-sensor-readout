@@ -158,7 +158,18 @@ public sealed partial class SensorReadoutForm
 
         if (string.Equals(cleanType, "Battery", StringComparison.OrdinalIgnoreCase))
         {
-            return "battery";
+            if ((identifier ?? "").StartsWith("device-battery/", StringComparison.OrdinalIgnoreCase))
+            {
+                return "battery:device";
+            }
+
+            if ((identifier ?? "").StartsWith("battery/", StringComparison.OrdinalIgnoreCase) ||
+                (identifier ?? "").StartsWith("acpi-battery", StringComparison.OrdinalIgnoreCase))
+            {
+                return "battery:system";
+            }
+
+            return "battery:other";
         }
 
         if (string.Equals(cleanHardware, "Memory", StringComparison.OrdinalIgnoreCase))

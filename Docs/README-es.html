@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versión actual: 6.2.1.</p>
+<p>Versión actual: 6.2.2.</p>
 <p><strong>Aviso importante sobre la actualización:</strong> Si usa la versión 6.0.0 o 6.1.0, descargue manualmente la versión actual una sola vez. Esas dos versiones no pueden completar su propia actualización firmada porque al actualizador temporal le faltaba un archivo de programa necesario. Se conservan sus ajustes y las actualizaciones automáticas posteriores vuelven a funcionar con normalidad.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
@@ -51,6 +51,7 @@
 <li><a href="#credits">Crditos</a></li>
 </ul>
 <h2 id="changelog">Cambios</h2>
+<h3>6.2.2</h3><ul><li>Corregido: Una lectura de tecla rápida hablada para la batería de un teclado, ratón, auricular u otro dispositivo desconectado ya no recurre a la batería integrada del equipo. Las baterías de dispositivos no disponibles se omiten en lugar de anunciar dos veces la carga del equipo con etiquetas distintas.</li></ul>
 <h3>6.2.1</h3><ul><li>Corregido: El inicio normal ya no elimina y vuelve a crear la tarea de inicio de Windows de Sensor Readout ni reescribe registros de la aplicación y asociaciones de archivos que no han cambiado. Estas entradas solo se modifican durante la instalación, cuando cambia la preferencia relacionada o cuando una entrada obsoleta realmente necesita reparación, evitando un comportamiento que podría hacer que Microsoft Defender pusiera en cuarentena una instalación limpia.</li><li>Añadido: <code>Install_Scripts\Install-Sensor-Readout.cmd</code> abre el flujo existente de instalación en este PC para quienes prefieren un instalador que se pueda ejecutar con doble clic. Usa la misma ruta de instalación de la aplicación y conserva los ajustes y demás datos del usuario de la copia portátil.</li></ul>
 <h3>6.2.0</h3><ul><li>Añadido: Los adaptadores Wi-Fi conectados ahora pueden mostrar el ancho actual del canal, incluidos 20, 40, 80, 160, 80+80 y 320 MHz cuando Windows proporciona suficientes datos válidos de la conexión. Las etiquetas Wi-Fi también son más breves dentro de la categoría Red y no repiten información que la propia categoría ya deja clara.</li><li>Mejorado: Los perfiles de atajos hablados ahora siguen lecturas equivalentes entre ajustes importados, informes cargados y equipos remotos. Las tasas de unidad conservan su letra exacta aunque cambie la etiqueta del volumen; las lecturas habituales de CPU, GPU, memoria, batería, red, resumen y tareas pueden asignarse con cautela a su equivalente más cercano, y las etiquetas habladas personalizadas viajan con los atajos importados. Las coincidencias ambiguas se omiten en lugar de adivinarse.</li></ul>
 <h3>6.1.1</h3><ul><li>Corregido: El actualizador ahora incluye los archivos de programa necesarios para verificar e instalar paquetes de actualización firmados. Si usa la versión 6.0.0 o 6.1.0, descargue manualmente la 6.1.1 una sola vez; se conservan sus ajustes y las actualizaciones automáticas posteriores vuelven a funcionar con normalidad.</li></ul>

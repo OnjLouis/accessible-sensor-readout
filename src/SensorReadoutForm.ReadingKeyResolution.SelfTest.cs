@@ -32,6 +32,11 @@ public sealed partial class SensorReadoutForm
             Require(ReferenceEquals(ResolveReadingKeyAgainstRows(intelWifiSignalKey, latestRows), remoteWifiSignal), "Wi-Fi signal strength did not resolve across different adapter vendors.");
             Require(ResolveReadingKeyAgainstRows("Performance|C: Missing|Read rate|logicaldisk/C:/read", new[] { remoteDRead }) == null, "A missing C: reading incorrectly resolved to D:.");
 
+            var internalBattery = new SensorRow { Type = "Battery", Hardware = "Laptop battery", Name = "Charge", Identifier = "battery/0/charge", DisplayValue = "71%" };
+            var deviceBattery = new SensorRow { Type = "Battery", Hardware = "Wireless keyboard", Name = "Charge", Identifier = "device-battery/keyboard/charge", DisplayValue = "100%" };
+            Require(ResolveReadingKeyAgainstRows("Battery|Old keyboard|Charge|device-battery/old-keyboard/charge", new[] { internalBattery }) == null, "A missing device battery incorrectly resolved to the internal battery.");
+            Require(ResolveReadingKeyAgainstRows("Battery|Old laptop battery|Charge|battery/0/charge", new[] { deviceBattery }) == null, "A missing internal battery incorrectly resolved to an external device battery.");
+
             var secondCpuTemperature = new SensorRow { Type = "Temperature", Hardware = "AMD Ryzen socket 2", Name = "CPU Package", Identifier = "/amdcpu/1/temperature/0", DisplayValue = "46 C" };
             var firstCpuTemperature = new SensorRow { Type = "Temperature", Hardware = "AMD Ryzen socket 1", Name = "CPU Package", Identifier = "/amdcpu/0/temperature/0", DisplayValue = "45 C" };
             Require(ResolveReadingKeyAgainstRows(intelTemperatureKey, new[] { firstCpuTemperature, secondCpuTemperature }) == null, "Ambiguous multi-CPU temperature mapping did not fail closed.");

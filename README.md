@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.2.1.
+Current version: 6.2.2.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -746,6 +746,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.2.2
+
+- Fixed: A spoken hotkey reading for a disconnected keyboard, mouse, headset, or other device battery no longer falls back to the computer's built-in battery. Missing device batteries are skipped instead of announcing the computer's charge twice under different labels.
 
 ### 6.2.1
 
