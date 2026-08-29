@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -217,6 +218,12 @@ public sealed partial class SensorReadoutForm : Form
     private static void SetRunAtStartup(bool enabled, bool startMinimized, string targetPath, string workingDirectory)
     {
         var shortcutPath = GetStartupShortcutPath();
+        var arguments = startMinimized ? "--minimized" : "";
+        if (enabled && IsStartupScheduledTaskCurrent(targetPath, arguments, workingDirectory) && !HasLegacyStartupRegistration(shortcutPath))
+        {
+            return;
+        }
+
         DeleteStartupScheduledTask();
         DeleteStartupRunKey();
         if (System.IO.File.Exists(shortcutPath))
@@ -230,24 +237,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        CreateStartupScheduledTask(targetPath, startMinimized ? "--minimized" : "", workingDirectory);
-    }
-
-    private void RepairRunAtStartupRegistration()
-    {
-        if (!settings.RunAtStartup)
-        {
-            return;
-        }
-
-        try
-        {
-            SetRunAtStartup(true, settings.StartMinimizedToTray);
-        }
-        catch (Exception ex)
-        {
-            LogMessage("Normal", "Could not refresh Windows startup registration: " + ex.Message);
-        }
+        CreateStartupScheduledTask(targetPath, arguments, workingDirectory);
     }
 
     private static void SetStartupApprovedState(string shortcutPath, bool enabled)
@@ -391,6 +381,82 @@ public sealed partial class SensorReadoutForm : Form
             "    </Exec>\r\n" +
             "  </Actions>\r\n" +
             "</Task>\r\n";
+    }
+
+    private static bool IsStartupScheduledTaskCurrent(string targetPath, string arguments, string workingDirectory)
+    {
+        string xml;
+        return TryGetStartupScheduledTaskXml(out xml) && StartupTaskXmlMatches(xml, targetPath, arguments, workingDirectory);
+    }
+
+    private static bool TryGetStartupScheduledTaskXml(out string xml)
+    {
+        return RunHiddenProcess("schtasks.exe", "/Query /TN \"" + StartupTaskName + "\" /XML", out xml) == 0 &&
+            !string.IsNullOrWhiteSpace(xml);
+    }
+
+    private static bool StartupTaskXmlMatches(string xml, string targetPath, string arguments, string workingDirectory)
+    {
+        try
+        {
+            var document = new System.Xml.XmlDocument();
+            document.LoadXml(xml);
+            var namespaces = new System.Xml.XmlNamespaceManager(document.NameTable);
+            namespaces.AddNamespace("task", "http://schemas.microsoft.com/windows/2004/02/mit/task");
+
+            var command = StartupTaskNodeText(document, namespaces, "/task:Task/task:Actions/task:Exec/task:Command");
+            var actualArguments = StartupTaskNodeText(document, namespaces, "/task:Task/task:Actions/task:Exec/task:Arguments");
+            var actualWorkingDirectory = StartupTaskNodeText(document, namespaces, "/task:Task/task:Actions/task:Exec/task:WorkingDirectory");
+            var triggerEnabled = StartupTaskNodeText(document, namespaces, "/task:Task/task:Triggers/task:LogonTrigger/task:Enabled");
+            var taskEnabled = StartupTaskNodeText(document, namespaces, "/task:Task/task:Settings/task:Enabled");
+
+            return string.Equals(NormalizeStartupPath(command), NormalizeStartupPath(targetPath), StringComparison.OrdinalIgnoreCase) &&
+                string.Equals((actualArguments ?? "").Trim(), (arguments ?? "").Trim(), StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizeStartupPath(actualWorkingDirectory), NormalizeStartupPath(workingDirectory), StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(triggerEnabled, "false", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(taskEnabled, "false", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string StartupTaskNodeText(System.Xml.XmlDocument document, System.Xml.XmlNamespaceManager namespaces, string xpath)
+    {
+        var node = document.SelectSingleNode(xpath, namespaces);
+        return node == null ? "" : node.InnerText;
+    }
+
+    private static string NormalizeStartupPath(string path)
+    {
+        return (path ?? "").Trim().TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+    }
+
+    private static bool HasLegacyStartupRegistration(string shortcutPath)
+    {
+        if (System.IO.File.Exists(shortcutPath))
+        {
+            return true;
+        }
+
+        return RegistryValueExists(@"Software\Microsoft\Windows\CurrentVersion\Run", "Sensor Readout") ||
+            RegistryValueExists(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", "Sensor Readout");
+    }
+
+    private static bool RegistryValueExists(string keyPath, string valueName)
+    {
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(keyPath, false))
+            {
+                return key != null && key.GetValueNames().Any(name => string.Equals(name, valueName, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string XmlEscape(string text)

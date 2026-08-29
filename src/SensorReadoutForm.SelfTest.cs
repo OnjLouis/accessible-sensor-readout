@@ -231,6 +231,7 @@ public sealed partial class SensorReadoutForm : Form
         try
         {
             RegisterInstalledAppEntry(exePath, installFolder, testKeyPath);
+            Require(IsInstalledAppEntryCurrent(exePath, installFolder, testKeyPath), "Installed app registration was not recognized as current.");
             using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKeyPath))
             {
                 Require(key != null, "Installed app registry key was not created.");
@@ -246,7 +247,17 @@ public sealed partial class SensorReadoutForm : Form
                 Require(Convert.ToInt32(key.GetValue("EstimatedSize")) > 0, "EstimatedSize was not registered.");
             }
 
+            using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(testKeyPath, true))
+            {
+                Require(key != null, "Installed app registry key could not be reopened for repair testing.");
+                key.SetValue("DisplayVersion", "0.0.0", Microsoft.Win32.RegistryValueKind.String);
+            }
+            Require(!IsInstalledAppEntryCurrent(exePath, installFolder, testKeyPath), "Stale installed app registration was accepted as current.");
+            RegisterInstalledAppEntry(exePath, installFolder, testKeyPath);
+            Require(IsInstalledAppEntryCurrent(exePath, installFolder, testKeyPath), "Stale installed app registration was not repaired.");
+
             RegisterRemoteConnectionFileAssociation(exePath, extensionKeyPath, testProgId, progIdKeyPath, false);
+            Require(IsRemoteConnectionFileAssociationCurrent(exePath, extensionKeyPath, testProgId, progIdKeyPath), "Remote connection association was not recognized as current.");
             using (var extensionKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(extensionKeyPath))
             {
                 Require(extensionKey != null, ".srconnection registry key was not created.");
@@ -272,6 +283,26 @@ public sealed partial class SensorReadoutForm : Form
                     Require(command.IndexOf("\"%1\"", StringComparison.Ordinal) >= 0, ".srconnection open command does not preserve a quoted file path.");
                 }
             }
+
+            using (var commandKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(progIdKeyPath + @"\shell\open\command", true))
+            {
+                Require(commandKey != null, ".srconnection command key could not be reopened for repair testing.");
+                commandKey.SetValue("", "stale", Microsoft.Win32.RegistryValueKind.String);
+            }
+            Require(!IsRemoteConnectionFileAssociationCurrent(exePath, extensionKeyPath, testProgId, progIdKeyPath), "Stale remote connection association was accepted as current.");
+            RegisterRemoteConnectionFileAssociation(exePath, extensionKeyPath, testProgId, progIdKeyPath, false);
+            Require(IsRemoteConnectionFileAssociationCurrent(exePath, extensionKeyPath, testProgId, progIdKeyPath), "Stale remote connection association was not repaired.");
+
+            var startupXml = BuildStartupTaskXml(exePath, "--minimized", installFolder);
+            Require(StartupTaskXmlMatches(startupXml, exePath, "--minimized", installFolder), "Matching startup task XML was rejected.");
+            Require(!StartupTaskXmlMatches(startupXml, exePath, "", installFolder), "Startup task XML with stale arguments was accepted.");
+            Require(startupXml.IndexOf("<RunLevel>HighestAvailable</RunLevel>", StringComparison.Ordinal) >= 0, "Startup task does not request the elevation required by Sensor Readout.");
+
+            var installScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Install_Scripts", "Install-Sensor-Readout.cmd");
+            Require(File.Exists(installScriptPath), "Optional Sensor Readout install script is missing.");
+            var installScript = File.ReadAllText(installScriptPath);
+            Require(installScript.IndexOf("Sensor Readout.exe", StringComparison.OrdinalIgnoreCase) >= 0, "Install script does not resolve Sensor Readout.exe.");
+            Require(installScript.IndexOf("--install", StringComparison.OrdinalIgnoreCase) >= 0, "Install script does not use the app-owned install flow.");
         }
         finally
         {

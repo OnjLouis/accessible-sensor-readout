@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.2.0.
+Current version: 6.2.1.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -271,6 +271,7 @@ Sensor Readout can also be started with a few command-line options:
 | `--no-diagnostics-sounds` | Run command-line diagnostics without start or completion sounds, while keeping spoken progress enabled if preferences allow it. |
 | `--community-stats-json [path]` | Write the allow-listed anonymous community stats payload and exit. This does not upload it. |
 | `--apply-update --update-zip path --update-target folder --update-exe path` | Install a local Sensor Readout update ZIP through the same updater used for online updates, useful for offline or managed copies. |
+| `--install` | Open the portable-copy install flow and preserve the current copy's settings, reports, logs, languages, sounds, data, docs, and plug-ins. |
 | `--uninstall` | Open the installed-copy uninstall flow. Windows uses this when Sensor Readout is installed to this PC and removed from Apps and Features or Programs and Features. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
@@ -317,7 +318,7 @@ The Startup and Install tab controls installation plus what happens when Sensor 
 - Startup and shutdown sounds: choose WAV files from the `Sounds` folder.
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
-The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy.
+The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy. You can start the same flow from Preferences, by running `Install_Scripts\Install-Sensor-Readout.cmd`, or with `Sensor Readout.exe --install`.
 
 Installed copies also appear in Windows Apps and Features / Programs and Features for the current user. Removing Sensor Readout from there opens the same uninstall flow as the Startup and Install tab, including the choice to keep or delete `Config`, `Logs`, and `Reports`. Portable copies are not listed there unless you choose Install to this PC.
 
@@ -745,6 +746,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.2.1
+
+- Fixed: Normal startup no longer deletes and recreates Sensor Readout's Windows startup task or rewrites unchanged app and file-association registration. These entries are now changed only during installation, when the related preference changes, or when a stale entry genuinely needs repair, avoiding behaviour that could cause Microsoft Defender to quarantine an otherwise clean installation.
+- Added: `Install_Scripts\Install-Sensor-Readout.cmd` opens the existing install-to-this-PC flow for users who prefer a double-clickable installer. It uses the same app-owned installation path and preserves the portable copy's settings and other user data.
 
 ### 6.2.0
 

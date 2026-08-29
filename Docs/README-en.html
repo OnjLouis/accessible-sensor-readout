@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.2.0.</p>
+<p>Current version: 6.2.1.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -47,6 +47,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.2.1</h3><ul><li>Fixed: Normal startup no longer deletes and recreates Sensor Readout's Windows startup task or rewrites unchanged app and file-association registration. These entries are now changed only during installation, when the related preference changes, or when a stale entry genuinely needs repair, avoiding behaviour that could cause Microsoft Defender to quarantine an otherwise clean installation.</li><li>Added: <code>Install_Scripts\Install-Sensor-Readout.cmd</code> opens the existing install-to-this-PC flow for users who prefer a double-clickable installer. It uses the same app-owned installation path and preserves the portable copy's settings and other user data.</li></ul>
 <h3>6.2.0</h3><ul><li>Added: Connected Wi-Fi adapters can now show the current channel width, including 20, 40, 80, 160, 80+80, and 320 MHz where Windows provides enough valid connection data. Wi-Fi labels are also shorter within the Network category, without repeatedly announcing information that the category already makes clear.</li><li>Improved: Spoken hotkey profiles now follow equivalent readings across imported settings, loaded reports, and remote computers. Drive-rate readings keep their exact drive letter even when volume labels differ, common CPU, GPU, memory, battery, network, overview, and task readings can move cautiously to their nearest equivalent, and custom spoken labels travel with imported hotkeys. Ambiguous matches are skipped rather than guessed.</li></ul>
 <h3>6.1.1</h3><ul><li>Fixed: The updater now carries the program files required to verify and install signed update packages. If you are running 6.0.0 or 6.1.0, download 6.1.1 manually once; your existing settings are kept, and later automatic updates work normally.</li></ul>
 <h3>6.1.0</h3><ul><li>Added: The bundled Corsair iCUE Link and PSU Support plug-in can now control supported iCUE LINK Hub pumps and fans and HXi/RMi power-supply fans. It remains opt-in and performs no control write until the user acts. Pump channels never run below 50 percent, low PSU requests return the fan to its automatic curve, and closing Sensor Readout restores automatic hardware control. Thanks to Robin Kipp for the implementation and extensive real-hardware validation in <a href="https://github.com/OnjLouis/accessible-sensor-readout/pull/26">pull request #26</a>.</li><li>Improved: Fan curves that use a plug-in temperature now keep that temperature current while the curve is active, without increasing normal background polling for other plug-ins.</li><li>Improved: All fans reset now includes supported plug-in controls, including MSI, ASUS, and Corsair hardware.</li><li>Fixed: Opening or editing Preferences no longer needlessly tears down and reloads every enabled hardware plug-in.</li><li>Fixed: Sensor Readout can recover when a sensor collection stops completing, without allowing an older superseded collection to publish stale readings or alarms after recovery or wake from sleep.</li><li>Fixed: Corsair fan-control resume state survives Sensor Readout updates without being mistaken for a modified plug-in or creating an unnecessary backup.</li></ul>
@@ -1141,6 +1142,7 @@
 <td>Write the allow-listed anonymous community stats payload and exit. This does not upload it.</td>
 </tr>
 <tr><td><code>--apply-update --update-zip path --update-target folder --update-exe path</code></td><td>Install a local Sensor Readout update ZIP through the same updater used for online updates, useful for offline or managed copies.</td></tr>
+<tr><td><code>--install</code></td><td>Open the portable-copy install flow and preserve the current copy's settings, reports, logs, languages, sounds, data, docs, and plug-ins.</td></tr>
 <tr><td><code>--uninstall</code></td><td>Open the installed-copy uninstall flow. Windows uses this when Sensor Readout is installed to this PC and removed from Apps and Features or Programs and Features.</td></tr>
 <tr>
 <td>
@@ -1179,7 +1181,7 @@
 <li>Startup and shutdown sounds: choose WAV files from the <code>Sounds</code> folder.</li>
 <li>Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.</li>
 </ul>
-<p>The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy.</p>
+<p>The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy. Start the same flow from Preferences, by running <code>Install_Scripts\Install-Sensor-Readout.cmd</code>, or with <code>Sensor Readout.exe --install</code>.</p>
 <p>When Sensor Readout is already running from the installed location, this button changes to <code>Uninstall from this PC...</code>. Uninstall removes the installed app files and shortcuts while leaving <code>Config</code>, <code>Logs</code>, and <code>Reports</code> in place. The same tab also has a desktop shortcut checkbox, so you can add or remove the desktop shortcut without reinstalling.</p>
 <p>Installed copies also appear in Windows Apps and Features / Programs and Features for the current user. Removing Sensor Readout from there opens the same uninstall flow as the Startup and Install tab, including the choice to keep or delete <code>Config</code>, <code>Logs</code>, and <code>Reports</code>. Portable copies are not listed there unless you choose Install to this PC.</p>
 <p>If startup is enabled, Sensor Readout also enables start-minimized behavior so configured tray readings are available after sign-in without leaving the main window in Alt+Tab.</p>

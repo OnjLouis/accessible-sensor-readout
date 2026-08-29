@@ -198,6 +198,7 @@ $references = @(
     'System.Windows.Forms.dll',
     'System.Management.dll',
     'System.Security.dll',
+    'System.Xml.dll',
     'System.IO.Compression.dll',
     'System.IO.Compression.FileSystem.dll',
     (Join-Path $resources 'LibreHardwareMonitorLib.dll'),
@@ -459,7 +460,7 @@ if (Test-Path -LiteralPath $staleServerTarget) {
 
 $installScriptsTarget = Join-Path $portable 'Install_Scripts'
 New-Item -ItemType Directory -Force -Path $installScriptsTarget | Out-Null
-foreach ($scriptName in @('Install-Prerequisites.cmd', 'Install-Prerequisites.ps1')) {
+foreach ($scriptName in @('Install-Prerequisites.cmd', 'Install-Prerequisites.ps1', 'Install-Sensor-Readout.cmd')) {
     $scriptSource = Join-Path $PSScriptRoot $scriptName
     if (Test-Path -LiteralPath $scriptSource) {
         Copy-Item -LiteralPath $scriptSource -Destination (Join-Path $installScriptsTarget $scriptName) -Force

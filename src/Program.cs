@@ -85,6 +85,7 @@ public static partial class Program
         var runSelfTest = TryGetOptionValue(args, "--self-test", out selfTestPath);
         string communityStatsPath;
         var saveCommunityStatsPayload = TryGetOptionValue(args, "--community-stats-json", out communityStatsPath);
+        var runInstall = HasArg(args, "--install");
         var runUninstall = HasArg(args, "--uninstall");
         RemoteStartupCommand remoteStartupCommand;
         string remoteStartupError;
@@ -108,6 +109,13 @@ public static partial class Program
         if (runUninstall)
         {
             SensorReadoutForm.RunUninstallFromCommandLine();
+            return;
+        }
+
+        if (runInstall)
+        {
+            CloseOtherInstances();
+            SensorReadoutForm.RunInstallFromCommandLine();
             return;
         }
 
@@ -1239,6 +1247,8 @@ public static partial class Program
             "Write the allow-listed anonymous community stats payload and exit. This does not upload it." + Environment.NewLine + Environment.NewLine +
             "--apply-update --update-zip path --update-target folder --update-exe path" + Environment.NewLine +
             "Install a local Sensor Readout update ZIP through the same updater used for online updates." + Environment.NewLine + Environment.NewLine +
+            "--install" + Environment.NewLine +
+            "Open the portable-copy install flow and preserve the current copy's settings and other user data." + Environment.NewLine + Environment.NewLine +
             "--uninstall" + Environment.NewLine +
             "Open the installed-copy uninstall flow. This is used by Windows Apps and Features when Sensor Readout is installed to this PC." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +

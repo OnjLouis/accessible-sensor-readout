@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
@@ -314,6 +315,14 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    public static void RunInstallFromCommandLine()
+    {
+        using (var form = new SensorReadoutForm(false))
+        {
+            form.InstallToLocalAppDataAndRestart();
+        }
+    }
+
     private const string UninstallRegistryKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Sensor Readout";
     private const string RemoteConnectionExtensionKeyPath = @"Software\Classes\.srconnection";
     private const string RemoteConnectionProgId = "SensorReadout.RemoteConnection";
@@ -343,6 +352,10 @@ public sealed partial class SensorReadoutForm : Form
         bool notifyShell)
     {
         if (string.IsNullOrWhiteSpace(targetExe))
+        {
+            return;
+        }
+        if (IsRemoteConnectionFileAssociationCurrent(targetExe, extensionKeyPath, progId, progIdKeyPath))
         {
             return;
         }
@@ -391,6 +404,45 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
+        }
+    }
+
+    private static bool IsRemoteConnectionFileAssociationCurrent(
+        string targetExe,
+        string extensionKeyPath,
+        string progId,
+        string progIdKeyPath)
+    {
+        try
+        {
+            using (var extensionKey = Registry.CurrentUser.OpenSubKey(extensionKeyPath, false))
+            using (var progIdKey = Registry.CurrentUser.OpenSubKey(progIdKeyPath, false))
+            using (var iconKey = Registry.CurrentUser.OpenSubKey(progIdKeyPath + @"\DefaultIcon", false))
+            using (var commandKey = Registry.CurrentUser.OpenSubKey(progIdKeyPath + @"\shell\open\command", false))
+            {
+                if (extensionKey == null || progIdKey == null || iconKey == null || commandKey == null)
+                {
+                    return false;
+                }
+
+                using (var openWithKey = extensionKey.OpenSubKey("OpenWithProgids", false))
+                {
+                    if (openWithKey == null || !openWithKey.GetValueNames().Any(name => string.Equals(name, progId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return false;
+                    }
+                }
+
+                return string.Equals(Convert.ToString(extensionKey.GetValue("", "")), progId, StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(extensionKey.GetValue("Content Type", "")), RemoteConnectionContentType, StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(progIdKey.GetValue("", "")), "Sensor Readout remote connection", StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(iconKey.GetValue("", "")), QuoteArgument(targetExe) + ",0", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Convert.ToString(commandKey.GetValue("", "")), QuoteArgument(targetExe) + " --import-remote-connection \"%1\"", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -463,6 +515,10 @@ public sealed partial class SensorReadoutForm : Form
         {
             return;
         }
+        if (IsInstalledAppEntryCurrent(targetExe, installFolder, registryKeyPath))
+        {
+            return;
+        }
 
         try
         {
@@ -487,6 +543,30 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch
         {
+        }
+    }
+
+    private static bool IsInstalledAppEntryCurrent(string targetExe, string installFolder, string registryKeyPath)
+    {
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(registryKeyPath, false))
+            {
+                return key != null &&
+                    string.Equals(Convert.ToString(key.GetValue("DisplayName", "")), "Sensor Readout", StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(key.GetValue("DisplayVersion", "")), AppVersion, StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(key.GetValue("Publisher", "")), "Andre Louis", StringComparison.Ordinal) &&
+                    string.Equals(Convert.ToString(key.GetValue("InstallLocation", "")), installFolder, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Convert.ToString(key.GetValue("DisplayIcon", "")), targetExe, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Convert.ToString(key.GetValue("UninstallString", "")), QuoteArgument(targetExe) + " --uninstall", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Convert.ToString(key.GetValue("URLInfoAbout", "")), ProjectUrl, StringComparison.OrdinalIgnoreCase) &&
+                    Convert.ToInt32(key.GetValue("NoModify", 0)) == 1 &&
+                    Convert.ToInt32(key.GetValue("NoRepair", 0)) == 1;
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 
