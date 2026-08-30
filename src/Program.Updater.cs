@@ -55,6 +55,33 @@ public static partial class Program
         return updaterExe;
     }
 
+    internal static void InstallSignedPackageFolder(string sourceFolder, string targetFolder, string targetExe, string tempBase)
+    {
+        if (string.IsNullOrWhiteSpace(sourceFolder) || !Directory.Exists(sourceFolder))
+        {
+            throw new DirectoryNotFoundException("The Sensor Readout package folder could not be found.");
+        }
+        if (string.IsNullOrWhiteSpace(targetFolder) || string.IsNullOrWhiteSpace(targetExe))
+        {
+            throw new ArgumentException("The Sensor Readout install paths are incomplete.");
+        }
+
+        var packageRoot = Path.Combine(
+            string.IsNullOrWhiteSpace(tempBase) ? Path.GetTempPath() : tempBase,
+            "SensorReadoutInstall_" + Guid.NewGuid().ToString("N"));
+        var packageZip = Path.Combine(packageRoot, "package.zip");
+        Directory.CreateDirectory(packageRoot);
+        try
+        {
+            ZipFile.CreateFromDirectory(sourceFolder, packageZip, CompressionLevel.Optimal, false);
+            ApplyUpdate("", packageZip, "", targetFolder, targetExe, packageRoot, true);
+        }
+        finally
+        {
+            TryDeleteDirectory(packageRoot);
+        }
+    }
+
     private static void ApplyUpdateFromCommandLine(string[] args)
     {
         try
@@ -548,20 +575,60 @@ public static partial class Program
         }
 
         var existing = Path.Combine(targetRoot, name);
+        Dictionary<string, byte[]> preservedCustomLanguages = null;
         if (Directory.Exists(existing))
         {
             if (string.Equals(name, "Langs", StringComparison.OrdinalIgnoreCase))
             {
-                BackupCustomLanguages(existing, incoming, sourceRoot, backupRoot, previousLanguageHashes);
+                preservedCustomLanguages = CaptureCustomLanguages(existing, incoming, previousLanguageHashes);
+                BackupCustomLanguages(existing, incoming, sourceRoot, backupRoot, previousLanguageHashes, preservedCustomLanguages.Keys);
             }
 
             DeleteDirectoryRequired(existing);
         }
 
         CopyDirectory(incoming, existing);
+        RestoreCustomLanguages(existing, preservedCustomLanguages);
     }
 
-    private static void BackupCustomLanguages(string existingLangs, string incomingLangs, string sourceRoot, string backupRoot, Dictionary<string, string> previousLanguageHashes)
+    internal static void ReplaceShippedFolderForTest(string sourceRoot, string targetRoot, string name, string backupRoot, Dictionary<string, string> previousLanguageHashes)
+    {
+        ReplaceShippedFolder(sourceRoot, targetRoot, name, backupRoot, previousLanguageHashes);
+    }
+
+    private static Dictionary<string, byte[]> CaptureCustomLanguages(string existingLangs, string incomingLangs, Dictionary<string, string> previousLanguageHashes)
+    {
+        var captured = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        previousLanguageHashes = previousLanguageHashes ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in Directory.GetFiles(existingLangs, "*", SearchOption.AllDirectories))
+        {
+            var relative = RelativePath(existingLangs, file);
+            if (File.Exists(Path.Combine(incomingLangs, relative)) || previousLanguageHashes.ContainsKey(relative))
+            {
+                continue;
+            }
+
+            captured[relative] = File.ReadAllBytes(file);
+        }
+        return captured;
+    }
+
+    private static void RestoreCustomLanguages(string targetLangs, Dictionary<string, byte[]> customLanguages)
+    {
+        if (customLanguages == null)
+        {
+            return;
+        }
+
+        foreach (var pair in customLanguages)
+        {
+            var destination = Path.Combine(targetLangs, pair.Key);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination));
+            File.WriteAllBytes(destination, pair.Value);
+        }
+    }
+
+    private static void BackupCustomLanguages(string existingLangs, string incomingLangs, string sourceRoot, string backupRoot, Dictionary<string, string> previousLanguageHashes, ICollection<string> preservedCustomLanguages)
     {
         if (previousLanguageHashes == null)
         {
@@ -573,11 +640,16 @@ public static partial class Program
         {
             incomingLanguageHashes = GetHashMap(incomingLangs);
         }
+        var preserved = new HashSet<string>(preservedCustomLanguages ?? new string[0], StringComparer.OrdinalIgnoreCase);
 
         var customRoot = Path.Combine(Path.GetTempPath(), "SensorReadoutCustomLangs_" + Guid.NewGuid().ToString("N"));
         foreach (var file in Directory.GetFiles(existingLangs, "*", SearchOption.AllDirectories))
         {
             var relative = RelativePath(existingLangs, file);
+            if (preserved.Contains(relative))
+            {
+                continue;
+            }
             var currentHash = GetFileSha256(file);
             var previousHash = previousLanguageHashes.ContainsKey(relative) ? previousLanguageHashes[relative] : "";
             var incomingHash = incomingLanguageHashes.ContainsKey(relative) ? incomingLanguageHashes[relative] : "";

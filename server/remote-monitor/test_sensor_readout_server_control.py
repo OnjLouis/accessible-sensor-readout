@@ -58,7 +58,7 @@ class PackageControlTests(unittest.TestCase):
         ).to_bytes(key_bytes, "big")
         manifest["Signature"] = base64.b64encode(signature).decode("ascii")
 
-    def make_package(self, version="6.2.2"):
+    def make_package(self, version="6.3.0"):
         package = self.root / ("package-" + version)
         package.mkdir()
         for name in CONTROL.PACKAGE_FILES:
@@ -102,7 +102,7 @@ class PackageControlTests(unittest.TestCase):
     def test_package_allow_list_version_and_hashes_are_verified(self):
         package = self.make_package()
         manifest = CONTROL.verify_package(package)
-        self.assertEqual("6.2.2", manifest["Version"])
+        self.assertEqual("6.3.0", manifest["Version"])
         (package / "unexpected.log").write_text("private data", encoding="utf-8")
         with self.assertRaises(CONTROL.ControlError):
             CONTROL.verify_package(package)
@@ -125,14 +125,14 @@ class PackageControlTests(unittest.TestCase):
         manifest = {
             "Format": CONTROL.MANIFEST_FORMAT,
             "Component": CONTROL.MANIFEST_COMPONENT,
-            "Version": "6.2.2",
+            "Version": "6.3.0",
             "Algorithm": CONTROL.MANIFEST_ALGORITHM,
             "Files": {"z-file": "a" * 64, "a-file": "b" * 64},
         }
         expected = (
             "SensorReadoutServerPackage\n"
             "LinuxServer\n"
-            "6.2.2\n"
+            "6.3.0\n"
             "RSA-SHA256\n"
             "a-file\t" + ("B" * 64) + "\n"
             "z-file\t" + ("A" * 64) + "\n"
@@ -205,7 +205,7 @@ class PackageControlTests(unittest.TestCase):
     def test_failed_deploy_restores_previous_release(self):
         layout = self.layout()
         package = self.make_package()
-        release = self.root / "release-6.2.2"
+        release = self.root / "release-6.3.0"
         previous = self.root / "release-5.9.0"
         release.mkdir()
         previous.mkdir()
@@ -271,7 +271,7 @@ class PackageControlTests(unittest.TestCase):
     def test_failed_rollback_restores_active_release(self):
         layout = self.layout()
         layout.releases.mkdir(parents=True)
-        active = layout.releases / "6.2.2"
+        active = layout.releases / "6.3.0"
         target = layout.releases / "5.9.0"
         active.mkdir()
         target.mkdir()
@@ -301,8 +301,8 @@ class PackageControlTests(unittest.TestCase):
         chown.assert_called_once_with(str(path), user="root", group="sensor-readout")
 
     def test_version_sorting_prefers_stable_release(self):
-        versions = ["6.2.2-beta.2", "5.9.9", "6.2.2"]
-        self.assertEqual("6.2.2", sorted(versions, key=CONTROL.version_key, reverse=True)[0])
+        versions = ["6.3.0-beta.2", "5.9.9", "6.3.0"]
+        self.assertEqual("6.3.0", sorted(versions, key=CONTROL.version_key, reverse=True)[0])
 
     def test_server_update_channel_ignores_client_draft_and_prerelease_releases(self):
         releases = [
@@ -311,31 +311,31 @@ class PackageControlTests(unittest.TestCase):
                 "assets": [{"name": "SensorReadout-Server-99.0.0.zip", "browser_download_url": "https://example.test/client.zip"}],
             },
             {
-                "tag_name": "server-v6.2.2",
+                "tag_name": "server-v6.3.0",
                 "draft": True,
-                "assets": [{"name": "SensorReadout-Server-6.2.2.zip", "browser_download_url": "https://example.test/draft.zip"}],
+                "assets": [{"name": "SensorReadout-Server-6.3.0.zip", "browser_download_url": "https://example.test/draft.zip"}],
             },
             {
-                "tag_name": "server-v6.2.2",
+                "tag_name": "server-v6.3.0",
                 "prerelease": True,
-                "assets": [{"name": "SensorReadout-Server-6.2.2.zip", "browser_download_url": "https://example.test/preview.zip"}],
+                "assets": [{"name": "SensorReadout-Server-6.3.0.zip", "browser_download_url": "https://example.test/preview.zip"}],
             },
         ]
-        self.assertIsNone(CONTROL.find_server_update(releases, "6.2.2"))
+        self.assertIsNone(CONTROL.find_server_update(releases, "6.3.0"))
 
     def test_server_update_requires_exact_single_server_asset(self):
         release = {
-            "tag_name": "server-v6.2.2",
+            "tag_name": "server-v6.3.0",
             "assets": [
                 {"name": "SensorReadout-6.1.2.zip", "browser_download_url": "https://example.test/client.zip"},
-                {"name": "SensorReadout-Server-6.2.2.zip", "browser_download_url": "https://example.test/server.zip"},
+                {"name": "SensorReadout-Server-6.3.0.zip", "browser_download_url": "https://example.test/server.zip"},
             ],
         }
         version, asset = CONTROL.find_server_update([release], "6.2.0")
-        self.assertEqual("6.2.2", version)
-        self.assertEqual("SensorReadout-Server-6.2.2.zip", asset["name"])
+        self.assertEqual("6.3.0", version)
+        self.assertEqual("SensorReadout-Server-6.3.0.zip", asset["name"])
         release["assets"].append(
-            {"name": "sensorreadout-server-6.2.2.ZIP", "browser_download_url": "https://example.test/duplicate.zip"}
+            {"name": "sensorreadout-server-6.3.0.ZIP", "browser_download_url": "https://example.test/duplicate.zip"}
         )
         with self.assertRaisesRegex(CONTROL.ControlError, "missing or duplicated"):
             CONTROL.find_server_update([release], "6.2.0")
@@ -358,17 +358,17 @@ class PackageControlTests(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             with zipfile.ZipFile(duplicate, "w") as output:
-                output.writestr("VERSION", "6.2.2")
-                output.writestr("VERSION", "6.2.2")
+                output.writestr("VERSION", "6.3.0")
+                output.writestr("VERSION", "6.3.0")
         with self.assertRaisesRegex(CONTROL.ControlError, "duplicated entry"):
             CONTROL.safe_extract_server_archive(duplicate, self.root / "duplicate-output")
 
     def test_online_update_downloads_verifies_and_stages_from_local_release_service(self):
         package = self.make_package()
-        archive = self.root / "SensorReadout-Server-6.2.2.zip"
+        archive = self.root / "SensorReadout-Server-6.3.0.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for item in package.iterdir():
-                output.write(item, "SensorReadout-Server-6.2.2/" + item.name)
+                output.write(item, "SensorReadout-Server-6.3.0/" + item.name)
         archive_bytes = archive.read_bytes()
         archive_digest = hashlib.sha256(archive_bytes).hexdigest()
 
@@ -379,7 +379,7 @@ class PackageControlTests(unittest.TestCase):
                 if self.path == "/releases":
                     payload = self.release_payload
                     content_type = "application/json"
-                elif self.path == "/SensorReadout-Server-6.2.2.zip":
+                elif self.path == "/SensorReadout-Server-6.3.0.zip":
                     payload = archive_bytes
                     content_type = "application/zip"
                 else:
@@ -399,13 +399,13 @@ class PackageControlTests(unittest.TestCase):
         ReleaseHandler.release_payload = json.dumps(
             [
                 {
-                    "tag_name": "server-v6.2.2",
+                    "tag_name": "server-v6.3.0",
                     "draft": False,
                     "prerelease": False,
                     "assets": [
                         {
-                            "name": "SensorReadout-Server-6.2.2.zip",
-                            "browser_download_url": "http://127.0.0.1:%s/SensorReadout-Server-6.2.2.zip" % port,
+                            "name": "SensorReadout-Server-6.3.0.zip",
+                            "browser_download_url": "http://127.0.0.1:%s/SensorReadout-Server-6.3.0.zip" % port,
                             "digest": "sha256:" + archive_digest,
                         }
                     ],
@@ -430,7 +430,7 @@ class PackageControlTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=5)
-        self.assertEqual(["6.2.2"], staged_versions)
+        self.assertEqual(["6.3.0"], staged_versions)
 
     def test_loopback_http_update_service_is_test_mode_only(self):
         url = "http://127.0.0.1:48673/releases"
@@ -467,7 +467,7 @@ class PackageControlTests(unittest.TestCase):
         layout = self.layout()
         package = self.make_package()
         layout.releases.mkdir(parents=True)
-        release = layout.releases / "6.2.2"
+        release = layout.releases / "6.3.0"
         package.rename(release)
         CONTROL.create_or_update_config(layout, "0.0.0.0", 48673, "http://192.168.1.20:48673/")
         original = layout.config.read_bytes()
@@ -491,10 +491,10 @@ class PackageControlTests(unittest.TestCase):
 
     def test_health_wait_retries_transient_startup_failure(self):
         layout = self.layout()
-        response = {"Name": "Sensor Readout Server", "Version": "6.2.2", "ProtocolVersion": 1}
+        response = {"Name": "Sensor Readout Server", "Version": "6.3.0", "ProtocolVersion": 1}
         with mock.patch.object(CONTROL, "health", side_effect=[CONTROL.ControlError("starting"), response]) as health, \
              mock.patch.object(CONTROL.time, "sleep") as sleep:
-            self.assertEqual(response, CONTROL.wait_for_health(layout, "6.2.2", timeout_seconds=5))
+            self.assertEqual(response, CONTROL.wait_for_health(layout, "6.3.0", timeout_seconds=5))
         self.assertEqual(2, health.call_count)
         sleep.assert_called_once_with(1)
 
@@ -551,7 +551,7 @@ class PackageControlTests(unittest.TestCase):
     def test_sigterm_during_deploy_restores_previous_release(self):
         layout = self.layout()
         package = self.make_package()
-        release = self.root / "release-6.2.2-interrupted"
+        release = self.root / "release-6.3.0-interrupted"
         previous = self.root / "release-5.9.0-interrupted"
         release.mkdir()
         previous.mkdir()

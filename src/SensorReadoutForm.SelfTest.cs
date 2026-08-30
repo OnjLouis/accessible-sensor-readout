@@ -242,6 +242,9 @@ public sealed partial class SensorReadoutForm : Form
                 var uninstallString = Convert.ToString(key.GetValue("UninstallString")) ?? "";
                 Require(uninstallString.IndexOf("--uninstall", StringComparison.OrdinalIgnoreCase) >= 0, "UninstallString does not call --uninstall.");
                 Require(uninstallString.IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0, "UninstallString does not reference the installed executable.");
+                var quietUninstallString = Convert.ToString(key.GetValue("QuietUninstallString")) ?? "";
+                Require(quietUninstallString.IndexOf("--uninstall-silent", StringComparison.OrdinalIgnoreCase) >= 0, "QuietUninstallString does not call --uninstall-silent.");
+                Require(quietUninstallString.IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0, "QuietUninstallString does not reference the installed executable.");
                 Require(Convert.ToInt32(key.GetValue("NoModify")) == 1, "NoModify was not registered.");
                 Require(Convert.ToInt32(key.GetValue("NoRepair")) == 1, "NoRepair was not registered.");
                 Require(Convert.ToInt32(key.GetValue("EstimatedSize")) > 0, "EstimatedSize was not registered.");
@@ -297,6 +300,12 @@ public sealed partial class SensorReadoutForm : Form
             Require(StartupTaskXmlMatches(startupXml, exePath, "--minimized", installFolder), "Matching startup task XML was rejected.");
             Require(!StartupTaskXmlMatches(startupXml, exePath, "", installFolder), "Startup task XML with stale arguments was accepted.");
             Require(startupXml.IndexOf("<RunLevel>HighestAvailable</RunLevel>", StringComparison.Ordinal) >= 0, "Startup task does not request the elevation required by Sensor Readout.");
+
+            var startMenuShortcut = Path.Combine(installFolder, "Start Menu", "Sensor Readout.lnk");
+            SetStartMenuShortcut(true, exePath, installFolder, startMenuShortcut);
+            Require(File.Exists(startMenuShortcut), "Installed app Start menu shortcut was not created.");
+            SetStartMenuShortcut(false, exePath, installFolder, startMenuShortcut);
+            Require(!File.Exists(startMenuShortcut), "Installed app Start menu shortcut was not removed.");
 
             var installScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Install_Scripts", "Install-Sensor-Readout.cmd");
             Require(File.Exists(installScriptPath), "Optional Sensor Readout install script is missing.");
@@ -2700,6 +2709,24 @@ public sealed partial class SensorReadoutForm : Form
         Require(rejectedLockedRemoval && Directory.Exists(deleteRoot), "The Windows updater ignored a failed shipped-folder removal.");
         Program.DeleteDirectoryRequired(deleteRoot);
         Require(!Directory.Exists(deleteRoot), "The Windows updater did not remove an unlocked shipped folder completely.");
+
+        var languageRoot = Path.Combine(outputFolder, "updater-custom-language-self-test");
+        var languageSource = Path.Combine(languageRoot, "source");
+        var languageTarget = Path.Combine(languageRoot, "target");
+        var languageBackup = Path.Combine(languageRoot, "backup");
+        Directory.CreateDirectory(Path.Combine(languageSource, "Langs"));
+        Directory.CreateDirectory(Path.Combine(languageTarget, "Langs"));
+        File.WriteAllText(Path.Combine(languageSource, "Langs", "English.txt"), "app_title=Updated Sensor Readout");
+        File.WriteAllText(Path.Combine(languageTarget, "Langs", "Personal.txt"), "app_title=Personal language");
+        Program.ReplaceShippedFolderForTest(
+            languageSource,
+            languageTarget,
+            "Langs",
+            languageBackup,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        Require(File.ReadAllText(Path.Combine(languageTarget, "Langs", "English.txt")) == "app_title=Updated Sensor Readout", "The Windows updater did not install the incoming language files.");
+        Require(File.ReadAllText(Path.Combine(languageTarget, "Langs", "Personal.txt")) == "app_title=Personal language", "The Windows updater removed a user-created language file.");
+        Require(!Directory.Exists(languageBackup) || Directory.GetFiles(languageBackup, "*.zip", SearchOption.AllDirectories).Length == 0, "The Windows updater backed up an unchanged user-created language that it preserved in place.");
     }
 
     private static HashSet<string> ReadLanguageKeys(string path)

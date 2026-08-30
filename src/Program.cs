@@ -21,6 +21,19 @@ public static partial class Program
         ConfigureRuntimeDependencyPaths();
         InstallCrashLogging();
 
+        if (HasArg(args, "--uninstall-silent"))
+        {
+            Environment.ExitCode = SensorReadoutForm.RunSilentUninstallFromCommandLine() ? 0 : 1;
+            return;
+        }
+
+        if (HasArg(args, "--install-silent"))
+        {
+            CloseOtherInstances();
+            Environment.ExitCode = SensorReadoutForm.RunSilentInstallFromCommandLine() ? 0 : 1;
+            return;
+        }
+
         if (HasArg(args, "--close"))
         {
             CloseOtherInstances();
@@ -775,7 +788,10 @@ public static partial class Program
                !HasOption(startupArgs, "--run-diagnostics") &&
                !HasOption(startupArgs, "--self-test") &&
                !HasOption(startupArgs, "--community-stats-json") &&
+               !HasArg(startupArgs, "--install") &&
+               !HasArg(startupArgs, "--install-silent") &&
                !HasArg(startupArgs, "--uninstall") &&
+               !HasArg(startupArgs, "--uninstall-silent") &&
                !HasArg(startupArgs, "--apply-update") &&
                !HasArg(startupArgs, "--help") &&
                !HasArg(startupArgs, "-?") &&
@@ -1249,8 +1265,12 @@ public static partial class Program
             "Install a local Sensor Readout update ZIP through the same updater used for online updates." + Environment.NewLine + Environment.NewLine +
             "--install" + Environment.NewLine +
             "Open the portable-copy install flow and preserve the current copy's settings and other user data." + Environment.NewLine + Environment.NewLine +
+            "--install-silent" + Environment.NewLine +
+            "Install or upgrade the signed package for the current user without prompts. Intended for package managers." + Environment.NewLine + Environment.NewLine +
             "--uninstall" + Environment.NewLine +
             "Open the installed-copy uninstall flow. This is used by Windows Apps and Features when Sensor Readout is installed to this PC." + Environment.NewLine + Environment.NewLine +
+            "--uninstall-silent" + Environment.NewLine +
+            "Uninstall without prompts while preserving Config, Logs, and Reports. Intended for package managers." + Environment.NewLine + Environment.NewLine +
             "--log off|error|normal|debug" + Environment.NewLine +
             "Set the logging level before continuing.",
             "Sensor Readout",

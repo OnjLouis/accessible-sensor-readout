@@ -62,6 +62,7 @@ public sealed partial class SensorReadoutForm : Form
             RegisterInstalledAppEntry(targetExe, installFolder);
             RegisterRemoteConnectionFileAssociation(targetExe);
             SetDesktopShortcut(options.CreateDesktopShortcut, targetExe, installFolder);
+            SetStartMenuShortcut(true, targetExe, installFolder);
             SetRunAtStartup(settings.RunAtStartup, settings.StartMinimizedToTray, targetExe, installFolder);
 
             Process.Start(new ProcessStartInfo
@@ -111,6 +112,7 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
             SetRunAtStartup(false, false);
             SetDesktopShortcut(false);
+            SetStartMenuShortcut(false);
             UnregisterRemoteConnectionFileAssociation();
             UnregisterInstalledAppEntry();
             string firewallError;
@@ -305,6 +307,7 @@ public sealed partial class SensorReadoutForm : Form
 
         RegisterInstalledAppEntry(Application.ExecutablePath, AppDomain.CurrentDomain.BaseDirectory);
         RegisterRemoteConnectionFileAssociation(Application.ExecutablePath);
+        SetStartMenuShortcut(true);
     }
 
     public static void RunUninstallFromCommandLine()
@@ -320,6 +323,66 @@ public sealed partial class SensorReadoutForm : Form
         using (var form = new SensorReadoutForm(false))
         {
             form.InstallToLocalAppDataAndRestart();
+        }
+    }
+
+    public static bool RunSilentInstallFromCommandLine()
+    {
+        var sourceFolder = NormalizeFolderPath(AppDomain.CurrentDomain.BaseDirectory);
+        var installFolder = GetLocalInstallFolderPath();
+        var targetExe = Path.Combine(installFolder, "Sensor Readout.exe");
+        var alreadyInstalled = File.Exists(targetExe);
+
+        try
+        {
+            if (!string.Equals(sourceFolder, NormalizeFolderPath(installFolder), StringComparison.OrdinalIgnoreCase))
+            {
+                Program.InstallSignedPackageFolder(sourceFolder, installFolder, targetExe, Path.GetTempPath());
+            }
+
+            RegisterInstalledAppEntry(targetExe, installFolder);
+            RegisterRemoteConnectionFileAssociation(targetExe);
+            SetStartMenuShortcut(true, targetExe, installFolder);
+            if (!alreadyInstalled)
+            {
+                SetDesktopShortcut(true, targetExe, installFolder);
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            WriteInstallLog(installFolder, "Silent installation failed.", ex);
+            return false;
+        }
+    }
+
+    public static bool RunSilentUninstallFromCommandLine()
+    {
+        var installFolder = GetLocalInstallFolderPath();
+        try
+        {
+            if (!IsRunningFromLocalInstallFolder())
+            {
+                throw new InvalidOperationException("Sensor Readout is not running from the local install folder.");
+            }
+
+            SetRunAtStartup(false, false);
+            SetDesktopShortcut(false);
+            SetStartMenuShortcut(false);
+            UnregisterRemoteConnectionFileAssociation();
+            UnregisterInstalledAppEntry();
+            string firewallError;
+            if (!RemoteFirewallManager.TryRemoveInboundRule(out firewallError))
+            {
+                WriteInstallLog(installFolder, "Windows Firewall access could not be removed during silent uninstall: " + firewallError, null);
+            }
+            StartUninstallScript(installFolder, Process.GetCurrentProcess().Id, false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            WriteInstallLog(installFolder, "Silent uninstallation failed.", ex);
+            return false;
         }
     }
 
@@ -535,6 +598,7 @@ public sealed partial class SensorReadoutForm : Form
                 key.SetValue("InstallLocation", installFolder, RegistryValueKind.String);
                 key.SetValue("DisplayIcon", targetExe, RegistryValueKind.String);
                 key.SetValue("UninstallString", QuoteArgument(targetExe) + " --uninstall", RegistryValueKind.String);
+                key.SetValue("QuietUninstallString", QuoteArgument(targetExe) + " --uninstall-silent", RegistryValueKind.String);
                 key.SetValue("URLInfoAbout", ProjectUrl, RegistryValueKind.String);
                 key.SetValue("NoModify", 1, RegistryValueKind.DWord);
                 key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
@@ -559,6 +623,7 @@ public sealed partial class SensorReadoutForm : Form
                     string.Equals(Convert.ToString(key.GetValue("InstallLocation", "")), installFolder, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(Convert.ToString(key.GetValue("DisplayIcon", "")), targetExe, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(Convert.ToString(key.GetValue("UninstallString", "")), QuoteArgument(targetExe) + " --uninstall", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Convert.ToString(key.GetValue("QuietUninstallString", "")), QuoteArgument(targetExe) + " --uninstall-silent", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(Convert.ToString(key.GetValue("URLInfoAbout", "")), ProjectUrl, StringComparison.OrdinalIgnoreCase) &&
                     Convert.ToInt32(key.GetValue("NoModify", 0)) == 1 &&
                     Convert.ToInt32(key.GetValue("NoRepair", 0)) == 1;
@@ -662,6 +727,67 @@ public sealed partial class SensorReadoutForm : Form
     {
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
         return Path.Combine(desktop, "Sensor Readout.lnk");
+    }
+
+    private static void SetStartMenuShortcut(bool enabled)
+    {
+        SetStartMenuShortcut(enabled, Application.ExecutablePath, AppDomain.CurrentDomain.BaseDirectory);
+    }
+
+    private static void SetStartMenuShortcut(bool enabled, string targetExe, string workingDirectory)
+    {
+        SetStartMenuShortcut(enabled, targetExe, workingDirectory, GetStartMenuShortcutPath());
+    }
+
+    private static void SetStartMenuShortcut(bool enabled, string targetExe, string workingDirectory, string shortcutPath)
+    {
+        if (!enabled)
+        {
+            if (File.Exists(shortcutPath))
+            {
+                File.Delete(shortcutPath);
+            }
+            return;
+        }
+
+        if (File.Exists(shortcutPath))
+        {
+            return;
+        }
+
+        var shortcutFolder = Path.GetDirectoryName(shortcutPath);
+        if (!string.IsNullOrWhiteSpace(shortcutFolder))
+        {
+            Directory.CreateDirectory(shortcutFolder);
+        }
+        CreateShortcut(shortcutPath, targetExe, "", workingDirectory, "Sensor Readout");
+        if (!File.Exists(shortcutPath))
+        {
+            throw new IOException("The Start menu shortcut was not created.");
+        }
+    }
+
+    private static string GetStartMenuShortcutPath()
+    {
+        var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+        return Path.Combine(programs, "Sensor Readout.lnk");
+    }
+
+    private static void WriteInstallLog(string installFolder, string message, Exception exception)
+    {
+        try
+        {
+            var logFolder = Path.Combine(installFolder, "Logs");
+            Directory.CreateDirectory(logFolder);
+            File.AppendAllText(
+                Path.Combine(logFolder, "Installer.log"),
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + message + Environment.NewLine +
+                (exception == null ? "" : exception + Environment.NewLine) + Environment.NewLine,
+                new UTF8Encoding(false));
+        }
+        catch
+        {
+        }
     }
 
     private static void StartUninstallScript(string installFolder, int processId, bool deleteUserData)

@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.2.2.
+Current version: 6.3.0.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -120,6 +120,14 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 - [.NET Framework install notes](https://learn.microsoft.com/en-us/dotnet/framework/install/on-windows-and-server)
 
 ## Getting Started
+
+Sensor Readout can be used as a portable app or installed for the current Windows user. When the community listing is available, Windows Package Manager can install the signed release without an administrator prompt:
+
+```powershell
+winget install --id OnjLouis.SensorReadout -e
+```
+
+WinGet installations use Sensor Readout's own signed update engine, create Start menu and desktop shortcuts on first install, and preserve existing settings and user data during upgrades. If WinGet reports that the package is not available yet, download the current ZIP from the project page while the new community listing is being reviewed.
 
 1. Start `Sensor Readout.exe`.
 2. Accept the Windows administrator prompt.
@@ -272,7 +280,9 @@ Sensor Readout can also be started with a few command-line options:
 | `--community-stats-json [path]` | Write the allow-listed anonymous community stats payload and exit. This does not upload it. |
 | `--apply-update --update-zip path --update-target folder --update-exe path` | Install a local Sensor Readout update ZIP through the same updater used for online updates, useful for offline or managed copies. |
 | `--install` | Open the portable-copy install flow and preserve the current copy's settings, reports, logs, languages, sounds, data, docs, and plug-ins. |
+| `--install-silent` | Install or upgrade the signed package for the current user without prompts. This package-manager path does not start Sensor Readout or enable Windows startup. |
 | `--uninstall` | Open the installed-copy uninstall flow. Windows uses this when Sensor Readout is installed to this PC and removed from Apps and Features or Programs and Features. |
+| `--uninstall-silent` | Uninstall without prompts while preserving `Config`, `Logs`, and `Reports`. This package-manager path does not delete saved user data. |
 | --log off\|error\|normal\|debug | Set the logging level before continuing. |
 
 ## Preferences
@@ -319,6 +329,8 @@ The Startup and Install tab controls installation plus what happens when Sensor 
 - Diagnostics feedback: choose whether diagnostics speak progress and play start/completion sounds.
 
 The install flow is for people who started from a portable or synced folder but want Sensor Readout in the normal programs location on this PC. It copies the app and existing settings, reports, logs, language files, sounds, data, docs, and plug-ins. During installation, you can choose whether to add a desktop shortcut and whether Sensor Readout should run at Windows startup. If Run at Windows startup is enabled, Sensor Readout creates a Windows logon task for the installed copy. You can start the same flow from Preferences, by running `Install_Scripts\Install-Sensor-Readout.cmd`, or with `Sensor Readout.exe --install`.
+
+The WinGet package uses the signed unattended install path instead. It installs only for the current user, creates Start menu and desktop shortcuts on first install, does not enable Windows startup, and does not launch the app unexpectedly. Upgrades preserve the existing installation's settings, reports, logs, custom languages, sounds, plug-ins, shortcut choice, and startup choice. `winget uninstall --id OnjLouis.SensorReadout -e` removes the app and its registrations without prompts while retaining `Config`, `Logs`, and `Reports` for a later reinstall.
 
 Installed copies also appear in Windows Apps and Features / Programs and Features for the current user. Removing Sensor Readout from there opens the same uninstall flow as the Startup and Install tab, including the choice to keep or delete `Config`, `Logs`, and `Reports`. Portable copies are not listed there unless you choose Install to this PC.
 
@@ -746,6 +758,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.3.0
+
+- Added: Sensor Readout now includes a signed, unattended install and upgrade path for Windows package managers. This prepares a WinGet community listing that installs for the current user, creates Start menu and desktop shortcuts on first install, preserves existing settings and user data during upgrades, and does not require administrator elevation.
+- Improved: Package-manager removal can now run without prompts while preserving `Config`, `Logs`, and `Reports`. Installed copies also repair a missing Start menu shortcut without rewriting it on every launch.
+- Fixed: Signed updates now retain user-created language files in the active `Langs` folder without creating repeated backups. Edited bundled translations are still backed up before receiving the current shipped version.
 
 ### 6.2.2
 
