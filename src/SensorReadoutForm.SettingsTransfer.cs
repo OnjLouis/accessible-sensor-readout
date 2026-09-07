@@ -366,7 +366,8 @@ public sealed partial class SensorReadoutForm : Form
                     Speak = alarm.Speak,
                     SpokenMessage = alarm.SpokenMessage ?? "",
                     SoundFile = Path.GetFileName(alarm.SoundFile ?? ""),
-                    CooldownSeconds = Math.Max(0, Math.Min(86400, alarm.CooldownSeconds))
+                    CooldownSeconds = Math.Max(0, Math.Min(86400, alarm.CooldownSeconds)),
+                    RepeatWhileActive = alarm.RepeatWhileActive
                 });
             }
 
@@ -595,6 +596,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private void RefreshAfterSettingsTransferImport()
     {
+        PruneAlarmTriggerStates(ActiveAlarmsByKey());
         if (settings.RunAtStartup || settings.StartMinimizedToTray)
         {
             settings.TrayStatusEnabled = true;

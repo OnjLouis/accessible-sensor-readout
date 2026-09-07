@@ -1,4 +1,8 @@
 language.name=English
+ui.&Repeat after cooldown=&Repeat after cooldown
+ui.Repeat after cooldown=Repeat after cooldown
+ui.Once until condition clears=Once until condition clears
+a11y.When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning.=When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning.
 ui.&Network tools...=&Network tools...
 ui.Network tools=Network tools
 ui.Network tools intro=Look up an IP address or host name, resolve DNS, classify its addresses, and optionally test ping latency and packet loss. Public-address metadata uses an online lookup service; private and local addresses are never sent to it. Network Tools does not run a speed test or port scan and performs no background polling.

@@ -53,7 +53,8 @@ public sealed partial class PreferencesForm : Form
             Enabled = true,
             Speak = true,
             SoundFile = "",
-            CooldownSeconds = 60
+            CooldownSeconds = 60,
+            RepeatWhileActive = false
         };
         alarms.Add(alarm);
         var choice = new AlarmChoice(alarm, RowForKey, FormatAlarmThresholdForList);
@@ -200,7 +201,8 @@ public sealed partial class PreferencesForm : Form
             Enabled = true,
             Speak = true,
             SoundFile = "",
-            CooldownSeconds = 60
+            CooldownSeconds = 60,
+            RepeatWhileActive = false
         };
         alarms.Add(alarm);
         alarmList.Items.Add(new AlarmChoice(alarm, RowForKey, FormatAlarmThresholdForList));
@@ -356,6 +358,7 @@ public sealed partial class PreferencesForm : Form
             alarmThresholdBox.Enabled = enabled;
             alarmThresholdUnitBox.Enabled = enabled;
             alarmCooldownBox.Enabled = enabled;
+            alarmRepeatCheckBox.Enabled = enabled;
             alarmSpeakCheckBox.Enabled = enabled;
             alarmSpokenMessageBox.Enabled = enabled && (alarm == null || alarm.Speak);
             alarmSoundBox.Enabled = enabled;
@@ -368,6 +371,7 @@ public sealed partial class PreferencesForm : Form
             alarmConditionBox.SelectedIndex = AlarmConditionIndex(alarm == null ? "" : alarm.Condition);
             alarmThresholdBox.Value = ClampDecimal(AlarmThresholdBaseToInput(alarm == null ? 80 : alarm.Threshold, SelectedAlarmThresholdUnit(), SelectedAlarmRow()), alarmThresholdBox.Minimum, alarmThresholdBox.Maximum);
             alarmCooldownBox.Value = ClampDecimal(alarm == null ? 60 : alarm.CooldownSeconds, alarmCooldownBox.Minimum, alarmCooldownBox.Maximum);
+            alarmRepeatCheckBox.Checked = alarm != null && alarm.RepeatWhileActive;
             alarmSpeakCheckBox.Checked = alarm == null || alarm.Speak;
             alarmSpokenMessageBox.Text = alarm == null ? "" : alarm.SpokenMessage ?? "";
             PopulateSoundCombo(alarmSoundBox, alarm == null ? "" : alarm.SoundFile);
@@ -399,6 +403,7 @@ public sealed partial class PreferencesForm : Form
         alarm.ThresholdUnit = SelectedAlarmThresholdUnit();
         alarm.Threshold = AlarmThresholdInputToBase(Convert.ToDouble(alarmThresholdBox.Value), alarm.ThresholdUnit, SelectedAlarmRow());
         alarm.CooldownSeconds = Convert.ToInt32(alarmCooldownBox.Value);
+        alarm.RepeatWhileActive = alarmRepeatCheckBox.Checked;
         alarm.Speak = alarmSpeakCheckBox.Checked;
         alarm.SpokenMessage = alarmSpokenMessageBox.Text.Trim();
         alarm.SoundFile = SelectedSoundFile(alarmSoundBox);
@@ -520,6 +525,7 @@ public sealed partial class PreferencesForm : Form
             focusedControl == alarmThresholdBox ||
             focusedControl == alarmThresholdUnitBox ||
             focusedControl == alarmCooldownBox ||
+            focusedControl == alarmRepeatCheckBox ||
             focusedControl == alarmSpeakCheckBox ||
             focusedControl == alarmSpokenMessageBox ||
             focusedControl == alarmSoundBox;
@@ -862,7 +868,8 @@ public sealed partial class PreferencesForm : Form
                 Speak = a.Speak,
                 SpokenMessage = a.SpokenMessage ?? "",
                 SoundFile = System.IO.Path.GetFileName(a.SoundFile ?? ""),
-                CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds))
+                CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds)),
+                RepeatWhileActive = a.RepeatWhileActive
             })
             .ToList();
     }

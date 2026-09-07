@@ -1,4 +1,8 @@
 language.name=Deutsch
+ui.&Repeat after cooldown=Nach Wartezeit &wiederholen
+ui.Repeat after cooldown=Nach Wartezeit wiederholen
+ui.Once until condition clears=Einmal bis zum Ende der Bedingung
+a11y.When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning.=Ohne Häkchen erfolgt eine Warnung, bis die Bedingung nicht mehr zutrifft. Fehlende Messwerte setzen den Alarm nicht zurück. Ein Neustart von Sensor Readout ermöglicht eine neue Warnung.
 ui.&Network tools...=&Netzwerkwerkzeuge...
 ui.Network tools=Netzwerkwerkzeuge
 ui.Network tools intro=Eine IP-Adresse oder einen Hostnamen nachschlagen, DNS auflösen, Adressen einordnen und optional Ping-Latenz und Paketverlust testen. Metadaten zu öffentlichen Adressen verwenden einen Online-Nachschlagedienst; private und lokale Adressen werden nie dorthin gesendet. Die Netzwerkwerkzeuge führen keinen Geschwindigkeitstest oder Portscan aus und fragen nichts im Hintergrund ab.

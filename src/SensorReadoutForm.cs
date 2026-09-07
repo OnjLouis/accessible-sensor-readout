@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "6.3.1";
+    public const string AppVersion = "6.3.2";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -150,7 +150,7 @@ public sealed partial class SensorReadoutForm : Form
     private string currentTrayStatusText = "Sensor Readout";
     private readonly Dictionary<int, SpokenHotKeySetting> registeredSpokenHotKeys = new Dictionary<int, SpokenHotKeySetting>();
     private readonly Dictionary<int, FanProfileSetting> registeredFanProfileHotKeys = new Dictionary<int, FanProfileSetting>();
-    private readonly Dictionary<string, DateTime> alarmLastTriggeredUtc = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AlarmTriggerState> alarmTriggerStates = new Dictionary<string, AlarmTriggerState>(StringComparer.Ordinal);
     private int trayFlashTicksRemaining;
     private bool trayFlashShowingAlarm;
     private int lastSpeechHotKeyId;

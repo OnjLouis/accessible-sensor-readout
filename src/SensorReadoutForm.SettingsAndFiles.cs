@@ -499,7 +499,8 @@ public sealed partial class SensorReadoutForm : Form
                     Speak = a == null || a.Speak,
                     SpokenMessage = a == null ? "" : a.SpokenMessage ?? "",
                     SoundFile = a == null ? "" : a.SoundFile ?? "",
-                    CooldownSeconds = a == null ? 60 : a.CooldownSeconds
+                    CooldownSeconds = a == null ? 60 : a.CooldownSeconds,
+                    RepeatWhileActive = a == null || a.RepeatWhileActive
                 })
                 .ToList()
         };
@@ -890,7 +891,8 @@ public sealed partial class SensorReadoutForm : Form
                 Speak = a.Speak,
                 SpokenMessage = a.SpokenMessage ?? "",
                 SoundFile = System.IO.Path.GetFileName(a.SoundFile ?? ""),
-                CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds))
+                CooldownSeconds = Math.Max(0, Math.Min(86400, a.CooldownSeconds)),
+                RepeatWhileActive = a.RepeatWhileActive
             })
             .Where(a => !string.IsNullOrWhiteSpace(a.Name) || !string.IsNullOrWhiteSpace(a.ReadingKey))
             .ToList();

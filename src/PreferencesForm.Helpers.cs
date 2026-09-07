@@ -468,7 +468,10 @@ public sealed partial class PreferencesForm : Form
             var condition = alarm == null || string.IsNullOrWhiteSpace(alarm.Condition) ? "Above" : SensorReadoutForm.NormalizeAlarmCondition(alarm.Condition);
             var threshold = thresholdText == null ? "" : thresholdText(alarm);
             var cooldown = alarm == null || alarm.CooldownSeconds <= 0 ? 0 : alarm.CooldownSeconds;
-            return name + " (" + LocalizedAlarmCondition(condition) + " " + threshold + ", " + cooldown + SensorReadoutForm.L("ui.seconds suffix", "s") + " " + SensorReadoutForm.L("ui.cooldown", "cooldown") + ")";
+            var repetition = alarm != null && !alarm.RepeatWhileActive
+                ? SensorReadoutForm.L("ui.Once until condition clears", "Once until condition clears")
+                : SensorReadoutForm.L("ui.Repeat after cooldown", "Repeat after cooldown");
+            return name + " (" + LocalizedAlarmCondition(condition) + " " + threshold + ", " + repetition + ", " + cooldown + SensorReadoutForm.L("ui.seconds suffix", "s") + " " + SensorReadoutForm.L("ui.cooldown", "cooldown") + ")";
         }
     }
 

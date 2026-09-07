@@ -358,6 +358,8 @@ public sealed class AlarmSetting
     public string SpokenMessage = "";
     public string SoundFile = "";
     public int CooldownSeconds = 60;
+    // Older settings omitted this field and intentionally repeated after cooldown.
+    public bool RepeatWhileActive = true;
 
     public override string ToString()
     {

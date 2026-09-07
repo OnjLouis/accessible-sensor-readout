@@ -1,4 +1,8 @@
 language.name=Français
+ui.&Repeat after cooldown=&Répéter après le délai
+ui.Repeat after cooldown=Répéter après le délai
+ui.Once until condition clears=Une fois jusqu’à la fin de la condition
+a11y.When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning.=Si cette option est décochée, avertir une fois jusqu’à la fin de la condition. Les mesures absentes ne réinitialisent pas l’alarme. Redémarrer Sensor Readout permet un nouvel avertissement.
 ui.&Network tools...=Outils &réseau...
 ui.Network tools=Outils réseau
 ui.Network tools intro=Recherchez une adresse IP ou un nom d’hôte, résolvez le DNS, classez les adresses et testez éventuellement la latence et la perte de paquets par ping. Les métadonnées d’adresses publiques utilisent un service de recherche en ligne ; les adresses privées et locales ne lui sont jamais envoyées. Les outils réseau n’effectuent ni test de débit, ni analyse de ports, ni interrogation en arrière-plan.

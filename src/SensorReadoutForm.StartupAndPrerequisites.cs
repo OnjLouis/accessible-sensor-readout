@@ -224,20 +224,135 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        DeleteStartupScheduledTask();
-        DeleteStartupRunKey();
-        if (System.IO.File.Exists(shortcutPath))
-        {
-            System.IO.File.Delete(shortcutPath);
-        }
-        SetStartupApprovedState(shortcutPath, false);
+        string taskXml;
+        var ownsTask = TryGetStartupScheduledTaskXml(out taskXml) && StartupTaskTargetsExecutable(taskXml, targetPath, false);
+        var ownsRun = StartupCommandTargetsExecutable(ReadStartupRunCommand(), targetPath);
+        var ownsShortcut = StartupCommandTargetsExecutable(ReadStartupShortcutTarget(shortcutPath), targetPath);
+        var changes = PlanStartupRegistrationChange(enabled, ownsTask, ownsRun, ownsShortcut);
+        ApplyStartupRegistrationChange(changes,
+            delegate { CreateStartupScheduledTask(targetPath, arguments, workingDirectory); },
+            DeleteStartupScheduledTask,
+            DeleteStartupRunKey,
+            delegate
+            {
+                if (System.IO.File.Exists(shortcutPath)) System.IO.File.Delete(shortcutPath);
+                SetStartupApprovedState(shortcutPath, false);
+            });
+    }
 
-        if (!enabled)
-        {
-            return;
-        }
+    [Flags]
+    private enum StartupRegistrationChange
+    {
+        None = 0,
+        CreateTask = 1,
+        DeleteTask = 2,
+        DeleteRun = 4,
+        DeleteShortcut = 8
+    }
 
-        CreateStartupScheduledTask(targetPath, arguments, workingDirectory);
+    private static StartupRegistrationChange PlanStartupRegistrationChange(bool enabled, bool ownsTask, bool ownsRun, bool ownsShortcut)
+    {
+        // An explicit opt-in may replace another copy. Disabling or uninstalling may only remove this copy.
+        if (enabled) return StartupRegistrationChange.CreateTask | StartupRegistrationChange.DeleteRun | StartupRegistrationChange.DeleteShortcut;
+        return (ownsTask ? StartupRegistrationChange.DeleteTask : StartupRegistrationChange.None) |
+            (ownsRun ? StartupRegistrationChange.DeleteRun : StartupRegistrationChange.None) |
+            (ownsShortcut ? StartupRegistrationChange.DeleteShortcut : StartupRegistrationChange.None);
+    }
+
+    private static void ApplyStartupRegistrationChange(StartupRegistrationChange changes, Action createTask, Action deleteTask, Action deleteRun, Action deleteShortcut)
+    {
+        // Register in place first: failed creation must leave the previous startup registration intact.
+        if ((changes & StartupRegistrationChange.CreateTask) != 0) createTask();
+        if ((changes & StartupRegistrationChange.DeleteTask) != 0) deleteTask();
+        if ((changes & StartupRegistrationChange.DeleteRun) != 0) deleteRun();
+        if ((changes & StartupRegistrationChange.DeleteShortcut) != 0) deleteShortcut();
+    }
+
+    internal static bool IsThisCopyRegisteredForStartup()
+    {
+        var target = Application.ExecutablePath;
+        string xml;
+        if (TryGetStartupScheduledTaskXml(out xml) && StartupTaskTargetsExecutable(xml, target, true)) return true;
+        if (StartupCommandTargetsExecutable(ReadStartupRunCommand(), target) && IsStartupApprovalEnabled("Run", "Sensor Readout")) return true;
+        var shortcut = GetStartupShortcutPath();
+        return StartupCommandTargetsExecutable(ReadStartupShortcutTarget(shortcut), target) &&
+            IsStartupApprovalEnabled("StartupFolder", System.IO.Path.GetFileName(shortcut));
+    }
+
+    private static bool StartupTaskTargetsExecutable(string xml, string targetPath, bool requireEnabled)
+    {
+        try
+        {
+            var document = new System.Xml.XmlDocument { XmlResolver = null };
+            document.LoadXml(xml);
+            var namespaces = new System.Xml.XmlNamespaceManager(document.NameTable);
+            namespaces.AddNamespace("task", "http://schemas.microsoft.com/windows/2004/02/mit/task");
+            var actions = document.SelectNodes("/task:Task/task:Actions/*", namespaces);
+            if (actions == null || actions.Count != 1) return false;
+            var command = StartupTaskNodeText(document, namespaces, "/task:Task/task:Actions/task:Exec/task:Command");
+            if (string.IsNullOrWhiteSpace(targetPath) || !string.Equals(NormalizeStartupPath(command), NormalizeStartupPath(targetPath), StringComparison.OrdinalIgnoreCase)) return false;
+            if (!requireEnabled) return true;
+            return document.SelectSingleNode("/task:Task/task:Triggers/task:LogonTrigger", namespaces) != null &&
+                !string.Equals(StartupTaskNodeText(document, namespaces, "/task:Task/task:Triggers/task:LogonTrigger/task:Enabled"), "false", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(StartupTaskNodeText(document, namespaces, "/task:Task/task:Settings/task:Enabled"), "false", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private static bool StartupCommandTargetsExecutable(string command, string targetPath)
+    {
+        if (string.IsNullOrWhiteSpace(command) || string.IsNullOrWhiteSpace(targetPath)) return false;
+        command = Environment.ExpandEnvironmentVariables(command.Trim());
+        var target = NormalizeStartupPath(targetPath);
+        var prefix = command.StartsWith("\"", StringComparison.Ordinal) ? "\"" + target + "\"" : target;
+        return command.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+            (command.Length == prefix.Length || char.IsWhiteSpace(command[prefix.Length]));
+    }
+
+    private static string ReadStartupRunCommand()
+    {
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
+                return key == null ? "" : key.GetValue("Sensor Readout") as string ?? "";
+        }
+        catch { return ""; }
+    }
+
+    private static string ReadStartupShortcutTarget(string path)
+    {
+        if (!System.IO.File.Exists(path)) return "";
+        object shell = null;
+        object shortcut = null;
+        try
+        {
+            var type = Type.GetTypeFromProgID("WScript.Shell");
+            if (type == null) return "";
+            shell = Activator.CreateInstance(type);
+            shortcut = type.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
+            return Convert.ToString(shortcut.GetType().InvokeMember("TargetPath", System.Reflection.BindingFlags.GetProperty, null, shortcut, null));
+        }
+        catch { return ""; }
+        finally
+        {
+            if (shortcut != null && System.Runtime.InteropServices.Marshal.IsComObject(shortcut)) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
+            if (shell != null && System.Runtime.InteropServices.Marshal.IsComObject(shell)) System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+        }
+    }
+
+    private static bool IsStartupApprovalEnabled(string subkey, string name)
+    {
+        const byte DisabledStartupItem = 3;
+        const byte DisabledStartupItemAlternative = 7;
+        try
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\" + subkey, false))
+            {
+                var state = key == null ? null : key.GetValue(name) as byte[];
+                return state == null || state.Length == 0 || (state[0] != DisabledStartupItem && state[0] != DisabledStartupItemAlternative);
+            }
+        }
+        catch { return false; }
     }
 
     private static void SetStartupApprovedState(string shortcutPath, bool enabled)
@@ -397,9 +512,10 @@ public sealed partial class SensorReadoutForm : Form
 
     private static bool StartupTaskXmlMatches(string xml, string targetPath, string arguments, string workingDirectory)
     {
+        if (!StartupTaskTargetsExecutable(xml, targetPath, true)) return false;
         try
         {
-            var document = new System.Xml.XmlDocument();
+            var document = new System.Xml.XmlDocument { XmlResolver = null };
             document.LoadXml(xml);
             var namespaces = new System.Xml.XmlNamespaceManager(document.NameTable);
             namespaces.AddNamespace("task", "http://schemas.microsoft.com/windows/2004/02/mit/task");
@@ -430,7 +546,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private static string NormalizeStartupPath(string path)
     {
-        return (path ?? "").Trim().TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+        return Environment.ExpandEnvironmentVariables((path ?? "").Trim().Trim('"')).TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
     }
 
     private static bool HasLegacyStartupRegistration(string shortcutPath)
@@ -467,7 +583,10 @@ public sealed partial class SensorReadoutForm : Form
     private static void DeleteStartupScheduledTask()
     {
         string output;
-        RunHiddenProcess("schtasks.exe", "/Delete /TN \"" + StartupTaskName + "\" /F", out output);
+        if (RunHiddenProcess("schtasks.exe", "/Delete /TN \"" + StartupTaskName + "\" /F", out output) != 0)
+        {
+            throw new InvalidOperationException("Could not remove Windows startup task. " + output.Trim());
+        }
     }
 
     private static void DeleteStartupRunKey()

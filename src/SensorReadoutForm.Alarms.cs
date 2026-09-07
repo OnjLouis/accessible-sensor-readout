@@ -13,30 +13,28 @@ public sealed partial class SensorReadoutForm : Form
 
     private void CheckAlarms(List<SensorRow> rows)
     {
-        var alarms = settings.Alarms ?? new List<AlarmSetting>();
-        if (alarms.Count == 0 || rows == null || rows.Count == 0)
-        {
-            return;
-        }
+        var alarms = ActiveAlarmsByKey();
+        PruneAlarmTriggerStates(alarms);
+        var now = DateTime.UtcNow;
 
-        foreach (var alarm in alarms.Where(a => a != null && a.Enabled))
+        foreach (var item in alarms)
         {
-            var row = rows.FirstOrDefault(r => string.Equals(RowSettingsKey(r), alarm.ReadingKey, StringComparison.OrdinalIgnoreCase));
-            if (row == null || !row.Value.HasValue || !AlarmConditionMatches(row.Value.Value, alarm))
+            var alarm = item.Value;
+            AlarmTriggerState state;
+            if (!alarmTriggerStates.TryGetValue(item.Key, out state))
+            {
+                state = new AlarmTriggerState();
+                alarmTriggerStates.Add(item.Key, state);
+            }
+
+            var row = rows == null ? null : rows.FirstOrDefault(r => r != null && string.Equals(RowSettingsKey(r), alarm.ReadingKey, StringComparison.OrdinalIgnoreCase));
+            bool? matches = row == null || !row.Value.HasValue || double.IsNaN(row.Value.Value) || double.IsInfinity(row.Value.Value)
+                ? (bool?)null : AlarmConditionMatches(row.Value.Value, alarm);
+            if (!state.ShouldTrigger(matches, alarm.RepeatWhileActive, alarm.CooldownSeconds, now))
             {
                 continue;
             }
 
-            var alarmKey = string.IsNullOrWhiteSpace(alarm.Name) ? alarm.ReadingKey : alarm.Name.Trim() + "|" + alarm.ReadingKey;
-            DateTime lastTriggered;
-            var now = DateTime.UtcNow;
-            var cooldown = Math.Max(0, alarm.CooldownSeconds);
-            if (alarmLastTriggeredUtc.TryGetValue(alarmKey, out lastTriggered) && (now - lastTriggered).TotalSeconds < cooldown)
-            {
-                continue;
-            }
-
-            alarmLastTriggeredUtc[alarmKey] = now;
             var message = BuildAlarmMessage(alarm, row);
             if (alarm.Speak)
             {
@@ -50,6 +48,31 @@ public sealed partial class SensorReadoutForm : Form
 
             FlashTrayIconForAlarm();
             LogMessage("Normal", "Alarm triggered: " + message);
+        }
+    }
+
+    private Dictionary<string, AlarmSetting> ActiveAlarmsByKey()
+    {
+        var result = new Dictionary<string, AlarmSetting>(StringComparer.Ordinal);
+        var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var alarm in (settings.Alarms ?? new List<AlarmSetting>()).Where(a => a != null && a.Enabled))
+        {
+            // Stable across preference clones and reordering; edited alarms start a new episode.
+            // Identical duplicates must not consume each other's notifications.
+            var definition = Newtonsoft.Json.JsonConvert.SerializeObject(alarm);
+            int occurrence;
+            occurrences.TryGetValue(definition, out occurrence);
+            occurrences[definition] = occurrence + 1;
+            result.Add(definition + "|" + occurrence.ToString(System.Globalization.CultureInfo.InvariantCulture), alarm);
+        }
+        return result;
+    }
+
+    private void PruneAlarmTriggerStates(Dictionary<string, AlarmSetting> activeAlarms)
+    {
+        foreach (var key in alarmTriggerStates.Keys.Where(k => !activeAlarms.ContainsKey(k)).ToList())
+        {
+            alarmTriggerStates.Remove(key);
         }
     }
 

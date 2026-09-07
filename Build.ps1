@@ -528,6 +528,15 @@ Write-Host "Built $OutputPath"
 Remove-Item -LiteralPath $generatedRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($SelfTest) {
+    $alarmTestExe = Join-Path ([IO.Path]::GetFullPath($BuildWorkRoot)) 'AlarmTriggerStateTests.exe'
+    try {
+        & $csc /nologo /target:exe /out:$alarmTestExe (Join-Path $PSScriptRoot 'src\AlarmTriggerState.cs') (Join-Path $PSScriptRoot 'Tests\AlarmTriggerStateTests.cs')
+        if ($LASTEXITCODE -ne 0) { throw 'Alarm trigger regression tests did not compile.' }
+        & $alarmTestExe
+        if ($LASTEXITCODE -ne 0) { throw 'Alarm trigger regression tests failed.' }
+    } finally {
+        Remove-Item -LiteralPath $alarmTestExe -Force -ErrorAction SilentlyContinue
+    }
     $python = Get-Command python -ErrorAction SilentlyContinue
     if ($null -eq $python) {
         throw 'Python is required to run the bundled Sensor Readout Server self-tests.'

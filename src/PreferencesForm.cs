@@ -90,6 +90,7 @@ public sealed partial class PreferencesForm : Form
     private readonly NumericUpDown alarmThresholdBox;
     private readonly ComboBox alarmThresholdUnitBox;
     private readonly NumericUpDown alarmCooldownBox;
+    private readonly CheckBox alarmRepeatCheckBox;
     private readonly CheckBox alarmSpeakCheckBox;
     private readonly TextBox alarmSpokenMessageBox;
     private readonly ComboBox alarmSoundBox;
@@ -144,6 +145,7 @@ public sealed partial class PreferencesForm : Form
         }
     }
     public bool RunAtStartup { get { return runAtStartupCheckBox.Checked; } }
+    public bool StartupRegistrationChanged { get; private set; }
     public bool StartMinimizedToTray { get { return startMinimizedCheckBox.Checked; } }
     public bool CheckForUpdatesAtStartup { get { return UpdateCheckFrequency != "Never"; } }
     public string UpdateCheckFrequency { get { return UpdateCheckFrequencyFromIndex(updateCheckFrequencyBox.SelectedIndex); } }
@@ -418,7 +420,7 @@ public sealed partial class PreferencesForm : Form
         runAtStartupCheckBox = new CheckBox
         {
             Text = "&Run at Windows startup",
-            Checked = settings.RunAtStartup,
+            Checked = SensorReadoutForm.IsThisCopyRegisteredForStartup(),
             AutoSize = true,
             AccessibleName = "Run at Windows startup"
         };
@@ -441,6 +443,8 @@ public sealed partial class PreferencesForm : Form
 
         runAtStartupCheckBox.CheckedChanged += delegate
         {
+            if (loadingPreferences) return;
+            StartupRegistrationChanged = true;
             if (runAtStartupCheckBox.Checked)
             {
                 startMinimizedCheckBox.Checked = true;
@@ -451,6 +455,10 @@ public sealed partial class PreferencesForm : Form
 
         startMinimizedCheckBox.CheckedChanged += delegate
         {
+            if (!loadingPreferences && runAtStartupCheckBox.Checked)
+            {
+                StartupRegistrationChanged = true;
+            }
             if (startMinimizedCheckBox.Checked)
             {
                 trayStatusCheckBox.Checked = true;
@@ -1031,6 +1039,12 @@ public sealed partial class PreferencesForm : Form
         alarmThresholdUnitBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, AccessibleName = "Alarm threshold unit" };
         alarmCooldownBox = new NumericUpDown { Minimum = 0, Maximum = 86400, Value = 60, Dock = DockStyle.Fill, AccessibleName = "Alarm cooldown seconds" };
         AttachNumericAutoSelect(alarmCooldownBox);
+        alarmRepeatCheckBox = new CheckBox
+        {
+            Text = "&Repeat after cooldown",
+            AutoSize = true,
+            AccessibleDescription = "When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning."
+        };
         alarmSpeakCheckBox = new CheckBox { Text = "&Speak with screen reader", Checked = true, AutoSize = true };
         alarmSpokenMessageBox = new TextBox
         {
@@ -1158,6 +1172,7 @@ public sealed partial class PreferencesForm : Form
             SaveSelectedAlarm(false);
         };
         alarmCooldownBox.ValueChanged += delegate { SaveSelectedAlarm(false); };
+        alarmRepeatCheckBox.CheckedChanged += delegate { SaveSelectedAlarm(); };
         alarmSpeakCheckBox.CheckedChanged += delegate
         {
             alarmSpokenMessageBox.Enabled = alarmSpeakCheckBox.Enabled && alarmSpeakCheckBox.Checked;

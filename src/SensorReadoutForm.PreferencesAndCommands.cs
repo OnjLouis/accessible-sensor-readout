@@ -273,6 +273,7 @@ public sealed partial class SensorReadoutForm : Form
         settings.SpokenHotKeys = dialog.SpokenHotKeys;
         settings.FanProfiles = dialog.FanProfiles;
         settings.Alarms = dialog.Alarms;
+        PruneAlarmTriggerStates(ActiveAlarmsByKey());
         settings.StartupSoundFile = dialog.StartupSoundFile;
         settings.ShutdownSoundFile = dialog.ShutdownSoundFile;
         settings.HiddenReadingKeys = dialog.HiddenReadingKeys;
@@ -304,7 +305,7 @@ public sealed partial class SensorReadoutForm : Form
             RunPendingRefreshIfNeeded();
         }
 
-        if (updateStartupShortcut)
+        if (updateStartupShortcut && dialog.StartupRegistrationChanged)
         {
             try
             {

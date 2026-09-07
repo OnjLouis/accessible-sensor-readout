@@ -75,6 +75,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Audio latency aggregation and privacy", delegate { form.SelfTestAudioLatencyAggregationAndPrivacy(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
             form.RunSelfTestStep(results, "Installed app registration", delegate { form.SelfTestInstalledAppRegistration(outputFolder); });
+            form.RunSelfTestStep(results, "Startup ownership and explicit changes", delegate { form.SelfTestStartupOwnership(); });
             form.RunSelfTestStep(results, "Hotkeys menu", delegate { form.SelfTestHotkeysMenu(); });
             form.RunSelfTestStep(results, "UI mnemonic uniqueness", delegate { form.SelfTestUiMnemonicUniqueness(); });
             form.RunSelfTestStep(results, "Preferences category and shortcut behavior", delegate { form.SelfTestPreferencesCategoryAndShortcutBehavior(); });
@@ -83,6 +84,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Windows setting target mapping", delegate { form.SelfTestWindowsSettingTargetMapping(); });
             form.RunSelfTestStep(results, "Spoken hotkey assignment persistence", delegate { form.SelfTestSpokenHotKeyAssignment(); });
             form.RunSelfTestStep(results, "Alarm and fan curve persistence", delegate { form.SelfTestAlarmAndFanCurvePersistence(); });
+            form.RunSelfTestStep(results, "Alarm repetition and recovery", delegate { form.SelfTestAlarmRepetition(); });
             form.RunSelfTestStep(results, "Zero-RPM fan control visibility", delegate { form.SelfTestZeroRpmFanControlVisibility(); });
             form.RunSelfTestStep(results, "TXT and HTML report writing", delegate { form.SelfTestReportWriting(outputFolder); });
             form.RunSelfTestStep(results, "Report reopening and ZIP selection", delegate { form.SelfTestReportReopen(outputFolder); });

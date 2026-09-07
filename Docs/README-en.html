@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.3.1.</p>
+<p>Current version: 6.3.2.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -47,6 +47,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.3.2</h3><ul><li>Added: Alarms can now warn once until their condition clears, avoiding repeated reminders for persistent warnings such as low disk health. New alarms and presets use this mode; existing alarms keep repeating unless you clear Repeat after cooldown in Preferences &gt; Alarms.</li><li>Fixed: Opening Preferences in a portable or copied folder no longer redirects Windows startup away from another installed copy. Disabling startup or uninstalling a different copy leaves the existing startup entry alone.</li></ul>
 <h3>6.3.1</h3><ul><li>Fixed: Normal server snapshot refreshes no longer produce misleading warnings, making genuine connection and server problems easier to find in the logs.</li></ul>
 <h3>6.3.0</h3><ul><li>Added: Sensor Readout now includes a signed, unattended install and upgrade path for Windows package managers. This prepares a WinGet community listing that installs for the current user, creates Start menu and desktop shortcuts on first install, preserves existing settings and user data during upgrades, and requires administrator approval.</li><li>Improved: Package-manager removal can now run without prompts while preserving <code>Config</code>, <code>Logs</code>, and <code>Reports</code>. Installed copies also repair a missing Start menu shortcut without rewriting it on every launch.</li><li>Fixed: Signed updates now retain user-created language files in the active <code>Langs</code> folder without creating repeated backups. Edited bundled translations are still backed up before receiving the current shipped version.</li></ul>
 <h3>6.2.2</h3><ul><li>Fixed: A spoken hotkey reading for a disconnected keyboard, mouse, headset, or other device battery no longer falls back to the computer's built-in battery. Missing device batteries are skipped instead of announcing the computer's charge twice under different labels.</li></ul>
@@ -1178,6 +1179,7 @@
 <p>The notification-area badge uses shape, symbols, and colour together so its state does not depend on colour recognition alone. A circle represents normal or active readings, an amber clipped badge marks caution, and a red octagonal badge marks a critical reading. A square <code>X</code> means disconnected or offline, a double-ring <code>--</code> means unavailable, and a square <code>||</code> means updates are paused. SMART status uses purple, normal temperature or healthy status uses green, and active CPU or GPU use uses blue. The first configured reading normally supplies the displayed value, but a caution, critical, or disconnected reading elsewhere in the selected tray items can take priority so an important state is not hidden.</p>
 <h3>Startup and Install (<code>Ctrl+2</code>)</h3>
 <p>The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.</p>
+<p>Run at Windows startup shows whether this program location is registered with Windows, not a choice inherited from a copied configuration. To switch startup to another copy, explicitly enable it there. Changing unrelated preferences does not switch the startup location.</p>
 <ul>
 <li>Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and enable Windows startup, close the current copy, and start the installed copy.</li>
 <li>Run at Windows startup: create or remove a Windows logon task for the current user. Sensor Readout uses a scheduled task so it can start reliably with the administrator rights it needs for hardware access.</li>
@@ -1214,7 +1216,7 @@
 <li>Choose a reading.</li>
 <li>Choose Above or equal, Below or equal, or Equal.</li>
 <li>Set the threshold and unit.</li>
-<li>Set a cooldown so repeated alarms do not fire too often.</li>
+<li>Leave <code>Repeat after cooldown</code> unchecked for a warning once until the condition clears, or check it for recurring reminders. The cooldown is the minimum time between warnings in either mode.</li>
 <li>Choose whether the alarm speaks, plays a sound, or both. If you want speech text that differs from the alarm name and reading value, enter a custom spoken message.</li>
 </ul>
 <p>Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.</p>
@@ -1228,6 +1230,7 @@
 <p>The Language editor tab edits installed language files without opening a separate text editor. English is the primary fallback language. Missing translated strings fall back to English, and corrupt language files are skipped rather than crashing the app.</p>
 <h2 id="alarms-and-sounds">Alarms And Sounds</h2>
 <p>Preferences &gt; Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both. The spoken message field is optional; leave it blank to speak the alarm name, reading, and current value automatically.</p>
+<p>Leave <strong>Repeat after cooldown</strong> unchecked for one warning while a condition remains active, such as low disk health or long uptime. Further deterioration does not produce another warning in this mode. A valid reading outside the alarm condition re-arms it; missing or invalid readings do not. The cooldown remains the minimum time between warnings, including after recovery. Check the option for recurring reminders while the condition persists. New alarms and presets default to one-time warnings; existing and imported alarms retain their saved choice. Restarting Sensor Readout, changing an alarm, or disabling and re-enabling it allows a fresh warning. Alarms use this computer’s readings, not readings from an opened report or remote view.</p>
 <p>Preferences &gt; Startup and Install includes optional startup and shutdown sound choices. Sensor Readout loads WAV files from the <code>Sounds</code> folder. The bundled sounds use neutral names such as <code>SR01.wav</code>, <code>SR02.wav</code>, and so on, but user-added sounds can use any normal <code>.wav</code> file name. Any sound in the folder can be selected anywhere Sensor Readout offers a sound, including alarms, startup or shutdown, diagnostics, update alerts, and fan profile actions.</p>
 <h2 id="plug-ins">Plug-Ins</h2>
 <p>Corsair iCUE Link and PSU Support is a bundled, opt-in plug-in for supported iCUE LINK Hub cooling devices and HXi/RMi digital power supplies. It shows pump and fan speeds, liquid or device temperatures, PSU temperatures, fan speed, input voltage, and output power, and can control supported hub and PSU fans. Close Corsair iCUE before enabling it because iCUE does not use the shared Corsair device guard. Monitoring alongside HWiNFO or Fan Control is safe, but only one program should drive the fans. The plug-in writes nothing until you use a fan control, never drives pump channels below 50 percent, and returns the hub and PSU fan to automatic control when Sensor Readout closes. A short grace period protects active cooling when the shared plug-in manager reloads. If a manual setting or fan curve was active, Sensor Readout remembers that control state across restarts and app updates without storing fan percentages in the plug-in folder.</p>

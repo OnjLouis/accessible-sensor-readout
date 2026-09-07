@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.3.1.
+Current version: 6.3.2.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -319,6 +319,8 @@ The notification-area badge uses shape, symbols, and colour together so its stat
 
 The Startup and Install tab controls installation plus what happens when Sensor Readout starts and exits.
 
+Run at Windows startup shows whether this program location is registered with Windows, not a choice inherited from a copied configuration. To switch startup to another copy, explicitly enable it there. Changing unrelated preferences does not switch the startup location.
+
 - Install to this PC: copy the current portable folder to the Windows programs folder for this user, optionally create a desktop shortcut and enable Windows startup, close the current copy, and start the installed copy.
 - Uninstall from this PC: when running from the installed copy, remove the installed app files and shortcuts. The uninstall dialog can also remove `Config`, `Logs`, and `Reports` when you want a complete cleanup.
 - Run at Windows startup: create or remove a Windows logon task for the current user. Sensor Readout uses a scheduled task so it can start reliably with the administrator rights it needs for hardware access.
@@ -381,7 +383,7 @@ The Alarms tab lets you monitor readings without watching the main window.
 - Choose a reading.
 - Choose Above or equal, Below or equal, or Equal.
 - Set the threshold and unit.
-- Set a cooldown so repeated alarms do not fire too often.
+- Leave `Repeat after cooldown` unchecked for a warning once until the condition clears, or check it for recurring reminders. The cooldown is the minimum time between warnings in either mode.
 - Choose whether the alarm speaks, plays a sound, or both. If you want speech text that differs from the alarm name and reading value, enter a custom spoken message.
 
 Alarms are best for values that naturally change, such as temperature, fan speed, CPU load, disk activity, battery charge, or network speed. Static information such as BIOS version is usually not useful as an alarm.
@@ -409,6 +411,8 @@ The Language editor tab edits installed language files without opening a separat
 ## Alarms And Sounds
 
 Preferences > Alarms lets you create reading alarms. Choose a reading, set Above or equal, Below or equal, or Equal, then choose the threshold and cooldown. Each alarm can speak through the active screen reader, play a WAV file, or both. The spoken message field is optional; leave it blank to speak the alarm name, reading, and current value automatically.
+
+Leave `Repeat after cooldown` unchecked for one warning while a condition remains active, such as low disk health or long uptime. Further deterioration does not produce another warning in this mode. A valid reading outside the alarm condition re-arms it; missing or invalid readings do not. The cooldown remains the minimum time between warnings, including after recovery. Check the option for recurring reminders while the condition persists. New alarms and presets default to one-time warnings; existing and imported alarms retain their saved choice. Restarting Sensor Readout, changing an alarm, or disabling and re-enabling it allows a fresh warning. Alarms use this computer's readings, not readings from an opened report or remote view.
 
 The `Presets...` button offers practical starter alarms when matching readings exist on the current machine. Presets start unchecked so you can choose only the ones you want. Check the threshold, sound, and cooldown before relying on them.
 
@@ -758,6 +762,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.3.2
+
+- Fixed: Opening Preferences in a portable or copied folder no longer redirects Windows startup away from another installed copy. Disabling startup or uninstalling a different copy leaves the existing startup entry alone.
+- Added: Alarms can now warn once until their condition clears, avoiding repeated reminders for persistent warnings such as low disk health. New alarms and presets use this mode; existing alarms keep repeating unless you clear Repeat after cooldown in Preferences > Alarms.
 
 ### 6.3.1
 

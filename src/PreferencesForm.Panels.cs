@@ -702,11 +702,11 @@ public sealed partial class PreferencesForm : Form
         alarmButtons.Controls.Add(presetButton);
         alarmButtons.Controls.Add(removeButton);
 
-        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9 };
+        var editor = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 10 };
         editor.TabIndex = 1;
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var i = 0; i < 9; i++) editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var i = 0; i < 10; i++) editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         alarmEnabledCheckBox.TabIndex = 0;
         alarmNameBox.TabIndex = 1;
         alarmReadingBox.TabIndex = 2;
@@ -714,9 +714,10 @@ public sealed partial class PreferencesForm : Form
         alarmThresholdBox.TabIndex = 4;
         alarmThresholdUnitBox.TabIndex = 5;
         alarmCooldownBox.TabIndex = 6;
-        alarmSpeakCheckBox.TabIndex = 7;
-        alarmSpokenMessageBox.TabIndex = 8;
-        alarmSoundBox.TabIndex = 9;
+        alarmRepeatCheckBox.TabIndex = 7;
+        alarmSpeakCheckBox.TabIndex = 8;
+        alarmSpokenMessageBox.TabIndex = 9;
+        alarmSoundBox.TabIndex = 10;
         editor.Controls.Add(alarmEnabledCheckBox, 1, 0);
         editor.Controls.Add(new Label { Text = "Name:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 1);
         editor.Controls.Add(alarmNameBox, 1, 1);
@@ -731,11 +732,12 @@ public sealed partial class PreferencesForm : Form
         editor.Controls.Add(thresholdPanel, 1, 4);
         editor.Controls.Add(new Label { Text = "Cooldown seconds:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 5);
         editor.Controls.Add(alarmCooldownBox, 1, 5);
-        editor.Controls.Add(alarmSpeakCheckBox, 1, 6);
-        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Spoken message:", "Spoken message:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 7);
-        editor.Controls.Add(alarmSpokenMessageBox, 1, 7);
-        editor.Controls.Add(new Label { Text = "Sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 8);
-        editor.Controls.Add(alarmSoundBox, 1, 8);
+        editor.Controls.Add(alarmRepeatCheckBox, 1, 6);
+        editor.Controls.Add(alarmSpeakCheckBox, 1, 7);
+        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Spoken message:", "Spoken message:"), AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 8);
+        editor.Controls.Add(alarmSpokenMessageBox, 1, 8);
+        editor.Controls.Add(new Label { Text = "Sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 9);
+        editor.Controls.Add(alarmSoundBox, 1, 9);
 
         alarmList.TabIndex = 0;
         alarmButtons.TabIndex = 2;
