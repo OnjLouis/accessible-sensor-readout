@@ -205,7 +205,7 @@
     <li>Anyone with both the connection file and monitoring password can read computers in that monitoring space and request advertised fan profiles. Share both only with authorized people.</li>
     <li>The relay can see request times, client network addresses, opaque random identifiers, revisions, and encrypted payload sizes. It cannot read computer names or sensor rows.</li>
     <li>Rotate <code>AuthToken</code> and redistribute a new connection file if it is disclosed.</li>
-    <li>Logs rotate automatically and omit monitoring passwords, readable sensor data, and complete opaque identifiers. Routine successful updates and heartbeats are not written at normal log level.</li>
+    <li>Logs rotate automatically and omit monitoring passwords, readable sensor data, and complete opaque identifiers. Routine successful updates, heartbeats, and requests for a fresh snapshot are not written at normal log level. Failed requests and unexpected server errors remain visible.</li>
   </ul>
 
   <h2 id="settings">Settings</h2>

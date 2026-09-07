@@ -28,7 +28,7 @@ from urllib.parse import parse_qs, urlparse
 
 
 PROTOCOL_VERSION = 1
-SERVER_VERSION = "6.3.0"
+SERVER_VERSION = "6.3.1"
 DEFAULT_MAX_ENVELOPE_BYTES = 8 * 1024 * 1024
 DEFAULT_MAX_DELTAS = 64
 DEFAULT_MAX_DELTA_BYTES = 8 * 1024 * 1024
@@ -887,7 +887,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             status_code = int(status)
         except (TypeError, ValueError):
             status_code = 0
-        log = logging.warning if status_code >= 400 else logging.debug
+        # A 428 asks the client to refresh its snapshot during normal synchronization.
+        log = logging.warning if status_code >= 400 and status_code != 428 else logging.debug
         log("%s %s %s %s", self._client_key(), self.command, path, status)
 
     @property

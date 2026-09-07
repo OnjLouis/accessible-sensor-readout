@@ -332,6 +332,31 @@ class ServerTests(unittest.TestCase):
         status, _, data = self.request("GET", f"/api/v1/spaces/{SPACE}/machines")
         self.assertEqual([], json.loads(data)["Machines"])
 
+    def test_snapshot_refresh_access_log_is_debug(self):
+        self.request("PUT", f"/api/v1/spaces/{SPACE}/machines/{MACHINE}/snapshot?sequence=10", b"snapshot")
+        with self.assertLogs(level="DEBUG") as captured:
+            status, _, _ = self.request("GET", f"/api/v1/spaces/{SPACE}/machines/{MACHINE}/deltas?after=1")
+        self.assertEqual(428, status)
+        self.assertEqual(["DEBUG"], [record.levelname for record in captured.records])
+        self.assertNotIn(SPACE, "\n".join(captured.output))
+        self.assertNotIn(MACHINE, "\n".join(captured.output))
+        status, _, data = self.request("GET", f"/api/v1/spaces/{SPACE}/machines/{MACHINE}/snapshot")
+        self.assertEqual(200, status)
+        self.assertEqual(b"snapshot", data)
+
+    def test_access_log_keeps_real_failures_as_warnings(self):
+        handler = SERVER.Handler.__new__(SERVER.Handler)
+        handler.path = f"/api/v1/spaces/{SPACE}/machines/{MACHINE}/snapshot"
+        handler.command = "PUT"
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        for status in (400, 401, 403, 404, 409, 413, 429, 500, 507):
+            with self.subTest(status=status), self.assertLogs(level="WARNING") as captured:
+                handler.log_message('"%s" %s %s', "request", str(status), "0")
+            self.assertEqual(["WARNING"], [record.levelname for record in captured.records])
+            self.assertNotIn(SPACE, "\n".join(captured.output))
+            self.assertNotIn(MACHINE, "\n".join(captured.output))
+
     def test_access_log_redacts_opaque_identifiers(self):
         command_id = "c" * 43
         with self.assertLogs(level="INFO") as captured:

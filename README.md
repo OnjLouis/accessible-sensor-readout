@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.3.0.
+Current version: 6.3.1.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -121,7 +121,7 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 
 ## Getting Started
 
-Sensor Readout can be used as a portable app or installed for the current Windows user. When the community listing is available, Windows Package Manager can install the signed release without an administrator prompt:
+Sensor Readout can be used as a portable app or installed for the current Windows user. When the community listing is available, Windows Package Manager can install the signed release with administrator approval:
 
 ```powershell
 winget install --id OnjLouis.SensorReadout -e
@@ -759,9 +759,13 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 
 ## Changelog
 
+### 6.3.1
+
+- Fixed: Normal server snapshot refreshes no longer produce misleading warnings, making genuine connection and server problems easier to find in the logs.
+
 ### 6.3.0
 
-- Added: Sensor Readout now includes a signed, unattended install and upgrade path for Windows package managers. This prepares a WinGet community listing that installs for the current user, creates Start menu and desktop shortcuts on first install, preserves existing settings and user data during upgrades, and does not require administrator elevation.
+- Added: Sensor Readout now includes a signed, unattended install and upgrade path for Windows package managers. This prepares a WinGet community listing that installs for the current user, creates Start menu and desktop shortcuts on first install, preserves existing settings and user data during upgrades, and requires administrator approval.
 - Improved: Package-manager removal can now run without prompts while preserving `Config`, `Logs`, and `Reports`. Installed copies also repair a missing Start menu shortcut without rewriting it on every launch.
 - Fixed: Signed updates now retain user-created language files in the active `Langs` folder without creating repeated backups. Edited bundled translations are still backed up before receiving the current shipped version.
 
