@@ -23,3 +23,8 @@ Publish-GitHubRelease.ps1
 HANDOVER.md
 *SigningKey*.xml
 *.srkeybackup
+*.srconnection
+*.pfx
+*.p12
+*.pem
+*.key
