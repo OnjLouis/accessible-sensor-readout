@@ -121,13 +121,13 @@ LibreHardwareMonitor is not required as a running app because this folder ships 
 
 ## Getting Started
 
-Sensor Readout can be used as a portable app or installed for the current Windows user. When the community listing is available, Windows Package Manager can install the signed release with administrator approval:
+Sensor Readout can be used as a portable app or installed for the current Windows user. Windows Package Manager lists it as `OnjLouis.SensorReadout`. To install it with administrator approval, run:
 
 ```powershell
 winget install --id OnjLouis.SensorReadout -e
 ```
 
-WinGet installations use Sensor Readout's own signed update engine, create Start menu and desktop shortcuts on first install, and preserve existing settings and user data during upgrades. If WinGet reports that the package is not available yet, download the current ZIP from the project page while the new community listing is being reviewed.
+WinGet installations use Sensor Readout's own signed update engine, create Start menu and desktop shortcuts on first install, and preserve existing settings and user data during upgrades. New versions may take time to appear in the WinGet catalog; the current ZIP is always available on the [Releases page](https://github.com/OnjLouis/accessible-sensor-readout/releases).
 
 1. Start `Sensor Readout.exe`.
 2. Accept the Windows administrator prompt.
