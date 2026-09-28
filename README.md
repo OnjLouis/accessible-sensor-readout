@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.3.2.
+Current version: 6.4.0.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -711,7 +711,7 @@ Language files:
 - Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
 - `Langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
 - The decimal separator can also be changed from Preferences without editing a language file.
-- Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, `README-it.html`, and `README-pt.html`.
+- Bundled manuals live in the `Docs` folder and use `README-en.html`, `README-de.html`, `README-es.html`, `README-fr.html`, `README-it.html`, `README-pt.html`, and `README-pl.html`. The Polish guide is an extended community contribution based on the 6.3.2 documentation; its introduction explains the scope of runtime testing.
 
 Optional screen-reader speech:
 
@@ -762,6 +762,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.4.0
+
+- Added: Polish interface text and a Polish extended manual, contributed by Paweł Podolski. Choose Polski from Options > Language; Help > Manual then opens the Polish guide.
 
 ### 6.3.2
 
@@ -1495,6 +1499,8 @@ Questions and feedback can be sent through `Help` > `Contact` in the app or <htt
 Sensor Readout is free software. If you want to support Andre's work, use `Help` > `Donate` in the app or visit <https://www.paypal.me/AndreLouis>.
 
 Portuguese translation and manual by Vitor Ferreira.
+
+Polish translation and extended manual by Paweł Podolski.
 
 Sensor Readout uses or bundles components from these projects:
 

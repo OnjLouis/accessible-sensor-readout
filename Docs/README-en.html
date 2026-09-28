@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.3.2.</p>
+<p>Current version: 6.4.0.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -47,6 +47,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.4.0</h3><ul><li>Added: Polish interface text and a Polish extended manual, contributed by Paweł Podolski. Choose Polski from Options &gt; Language; Help &gt; Manual opens the Polish guide.</li></ul>
 <h3>6.3.2</h3><ul><li>Added: Alarms can now warn once until their condition clears, avoiding repeated reminders for persistent warnings such as low disk health. New alarms and presets use this mode; existing alarms keep repeating unless you clear Repeat after cooldown in Preferences &gt; Alarms.</li><li>Fixed: Opening Preferences in a portable or copied folder no longer redirects Windows startup away from another installed copy. Disabling startup or uninstalling a different copy leaves the existing startup entry alone.</li></ul>
 <h3>6.3.1</h3><ul><li>Fixed: Normal server snapshot refreshes no longer produce misleading warnings, making genuine connection and server problems easier to find in the logs.</li></ul>
 <h3>6.3.0</h3><ul><li>Added: Sensor Readout now includes a signed, unattended install and upgrade path for Windows package managers. This prepares a WinGet community listing that installs for the current user, creates Start menu and desktop shortcuts on first install, preserves existing settings and user data during upgrades, and requires administrator approval.</li><li>Improved: Package-manager removal can now run without prompts while preserving <code>Config</code>, <code>Logs</code>, and <code>Reports</code>. Installed copies also repair a missing Start menu shortcut without rewriting it on every launch.</li><li>Fixed: Signed updates now retain user-created language files in the active <code>Langs</code> folder without creating repeated backups. Edited bundled translations are still backed up before receiving the current shipped version.</li></ul>

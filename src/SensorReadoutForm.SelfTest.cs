@@ -2570,9 +2570,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             var keys = ReadLanguageKeys(languageFile);
             var missing = englishKeys.Except(keys).OrderBy(k => k, StringComparer.Ordinal).Take(10).ToList();
-            var extra = keys.Except(englishKeys).OrderBy(k => k, StringComparer.Ordinal).Take(10).ToList();
+            var extra = keys.Except(englishKeys).OrderBy(k => k, StringComparer.Ordinal).ToList();
             Require(missing.Count == 0, Path.GetFileName(languageFile) + " missing language keys: " + string.Join(", ", missing));
-            Require(extra.Count == 0, Path.GetFileName(languageFile) + " has unknown language keys: " + string.Join(", ", extra));
+            var polish = string.Equals(Path.GetFileName(languageFile), "Polish.txt", StringComparison.OrdinalIgnoreCase);
+            Require(extra.Count == 0 || (polish && extra.All(key => key.StartsWith("ui.", StringComparison.Ordinal) ||
+                key.StartsWith("reading.", StringComparison.Ordinal) || key.StartsWith("a11y.", StringComparison.Ordinal))),
+                Path.GetFileName(languageFile) + " has unexpected language keys: " + string.Join(", ", extra.Take(10)));
         }
 
         foreach (var languageFile in languageFiles)
@@ -2625,11 +2628,40 @@ public sealed partial class SensorReadoutForm : Form
             Require(italianText.IndexOf("più", StringComparison.OrdinalIgnoreCase) >= 0, "Italian language file lost accented piu wording.");
         }
 
+        var polishLanguagePath = Path.Combine(GetLanguagesFolderPath(), "Polish.txt");
+        Require(File.Exists(polishLanguagePath), "Polish language file missing.");
+        var polishValues = ReadLanguageFile(polishLanguagePath);
+        string polishManual;
+        Require(polishValues.TryGetValue("manual.file", out polishManual) &&
+            string.Equals(polishManual, "README-pl.html", StringComparison.OrdinalIgnoreCase), "Polish F1 manual mapping is missing.");
+        Require(File.Exists(Path.Combine(GetDocsFolderPath(), polishManual)), "Polish HTML manual missing.");
+
         foreach (var manual in Directory.GetFiles(GetDocsFolderPath(), "README-*.html"))
         {
             var html = File.ReadAllText(manual);
             Require(Regex.IsMatch(html, @"<p>[^<]*\b" + Regex.Escape(AppVersion) + @"\.</p>"), Path.GetFileName(manual) + " missing visible current version " + AppVersion + ".");
             Require(html.IndexOf("<h3>" + AppVersion + "</h3>", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing changelog entry for " + AppVersion + ".");
+            if (string.Equals(Path.GetFileName(manual), "README-pl.html", StringComparison.OrdinalIgnoreCase))
+            {
+                Require(html.IndexOf("<html lang=\"pl\">", StringComparison.OrdinalIgnoreCase) >= 0, "Polish manual has no Polish document language.");
+                var polishSections = new[] { "15-kategorie-i-interpretowanie-odczytow", "16-zdalne-monitorowanie",
+                    "17-network-tools-narzedzia-sieciowe", "18-audio-latency-diagnostyka-opoznien-dzwieku" };
+                var previousSection = -1;
+                foreach (var section in polishSections)
+                {
+                    var heading = html.IndexOf("<h3 id=\"" + section + "\">", StringComparison.OrdinalIgnoreCase);
+                    Require(heading > previousSection && html.IndexOf("href=\"#" + section + "\"", StringComparison.OrdinalIgnoreCase) >= 0,
+                        "Polish manual is missing an ordered section and TOC link: " + section);
+                    previousSection = heading;
+                }
+                Require(html.IndexOf("Naciśnij Tab", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Polish manual does not explain moving from categories to readings with Tab.");
+                Require(html.IndexOf(".srconnection", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    html.IndexOf("sudo python3 sensor_readout_server_control.py install", StringComparison.Ordinal) >= 0 &&
+                    html.IndexOf("server-vX.Y.Z", StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Polish manual is missing remote monitoring or server setup guidance.");
+                continue;
+            }
             Require(html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase) >= 0, Path.GetFileName(manual) + " missing Categories and Readings section.");
             var categoriesHeading = html.IndexOf("<h2 id=\"categories-and-readings\"", StringComparison.OrdinalIgnoreCase);
             var remoteMonitoringHeading = html.IndexOf("<h2 id=\"remote-monitoring\"", StringComparison.OrdinalIgnoreCase);

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versión actual: 6.3.2.</p>
+<p>Versión actual: 6.4.0.</p>
 <p><strong>Aviso importante sobre la actualización:</strong> Si usa la versión 6.0.0 o 6.1.0, descargue manualmente la versión actual una sola vez. Esas dos versiones no pueden completar su propia actualización firmada porque al actualizador temporal le faltaba un archivo de programa necesario. Se conservan sus ajustes y las actualizaciones automáticas posteriores vuelven a funcionar con normalidad.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
@@ -51,6 +51,7 @@
 <li><a href="#credits">Crditos</a></li>
 </ul>
 <h2 id="changelog">Cambios</h2>
+<h3>6.4.0</h3><ul><li>Añadido: Interfaz en polaco y un manual ampliado en polaco, aportados por Paweł Podolski. Elija Polski en Opciones &gt; Idioma; Ayuda &gt; Manual abrirá la guía en polaco.</li></ul>
 <h3>6.3.2</h3><ul><li>Añadido: Las alarmas pueden avisar una sola vez hasta que cese su condición, evitando recordatorios repetidos de problemas persistentes como la baja salud de un disco. Las alarmas nuevas y los preajustes usan este modo; las existentes siguen repitiéndose salvo que desmarque Repetir tras el tiempo de espera en Preferencias &gt; Alarmas.</li><li>Corregido: Abrir Preferencias desde una carpeta portátil o copiada ya no desvía el inicio con Windows de otra copia instalada. Desactivar el inicio o desinstalar una copia distinta no elimina la entrada de inicio existente.</li></ul>
 <h3>6.3.1</h3><ul><li>Corregido: Las actualizaciones normales de las instantáneas del servidor ya no generan advertencias engañosas, lo que facilita encontrar problemas reales de conexión y del servidor en los registros.</li></ul>
 <h3>6.3.0</h3><ul><li>Añadido: Sensor Readout incluye ahora una ruta firmada y desatendida de instalación y actualización para los administradores de paquetes de Windows. Esto prepara una entrada en el catálogo comunitario de WinGet que instala para el usuario actual, crea accesos directos en el menú Inicio y en el escritorio durante la primera instalación, conserva los ajustes y datos del usuario al actualizar y requiere aprobación de un administrador.</li><li>Mejorado: La desinstalación mediante administradores de paquetes puede ejecutarse ahora sin preguntas y conservar <code>Config</code>, <code>Logs</code> y <code>Reports</code>. Las copias instaladas también reparan un acceso directo ausente del menú Inicio sin volver a escribirlo en cada inicio.</li><li>Corregido: Las actualizaciones firmadas conservan ahora los archivos de idioma creados por el usuario en la carpeta activa <code>Langs</code> sin generar copias de seguridad repetidas. Las traducciones incluidas que hayan sido editadas se siguen respaldando antes de recibir la versión incluida actual.</li></ul>

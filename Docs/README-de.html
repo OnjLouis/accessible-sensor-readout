@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 6.3.2.</p>
+<p>Aktuelle Version: 6.4.0.</p>
 <p><strong>Wichtiger Update-Hinweis:</strong> Wenn Sie Version 6.0.0 oder 6.1.0 verwenden, laden Sie die aktuelle Version einmal manuell herunter. Diese beiden Versionen können ihr eigenes signiertes Update nicht abschließen, weil im temporären Aktualisierungsprogramm eine erforderliche Programmdatei fehlte. Ihre Einstellungen bleiben erhalten, und spätere automatische Updates funktionieren wieder normal.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstützter Lüfter. Die Oberfläche ist zuerst für Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Gerät oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menüleiste.</p>
@@ -51,6 +51,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Änderungen</h2>
+<h3>6.4.0</h3><ul><li>Neu: Eine polnische Benutzeroberfläche und ein erweitertes polnisches Handbuch von Paweł Podolski. Wählen Sie Polski unter Optionen &gt; Sprache; Hilfe &gt; Handbuch öffnet dann den polnischen Leitfaden.</li></ul>
 <h3>6.3.2</h3><ul><li>Neu: Alarme können einmal warnen, bis ihre Bedingung nicht mehr zutrifft. So wiederholen sich dauerhafte Warnungen, etwa zur Laufwerksgesundheit, nicht ständig. Neue Alarme und Vorlagen verwenden diesen Modus; vorhandene Alarme wiederholen sich weiterhin, bis Sie Nach Wartezeit wiederholen unter Einstellungen &gt; Alarme deaktivieren.</li><li>Behoben: Das Öffnen der Einstellungen in einem portablen oder kopierten Ordner leitet den Windows-Start nicht mehr von einer anderen installierten Kopie um. Das Deaktivieren des Autostarts oder Deinstallieren einer anderen Kopie lässt den vorhandenen Starteintrag unverändert.</li></ul>
 <h3>6.3.1</h3><ul><li>Behoben: Normale Aktualisierungen der Server-Momentaufnahme erzeugen keine irreführenden Warnungen mehr. Echte Verbindungs- und Serverprobleme sind dadurch in den Protokollen leichter zu erkennen.</li></ul>
 <h3>6.3.0</h3><ul><li>Hinzugefügt: Sensor Readout enthält jetzt einen signierten, unbeaufsichtigten Installations- und Aktualisierungspfad für Windows-Paketmanager. Damit ist ein Eintrag im WinGet-Communitykatalog vorbereitet, der für den aktuellen Benutzer installiert, bei der ersten Installation Verknüpfungen im Startmenü und auf dem Desktop erstellt, vorhandene Einstellungen und Benutzerdaten bei Aktualisierungen beibehält und eine Bestätigung mit Administratorrechten benötigt.</li><li>Verbessert: Die Deinstallation durch Paketmanager kann jetzt ohne Rückfragen erfolgen und behält <code>Config</code>, <code>Logs</code> und <code>Reports</code> bei. Installierte Kopien reparieren außerdem eine fehlende Startmenü-Verknüpfung, ohne sie bei jedem Start neu zu schreiben.</li><li>Behoben: Signierte Aktualisierungen behalten jetzt vom Benutzer erstellte Sprachdateien im aktiven Ordner <code>Langs</code>, ohne wiederholt Sicherungen anzulegen. Bearbeitete mitgelieferte Übersetzungen werden weiterhin gesichert, bevor die aktuelle mitgelieferte Version installiert wird.</li></ul>
