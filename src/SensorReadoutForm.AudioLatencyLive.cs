@@ -190,14 +190,13 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             BorderStyle = BorderStyle.None,
             BackColor = SystemColors.Control,
-            Text = T("ui.Live audio latency monitor intro", "Live values update once per second. Closing this window does not stop the diagnostic; reopen it from Options. Use Stop and save or Control Shift D to finish and save the report."),
+            Text = T("ui.Live audio latency monitor intro", "Closing this window does not stop the diagnostic."),
             AccessibleName = T("a11y.Live audio latency monitor explanation", "Live audio latency monitor explanation")
         };
         var graph = new AudioLatencyGraphControl
         {
             Dock = DockStyle.Fill,
             AccessibleName = T("a11y.Audio latency history graph", "Audio latency history graph"),
-            AccessibleDescription = T("a11y.Graph of recent DPC and ISR peaks.", "Graph of the most recent DPC and ISR duration peaks. The same values are available in the readings tree below."),
             DpcTitle = T("ui.DPC peak history", "DPC peak history"),
             IsrTitle = T("ui.ISR peak history", "ISR peak history"),
             ThresholdText = T("ui.Guidance threshold", "Guidance threshold")
@@ -211,7 +210,6 @@ public sealed partial class SensorReadoutForm : Form
             ShowPlusMinus = true,
             ShowRootLines = true,
             AccessibleName = T("a11y.Live audio latency readings", "Live audio latency readings"),
-            AccessibleDescription = T("a11y.Current interval, recent peaks, and entire test summary.", "Current interval, recent peaks, and entire test summary. Values update once per second without moving focus.")
         };
         tree.ContextMenuStrip = new ContextMenuStrip();
         tree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem(T("ui.&Copy", "&Copy"), Keys.Control | Keys.C, delegate { CopyDetailsTree(tree); }));

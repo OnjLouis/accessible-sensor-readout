@@ -32,7 +32,6 @@ public sealed partial class SensorReadoutForm : Form
                 HideSelection = false,
                 ShowNodeToolTips = true,
                 AccessibleName = T("a11y.Details", "Details"),
-                AccessibleDescription = T("a11y.Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.", "Details grouped by topic. Expand a group to review fields. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.")
             };
             PopulateDetailsTree(tree, row.Details);
             var windowsSettingsTarget = GetRelatedWindowsSettingsTarget(row);
@@ -49,7 +48,6 @@ public sealed partial class SensorReadoutForm : Form
                     ShortcutText = opensFileLocation ? "Alt+L" : "Alt+W",
                     ShortcutKeys = opensFileLocation ? Keys.L : Keys.W,
                     AccessibleName = opensFileLocation ? T("a11y.Open related file location", "Open related file location") : T("a11y.Open related Windows setting", "Open related Windows setting"),
-                    AccessibleDescription = opensFileLocation ? T("a11y.Opens the folder containing the executable for this task.", "Opens the folder containing the executable for this task.") : T("a11y.Opens the Windows Settings page related to this reading.", "Opens the Windows Settings page related to this reading.")
                 };
             var copyButton = new Button { Text = T("ui.&Copy", "&Copy"), AutoSize = true };
             var copyValueButton = new Button { Text = T("ui.Copy &value only", "Copy &value only"), AutoSize = true };
@@ -527,7 +525,6 @@ public sealed partial class SensorReadoutForm : Form
                 WordWrap = false,
                 Text = text,
                 AccessibleName = L("a11y.Review text", "Review text"),
-                AccessibleDescription = L("a11y.Read-only text for the selected detail or detail group.", "Read-only text for the selected detail or detail group.")
             };
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };

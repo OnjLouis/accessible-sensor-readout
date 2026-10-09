@@ -688,7 +688,8 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         helpMenu.DropDownItems.Clear();
-        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Manual", Keys.F1, delegate { ShowManual(); }));
+        helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Help for &focused control", Keys.F1, delegate { ContextHelp.ShowFor(this); }));
+        helpMenu.DropDownItems.Add(new ToolStripMenuItem("&Manual", null, delegate { ShowManual(); }));
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
         helpMenu.DropDownItems.Add("&Version history...", null, delegate { ShowVersionHistoryDialog(); });
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Project on GitHub", Keys.Control | Keys.F1, delegate { OpenProjectPage(); }));

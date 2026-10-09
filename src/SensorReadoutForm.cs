@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "6.4.0";
+    public const string AppVersion = "6.5.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -519,7 +519,6 @@ public sealed partial class SensorReadoutForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Reading section",
-            AccessibleDescription = "Choose a category on the left, then review its readings and details on the right."
         };
         deviceList.SelectedIndexChanged += delegate
         {
@@ -578,7 +577,6 @@ public sealed partial class SensorReadoutForm : Form
             ShowRootLines = true,
             ShowNodeToolTips = true,
             AccessibleName = "Readings",
-            AccessibleDescription = "Current readings grouped by category or device"
         };
         readingTree.ContextMenuStrip = new ContextMenuStrip();
         readingTree.ContextMenuStrip.Items.Add(CreateShortcutMenuItem("&Find reading...", Keys.F3, delegate { ShowReadingSearchDialog(); }));
@@ -685,7 +683,6 @@ public sealed partial class SensorReadoutForm : Form
             TabStop = true,
             AccessibleRole = AccessibleRole.ProgressBar,
             AccessibleName = "Selected meter",
-            AccessibleDescription = "Selected meter value"
         };
 
         splitContainer.Panel1.Controls.Add(deviceList);
@@ -796,6 +793,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         };
 
+        new ContextHelp(this, ShowManual);
         ApplyLanguage();
     }
 
@@ -993,7 +991,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (modifiers == Keys.None && keyCode == Keys.F1)
         {
-            ShowManual();
+            ContextHelp.ShowFor(this);
             return true;
         }
 
@@ -1029,7 +1027,6 @@ public sealed partial class SensorReadoutForm : Form
             ShortcutText = "Esc",
             ShortcutKeys = Keys.Escape,
             AccessibleName = L("a11y.Close", "Close"),
-            AccessibleDescription = L("a11y.Closes this window.", "Closes this window.")
         };
     }
 

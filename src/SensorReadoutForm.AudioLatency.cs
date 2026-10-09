@@ -163,18 +163,6 @@ public sealed partial class SensorReadoutForm : Form
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            var intro = new TextBox
-            {
-                Dock = DockStyle.Top,
-                Multiline = true,
-                ReadOnly = true,
-                BorderStyle = BorderStyle.None,
-                BackColor = SystemColors.Control,
-                Height = 82,
-                Text = T("ui.Audio latency diagnostic intro", "Measure Windows DPC and interrupt service routine activity, hard page faults, and the drivers responsible. Start closes this dialog and measures in the background while you reproduce an audio problem. Sensor Readout saves an HTML report automatically when the test stops. No tracing runs until you start this diagnostic."),
-                AccessibleName = T("a11y.Audio latency diagnostic explanation", "Audio latency diagnostic explanation")
-            };
-            root.Controls.Add(intro, 0, 0);
 
             var durationPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
             var durationLabel = new Label { Text = T("ui.Test duration", "Test &duration:"), AutoSize = true, Margin = new Padding(0, 6, 6, 0) };
@@ -187,11 +175,9 @@ public sealed partial class SensorReadoutForm : Form
                 AccessibleName = T("a11y.Audio latency test duration in seconds", "Audio latency test duration in seconds")
             };
             var secondsLabel = new Label { Text = T("ui.seconds", "seconds"), AutoSize = true, Margin = new Padding(0, 6, 12, 0) };
-            var durationHint = new Label { Text = T("ui.Zero means until stopped", "0 means watch until stopped."), AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
             durationPanel.Controls.Add(durationLabel);
             durationPanel.Controls.Add(durationBox);
             durationPanel.Controls.Add(secondsLabel);
-            durationPanel.Controls.Add(durationHint);
             root.Controls.Add(durationPanel, 0, 1);
 
             var completionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -235,7 +221,6 @@ public sealed partial class SensorReadoutForm : Form
                 Text = T("ui.Open live audio latency monitor when test starts", "Open live audio latency &monitor when test starts"),
                 AutoSize = true,
                 Checked = settings.AudioLatencyOpenLiveMonitor,
-                AccessibleDescription = T("a11y.Live monitor can be closed without stopping the test.", "The live monitor can be closed without stopping the test. Reopen it from the Options menu.")
             };
             root.Controls.Add(liveMonitorCheck, 0, 3);
 
@@ -302,7 +287,7 @@ public sealed partial class SensorReadoutForm : Form
             dialog.Controls.Add(root);
             dialog.AcceptButton = startButton;
             dialog.CancelButton = closeButton;
-            dialog.Shown += delegate { intro.Focus(); };
+            dialog.Shown += delegate { durationBox.Focus(); };
             updateCompletionState();
             dialog.ShowDialog(this);
         }
@@ -346,7 +331,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         audioLatencyTimer.Start();
         statusLabel.Text = durationSeconds <= 0
-            ? T("status.Audio latency test started.", "Audio latency test started. Use Control Shift D to stop it.")
+            ? T("status.Audio latency test started.", "Audio latency test started.")
             : string.Format(T("status.Audio latency timed test started.", "Audio latency test started for {0} seconds."), durationSeconds);
         SpeakTextWithScreenReader(statusLabel.Text, "audio latency");
         RefreshSensors(true, false, "audio-latency-started");

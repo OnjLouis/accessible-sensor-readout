@@ -59,6 +59,50 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
+    private sealed class ProcessWatchListBox : ListBox
+    {
+        private readonly Action<string> openFileLocation;
+
+        public ProcessWatchListBox(Action<string> openFileLocation)
+        {
+            this.openFileLocation = openFileLocation;
+            var menu = new ContextMenuStrip();
+            var openItem = CreateShortcutMenuItem(T("ui.Open file &location...", "Open file &location..."), Keys.Alt | Keys.Enter,
+                delegate { OpenSelectedFileLocation(); });
+            menu.Items.Add(openItem);
+            menu.Opening += delegate { openItem.Enabled = Enabled && SelectedFilePath().Length > 0; };
+            ContextMenuStrip = menu;
+        }
+
+        private string SelectedFilePath()
+        {
+            var target = SelectedProcessWatchTarget(this);
+            return target != null && System.IO.File.Exists(target.Path) ? target.Path : "";
+        }
+
+        private void OpenSelectedFileLocation()
+        {
+            var path = SelectedFilePath();
+            if (Enabled && path.Length > 0 && openFileLocation != null) openFileLocation(path);
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Alt | Keys.Enter))
+            {
+                OpenSelectedFileLocation();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && ContextMenuStrip != null) ContextMenuStrip.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
     private sealed class ProcessWatchSession
     {
         public int ProcessId;
@@ -175,11 +219,11 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Dock = DockStyle.Fill,
                 AutoSize = true,
-                Text = T("ui.Process watch intro", "Choose a running process, output format, and optional duration. Start closes this dialog and watches in the background. Use Options > Stop process watch or Ctrl+Shift+W to stop; Sensor Readout saves the report automatically in Reports. Sensor Readout records resource counters only; it does not inspect private app data, keystrokes, files, or network contents. Saved reports may include the selected process name and executable path.")
+                Text = T("ui.Process watch intro", "Sensor Readout records resource counters only; it does not inspect private app data, keystrokes, files, or network contents. Saved reports may include the selected process name and executable path.")
             };
             root.Controls.Add(intro, 0, 0);
 
-            var processList = new ListBox
+            var processList = new ProcessWatchListBox(path => OpenWindowsSettingsTarget(new WindowsSettingsTarget { FilePath = path, Name = "File location" }))
             {
                 Dock = DockStyle.Fill,
                 IntegralHeight = false,
@@ -218,13 +262,11 @@ public sealed partial class SensorReadoutForm : Form
             formatBox.Items.Add(T("ui.HTML", "HTML"));
             formatBox.Items.Add(T("ui.CSV", "CSV"));
             formatBox.SelectedIndex = string.Equals(settings.ProcessWatchOutputFormat, "csv", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-            var durationHint = new Label { Text = T("ui.Zero means until stopped", "0 means watch until stopped."), AutoSize = true, Margin = new Padding(8, 6, 0, 0) };
             durationPanel.Controls.Add(durationLabel);
             durationPanel.Controls.Add(durationBox);
             durationPanel.Controls.Add(durationUnit);
             durationPanel.Controls.Add(formatLabel);
             durationPanel.Controls.Add(formatBox);
-            durationPanel.Controls.Add(durationHint);
             root.Controls.Add(durationPanel, 0, 2);
 
             var completionPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -631,7 +673,7 @@ public sealed partial class SensorReadoutForm : Form
                 FormatProcessWatchDuration(duration));
         }
 
-        return string.Format(T("status.Process watch started.", "Watching {0}. Press Stop when finished."), processName);
+        return string.Format(T("status.Process watch started.", "Watching {0} until stopped."), processName);
     }
 
     private static string FormatProcessWatchDuration(TimeSpan duration)

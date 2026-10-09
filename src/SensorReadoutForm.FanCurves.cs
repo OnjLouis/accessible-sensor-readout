@@ -55,6 +55,10 @@ public sealed partial class SensorReadoutForm : Form
                 AccessibleName = T("a11y.Show stopped or unpopulated fan headers", "Show stopped or unpopulated fan headers")
             };
             var tempBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+            ControlHelpCatalog.Bind(curveList, "FanCurve");
+            ControlHelpCatalog.Bind(nameBox, "Name", T("ui.&Name:", "&Name:"));
+            ControlHelpCatalog.Bind(fanBox, "FanCurve");
+            ControlHelpCatalog.Bind(tempBox, "FanCurve");
             var lowTempBox = CreateTemperatureBox(35);
             var lowPercentBox = CreatePercentBox(30);
             var highTempBox = CreateTemperatureBox(75);

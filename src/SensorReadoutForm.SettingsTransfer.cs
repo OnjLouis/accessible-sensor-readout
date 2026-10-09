@@ -421,7 +421,6 @@ public sealed partial class SensorReadoutForm : Form
                 CheckOnClick = true,
                 IntegralHeight = false,
                 AccessibleName = L("a11y.Settings transfer categories", "Settings transfer categories"),
-                AccessibleDescription = L("a11y.Check the settings categories to include.", "Check the settings categories to include.")
             };
             foreach (var item in available.Where(i => !string.IsNullOrWhiteSpace(i)))
             {

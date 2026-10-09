@@ -173,7 +173,6 @@ public sealed partial class SensorReadoutForm : Form
                 Checked = false,
                 AutoSize = true,
                 AccessibleName = L("a11y.Also delete Config, Logs, and Reports", "Also delete Config, Logs, and Reports"),
-                AccessibleDescription = L("a11y.Leave this unchecked to keep settings, logs, and saved reports after uninstalling.", "Leave this unchecked to keep settings, logs, and saved reports after uninstalling.")
             };
 
             var uninstallButton = new Button { Text = L("ui.&Uninstall", "&Uninstall"), AccessibleName = PlainMnemonic(L("ui.&Uninstall", "&Uninstall")), DialogResult = DialogResult.OK, AutoSize = true };

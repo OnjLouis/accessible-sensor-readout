@@ -147,17 +147,14 @@ public sealed partial class SensorReadoutForm : Form
         if (deviceList != null)
         {
             deviceList.AccessibleName = T("a11y.Reading section", "Reading section");
-            deviceList.AccessibleDescription = T("a11y.Choose a category on the left, then review its readings and details on the right.", "Choose a category on the left, then review its readings and details on the right.");
         }
         if (readingTree != null)
         {
             readingTree.AccessibleName = T("a11y.Readings", "Readings");
-            readingTree.AccessibleDescription = T("a11y.Current readings grouped by category or device", "Current readings grouped by category or device");
         }
         if (selectedMeterProgressBar != null)
         {
             selectedMeterProgressBar.AccessibleName = T("a11y.Selected meter", "Selected meter");
-            selectedMeterProgressBar.AccessibleDescription = T("a11y.Selected meter value", "Selected meter value");
         }
     }
 

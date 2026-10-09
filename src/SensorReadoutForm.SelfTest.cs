@@ -46,6 +46,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Remote monitoring server round-trip and privacy", delegate { form.SelfTestRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Embedded remote server round-trip and privacy", delegate { form.SelfTestEmbeddedRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
+            form.RunSelfTestStep(results, "Context help and F1 hotkey capture", delegate { form.SelfTestContextHelp(); });
             form.RunSelfTestStep(results, "Portable spoken hotkey resolution", delegate { form.SelfTestPortableReadingKeyResolution(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });
@@ -329,6 +330,16 @@ public sealed partial class SensorReadoutForm : Form
         SetLatestRows(rows);
         Require(rows.Any(r => string.Equals(r.Type, "Performance", StringComparison.OrdinalIgnoreCase)), "Performance rows missing.");
         Require(rows.Any(r => !string.IsNullOrWhiteSpace(r.Name)), "Collected rows have no names.");
+
+        var featureUpdate = GetDictionaryValue(GetWindowsHardwareDetails(), "Windows registry display version");
+        var featureUpdateRows = rows.Where(r => string.Equals(r.Name, "Windows feature update", StringComparison.Ordinal)).ToList();
+        Require(featureUpdateRows.Count == (string.IsNullOrWhiteSpace(featureUpdate) ? 0 : 1),
+            "Windows feature update overview row does not match the available display version.");
+        if (featureUpdateRows.Count == 1)
+        {
+            Require(string.Equals(featureUpdateRows[0].DisplayValue, featureUpdate, StringComparison.Ordinal),
+                "Windows feature update overview value differs from the registry display version.");
+        }
     }
 
     private void SelfTestPciSlotSummaryWording()
@@ -615,7 +626,7 @@ public sealed partial class SensorReadoutForm : Form
             var emptyStateDebug = "Count=" + readingTree.Nodes.Count + "; " + string.Join("; ", readingTree.Nodes.Cast<TreeNode>().Select(n => "Name=" + n.Name + ", Text=" + n.Text).ToArray());
             Require(readingTree.Nodes.Count == 1 && string.Equals(readingTree.Nodes[0].Name, "empty", StringComparison.Ordinal), "Empty category did not show an empty-state row. " + emptyStateDebug);
             Require(readingTree.Nodes[0].Text.IndexOf("No data currently available for this category.", StringComparison.OrdinalIgnoreCase) >= 0, "Empty category did not explain that no data is currently available.");
-            Require(readingTree.Nodes[0].Text.IndexOf("hide this category", StringComparison.OrdinalIgnoreCase) >= 0, "Empty category did not explain that the category can be hidden.");
+            Require(readingTree.Nodes[0].Text.IndexOf("hide this category", StringComparison.OrdinalIgnoreCase) < 0, "Empty category repeated category-help instructions.");
         }
         finally
         {
@@ -2633,7 +2644,7 @@ public sealed partial class SensorReadoutForm : Form
         var polishValues = ReadLanguageFile(polishLanguagePath);
         string polishManual;
         Require(polishValues.TryGetValue("manual.file", out polishManual) &&
-            string.Equals(polishManual, "README-pl.html", StringComparison.OrdinalIgnoreCase), "Polish F1 manual mapping is missing.");
+            string.Equals(polishManual, "README-pl.html", StringComparison.OrdinalIgnoreCase), "Polish full-manual mapping is missing.");
         Require(File.Exists(Path.Combine(GetDocsFolderPath(), polishManual)), "Polish HTML manual missing.");
 
         foreach (var manual in Directory.GetFiles(GetDocsFolderPath(), "README-*.html"))

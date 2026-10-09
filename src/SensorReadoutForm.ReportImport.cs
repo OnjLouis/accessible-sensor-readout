@@ -145,7 +145,7 @@ public sealed partial class SensorReadoutForm : Form
         UpdateDeviceList();
         UpdateReadingList();
         UpdateTrayStatus();
-        statusLabel.Text = T("status.viewingStaticReport", "Viewing static report:") + " " + loadedReportTitle + ". " + T("status.returnToLiveReadingsHint", "Use File, Return to live readings to resume live sensor updates.");
+        statusLabel.Text = T("status.viewingStaticReport", "Viewing static report:") + " " + loadedReportTitle + " - Ctrl+R";
     }
 
     private void ReturnToLiveReadings()

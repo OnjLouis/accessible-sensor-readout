@@ -8,11 +8,11 @@
 <body>
 <main>
 <h1>Sensor Readout</h1>
-<p>Wersja programu: 6.4.0.</p>
+<p>Wersja programu: 6.5.0.</p>
 <p>Polski podręcznik rozszerzony na podstawie materiałów przesłanych przez Pawła Podolskiego. Materiał jest opracowaniem społecznościowym i nie każda funkcja została przetestowana w działającym programie z NVDA. W razie rozbieżności sprawdź także <a href="README-en.html">aktualny podręcznik angielski</a>.</p>
 <p>Polski podręcznik rozszerzony</p>
 <p>Obsługa programu, klawiatura i NVDA, diagnostyka, raporty, monitorowanie zdalne, administracja Linux i wtyczki.</p>
-<p>Opracowano dla aplikacji Windows 6.3.2<br>Podręcznik serwera oznaczony 6.3.0<br>Stan źródeł: 25 września 2026 r.</p>
+<p>Pierwotne opracowanie: aplikacja Windows 6.3.2, podręcznik serwera 6.3.0, stan źródeł z 25 września 2026 r. Bieżące wskazówki obsługi uwzględniają wersję 6.5.0.</p>
 <p>Wydanie rozszerzone i skorygowane</p>
 <p>Nieoficjalny przekład dokumentacji projektu z instrukcjami praktycznymi. Powtarzające się treści połączono. W miejscach rozbieżnych wskazano źródło i zakres weryfikacji.</p>
 <p>Najważniejsze przed rozpoczęciem: zwykły odczyt i zapis raportu nie są tym samym co pełna diagnostyka. Pełna diagnostyka może na krótko zwiększyć obroty zapisywalnych wentylatorów do 100%.</p>
@@ -32,6 +32,7 @@
 <li class="subsection"><a href="#8-co-potrafi-program">8. Co potrafi program</a></li>
 <li class="subsection"><a href="#9-wymagania-i-instalacja">9. Wymagania i instalacja</a></li>
 <li class="subsection"><a href="#10-wszystkie-skroty-klawiaturowe">10. Wszystkie skróty klawiaturowe</a></li>
+<li class="subsection"><a href="#control-help-and-manual">Pomoc dotycząca kontrolki i podręcznik</a></li>
 <li class="subsection"><a href="#11-opcje-wiersza-polecen">11. Opcje wiersza poleceń</a></li>
 <li class="subsection"><a href="#12-preferences-wszystkie-ustawienia">12. Preferences: wszystkie ustawienia</a></li>
 <li class="subsection"><a href="#13-alarmy-i-dzwieki-szczegoy-dziaania">13. Alarmy i dźwięki: szczegóły działania</a></li>
@@ -89,6 +90,10 @@
 <li class="subsection"><a href="#58-licencja-mit-przekad-informacyjny">58. Licencja MIT: przekład informacyjny</a></li>
 </ul></nav>
 <h2 id="changelog">Zmiany w tej wersji</h2>
+<h3>6.5.0</h3><p>Dodano: lista procesów w oknie obserwacji może otwierać lokalizację wybranego pliku za pomocą Alt+Enter lub menu kontekstowego, jeśli ścieżka pliku wykonywalnego jest dostępna. Enter nadal rozpoczyna skonfigurowaną obserwację.</p>
+<p>Dodano czytelną pomoc dla kontrolki z fokusem w oknie głównym i oknach dialogowych Sensor Readout, otwieraną klawiszem F1 bez modyfikatorów, z przyciskami Kopiuj pomoc, Podręcznik i Zamknij. Escape wraca do pierwotnej kontrolki bez zmiany wartości pól; pomoc nigdy nie pokazuje wpisanych haseł, tokenów ani innych tekstów. Nawigacja klawiszem Tab pozostaje zwięzła: nazwy, wartości, stany i przydatne skróty. Szczegółowe instrukcje obsługi kontrolek znajdują się wyłącznie w pomocy F1, a nie w zwykłych opisach ani widocznych wskazówkach. Ostrzeżenia, informacje o prywatności i zgodzie oraz wyniki na żywo nadal pojawiają się, gdy są wymagane.</p>
+<p>F1 bez modyfikatorów jest zarezerwowany dla pomocy także w polach skrótów. Obsługiwane kombinacje, takie jak Ctrl+Shift+F1, nadal można przypisywać. Pełny podręcznik jest dostępny przez Pomoc &gt; Podręcznik oraz przycisk Podręcznik w pomocy.</p>
+<p>Dodano nazwę aktualizacji funkcji systemu Windows, na przykład 25H2, w Wydajność/Przegląd obok numerycznej wersji i kompilacji, jeśli system Windows udostępnia tę informację.</p>
 <h3>6.4.0</h3>
 <p>Dodano polski interfejs i polski podręcznik rozszerzony. Tłumaczenie przygotował Paweł Podolski.</p>
 <h2 id="czesc-i-orientacja-i-pierwsze-uruchomienie">Część I. Orientacja i pierwsze uruchomienie</h2>
@@ -138,7 +143,7 @@
 <p>Krok 6. Zamknij preferencje. Z Help wybierz Check accessibility setup i sprawdź mowę, skróty oraz dostęp do folderów raportów. Stan Check oznacza element wymagający uwagi, nie automatycznie usterkę. [S1, S12, S14]</p>
 <h2 id="czesc-ii-dokumentacja-uzytkownika-i-zestawienia-odniesienia">Część II. Dokumentacja użytkownika i zestawienia odniesienia</h2>
 <h3 id="7-sensor-readout-opis-projektu">7. Sensor Readout: opis projektu</h3>
-<p>Bieżąca wersja: 6.4.0. Ważna uwaga o aktualizacji: wersje 6.0.0 i 6.1.0 wymagają jednorazowego ręcznego pobrania bieżącego wydania. Ich tymczasowy aktualizator nie zawierał wymaganego pliku programu i nie może ukończyć własnej podpisanej aktualizacji. Ustawienia są zachowywane; późniejsze automatyczne aktualizacje działają normalnie. [S1, S2]</p>
+<p>Bieżąca wersja: 6.5.0. Ważna uwaga o aktualizacji: wersje 6.0.0 i 6.1.0 wymagają jednorazowego ręcznego pobrania bieżącego wydania. Ich tymczasowy aktualizator nie zawierał wymaganego pliku programu i nie może ukończyć własnej podpisanej aktualizacji. Ustawienia są zachowywane; późniejsze automatyczne aktualizacje działają normalnie. [S1, S2]</p>
 <p>Sensor Readout to narzędzie do informacji o sprzęcie i rozwiązywania problemów w Windows, projektowane przede wszystkim z myślą o dostępności. Pozwala czytać czujniki, sprawdzać urządzenia, badać opóźnienia dźwięku, przeglądać szczegóły systemu i dostępności, tworzyć raporty dla pomocy technicznej oraz sterować obsługiwanymi wentylatorami. Interfejs jest przyjazny czytnikom ekranu i obsłudze klawiaturą.</p>
 <p>Po lewej są główne kategorie, po prawej drzewo odczytów pogrupowanych według urządzeń; najczęstsze polecenia znajdują się na standardowym pasku menu. Celem jest szybki dostęp do temperatur, wentylatorów, stanu dysków, USB, sieci, Bluetooth, procesów, audio, wyświetlaczy, drukarek, baterii, PCIe, inwentarza urządzeń Windows, dostępności, diagnostyki i raportów. Odnośniki do projektu, mapy źródeł dla współtwórców oraz statystyk społeczności znajdują się w końcowej części ze źródłami.</p>
 <h4 id="dlaczego-powsta-sensor-readout-sowa-autora">Dlaczego powstał Sensor Readout: słowa autora</h4>
@@ -222,7 +227,8 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Ctrl+I: importuj ustawienia i profile. Ctrl+Shift+I: importuj ZIP wtyczki.</p>
 <p>Ctrl+Shift+O: otwórz Reports. Ctrl+Shift+L: otwórz Logs.</p>
 <p>Ctrl+L: otwórz sterowanie wentylatorami. Ctrl+U: otwórz krzywe wentylatorów. Ctrl+,: otwórz Preferences.</p>
-<p>F1: otwórz podręcznik. Ctrl+F1: otwórz stronę projektu.</p>
+<p>F1 bez modyfikatorów: otwórz pomoc dotyczącą kontrolki z fokusem w oknie głównym lub oknie dialogowym Sensor Readout. Ctrl+F1: otwórz stronę projektu.</p>
+<p>W oknie pomocy Escape zamyka pomoc i przywraca fokus pierwotnej kontrolce bez zmiany wartości pól.</p>
 <p>Shift+F1: sprawdź nowsze wydanie na GitHub i PawnIO oraz zaproponuj aktualizację. Przy włączonych cichych instalacjach dostępna aktualizacja instaluje się bez wcześniejszego pokazywania zmian.</p>
 <p>Alt+F1: uruchom pełną diagnostykę i utwórz ZIP dla pomocy technicznej.</p>
 <h4 id="okno-fan-controls">Okno Fan Controls</h4>
@@ -252,6 +258,10 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>W zakładce Fan profiles: Alt+1 przechodzi do listy profili wentylatorów. Alt+2 przechodzi do pola skrótu profilu. Alt+3 przechodzi do dostępnych kontrolerów. Alt+4 przechodzi do działań profilu. Alt+N tworzy profil, Alt+P usuwa profil, Alt+Y wykonuje profil teraz. Ctrl+Z przywraca ostatnio usunięty profil, gdy okno preferencji pozostaje otwarte. [S14, S15]</p>
 <p>W panelu działań profilu wentylatorów: Alt+A dodaje kontroler, Alt+R usuwa działanie, Alt+U przesuwa działanie w górę, a Alt+D w dół. Te skróty nie oznaczają tego samego co Alt+A i Alt+R w osobnym oknie Fan Controls. [S15]</p>
 <p>W zakładce Alarms: Alt+N tworzy alarm, Alt+P otwiera wzorce, Alt+M usuwa alarm. Na liście alarmów F2 przenosi do nazwy, Enter do progu, a Delete usuwa wybrany alarm. W Categories Alt+S pokazuje kategorię, Alt+H ją ukrywa. W edytorze języka F3 wyszukuje wpisy, a F2 przechodzi do wartości. [S14, S15]</p>
+<h3 id="control-help-and-manual">Pomoc dotycząca kontrolki i podręcznik</h3>
+<p>Naciśnij <code>F1</code> bez modyfikatorów, gdy kontrolka ma fokus w oknie głównym lub oknie dialogowym Sensor Readout, aby otworzyć czytelną pomoc dotyczącą tej kontrolki. Wyjaśnienie jest tylko do odczytu i można je przeglądać klawiaturą oraz czytnikiem ekranu. Nawigacja klawiszem Tab pozostaje zwięzła: nazwy, wartości, stany i przydatne skróty. Szczegółowe instrukcje obsługi kontrolek znajdują się wyłącznie w pomocy <code>F1</code>, a nie w zwykłych opisach ani widocznych wskazówkach. Ostrzeżenia, informacje o prywatności i zgodzie oraz wyniki na żywo nadal pojawiają się, gdy są wymagane.</p>
+<p>Wybierz <code>Kopiuj pomoc</code>, aby skopiować wyjaśnienie, <code>Podręcznik</code>, aby otworzyć pełny przewodnik w wybranym języku w przeglądarce, lub <code>Zamknij</code>, aby wrócić. <code>Escape</code> również zamyka pomoc i przywraca fokus pierwotnej kontrolce. Otwarcie i zamknięcie pomocy nie zmienia wartości pól. Pomoc nigdy nie pokazuje wpisanych haseł, tokenów ani innych tekstów z pól wejściowych.</p>
+<p><code>F1</code> bez modyfikatorów jest zarezerwowany dla pomocy, także w polach skrótów; nie zastępuje przypisanej kombinacji. Obsługiwane kombinacje, takie jak <code>Ctrl+Shift+F1</code>, nadal można przypisywać. Pełny podręcznik jest też dostępny przez <code>Pomoc</code> &gt; <code>Podręcznik</code>.</p>
 <h3 id="11-opcje-wiersza-polecen">11. Opcje wiersza poleceń</h3>
 <p>Program można uruchamiać z następującymi argumentami. Słowa path, before, after, output i folder oznaczają miejsca na własne ścieżki; nawiasy kwadratowe oznaczają argument opcjonalny i nie są częścią nazwy pliku. [S1, S2]</p>
 <p>--minimized lub --tray: uruchom zminimalizowany do obszaru powiadomień.</p>
@@ -367,6 +377,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Dokumentacja dla autorów rozszerzeń znajduje się w repozytorium jako Docs\Plug-In-development.md. Nie trzeba jej czytać, aby używać dostarczonych wtyczek.</p>
 <p>Pełny polski podręcznik tworzenia wtyczek, opis bieżącego SDK i zasady dla agentów programujących znajdują się w dalszych częściach niniejszego dokumentu. Nie są już wyłączone z zakresu opracowania.</p>
 <h3 id="15-kategorie-i-interpretowanie-odczytow">15. Kategorie i interpretowanie odczytów</h3>
+<p>W Wydajność/Przegląd grupa Windows pokazuje nazwę aktualizacji funkcji, na przykład <code>25H2</code>, oddzielnie od numerycznej wersji i kompilacji, jeśli system Windows podaje tę wartość.</p>
 <p>Panel odczytów jest drzewem. Wybierz kategorię na liście po lewej i naciśnij Tab, aby przejść do jej danych po prawej. Najpierw są grupy urządzeń lub zastosowań, potem pojedyncze odczyty; czytnik nie musi dzięki temu powtarzać pełnej nazwy urządzenia przed każdą wartością. [S1, S2]</p>
 <p>Widoczność i kolejność ustala Preferences &gt; Categories lub bezpośrednio Delete, Ctrl+góra, Ctrl+dół i menu kontekstowe na głównej liście. Zmiana kategorii zmienia tylko widok: nie włącza ani nie wyłącza urządzeń. Domyślny start to Performance/Overview. Nie ma jednej strony łączącej wszystkie odczyty.</p>
 <p>Category summary na początku każdej kategorii ma Details z liczbą grup, odczytów, wartości liczbowych i wierszy ze szczegółami oraz dodatkowymi danymi, np. niesprawnymi urządzeniami lub stanem nośników. Puste drzewo zastępuje właściwa podpowiedź: odśwież, podłącz sprzęt, włącz wtyczkę, sprawdź ukryte elementy albo poczekaj na wolniejsze dane inwentarza Windows.</p>
@@ -385,7 +396,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <h4 id="bluetooth-i-battery">Bluetooth i Battery</h4>
 <p>Bluetooth pokazuje radia oraz urządzenia sparowane lub połączone dostępne w Windows. Radio może mieć adres, typ, usługi, producenta i podwersję LMP. Urządzenie: stan połączenia, sparowania lub zapamiętania, adres, typ, usługi i czas ostatniego wykrycia lub użycia.</p>
 <p>Poziomy baterii urządzeń Bluetooth pozostają w Battery, ponieważ są odczytami baterii i już mogą służyć profilom oraz alarmom. Sensor Readout nie wymyśla siły sygnału Bluetooth. Zwykłe klasyczne API Bluetooth Windows nie udostępnia dla typowych sparowanych urządzeń wiarygodnego bieżącego RSSI/dBm tak jak API WiFi.</p>
-<h4 id="tasks-i-obserwowanie-procesu">Tasks i obserwowanie procesu</h4>
+<h4 id="tasks-i-obserwowanie-procesu">Tasks i obserwowanie procesu</h4><p>Na liście procesów w oknie obserwacji <code>Alt+Enter</code> lub <code>Otwórz lokalizację pliku...</code> w menu kontekstowym otwiera lokalizację wybranego pliku wykonywalnego, jeśli jest dostępna. Nie rozpoczyna to obserwacji ani nie uruchamia programu. Enter rozpoczyna skonfigurowaną obserwację; w przeciwieństwie do Enter na procesie w Tasks nie otwiera Szczegółów.</p>
 <p>Tasks jest małym podsumowaniem aktywności i listą procesów tylko do odczytu, a nie pełnym Menedżerem zadań. Pokazuje największe bieżące zużycie CPU, RAM, czasu silnika GPU i pamięci procesu GPU, jeśli dostępne są liczniki. Te podsumowania można dodać do profili; nie jest tworzony osobny kandydat do skrótu dla każdego procesu.</p>
 <p>Lista może zawierać tytuł okna, godzinę startu, rolę procesu pomocniczego i proces nadrzędny. Enter otwiera szczegóły. Alt+Enter lub menu otwiera lokalizację pliku, jeśli jest dostępna. Watch process w menu wiersza natychmiast zaczyna obserwację z zapamiętanymi ustawieniami. Przy czasie różnym od zera program informuje o długości obserwacji; zero oznacza działanie do ręcznego zatrzymania.</p>
 <p>Options &gt; Watch process lub Ctrl+Shift+W otwiera wybór procesu, formatu i opcjonalnego czasu. Dodatkowe opisy pomagają rozróżnić kilka procesów o tej samej nazwie. Po rozpoczęciu okno zamyka się, a próbkowanie trwa w tle, umożliwiając zwykłą pracę.</p>
@@ -515,7 +526,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Docs\Plug-In-development.md: dokumentacja SDK i manifestu wtyczki. Docs\Coding-agent-plug-in-rules.md: zasady dla agentów programujących: praca nad istniejącą wtyczką ma pozostawać w jej folderze, chyba że wyraźnie zatwierdzono zmianę głównej aplikacji.</p>
 <h4 id="pliki-jezykowe">Pliki językowe</h4>
 <p>Pliki TXT lub INI umieszcza się w Langs obok EXE. Przy pierwszym starcie wybierany jest język wyświetlania Windows, jeśli dostarczono odpowiedni plik; w przeciwnym razie angielski. Składnia to key=value; linie zaczynające się od # lub średnika są komentarzami.</p>
-<p>Wpis language.name=Display name nadaje nazwę pokazywaną w menu. manual.file=README-xx.html wskazuje podręcznik otwierany F1 w przeglądarce. Podaj tylko nazwę, bez folderu. Program najpierw szuka w Docs; przy braku wpisu próbuje &lt;language-file-name&gt;.html, a następnie README-en.html.</p>
+<p>Wpis language.name=Display name nadaje nazwę pokazywaną w menu. manual.file=README-xx.html wskazuje podręcznik otwierany w przeglądarce przez Pomoc &gt; Podręcznik i przycisk Podręcznik w pomocy. Podaj tylko nazwę, bez folderu. Program najpierw szuka w Docs; przy braku wpisu próbuje &lt;language-file-name&gt;.html, a następnie README-en.html.</p>
 <p>number.decimalSeparator=, ustawia przecinek, np. 1,1 TB. Separator można też zmienić w Preferences bez edycji pliku. Folder jest sprawdzany co 15 sekund, dlatego nowe i zmienione języki pojawiają się w Options &gt; Language bez restartu.</p>
 <p>Langs\English.txt jest podstawą. Można go skopiować lub użyć New w edytorze języka. Dostarczone podręczniki w Docs to README-en.html, README-de.html, README-es.html, README-fr.html, README-it.html i README-pt.html.</p>
 <h4 id="obsuga-mowy">Obsługa mowy</h4>
@@ -637,7 +648,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Krok 3. Tłumacz wartość użytkową, nie identyfikator klucza. Zachowuj symbole podstawienia, na przykład {0} i {1}, oraz znaczenie jednostek. Nazwy modeli, CPU, GPU, Bluetooth i nazwy bibliotek mogą pozostać nieprzetłumaczone.</p>
 <p>Krok 4. Przed zmianami zachowaj kopię pliku. Gdy tworzysz własny język, nadaj mu własną nazwę pliku i language.name. Nie nadpisuj bez potrzeby jedynej angielskiej podstawy.</p>
 <p>Krok 5. Po zmianie sprawdź konkretny komunikat i odczyt czytnika. Program okresowo sprawdza Langs, ale tekst pochodzący wprost ze sterownika lub zewnętrznej wtyczki może nie mieć własnego wpisu w słowniku. Samo uzupełnienie pliku języka nie gwarantuje przekładu dowolnej nazwy sprzętu. [S1, S12, S15]</p>
-<p>W dołączonym pliku Polish.txt wpis manual.file wskazuje README-pl.html. Po wybraniu języka Polski klawisz F1 otwiera ten podręcznik HTML z folderu Docs. Oryginalny dokument Word dostarczony przez tłumacza znajduje się w źródłach projektu, ale nie jest potrzebny do korzystania z programu.</p>
+<p>W dołączonym pliku Polish.txt wpis manual.file wskazuje README-pl.html. Po wybraniu języka Polski polecenie Pomoc &gt; Podręcznik oraz przycisk Podręcznik w pomocy otwierają ten podręcznik HTML z folderu Docs. F1 bez modyfikatorów otwiera pomoc dotyczącą kontrolki z fokusem. Oryginalny dokument Word dostarczony przez tłumacza znajduje się w źródłach projektu, ale nie jest potrzebny do korzystania z programu.</p>
 <h4 id="reset-ustawien-jako-ostatni-etap">Reset ustawień jako ostatni etap</h4>
 <p>Najpierw cofnij pojedynczą zmianę, przywróć ukryty odczyt albo wyłącz problematyczną wtyczkę. Gdy to nie pomaga, wykonaj kopię ustawień i użyj Delete all settings w Preferences. Komunikat mówi o usunięciu ustawień i restarcie z domyślnymi, z pozostawieniem Logs i Reports. Reset nie jest odinstalowaniem PawnIO ani przywróceniem ustawień BIOS. [S12]</p>
 <h3 id="32-drzewo-decyzji-przy-najczestszych-problemach">32. Drzewo decyzji przy najczęstszych problemach</h3>

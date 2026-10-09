@@ -39,7 +39,7 @@ internal sealed class RemoteHostConnectionExportDialog : Form
 
         var intro = new Label
         {
-            Text = T("ui.remoteExportAddressExplanation", "Choose the full address other computers will use to reach this server. Select a detected local or VPN address, or type a public IP address, DNS name, private-network name, reverse-proxy address, and port. Plain HTTP should be used only on a trusted local network or protected private network; use HTTPS for public Internet access."),
+            Text = T("ui.remoteExportAddressExplanation", "Plain HTTP should be used only on a trusted local network or protected private network; use HTTPS for public Internet access."),
             AutoSize = true,
             Dock = DockStyle.Fill
         };
@@ -68,7 +68,7 @@ internal sealed class RemoteHostConnectionExportDialog : Form
 
         var note = new Label
         {
-            Text = T("ui.remoteExportAddressNote", "The listening port and the address used by other computers can differ when a VPN, router port-forward, or reverse proxy is involved. Sensor Readout does not configure router forwarding or public HTTPS automatically."),
+            Text = T("ui.remoteExportAddressNote", "Sensor Readout does not configure router forwarding or public HTTPS automatically."),
             AutoSize = true,
             Dock = DockStyle.Fill,
             Padding = new Padding(0, 8, 0, 8)

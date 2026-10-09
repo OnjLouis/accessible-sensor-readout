@@ -824,37 +824,36 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var emptyLead = T("message.noDataCurrentlyAvailableForCategory", "No data currently available for this category.");
-        var hideHint = " " + T("message.hideEmptyCategoryHint", "You can hide this category from Preferences if you do not want it in the category list.");
         type = type ?? "";
         if (type.Equals("Fan", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noFanReadingsYet", "Some systems need LibreHardwareMonitor, PawnIO, or a laptop Plug-In, and some hardware does not expose fan sensors to Windows.") + hideHint;
+            return emptyLead + " " + T("message.noFanReadingsYet", "Some systems need LibreHardwareMonitor, PawnIO, or a laptop Plug-In, and some hardware does not expose fan sensors to Windows.");
         }
         if (type.Equals("Temperature", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noTemperatureReadingsYet", "Sensor Readout will show temperature readings when LibreHardwareMonitor, Core Temp, Windows, or an enabled hardware Plug-In exposes them.") + hideHint;
+            return emptyLead + " " + T("message.noTemperatureReadingsYet", "Sensor Readout will show temperature readings when LibreHardwareMonitor, Core Temp, Windows, or an enabled hardware Plug-In exposes them.");
         }
         if (type.Equals("SMART", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noSmartReadingsYet", "Some drives, USB bridges, RAID controllers, or Windows storage drivers hide SMART data.") + hideHint;
+            return emptyLead + " " + T("message.noSmartReadingsYet", "Some drives, USB bridges, RAID controllers, or Windows storage drivers hide SMART data.");
         }
         if (type.Equals("Network", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noNetworkReadingsYet", "Check that Windows exposes an active network adapter; Wi-Fi details require a Wi-Fi adapter and Windows WLAN data.") + hideHint;
+            return emptyLead + " " + T("message.noNetworkReadingsYet", "Check that Windows exposes an active network adapter; Wi-Fi details require a Wi-Fi adapter and Windows WLAN data.");
         }
         if (type.Equals("Bluetooth", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noBluetoothReadingsYet", "Check that Windows exposes a Bluetooth radio or paired Bluetooth devices.") + hideHint;
+            return emptyLead + " " + T("message.noBluetoothReadingsYet", "Check that Windows exposes a Bluetooth radio or paired Bluetooth devices.");
         }
         if (type.Equals("USB", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noUsbReadingsYet", "Press F5 after plugging or unplugging hardware so Sensor Readout can rebuild the USB inventory.") + hideHint;
+            return emptyLead;
         }
         if (type.Equals("Battery", StringComparison.OrdinalIgnoreCase))
         {
-            return emptyLead + " " + T("message.noBatteryReadingsYet", "Desktop systems and some battery drivers do not expose battery data to Windows.") + hideHint;
+            return emptyLead + " " + T("message.noBatteryReadingsYet", "Desktop systems and some battery drivers do not expose battery data to Windows.");
         }
-        return emptyLead + " " + T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.") + hideHint;
+        return emptyLead + " " + T("message.refreshingInBackground", "Readings will appear here as the background refresh completes.");
     }
 
     private static void InsertCategorySummary(ReadingTreeItem typeItem, ReadingTreeItem summaryItem)

@@ -21,12 +21,6 @@ public sealed partial class PreferencesForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.Controls.Add(new Label
-        {
-            Text = SensorReadoutForm.L("ui.Choose which main categories appear, and arrange their order. Ctrl+0 through Ctrl+9 follow this order; Ctrl+Shift+0 through Ctrl+Shift+9 select categories 10 through 19.", "Choose which main categories appear, and arrange their order. Ctrl+0 through Ctrl+9 follow this order; Ctrl+Shift+0 through Ctrl+Shift+9 select categories 10 through 19."),
-            AutoSize = true,
-            Dock = DockStyle.Fill
-        }, 0, 0);
         layout.Controls.Add(categoryList, 0, 1);
 
         var buttons = new FlowLayoutPanel
@@ -35,17 +29,15 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(8, 24, 8, 0)
+            Padding = new Padding(8, 0, 8, 0)
         };
         var showButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Show", "&Show"), "Alt+S", Keys.S);
         showButton.Click += delegate { SetSelectedCategoryVisible(true); };
         var hideButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Hide", "&Hide"), "Alt+H", Keys.H);
         hideButton.Click += delegate { SetSelectedCategoryVisible(false); };
         var upButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move up", "Move up"), "Ctrl+Up", Keys.Control | Keys.Up);
-        upButton.AccessibleDescription = "Move selected category up. Shortcut Control Up Arrow.";
         upButton.Click += delegate { MoveSelectedCategoryChoice(-1); };
         var downButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move down", "Move down"), "Ctrl+Down", Keys.Control | Keys.Down);
-        downButton.AccessibleDescription = "Move selected category down. Shortcut Control Down Arrow.";
         downButton.Click += delegate { MoveSelectedCategoryChoice(1); };
         buttons.Controls.Add(showButton);
         buttons.Controls.Add(hideButton);
@@ -271,34 +263,24 @@ public sealed partial class PreferencesForm : Form
             Padding = new Padding(8, 24, 8, 0)
         };
         var addButton = CreateShortcutButton("Add reading", "Ctrl+Right", Keys.Control | Keys.Right);
-        addButton.AccessibleDescription = "Add selected reading to the tray order. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedTrayChoice(); };
         var searchButton = CreateShortcutButton("Search...", "F3", Keys.F3);
-        searchButton.AccessibleDescription = "Search available readings. Shortcut F3.";
         searchButton.Click += delegate { ShowPreferenceListSearch(trayAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading")); };
         var removeButton = CreateShortcutButton("Remove reading", "Ctrl+Left", Keys.Control | Keys.Left);
-        removeButton.AccessibleDescription = "Remove selected reading from the tray order. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedTrayChoice(); };
         var renameLabelButton = CreateShortcutButton("Rename...", "F2", Keys.F2);
-        renameLabelButton.AccessibleDescription = "Rename the selected spoken label. Shortcut F2.";
         renameLabelButton.Click += delegate { RenameSelectedTrayChoice(); };
         var copyButton = CreateShortcutButton("Copy", "Ctrl+C", Keys.Control | Keys.C);
-        copyButton.AccessibleDescription = "Copy the selected tray reading for pasting into another tray or spoken hotkey list. Shortcut Control C.";
         copyButton.Click += delegate { CopySelectedTrayChoice(false); };
         var cutButton = CreateShortcutButton("Cut", "Ctrl+X", Keys.Control | Keys.X);
-        cutButton.AccessibleDescription = "Cut the selected tray reading for pasting into another tray or spoken hotkey list. Shortcut Control X.";
         cutButton.Click += delegate { CopySelectedTrayChoice(true); };
         var pasteButton = CreateShortcutButton("Paste", "Ctrl+V", Keys.Control | Keys.V);
-        pasteButton.AccessibleDescription = "Paste copied readings into the tray order. Shortcut Control V.";
         pasteButton.Click += delegate { PasteTrayChoices(); };
         var resetButton = CreateShortcutButton(SensorReadoutForm.L("ui.Reset de&fault", "Reset de&fault"), "Alt+F", Keys.F);
-        resetButton.AccessibleDescription = SensorReadoutForm.L("a11y.Reset the selected tray spoken label to its default text.", "Reset the selected tray spoken label to its default text.");
         resetButton.Click += delegate { ResetSelectedTrayChoiceLabel(); };
         var upButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move up", "Move up"), "Ctrl+Up", Keys.Control | Keys.Up);
-        upButton.AccessibleDescription = "Move selected tray reading up. Shortcut Control Up Arrow.";
         upButton.Click += delegate { MoveSelectedTrayChoice(-1); };
         var downButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move down", "Move down"), "Ctrl+Down", Keys.Control | Keys.Down);
-        downButton.AccessibleDescription = "Move selected tray reading down. Shortcut Control Down Arrow.";
         downButton.Click += delegate { MoveSelectedTrayChoice(1); };
         buttons.Controls.Add(addButton);
         buttons.Controls.Add(searchButton);
@@ -403,8 +385,8 @@ public sealed partial class PreferencesForm : Form
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        profilePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hotkey profiles", "Hotkey profiles"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Shortcut Alt+2." }, 0, 0);
-        spokenHotKeyList.AccessibleDescription = "Hotkey profiles. Shortcut Alt+2.";
+        profilePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hotkey profiles", "Hotkey profiles"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Alt+2" }, 0, 0);
+        spokenHotKeyList.AccessibleDescription = "Alt+2";
         profilePanel.Controls.Add(spokenHotKeyList, 0, 1);
         var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
@@ -449,7 +431,6 @@ public sealed partial class PreferencesForm : Form
         editor.Controls.Add(namePanel, 0, 0);
         editor.Controls.Add(keyPanel, 0, 1);
         editor.Controls.Add(spokenHotKeySkipUnavailableCheckBox, 0, 2);
-        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose readings for this profile. Use Control Right Arrow to add, Control Left Arrow to remove, Control Up or Down to reorder, and Control C, X, or V to copy, cut, or paste selected readings between profiles.", "Choose readings for this profile. Use Control Right Arrow to add, Control Left Arrow to remove, Control Up or Down to reorder, and Control C, X, or V to copy, cut, or paste selected readings between profiles."), AutoSize = true, Dock = DockStyle.Fill }, 0, 3);
         editor.Controls.Add(BuildSpokenSelectionPanel(), 0, 4);
         editor.Controls.Add(spokenSelectionStatusLabel, 0, 5);
 
@@ -475,8 +456,8 @@ public sealed partial class PreferencesForm : Form
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         profilePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        profilePanel.Controls.Add(new Label { Text = "Fan profiles", AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Shortcut Alt+1." }, 0, 0);
-        fanProfileList.AccessibleDescription = "Fan profiles. Shortcut Alt+1.";
+        profilePanel.Controls.Add(new Label { Text = "Fan profiles", AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Alt+1" }, 0, 0);
+        fanProfileList.AccessibleDescription = "Alt+1";
         profilePanel.Controls.Add(fanProfileList, 0, 1);
         var profileButtons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
@@ -513,8 +494,8 @@ public sealed partial class PreferencesForm : Form
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         keyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Shortcut Alt+2." }, 0, 0);
-        fanProfileHotKeyBox.AccessibleDescription = "Fan profile hotkey. Shortcut Alt+2.";
+        keyPanel.Controls.Add(new Label { Text = "Hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Alt+2" }, 0, 0);
+        fanProfileHotKeyBox.AccessibleDescription = "Alt+2";
         keyPanel.Controls.Add(fanProfileHotKeyBox, 1, 0);
         var clearKeyButton = CreateShortcutButton("&Clear", "Alt+C", Keys.C);
         clearKeyButton.Click += delegate { fanProfileHotKeyBox.Text = ""; };
@@ -546,7 +527,6 @@ public sealed partial class PreferencesForm : Form
         editor.Controls.Add(soundPanel, 0, 5);
         editor.Controls.Add(fanProfileShowStoppedBox, 0, 6);
         editor.Controls.Add(actionPanel, 0, 7);
-        editor.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder.", "Choose the fan controls changed by this profile. Use Control Right Arrow to add, Control Left Arrow to remove, and Control Up or Down to reorder."), AutoSize = true, Dock = DockStyle.Fill }, 0, 8);
         editor.Controls.Add(BuildFanProfileSelectionPanel(), 0, 9);
         editor.Controls.Add(fanProfileStatusLabel, 0, 10);
 
@@ -568,15 +548,16 @@ public sealed partial class PreferencesForm : Form
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available fan controls", "Available fan controls"), AutoSize = true, AccessibleDescription = "Shortcut Alt+3." }, 0, 0);
-        fanProfileAvailableList.AccessibleDescription = "Available fan controls. Shortcut Alt+3.";
-        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Profile fan actions", "Profile fan actions"), AutoSize = true, AccessibleDescription = "Shortcut Alt+4." }, 2, 0);
-        fanProfileSelectedList.AccessibleDescription = "Profile fan actions. Shortcut Alt+4.";
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available fan controls", "Available fan controls"), AutoSize = true, AccessibleDescription = "Alt+3" }, 0, 0);
+        fanProfileAvailableList.AccessibleDescription = "Alt+3";
+        layout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Profile fan actions", "Profile fan actions"), AutoSize = true, AccessibleDescription = "Alt+4" }, 2, 0);
+        fanProfileSelectedList.AccessibleDescription = "Alt+4";
         layout.Controls.Add(fanProfileAvailableList, 0, 1);
         layout.Controls.Add(fanProfileSelectedList, 2, 1);
 
         var buttons = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, RowCount = 4, ColumnCount = 1 };
         var addButton = CreateShortcutButton("&Add", "Alt+A", Keys.A);
+        ControlHelpCatalog.Bind(addButton, "FanProfiles");
         addButton.Click += delegate { AddSelectedFanProfileChoice(); };
         var removeButton = CreateShortcutButton("&Remove", "Alt+R", Keys.R);
         removeButton.Click += delegate { RemoveSelectedFanProfileChoice(); };
@@ -604,6 +585,7 @@ public sealed partial class PreferencesForm : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.Controls.Add(new Label { Text = labelText, AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         combo = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        ControlHelpCatalog.Bind(combo, "Sound", labelText);
         PopulateSoundCombo(combo, selectedFile);
         panel.Controls.Add(combo, 1, 0);
         return panel;
@@ -780,31 +762,26 @@ public sealed partial class PreferencesForm : Form
         var availablePanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
         availablePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         availablePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        availablePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available readings", "Available readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = SensorReadoutForm.L("a11y.Available readings shortcut Alt3", "Available readings. Shortcut Alt+3.") }, 0, 0);
-        spokenAvailableList.AccessibleDescription = SensorReadoutForm.L("a11y.Available readings shortcut Alt3", "Available readings. Shortcut Alt+3.");
+        availablePanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Available readings", "Available readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Alt+3" }, 0, 0);
+        spokenAvailableList.AccessibleDescription = "Alt+3";
         availablePanel.Controls.Add(spokenAvailableList, 0, 1);
 
         var selectedPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         selectedPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        selectedPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Spoken readings", "Spoken readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = SensorReadoutForm.L("a11y.Spoken readings shortcut Alt4", "Spoken readings. Shortcut Alt+4.") }, 0, 0);
-        spokenSelectedList.AccessibleDescription = SensorReadoutForm.L("a11y.Spoken readings shortcut Alt4", "Spoken readings. Shortcut Alt+4.");
+        selectedPanel.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Spoken readings", "Spoken readings"), AutoSize = true, Dock = DockStyle.Fill, AccessibleDescription = "Alt+4" }, 0, 0);
+        spokenSelectedList.AccessibleDescription = "Alt+4";
         var spokenLabelButtons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = false };
         var renameButton = CreateShortcutButton("Rename...", "F2", Keys.F2);
-        renameButton.AccessibleDescription = "Rename the selected spoken label. Shortcut F2.";
         renameButton.Click += delegate { RenameSelectedSpokenChoice(); };
         var resetButton = CreateShortcutButton("Reset t&his", "Alt+H", Keys.H);
-        resetButton.AccessibleDescription = "Reset the selected spoken label to its default text.";
         resetButton.Click += delegate { ResetSelectedSpokenChoiceLabel(); };
         var copyButton = CreateShortcutButton("Copy", "Ctrl+C", Keys.Control | Keys.C);
-        copyButton.AccessibleDescription = "Copy the selected spoken reading for pasting into another spoken hotkey or tray list. Shortcut Control C.";
         copyButton.Click += delegate { CopySelectedSpokenChoice(false); };
         var cutButton = CreateShortcutButton("Cut", "Ctrl+X", Keys.Control | Keys.X);
-        cutButton.AccessibleDescription = "Cut the selected spoken reading for pasting into another spoken hotkey or tray list. Shortcut Control X.";
         cutButton.Click += delegate { CopySelectedSpokenChoice(true); };
         var pasteButton = CreateShortcutButton("Paste", "Ctrl+V", Keys.Control | Keys.V);
-        pasteButton.AccessibleDescription = "Paste copied readings into this spoken hotkey. Shortcut Control V.";
         pasteButton.Click += delegate { PasteSpokenChoices(); };
         spokenLabelButtons.Controls.Add(renameButton);
         spokenLabelButtons.Controls.Add(resetButton);
@@ -823,19 +800,14 @@ public sealed partial class PreferencesForm : Form
             Padding = new Padding(8, 24, 8, 0)
         };
         var addButton = CreateShortcutButton("Add reading", "Ctrl+Right", Keys.Control | Keys.Right);
-        addButton.AccessibleDescription = "Add selected reading to this spoken hotkey. Shortcut Control Right Arrow.";
         addButton.Click += delegate { AddSelectedSpokenChoice(); };
         var searchButton = CreateShortcutButton("Search...", "F3", Keys.F3);
-        searchButton.AccessibleDescription = "Search available readings. Shortcut F3.";
         searchButton.Click += delegate { ShowPreferenceListSearch(spokenAvailableList, SensorReadoutForm.L("ui.Find reading", "Find reading")); };
         var removeButton = CreateShortcutButton("Remove reading", "Ctrl+Left", Keys.Control | Keys.Left);
-        removeButton.AccessibleDescription = "Remove selected reading from this spoken hotkey. Shortcut Control Left Arrow.";
         removeButton.Click += delegate { RemoveSelectedSpokenChoice(); };
         var upButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move up", "Move up"), "Ctrl+Up", Keys.Control | Keys.Up);
-        upButton.AccessibleDescription = "Move selected spoken reading up. Shortcut Control Up Arrow.";
         upButton.Click += delegate { MoveSelectedSpokenChoice(-1); };
         var downButton = CreateShortcutButton(SensorReadoutForm.L("ui.Move down", "Move down"), "Ctrl+Down", Keys.Control | Keys.Down);
-        downButton.AccessibleDescription = "Move selected spoken reading down. Shortcut Control Down Arrow.";
         downButton.Click += delegate { MoveSelectedSpokenChoice(1); };
         buttons.Controls.Add(addButton);
         buttons.Controls.Add(searchButton);
@@ -863,18 +835,11 @@ public sealed partial class PreferencesForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        layout.Controls.Add(new Label
-        {
-            Text = SensorReadoutForm.L("ui.Enable only the Plug-Ins you need for this machine. Each item includes its purpose. Disabled Plug-Ins are not loaded.", "Enable only the Plug-Ins you need for this machine. Each item includes its purpose. Disabled Plug-Ins are not loaded."),
-            AutoSize = true,
-            Dock = DockStyle.Fill
-        }, 0, 0);
 
         RefreshPlugInList();
         layout.Controls.Add(plugInList, 0, 1);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var importButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Import from ZIP...", "&Import from ZIP..."), "Alt+I", Keys.I);
-        importButton.AccessibleDescription = SensorReadoutForm.L("a11y.Import a Plug-In ZIP file into the Plug-Ins folder. Imported Plug-Ins stay disabled until you enable them.", "Import a Plug-In ZIP file into the Plug-Ins folder. Imported Plug-Ins stay disabled until you enable them.");
         importButton.Click += delegate { ImportPlugInFromZip(); };
         buttons.Controls.Add(importButton);
         layout.Controls.Add(buttons, 0, 2);
@@ -1046,7 +1011,6 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Language entries",
-            AccessibleDescription = "Select an entry, then edit its value below. Press F2 to move to the value field, or F3 to search entries."
         };
         AttachIncrementalListSearch(languageEntryList);
         languageEntryList.SelectedIndexChanged += delegate { LoadSelectedLanguageEntryValue(); };

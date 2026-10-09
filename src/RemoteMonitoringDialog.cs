@@ -934,13 +934,17 @@ internal sealed class RemoteMonitoringDialog : Form
             var intro = new Label
             {
                 Text = importedConnection
-                    ? T("ui.remoteImportPasswordExplanation", "The connection file supplied the server address and access token. Enter a name and the same monitoring password used by the other Sensor Readout computers.")
-                    : T("ui.remotePasswordExplanation", "Use the same monitoring password on every Sensor Readout client. The password is never sent to the server."),
+                    ? T("ui.remoteImportPasswordExplanation", "The connection file supplied the server address and access token.")
+                    : T("ui.remotePasswordExplanation", "The password is never sent to the server."),
                 AutoSize = true,
                 Dock = DockStyle.Fill
             };
             layout.SetColumnSpan(intro, 2);
             layout.Controls.Add(intro, 0, 0);
+            ControlHelpCatalog.Bind(nameBox, "Name", T("ui.&Name", "&Name"));
+            ControlHelpCatalog.Bind(urlBox, "Address", T("ui.Server &address", "Server &address"));
+            ControlHelpCatalog.Bind(tokenBox, "Credentials", T("ui.Access &token", "Access &token"));
+            ControlHelpCatalog.Bind(passwordBox, "Credentials", T("ui.Monitoring &password", "Monitoring &password"));
             AddField(layout, 1, T("ui.&Name", "&Name"), nameBox);
             AddField(layout, 2, T("ui.Server &address", "Server &address"), urlBox);
             AddField(layout, 3, T("ui.Access &token", "Access &token"), tokenBox);

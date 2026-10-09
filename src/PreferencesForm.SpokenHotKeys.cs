@@ -62,7 +62,7 @@ public sealed partial class PreferencesForm : Form
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.Controls.Add(new Label
             {
-                Text = SensorReadoutForm.L("ui.Choose spoken hotkey presets to add:", "Choose spoken hotkey presets to add:"),
+                Text = SensorReadoutForm.L("a11y.Spoken hotkey presets", "Spoken hotkey presets"),
                 AutoSize = true,
                 Dock = DockStyle.Fill
             }, 0, 0);
@@ -73,7 +73,6 @@ public sealed partial class PreferencesForm : Form
                 CheckOnClick = true,
                 IntegralHeight = false,
                 AccessibleName = SensorReadoutForm.L("a11y.Spoken hotkey presets", "Spoken hotkey presets"),
-                AccessibleDescription = SensorReadoutForm.L("a11y.Check the spoken hotkey presets to create. Presets are created without key assignments.", "Check the spoken hotkey presets to create. Presets are created without key assignments.")
             };
             foreach (var preset in presets)
             {

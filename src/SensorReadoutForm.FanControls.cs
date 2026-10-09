@@ -137,7 +137,6 @@ public sealed partial class SensorReadoutForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 480,
             AccessibleName = T("a11y.Fan control target", "Fan control target"),
-            AccessibleDescription = T("a11y.Choose which fan control to adjust", "Choose which fan control to adjust")
         };
         fanControlBox.SelectedIndexChanged += delegate
         {
@@ -154,7 +153,6 @@ public sealed partial class SensorReadoutForm : Form
         {
             Width = 260,
             AccessibleName = T("a11y.Fan label", "Fan label"),
-            AccessibleDescription = T("a11y.Friendly name for the selected fan control", "Friendly name for the selected fan control")
         };
 
         fanPercentBox = new NumericUpDown

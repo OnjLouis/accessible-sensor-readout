@@ -122,7 +122,7 @@ public sealed partial class SensorReadoutForm : Form
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             var intro = new Label
             {
-                Text = T("ui.remoteHostExplanation", "This copy of Sensor Readout will relay encrypted readings for your computers. Choose the password that every client will use. The server never receives that password or readable sensor data."),
+                Text = T("ui.remoteHostExplanation", "This copy of Sensor Readout will relay encrypted readings for your computers. The server never receives the monitoring password or readable sensor data."),
                 AutoSize = true,
                 Dock = DockStyle.Fill
             };
@@ -130,6 +130,8 @@ public sealed partial class SensorReadoutForm : Form
             layout.Controls.Add(intro, 0, 0);
             var portBox = new NumericUpDown { Minimum = 1024, Maximum = 65535, Value = settings.RemoteHostPort, Dock = DockStyle.Left, Width = 120 };
             var passwordBox = new TextBox { UseSystemPasswordChar = true, Dock = DockStyle.Fill };
+            ControlHelpCatalog.Bind(portBox, "HostPort");
+            ControlHelpCatalog.Bind(passwordBox, "Credentials", T("ui.Monitoring &password", "Monitoring &password"));
             var passwordPanel = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
             passwordPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             passwordPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));

@@ -45,7 +45,7 @@ public sealed partial class SensorReadoutForm : Form
 
             var intro = new TextBox
             {
-                Text = T("message.Initial setup intro", "Welcome to Sensor Readout. Here, you can set two of the most important global hotkeys to make Sensor Readout useful to you. Press Tab or Shift+Tab to move through this dialog. Changes are saved as soon as you enter them, and you can change them later in Preferences."),
+                Text = T("message.Initial setup intro", "Changes are saved as soon as you enter them. You can change them later in Preferences."),
                 ReadOnly = true,
                 Multiline = true,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -78,20 +78,12 @@ public sealed partial class SensorReadoutForm : Form
                 TabIndex = 3,
                 AccessibleName = T("a11y.Show tips on startup", "Show tips on startup")
             };
-            var note = new Label
-            {
-                Text = T("message.Initial setup note", "Tip: a show/hide hotkey is strongly recommended if you start minimized to the notification area."),
-                AutoSize = true,
-                Dock = DockStyle.Fill
-            };
 
             grid.Controls.Add(showHideLabel, 0, 0);
             grid.Controls.Add(showHideBox, 1, 0);
             grid.Controls.Add(speakLabel, 0, 1);
             grid.Controls.Add(speakBox, 1, 1);
             grid.Controls.Add(hintsBox, 1, 2);
-            grid.Controls.Add(note, 0, 3);
-            grid.SetColumnSpan(note, 2);
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
             var closeButton = CreateCloseButton();
@@ -193,8 +185,8 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = L("a11y.Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.", "Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.")
         };
+        ControlHelpCatalog.Bind(box, "Hotkey", accessibleName);
         return box;
     }
 

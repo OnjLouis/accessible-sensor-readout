@@ -512,7 +512,6 @@ public sealed partial class SensorReadoutForm : Form
                 WordWrap = false,
                 Text = text,
                 AccessibleName = L("a11y.Review text", "Review text"),
-                AccessibleDescription = L("a11y.Read-only text for the selected reading or branch.", "Read-only text for the selected reading or branch.")
             };
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(8) };
@@ -582,7 +581,6 @@ public sealed partial class SensorReadoutForm : Form
             {
                 Dock = DockStyle.Fill,
                 AccessibleName = L("a11y.Search text", "Search text"),
-                AccessibleDescription = L("a11y.Type to narrow the results.", "Type to narrow the results.")
             };
             var resultList = new ListBox
             {
@@ -590,7 +588,6 @@ public sealed partial class SensorReadoutForm : Form
                 IntegralHeight = false,
                 HorizontalScrollbar = true,
                 AccessibleName = L("a11y.Search results", "Search results"),
-                AccessibleDescription = L("a11y.Matching results. Press Enter to choose the selected result.", "Matching results. Press Enter to choose the selected result.")
             };
             var status = new Label { AutoSize = true, Dock = DockStyle.Fill, Text = "" };
 
@@ -863,7 +860,7 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
         }
 
-            statusLabel.Text = string.Format(L("status.Hidden reading. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), readingTree.SelectedNode.Text);
+            statusLabel.Text = string.Format(L("status.Hidden reading. Use preferences to show it again.", "Hidden {0}."), readingTree.SelectedNode.Text);
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         UpdateReadingList(fallbackKey);
@@ -906,14 +903,14 @@ public sealed partial class SensorReadoutForm : Form
             SaveSettings(settings);
         }
 
-        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), filter.DisplayName);
+        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}."), filter.DisplayName);
         UpdateDeviceList();
         if (deviceList.Items.Count > 0)
         {
             deviceList.SelectedIndex = Math.Min(selectedIndex, deviceList.Items.Count - 1);
         }
         UpdateSelectedCategoryStatus();
-        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}. Use Options, Preferences, Hidden items to show it again."), filter.DisplayName);
+        statusLabel.Text = string.Format(L("status.Hidden category. Use preferences to show it again.", "Hidden {0}."), filter.DisplayName);
         UpdateUndoRedoMenuItems();
     }
 
@@ -1370,7 +1367,7 @@ public sealed partial class SensorReadoutForm : Form
 
             var label = new Label
             {
-                Text = L("ui.Choose where to add or remove:", "Choose where to add or remove:") + " " + TrayChoiceLabel(row) + " - " + FormatValue(row),
+                Text = TrayChoiceLabel(row) + " - " + FormatValue(row),
                 AutoSize = true,
                 Dock = DockStyle.Fill
             };
@@ -1379,7 +1376,6 @@ public sealed partial class SensorReadoutForm : Form
                 Dock = DockStyle.Fill,
                 IntegralHeight = false,
                 AccessibleName = L("a11y.Hotkey and tray destinations", "Hotkey and tray destinations"),
-                AccessibleDescription = L("a11y.Choose notification area status or a spoken hotkey profile to add or remove the selected reading.", "Choose notification area status or a spoken hotkey profile to add or remove the selected reading.")
             };
 
             var status = new Label { AutoSize = true, Dock = DockStyle.Fill, AccessibleName = L("a11y.Spoken hotkey assignment status", "Spoken hotkey assignment status") };
@@ -1552,7 +1548,7 @@ public sealed partial class SensorReadoutForm : Form
                 }
 
                 updateDialogState();
-                status.Text = L("status.Created new spoken hotkey. Press Add to hotkey to use it for this reading.", "Created new spoken hotkey. Press Add to hotkey to use it for this reading.");
+                status.Text = L("ui.Created new spoken hotkey.", "Created new spoken hotkey.");
             };
 
             targetList.SelectedIndexChanged += delegate { updateDialogState(); };
@@ -1720,10 +1716,17 @@ public sealed partial class SensorReadoutForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = L("a11y.Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.", "Press a key combination with at least two modifiers to assign it. Use Backspace or Delete to clear it.")
         };
+        ControlHelpCatalog.Bind(box, "Hotkey", accessibleName);
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {
+            if (ContextHelp.IsHelpKey(e.KeyData))
+            {
+                e.Handled = ContextHelp.ShowFor(box.FindForm());
+                e.SuppressKeyPress = e.Handled;
+                return;
+            }
+
             if (e.KeyCode == Keys.Tab || e.KeyCode == Keys.Escape || (e.Alt && e.KeyCode == Keys.F4))
             {
                 return;

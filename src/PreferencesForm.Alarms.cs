@@ -91,7 +91,7 @@ public sealed partial class PreferencesForm : Form
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.Controls.Add(new Label
             {
-                Text = SensorReadoutForm.L("ui.Choose alarm presets to add:", "Choose alarm presets to add:"),
+                Text = SensorReadoutForm.L("a11y.Alarm presets", "Alarm presets"),
                 AutoSize = true,
                 Dock = DockStyle.Fill
             }, 0, 0);
@@ -102,7 +102,6 @@ public sealed partial class PreferencesForm : Form
                 CheckOnClick = true,
                 IntegralHeight = false,
                 AccessibleName = SensorReadoutForm.L("a11y.Alarm presets", "Alarm presets"),
-                AccessibleDescription = SensorReadoutForm.L("a11y.Check the alarm presets to create.", "Check the alarm presets to create.")
             };
             foreach (var preset in presets)
             {

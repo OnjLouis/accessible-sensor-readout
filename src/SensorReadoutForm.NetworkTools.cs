@@ -73,7 +73,7 @@ public sealed partial class SensorReadoutForm : Form
             {
                 AutoSize = true,
                 MaximumSize = new Size(760, 0),
-                Text = T("ui.Network tools intro", "Look up an IP address or host name, resolve DNS, classify its addresses, and optionally test ping latency and packet loss. Public-address metadata uses an online lookup service; private and local addresses are never sent to it. Network Tools does not run a speed test or port scan and performs no background polling.")
+                Text = T("ui.Network tools intro", "Public-address metadata uses an online lookup service; private and local addresses are never sent to it.")
             };
 
             var targetPanel = new TableLayoutPanel
@@ -123,7 +123,6 @@ public sealed partial class SensorReadoutForm : Form
                 AutoSize = true,
                 Checked = true,
                 Text = T("ui.Include &ping test", "Include &ping test"),
-                AccessibleDescription = T("a11y.Sends four ICMP echo requests and reports latency and packet loss. Some networks block ping replies.", "Sends four ICMP echo requests and reports latency and packet loss. Some networks block ping replies.")
             };
             var operationStatus = new Label
             {
@@ -141,7 +140,6 @@ public sealed partial class SensorReadoutForm : Form
                 HideSelection = false,
                 ShowNodeToolTips = true,
                 AccessibleName = T("a11y.Network tools results", "Network tools results"),
-                AccessibleDescription = T("a11y.Network tools results description", "Results are grouped by target, resolved address, ping test, and public network information. Press F3 to find, F4 to review text, Control C to copy, Control Shift C to copy only values, Control M to copy matching lines, or Escape to close.")
             };
 
             var buttons = new FlowLayoutPanel

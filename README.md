@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.4.0.
+Current version: 6.5.0.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -182,6 +182,14 @@ Spoken hotkeys are personal, but a simple pattern helps. `Ctrl+Shift+Function ke
 
 Good starter profiles are readings that exist on most Windows systems or remain useful across machines: system status, memory status, uptime, C drive activity, network send/receive rates, GPU status when present, Tasks summary, and fan/temperature status when sensors are available. Use `Ctrl+Shift+H` on any reading to add it quickly, or use `Options` > `Preferences` > `Hotkeys` > `Presets...` to create starter profiles and assign your own keys.
 
+## Control Help And Manual
+
+Press plain `F1` while a control has focus in the main window or a Sensor Readout dialog to open readable help about that control. The explanation is read-only and can be navigated with the keyboard and a screen reader. Tab navigation stays concise: names, values, states, and useful shortcuts. Detailed control instructions appear only in `F1` help, not in normal descriptions or visible hints. Warnings, privacy and consent information, and live results still appear when required.
+
+Choose `Copy help` to copy the explanation, `Manual` to open the full guide for the selected language in your browser, or `Close` to return. `Escape` also closes help and returns focus to the original control. Opening and closing help leaves field values unchanged. Help never displays entered passwords, tokens, or other text from input fields.
+
+Plain `F1` is reserved for help, including in hotkey-entry fields; it does not replace the assigned key. Supported combinations such as `Ctrl+Shift+F1` remain assignable. The full manual is also available from `Help` > `Manual`.
+
 ## Keyboard Shortcuts
 
 | Shortcut Group | Shortcut | Action |
@@ -206,6 +214,7 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | File commands | `Ctrl+O` | Open a saved Sensor Readout report as a static view. |
 | File commands | `Ctrl+Shift+M` | Compare two saved Sensor Readout reports. |
 | Options commands | `Ctrl+Shift+W` | Start or stop watching one running process in the background, then save a resource report when stopped. |
+| Process watcher list | `Alt+Enter` | Open the selected process's file location when Windows provides an available executable path. Enter still starts the configured watch. |
 | Options commands | `Ctrl+Shift+D` | Start the Audio Latency diagnostic setup, or stop the active test and save its HTML report. |
 | Options commands | `Ctrl+Shift+T` | Open Network Tools to look up an IP address or host name, optionally test ping latency and packet loss, and review public network information. |
 | Options commands | `Ctrl+Shift+R` | Open Remote computers to add, import, manage, or view remote Sensor Readout computers. |
@@ -220,7 +229,8 @@ Good starter profiles are readings that exist on most Windows systems or remain 
 | Tools and help | `Ctrl+L` | Open fan controls. |
 | Tools and help | `Ctrl+U` | Open fan curves. |
 | Tools and help | `Ctrl+,` | Open Preferences. |
-| Tools and help | `F1` | Open the manual. |
+| Tools and help | `F1` | Open help for the focused control in the main window or a Sensor Readout dialog. |
+| Control help | `Escape` | Close help and return focus to the original control without changing field values. |
 | Tools and help | `Shift+F1` | Check GitHub Releases for a newer version, check PawnIO, and offer update installation when available. If quiet update installs are enabled, an available update installs without showing release notes first. |
 | Tools and help | `Ctrl+F1` | Open the project page. |
 | Tools and help | `Alt+F1` | Run diagnostics and create a support ZIP. |
@@ -396,7 +406,7 @@ The Plug-Ins tab lists installed hardware plug-ins and describes what each one d
 
 The Categories tab controls which main categories appear in the left section list and the order they use. Checked categories are visible. Clear a checkbox or press `Delete` to hide a category, and use Up, Down, `Ctrl+Up`, `Ctrl+Down`, or mouse drag-and-drop to change the order. After a move, Sensor Readout reports which neighbouring item the selection moved above or below; the Category speech setting controls whether that feedback is Full, Brief, or Off. The main-window shortcuts follow this same order: `Ctrl+0` through `Ctrl+9` select the first ten visible categories, and `Ctrl+Shift+0` through `Ctrl+Shift+9` select categories 10 through 19.
 
-Main categories stay visible unless you hide them yourself, even when the current system has no readings for that category. Empty categories show a short explanation and remind you that you can hide the category from Preferences.
+Main categories stay visible unless you hide them yourself, even when the current system has no readings for that category. Empty categories show their current availability; F1 explains category controls.
 
 You can also manage categories directly from the main category list. Press `Delete` to hide the selected category, `Ctrl+Up` or `Ctrl+Down` to move it, or press the Application key/right-click for the category context menu. When the category list has focus, the status line and screen-reader output include the shortcut for the selected category.
 
@@ -475,6 +485,8 @@ The Bluetooth section shows Windows-exposed Bluetooth radios and paired or conne
 The Tasks section shows a small current-activity summary and a read-only running-process list rather than a full task manager. It can show the process currently using the most CPU, the most memory, the most GPU engine time, and the most GPU process memory where Windows exposes those counters. These summary rows can be added to notification-area status or spoken hotkeys, but Sensor Readout does not create a hotkey candidate for every running process. The running-process list uses the same friendly context as the process watcher, such as window title, start time, helper-process role, and parent process where Windows exposes those fields. Press Enter on a process for details, use `Alt+Enter` or the context menu to open its file location when available, or choose `Watch process` from the process row's context menu to start a background watch with your saved watch options. If those saved options include a timed watch, Sensor Readout says how long it will watch for; if the duration is zero, it watches until you stop it. Normal reports can include Tasks rows for troubleshooting. Anonymized reports remove Tasks rows because process names can reveal program usage.
 
 Use `Options` > `Watch process...` or `Ctrl+Shift+W` when you want to monitor one running app for a short period. Choose a process, output format, and optional duration, then start watching. The process list includes extra context such as window title, start time, helper-process role, and parent process where Windows exposes those fields, helping distinguish apps that run several same-named processes. The dialog closes and Sensor Readout samples in the background so you can use the PC normally. Press `Ctrl+Shift+W` again, or use `Options` > `Stop process watch`, to stop and save the report automatically in the `Reports` folder. Timed watches also save automatically when the duration ends. HTML is the default because it gives screen-reader users structured tables; CSV is available when you want raw samples for a spreadsheet. Sensor Readout remembers your last watch duration, format, completion speech, and sound choices for the next watch.
+
+In the watcher process list, `Alt+Enter` or `Open file location...` from the context menu opens the selected executable's location when available. This does not start a watch or run the executable. Plain Enter starts the configured watch; unlike Enter on a Tasks process row, it does not open Details.
 
 When you start watching from a Tasks process row, Sensor Readout uses those remembered watch settings immediately. This is useful when you repeatedly use the same watch format or duration. If you want to change the duration, report format, completion speech, or completion sound first, open `Options` > `Watch process...` instead and start the watch from that dialog.
 
@@ -706,7 +718,7 @@ Language files:
 - On first run, Sensor Readout chooses a bundled language from the Windows display language when one is available; otherwise it falls back to English.
 - Use simple `key=value` lines. Lines starting with `#` or `;` are comments.
 - Set `language.name=Display name` so the language has a clear name in menus.
-- Set `manual.file=README-xx.html` so `F1` opens the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `Docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.html`, then falls back to `README-en.html`.
+- Set `manual.file=README-xx.html` so `Help` > `Manual` and the `Manual` button in control help open the matching manual for the selected language in the user's browser. Type only a file name, not a folder path. Sensor Readout looks in the `Docs` folder first. If this entry is missing, Sensor Readout tries `<language-file-name>.html`, then falls back to `README-en.html`.
 - Set `number.decimalSeparator=,` if the language should display decimal values with a comma, such as `1,1 TB`.
 - Sensor Readout checks the folder every 15 seconds, so newly added or edited files appear in `Options` > `Language` without restarting.
 - `Langs\English.txt` is the primary/default language file. Copy it or use the Language editor's New button to start another language.
@@ -762,6 +774,13 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.5.0
+
+- Added: The process watcher list can open a selected process's file location with Alt+Enter or its context menu when the executable path is available. Enter still starts the configured watch.
+- Added: Plain F1 opens readable help for the focused control in the main window and Sensor Readout dialogs, with Copy help, Manual, and Close buttons. Escape returns to the original control without changing field values; help never displays entered passwords, tokens, or other input text. Tab navigation stays concise: names, values, states, and useful shortcuts. Detailed control instructions appear only in F1 help, not in normal descriptions or visible hints. Warnings, privacy and consent information, and live results still appear when required.
+- Changed: Plain F1 is reserved for control help even in hotkey-entry fields. Supported combinations such as Ctrl+Shift+F1 remain assignable; the full manual remains available from Help > Manual and the Manual button in help.
+- Added: Performance/Overview now shows the Windows feature update name, such as 25H2, alongside the numeric Windows version and build when Windows provides it.
 
 ### 6.4.0
 

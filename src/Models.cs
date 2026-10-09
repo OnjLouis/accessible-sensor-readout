@@ -452,6 +452,16 @@ public sealed class LanguageCatalog
     {
         return new LanguageCatalog("", "English", new Dictionary<string, string>());
     }
+
+    internal IEnumerable<string> ControlLabelKeys(string label)
+    {
+        foreach (var pair in values)
+        {
+            if ((pair.Key.StartsWith("a11y.", StringComparison.OrdinalIgnoreCase) || pair.Key.StartsWith("ui.", StringComparison.OrdinalIgnoreCase)) &&
+                ControlHelpCatalog.Normalize(pair.Value).Equals(label, StringComparison.OrdinalIgnoreCase))
+                yield return pair.Key.Substring(pair.Key.IndexOf('.') + 1);
+        }
+    }
 }
 
 public sealed class ListSearchState

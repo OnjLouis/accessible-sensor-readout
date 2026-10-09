@@ -47,6 +47,8 @@ public sealed partial class SensorReadoutForm : Form
             rows.Add(new SensorRow { Type = "Performance", Hardware = "Overview", Name = "System uptime", DisplayValue = FormatUptime(TimeSpan.FromMilliseconds(Environment.TickCount)), Source = "Windows", Details = CloneDetails(windowsDetails) });
         }
 
+        AddOverviewTextRow(rows, "Windows feature update", GetDictionaryValue(windowsDetails, "Windows registry display version"), "Windows registry", windowsDetails);
+
         string baseboardManufacturer = "";
         string baseboardProduct = "";
         string baseboardVersion = "";

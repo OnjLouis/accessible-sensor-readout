@@ -99,12 +99,9 @@ public sealed partial class PreferencesForm : Form
         {
             originalAccessibleNames[control] = control.AccessibleName ?? "";
         }
-        if (!originalAccessibleDescriptions.ContainsKey(control))
-        {
-            originalAccessibleDescriptions[control] = control.AccessibleDescription ?? "";
-        }
 
         var accessibleName = originalAccessibleNames[control];
+        ControlHelpCatalog.BindKnown(control, accessibleName, original);
         if (!string.IsNullOrWhiteSpace(accessibleName))
         {
             var translatedAccessibleName = SensorReadoutForm.L("a11y." + accessibleName, accessibleName);
@@ -116,11 +113,6 @@ public sealed partial class PreferencesForm : Form
             }
 
             control.AccessibleName = translatedAccessibleName;
-        }
-        var accessibleDescription = originalAccessibleDescriptions[control];
-        if (!string.IsNullOrWhiteSpace(accessibleDescription))
-        {
-            control.AccessibleDescription = SensorReadoutForm.L("a11y." + accessibleDescription, accessibleDescription);
         }
     }
 
@@ -163,6 +155,8 @@ public sealed partial class PreferencesForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (ContextHelp.IsHelpKey(keyData) && ContextHelp.ShowFor(this)) return true;
+
         var hotKeyBox = FocusedHotKeyBox();
         if (hotKeyBox != null && HandleHotKeyBoxCommandKey(hotKeyBox, keyData))
         {
@@ -446,7 +440,7 @@ public sealed partial class PreferencesForm : Form
     private static bool ShouldBypassHotKeyCapture(Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        if (key == Keys.Tab || key == Keys.Escape)
+        if (key == Keys.Tab || key == Keys.Escape || ContextHelp.IsHelpKey(keyData))
         {
             return true;
         }
@@ -545,7 +539,6 @@ public sealed partial class PreferencesForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 260,
             AccessibleName = accessibleName,
-            AccessibleDescription = SensorReadoutForm.L("a11y.Choose whether this kind of byte value uses the classic 1024 scale with KB, MB, and GB labels, binary IEC units such as KiB and GiB, or decimal SI units such as KB and GB.", "Choose whether this kind of byte value uses the classic 1024 scale with KB, MB, and GB labels, binary IEC units such as KiB and GiB, or decimal SI units such as KB and GB.")
         };
         box.Items.AddRange(ByteUnitModeOptions().Cast<object>().ToArray());
         box.SelectedIndex = ByteUnitModeIndex(mode);
@@ -617,8 +610,8 @@ public sealed partial class PreferencesForm : Form
             ReadOnly = true,
             Dock = DockStyle.Fill,
             AccessibleName = accessibleName,
-            AccessibleDescription = "Press a key combination with at least two modifiers, such as Control Shift F1 or Control Alt F1. Unsafe Windows shortcuts are rejected. Use the Clear button to disable it."
         };
+        ControlHelpCatalog.Bind(box, "Hotkey", accessibleName);
         box.KeyDown += delegate(object sender, KeyEventArgs e)
         {
             if (ShouldBypassHotKeyCapture(e.KeyData))

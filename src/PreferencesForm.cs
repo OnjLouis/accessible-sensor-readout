@@ -120,7 +120,6 @@ public sealed partial class PreferencesForm : Form
     private readonly List<string> originalTrayItemKeys;
     private readonly Dictionary<object, string> originalUiText = new Dictionary<object, string>();
     private readonly Dictionary<object, string> originalAccessibleNames = new Dictionary<object, string>();
-    private readonly Dictionary<object, string> originalAccessibleDescriptions = new Dictionary<object, string>();
     private readonly Dictionary<ListBox, ListSearchState> listSearchStates = new Dictionary<ListBox, ListSearchState>();
     private readonly List<string> spokenReadingClipboardKeys = new List<string>();
     private bool loadingPreferences;
@@ -363,7 +362,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.TrayTooltipShowsPartialReadings,
             AutoSize = true,
             AccessibleName = "Show as many readings as possible in notification area tooltip",
-            AccessibleDescription = "When checked, a long notification area tooltip shows as many configured readings as Windows allows, followed by three dots. When unchecked, long tooltips only show Sensor Readout."
         };
 
         trayStatusCheckBox.CheckedChanged += delegate
@@ -392,21 +390,18 @@ public sealed partial class PreferencesForm : Form
             Text = "&Expand when switching categories",
             AutoSize = true,
             AccessibleName = "Expand when switching categories",
-            AccessibleDescription = "Reading trees open expanded when you switch categories."
         };
         readingTreeCollapseRadio = new RadioButton
         {
             Text = "Keep c&ollapsed when switching categories",
             AutoSize = true,
             AccessibleName = "Keep collapsed when switching categories",
-            AccessibleDescription = "Reading trees show only their top-level items when you switch categories."
         };
         readingTreeRememberRadio = new RadioButton
         {
             Text = "Remember my &last expand or collapse action",
             AutoSize = true,
             AccessibleName = "Remember my last expand or collapse action",
-            AccessibleDescription = "When you switch categories, Sensor Readout follows your most recent expand or collapse action."
         };
         var expansionMode = SensorReadoutForm.NormalizeReadingTreeExpansionMode(settings.ReadingTreeExpansionMode);
         readingTreeExpandRadio.Checked = string.Equals(expansionMode, SensorReadoutForm.ReadingTreeExpansionExpanded, StringComparison.OrdinalIgnoreCase);
@@ -617,7 +612,6 @@ public sealed partial class PreferencesForm : Form
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 180,
             AccessibleName = "Check for updates",
-            AccessibleDescription = "Choose how often Sensor Readout checks GitHub releases. Automatic checks are silent unless a newer version is available."
         };
         updateCheckFrequencyBox.Items.AddRange(UpdateCheckFrequencyOptions().Cast<object>().ToArray());
         updateCheckFrequencyBox.SelectedIndex = UpdateCheckFrequencyIndex(settings.UpdateCheckFrequency);
@@ -628,7 +622,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.InstallUpdatesQuietly,
             AutoSize = true,
             AccessibleName = "Install updates quietly",
-            AccessibleDescription = "When checked, an available update is downloaded, installed, and reopened without first showing release notes or asking for confirmation."
         };
         updatesPanel.Controls.Add(installUpdatesQuietlyCheckBox, 1, 2);
         updatesPanel.Controls.Add(new Label { Text = "Update available sound:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 3);
@@ -658,7 +651,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.DiagnosticsSpeakProgress,
             AutoSize = true,
             AccessibleName = "Speak diagnostic progress",
-            AccessibleDescription = "When checked, diagnostic runs speak each step and say Complete when finished."
         };
         diagnosticsPanel.Controls.Add(diagnosticsSpeakProgressCheckBox, 0, 1);
         diagnosticsPanel.SetColumnSpan(diagnosticsSpeakProgressCheckBox, 2);
@@ -668,7 +660,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.DiagnosticsPlaySounds,
             AutoSize = true,
             AccessibleName = "Play diagnostic sounds",
-            AccessibleDescription = "When checked, diagnostic runs play a sound at the start and when complete."
         };
         diagnosticsPanel.Controls.Add(diagnosticsPlaySoundsCheckBox, 0, 2);
         diagnosticsPanel.SetColumnSpan(diagnosticsPlaySoundsCheckBox, 2);
@@ -693,9 +684,9 @@ public sealed partial class PreferencesForm : Form
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         showHideHotKeyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        showHideHotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Shortcut Alt+1." }, 0, 0);
+        showHideHotKeyPanel.Controls.Add(new Label { Text = "Show/hide hotkey:", AutoSize = true, Padding = new Padding(0, 6, 8, 0), AccessibleDescription = "Alt+1" }, 0, 0);
         showHideHotKeyBox = CreateHotKeyBox(settings.ShowHideHotKey, "Show or hide Sensor Readout global hotkey");
-        showHideHotKeyBox.AccessibleDescription = "Show or hide Sensor Readout global hotkey. Shortcut Alt+1.";
+        showHideHotKeyBox.AccessibleDescription = "Alt+1";
         showHideHotKeyPanel.Controls.Add(showHideHotKeyBox, 1, 0);
         var clearShowHideButton = CreateShortcutButton(SensorReadoutForm.L("ui.Clear", "Clear"), "", Keys.None);
         clearShowHideButton.Click += delegate { showHideHotKeyBox.Text = ""; };
@@ -707,12 +698,6 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             WrapContents = true
         };
-        showHideHotKeyGeneralPanel.Controls.Add(new Label
-        {
-            Text = SensorReadoutForm.L("ui.Show/hide hotkey is configured on the Hotkeys tab.", "Show/hide hotkey is configured on the Hotkeys tab."),
-            AutoSize = true,
-            Padding = new Padding(0, 6, 8, 0)
-        });
         var configureShowHideButton = CreateShortcutButton(SensorReadoutForm.L("ui.Configure show/&hide hotkey...", "Configure show/&hide hotkey..."), "Alt+H", Keys.H);
         configureShowHideButton.Click += delegate { FocusShowHideHotKeyBox(); };
         showHideHotKeyGeneralPanel.Controls.Add(configureShowHideButton);
@@ -749,7 +734,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.StartupSpeechEnabled,
             AutoSize = true,
             AccessibleName = "Speak startup message",
-            AccessibleDescription = "When checked, Sensor Readout speaks the startup message through the active screen reader."
         };
         startupSpeechPanel.Controls.Add(new Label { Text = "Spoken message:", AutoSize = true, Padding = new Padding(0, 6, 8, 0) }, 0, 0);
         startupSpeechMessageBox = new TextBox
@@ -757,7 +741,6 @@ public sealed partial class PreferencesForm : Form
             Text = string.IsNullOrWhiteSpace(settings.StartupSpeechMessage) ? SensorReadoutForm.DefaultStartupSpeechMessage() : settings.StartupSpeechMessage,
             Dock = DockStyle.Fill,
             AccessibleName = "Startup speech message",
-            AccessibleDescription = "Message spoken by the screen reader when Sensor Readout starts minimized to the notification area."
         };
         startupSpeechPanel.Controls.Add(startupSpeechMessageBox, 1, 0);
         var resetStartupSpeechButton = new Button { Text = "Rese&t", AutoSize = true };
@@ -775,14 +758,12 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.SpeechIncludesDeviceNames,
             AutoSize = true,
             AccessibleName = "Include device names in spoken feedback",
-            AccessibleDescription = "When checked, spoken status includes device names such as WiFi or CPU before each selected reading."
         };
         categorySpeechModeBox = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 280,
             AccessibleName = SensorReadoutForm.L("a11y.Category speech", "Category speech"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Controls routine spoken feedback when moving through the category list.", "Controls routine spoken feedback when moving through the category list. Full says the category and shortcut, Brief says only the category and shortcut, and Off does not speak routine category changes.")
         };
         categorySpeechModeBox.Items.AddRange(CategorySpeechModeOptions().Cast<object>().ToArray());
         categorySpeechModeBox.SelectedIndex = SafeComboIndex(categorySpeechModeBox, CategorySpeechModeIndex(settings.CategorySpeechMode));
@@ -792,7 +773,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.FallbackCategorySpeechEnabled,
             AutoSize = true,
             AccessibleName = SensorReadoutForm.L("a11y.Speak categories through Windows speech", "Speak categories through Windows speech"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.When checked, category changes can use Windows speech if no supported screen reader is running. Category speech interrupts itself so repeated category changes do not queue.", "When checked, category changes can use Windows speech if no supported screen reader is running. Category speech interrupts itself so repeated category changes do not queue.")
         };
         visualSpokenFeedbackCheckBox = new CheckBox
         {
@@ -800,7 +780,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.VisualSpokenFeedbackEnabled,
             AutoSize = true,
             AccessibleName = SensorReadoutForm.L("a11y.Show visual spoken hotkey feedback", "Show visual spoken hotkey feedback"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.When checked, spoken hotkeys also appear in a temporary visual feedback window.", "When checked, spoken hotkeys also appear in a temporary visual feedback window.")
         };
         visualSpokenFeedbackPlacementBox = new ComboBox
         {
@@ -824,7 +803,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.TraySpeechSkipsUnavailableReadings,
             AutoSize = true,
             AccessibleName = "Skip unavailable notification area readings",
-            AccessibleDescription = "When checked, the speak tray status hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group."
         };
 
         var loggingPanel = new FlowLayoutPanel
@@ -856,14 +834,12 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Available notification area readings",
-            AccessibleDescription = "Press Control Right Arrow to add the selected reading to the notification area."
         };
         traySelectedList = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Selected notification area readings in display order",
-            AccessibleDescription = "Press F2 to rename the spoken label. Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
         };
         trayAvailableList.KeyDown += TrayAvailableListKeyDown;
         traySelectedList.KeyDown += TraySelectedListKeyDown;
@@ -920,13 +896,11 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Hotkey profiles",
-            AccessibleDescription = "Choose notification area status or a spoken hotkey profile to edit."
         };
         spokenHotKeyNameBox = new TextBox
         {
             Dock = DockStyle.Fill,
             AccessibleName = "Spoken hotkey name",
-            AccessibleDescription = "Friendly name for this spoken hotkey."
         };
         spokenHotKeyBox = CreateHotKeyBox("", "Spoken hotkey key combination");
         spokenHotKeySkipUnavailableCheckBox = new CheckBox
@@ -934,21 +908,18 @@ public sealed partial class PreferencesForm : Form
             Text = "Skip unavaila&ble readings for this hotkey",
             AutoSize = true,
             AccessibleName = "Skip unavailable readings for this spoken hotkey",
-            AccessibleDescription = "When checked, this spoken hotkey skips readings that are missing, disconnected, down, offline, unavailable, disabled, or in an inactive group."
         };
         spokenAvailableList = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = SensorReadoutForm.L("a11y.Available readings for spoken hotkey", "Available readings for spoken hotkey"),
-            AccessibleDescription = "Press Control Right Arrow to add the selected reading to this spoken hotkey."
         };
         spokenSelectedList = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = SensorReadoutForm.L("a11y.Readings spoken by this hotkey", "Readings spoken by this hotkey"),
-            AccessibleDescription = "Press F2 to rename the spoken label. Press Control Left Arrow to remove the selected reading. Press Control Up or Control Down to change the order."
         };
         spokenSelectionStatusLabel = new Label
         {
@@ -961,13 +932,11 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Fan profiles",
-            AccessibleDescription = "Choose a fan profile to edit."
         };
         fanProfileNameBox = new TextBox
         {
             Dock = DockStyle.Fill,
             AccessibleName = "Fan profile name",
-            AccessibleDescription = "Friendly name for this fan profile."
         };
         fanProfileHotKeyBox = CreateHotKeyBox("", "Fan profile key combination");
         fanProfileToggleBox = new CheckBox
@@ -987,7 +956,6 @@ public sealed partial class PreferencesForm : Form
         {
             Dock = DockStyle.Fill,
             AccessibleName = SensorReadoutForm.L("a11y.Fan profile spoken message", "Fan profile spoken message"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Optional message spoken when this fan profile is switched. Use {0} for the profile name.", "Optional message spoken when this fan profile is switched. Use {0} for the profile name.")
         };
         fanProfileShowStoppedBox = new CheckBox
         {
@@ -1003,14 +971,12 @@ public sealed partial class PreferencesForm : Form
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Available fan controls",
-            AccessibleDescription = "Press Control Right Arrow to add the selected fan control to this fan profile."
         };
         fanProfileSelectedList = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
             AccessibleName = "Fan controls in this profile",
-            AccessibleDescription = "Press Delete or Control Left Arrow to remove. Press Control Up or Control Down to change the order."
         };
         fanProfileActionBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, AccessibleName = "Fan profile action" };
         fanProfileActionBox.Items.AddRange(new object[] { "Manual", "Auto" });
@@ -1043,14 +1009,12 @@ public sealed partial class PreferencesForm : Form
         {
             Text = "&Repeat after cooldown",
             AutoSize = true,
-            AccessibleDescription = "When unchecked, alert once until the condition clears. Missing readings do not reset the alarm. Restarting Sensor Readout allows a fresh warning."
         };
         alarmSpeakCheckBox = new CheckBox { Text = "&Speak with screen reader", Checked = true, AutoSize = true };
         alarmSpokenMessageBox = new TextBox
         {
             Dock = DockStyle.Fill,
             AccessibleName = SensorReadoutForm.L("a11y.Alarm spoken message", "Alarm spoken message"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Optional text spoken when this alarm triggers. Leave blank to speak the alarm name, reading, and current value.", "Optional text spoken when this alarm triggers. Leave blank to speak the alarm name, reading, and current value.")
         };
         alarmSoundBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill, AccessibleName = "Alarm sound" };
         PopulateSoundCombo(alarmSoundBox, "");
@@ -1061,7 +1025,6 @@ public sealed partial class PreferencesForm : Form
             CheckOnClick = true,
             IntegralHeight = false,
             AccessibleName = SensorReadoutForm.L("a11y.Installed Plug-Ins", "Installed Plug-Ins"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.", "Each item includes the Plug-In name and what it does. Check a Plug-In to enable it. Changes apply after closing Preferences.")
         };
         plugInDetailsLabel = new Label { AutoSize = true, Dock = DockStyle.Fill };
         categoryList = new CheckedListBox
@@ -1070,7 +1033,6 @@ public sealed partial class PreferencesForm : Form
             CheckOnClick = true,
             IntegralHeight = false,
             AccessibleName = SensorReadoutForm.L("a11y.Visible categories", "Visible categories"),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.", "Checked categories appear in the main section list. Press Delete to hide the selected category. Press Control Up or Control Down to change the order.")
         };
         PopulateCategoryList();
         categoryList.ItemCheck += delegate(object sender, ItemCheckEventArgs e)
@@ -1227,7 +1189,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.ShowUpdateInstallConfirmation,
             AutoSize = true,
             AccessibleName = "Show update install confirmation",
-            AccessibleDescription = "When checked, Download and install asks before Sensor Readout closes, installs the update, and reopens."
         };
         confirmSpokenHotKeyProfileRemovalCheckBox = new CheckBox
         {
@@ -1235,7 +1196,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.ConfirmSpokenHotKeyProfileRemoval,
             AutoSize = true,
             AccessibleName = "Confirm spoken hotkey profile removal",
-            AccessibleDescription = "When checked, Sensor Readout asks before removing a spoken hotkey profile."
         };
         confirmFanProfileRemovalCheckBox = new CheckBox
         {
@@ -1243,7 +1203,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.ConfirmFanProfileRemoval,
             AutoSize = true,
             AccessibleName = "Confirm fan profile removal",
-            AccessibleDescription = "When checked, Sensor Readout asks before removing a fan profile."
         };
         showTipsOnStartupCheckBox = new CheckBox
         {
@@ -1251,7 +1210,6 @@ public sealed partial class PreferencesForm : Form
             Checked = settings.ShowTipsOnStartup,
             AutoSize = true,
             AccessibleName = "Show tips on startup",
-            AccessibleDescription = "When checked, Sensor Readout shows a short hint or tip when it starts."
         };
         foreach (var key in hiddenCategoryKeys.OrderBy(k => k))
         {
@@ -1299,7 +1257,7 @@ public sealed partial class PreferencesForm : Form
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         hiddenLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        hiddenLayout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hidden readings and categories. Checked items are hidden. Uncheck items to show them again.", "Hidden readings and categories. Checked items are hidden. Uncheck items to show them again."), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
+        hiddenLayout.Controls.Add(new Label { Text = SensorReadoutForm.L("ui.Hidden items", "Hidden items"), AutoSize = true, Dock = DockStyle.Fill }, 0, 0);
         hiddenLayout.Controls.Add(showUpdateInstallConfirmationCheckBox, 0, 1);
         hiddenLayout.Controls.Add(confirmSpokenHotKeyProfileRemovalCheckBox, 0, 2);
         hiddenLayout.Controls.Add(confirmFanProfileRemovalCheckBox, 0, 3);
@@ -1329,7 +1287,6 @@ public sealed partial class PreferencesForm : Form
             Text = "&Delete all settings...",
             AutoSize = true,
             AccessibleName = "Delete all settings",
-            AccessibleDescription = "Deletes Sensor Readout settings and restarts with defaults. Logs and reports are kept."
         };
         resetSettingsButton.Click += delegate
         {
@@ -1406,9 +1363,6 @@ public sealed partial class PreferencesForm : Form
             AccessibleName = runningInstalled
                 ? SensorReadoutForm.L("a11y.Uninstall from this PC", "Uninstall from this PC")
                 : SensorReadoutForm.L("a11y.Install to this PC", "Install to this PC"),
-            AccessibleDescription = runningInstalled
-                ? SensorReadoutForm.L("a11y.Remove the installed Sensor Readout app files from this PC while keeping Config, Logs, and Reports.", "Remove the installed Sensor Readout app files from this PC while keeping Config, Logs, and Reports.")
-                : SensorReadoutForm.L("a11y.Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates desktop and startup shortcuts, closes this copy, and starts the installed copy.", "Copies this portable Sensor Readout folder to the Windows programs folder for this user, optionally creates desktop and startup shortcuts, closes this copy, and starts the installed copy.")
         };
         installToLocalAppDataButton.Click += delegate
         {
@@ -1488,7 +1442,6 @@ public sealed partial class PreferencesForm : Form
             Text = SensorReadoutForm.L("ui.&Category speech:", "&Category speech:"),
             AutoSize = true,
             Padding = new Padding(0, 6, 8, 0),
-            AccessibleDescription = SensorReadoutForm.L("a11y.Controls what Sensor Readout sends to the screen reader while you move through categories.", "Controls what Sensor Readout sends to the screen reader while you move through categories.")
         });
         categorySpeechPanel.Controls.Add(categorySpeechModeBox);
         spokenFeedbackLayout.Controls.Add(categorySpeechPanel, 0, 0);

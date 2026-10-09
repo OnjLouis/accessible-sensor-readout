@@ -125,7 +125,7 @@ function Assert-LiteralTranslationKeysExist {
     }
 
     $missing = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-    $literalPattern = 'T\(\s*"(?<key>(?:a11y|detail|group|message|reading|speech|status|ui|value)\.[^"]+)"\s*,'
+    $literalPattern = '(?:T\(\s*"(?<key>(?:a11y|detail|group|help|message|reading|speech|status|ui|value)\.[^"]+)"\s*,|L\(\s*"(?<key>help\.[^"]+)"\s*,)'
     foreach ($sourcePath in $sources) {
         $sourceText = [IO.File]::ReadAllText($sourcePath)
         foreach ($match in [regex]::Matches($sourceText, $literalPattern)) {
@@ -148,6 +148,25 @@ function Assert-LiteralTranslationKeysExist {
 }
 
 Assert-LiteralTranslationKeysExist
+
+function Assert-ControlDescriptions([string[]]$SourcePaths) {
+    foreach ($sourcePath in $SourcePaths) {
+        if ([IO.Path]::GetFileName($sourcePath) -match 'SelfTest') { continue }
+        $lineNumber = 0
+        foreach ($line in [IO.File]::ReadLines($sourcePath)) {
+            $lineNumber++
+            if ($line -notmatch 'AccessibleDescription\s*=') { continue }
+            if ($line -match 'AccessibleDescription\s*=\s*"Alt\+[1-4]"') { continue }
+            # The meter exposes changing values, not instructional help.
+            if ([IO.Path]::GetFileName($sourcePath) -eq 'SensorReadoutForm.ReadingTree.cs' -and
+                $line -match '^\s*selectedMeterProgressBar\.AccessibleDescription\s*=') { continue }
+            throw "Control guidance belongs in F1, not focus descriptions: $([IO.Path]::GetFileName($sourcePath)):$lineNumber"
+        }
+    }
+    Write-Host 'Control description audit passed: guidance stays in F1; shortcuts and meter values remain concise.'
+}
+
+Assert-ControlDescriptions $sources
 
 if ([string]::IsNullOrWhiteSpace($BuildWorkRoot)) {
     $BuildWorkRoot = Join-Path ([IO.Path]::GetTempPath()) 'SensorReadout-build'
