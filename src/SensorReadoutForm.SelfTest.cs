@@ -47,6 +47,7 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Embedded remote server round-trip and privacy", delegate { form.SelfTestEmbeddedRemoteMonitoringServer(outputFolder); });
             form.RunSelfTestStep(results, "Global hotkey validation", delegate { form.SelfTestGlobalHotKeyValidation(); });
             form.RunSelfTestStep(results, "Context help and F1 hotkey capture", delegate { form.SelfTestContextHelp(); });
+            form.RunSelfTestStep(results, "Localized menus and dialogs", delegate { form.SelfTestLocalizedMenusAndDialogs(); });
             form.RunSelfTestStep(results, "Portable spoken hotkey resolution", delegate { form.SelfTestPortableReadingKeyResolution(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });

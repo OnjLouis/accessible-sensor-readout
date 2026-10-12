@@ -75,7 +75,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        viewMenu.DropDownItems.Clear();
+        ClearMenuItems(viewMenu.DropDownItems);
         var filters = deviceList == null
             ? new List<DeviceFilter>()
             : deviceList.Items.Cast<object>().OfType<DeviceFilter>().ToList();
@@ -95,7 +95,8 @@ public sealed partial class SensorReadoutForm : Form
             }
 
             var key = filter.Key;
-            viewMenu.DropDownItems.Add(text, null, delegate { SelectCategoryByKey(key); });
+            var item = viewMenu.DropDownItems.Add(text, null, delegate { SelectCategoryByKey(key); });
+            item.Tag = filter;
         }
 
         if (viewMenu.DropDownItems.Count > 0)
@@ -106,6 +107,9 @@ public sealed partial class SensorReadoutForm : Form
         viewMenu.DropDownItems.Add(new ToolStripSeparator());
         viewMenu.DropDownItems.Add(CreateShortcutMenuItem("&Expand all", Keys.Control | Keys.Shift | Keys.Right, delegate { ExpandAllReadings(); }));
         viewMenu.DropDownItems.Add(CreateShortcutMenuItem("C&ollapse all", Keys.Control | Keys.Shift | Keys.Left, delegate { CollapseAllReadings(); }));
+        foreach (var item in viewMenu.DropDownItems.OfType<ToolStripMenuItem>().Where(i => i.ShortcutKeys != Keys.None))
+            ApplyLanguageToToolStripItem(item);
+        UiMnemonics.ForMenu(viewMenu.DropDownItems);
     }
 
     private static string CategoryShortcutText(int index)
@@ -313,7 +317,7 @@ public sealed partial class SensorReadoutForm : Form
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not update Windows startup shortcut: " + ex.Message, "Sensor Readout startup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, T("message.Could not update Windows startup shortcut:", "Could not update Windows startup shortcut:") + " " + ex.Message, T("ui.Sensor Readout startup", "Sensor Readout startup"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -1848,8 +1852,8 @@ public sealed partial class SensorReadoutForm : Form
             var promptLabel = new Label { Text = label, AutoSize = true, Dock = DockStyle.Fill };
             var textBox = new TextBox { Text = initialValue ?? "", Dock = DockStyle.Fill, AccessibleName = label };
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
-            var okButton = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
-            var cancelButton = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
+            var okButton = new Button { Text = T("ui.OK", "OK"), DialogResult = DialogResult.OK, AutoSize = true };
+            var cancelButton = new Button { Text = T("ui.Cancel", "Cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
             buttons.Controls.Add(okButton);
             buttons.Controls.Add(cancelButton);
 

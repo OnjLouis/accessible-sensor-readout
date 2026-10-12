@@ -1505,7 +1505,7 @@ public sealed partial class SensorReadoutForm : Form
         var row = fanControlBox.SelectedItem as SensorRow;
         if (row == null)
         {
-            statusLabel.Text = "Select a fan control before saving a label.";
+            statusLabel.Text = T("status.Select a fan control before saving a label.", "Select a fan control before saving a label.");
             return;
         }
 

@@ -16,7 +16,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         using (var dialog = new Form())
         {
-            dialog.Text = T("ui.Fan Curves", "Fan Curves");
+            dialog.Text = T("ui.Fan curves", "Fan curves");
             dialog.StartPosition = FormStartPosition.CenterParent;
             dialog.Size = new Size(980, 520);
             dialog.MinimumSize = new Size(800, 420);

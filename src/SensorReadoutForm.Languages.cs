@@ -39,7 +39,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        languageMenuItem.DropDownItems.Clear();
+        ClearMenuItems(languageMenuItem.DropDownItems);
         foreach (var choice in UserSelectableLanguageChoices(languageChoices))
         {
             var item = new ToolStripMenuItem(choice.DisplayName)
@@ -130,12 +130,19 @@ public sealed partial class SensorReadoutForm : Form
         {
             ApplyLanguageToToolStripItems(deviceList.ContextMenuStrip.Items);
         }
+        if (readingTree != null && readingTree.ContextMenuStrip != null)
+        {
+            ApplyLanguageToToolStripItems(readingTree.ContextMenuStrip.Items);
+        }
         ApplyAccessibleLanguage();
         lastReadingTreeSignature = "";
         lastReadingTreeShapeSignature = "";
         UpdateDeviceList();
         UpdateReadingList();
         UpdateTrayStatus();
+        foreach (var menu in menuStrip.Items.OfType<ToolStripMenuItem>())
+            UiMnemonics.ForMenu(menu.DropDownItems);
+        if (readingTree.ContextMenuStrip != null) UiMnemonics.ForMenu(readingTree.ContextMenuStrip.Items);
     }
 
     private void ApplyAccessibleLanguage()
@@ -178,7 +185,7 @@ public sealed partial class SensorReadoutForm : Form
         if (!originalUiText.TryGetValue(control, out original))
         {
             original = control.Text;
-            originalUiText[control] = original;
+            originalUiText.Add(control, original);
         }
 
         control.Text = TranslateUiText(original);
@@ -195,11 +202,13 @@ public sealed partial class SensorReadoutForm : Form
                 ApplyLanguageToToolStripItems(dropDownItem.DropDownItems);
             }
         }
+        UiMnemonics.ForMenu(items);
     }
 
     private void ApplyLanguageToToolStripItem(ToolStripItem item)
     {
-        if (item == null || string.IsNullOrWhiteSpace(item.Text))
+        if (item == null || item.Tag is PlugInHelpLink || item.Tag is SpokenHotKeySetting ||
+            item.Tag is FanProfileSetting || item.Tag is DeviceFilter || item.Tag is LanguageChoice || string.IsNullOrWhiteSpace(item.Text))
         {
             return;
         }
@@ -208,10 +217,21 @@ public sealed partial class SensorReadoutForm : Form
         if (!originalUiText.TryGetValue(item, out original))
         {
             original = item.Text;
-            originalUiText[item] = original;
+            originalUiText.Add(item, original);
         }
 
         item.Text = TranslateUiText(original);
+    }
+
+    private static void ClearMenuItems(ToolStripItemCollection items)
+    {
+        // Rebuilt menus own their items; Clear alone does not dispose them.
+        while (items.Count > 0)
+        {
+            var item = items[0];
+            items.RemoveAt(0);
+            item.Dispose();
+        }
     }
 
     public static string TranslateUiText(string original)
@@ -228,6 +248,17 @@ public sealed partial class SensorReadoutForm : Form
         if (string.Equals(translated, label, StringComparison.Ordinal) && label.IndexOf('&') >= 0)
         {
             translated = T("ui." + StripMenuMnemonic(label), label);
+        }
+
+        if (string.Equals(translated, label, StringComparison.Ordinal) && label.EndsWith("...", StringComparison.Ordinal))
+        {
+            var plainLabel = label.Substring(0, label.Length - 3);
+            translated = T("ui." + plainLabel, label);
+            if (string.Equals(translated, label, StringComparison.Ordinal))
+                translated = T("ui." + StripMenuMnemonic(plainLabel), label);
+            if (!string.Equals(translated, label, StringComparison.Ordinal) &&
+                !translated.EndsWith("...", StringComparison.Ordinal) && !translated.EndsWith("\u2026", StringComparison.Ordinal))
+                translated += "...";
         }
 
         return PreserveMenuMnemonic(label, translated) + shortcut;

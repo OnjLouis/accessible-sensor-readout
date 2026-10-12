@@ -125,7 +125,7 @@ function Assert-LiteralTranslationKeysExist {
     }
 
     $missing = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-    $literalPattern = '(?:T\(\s*"(?<key>(?:a11y|detail|group|help|message|reading|speech|status|ui|value)\.[^"]+)"\s*,|L\(\s*"(?<key>help\.[^"]+)"\s*,)'
+    $literalPattern = '(?:T|L)\(\s*"(?<key>(?:a11y|detail|group|help|message|reading|speech|status|ui|value)\.[^"]+)"\s*,'
     foreach ($sourcePath in $sources) {
         $sourceText = [IO.File]::ReadAllText($sourcePath)
         foreach ($match in [regex]::Matches($sourceText, $literalPattern)) {

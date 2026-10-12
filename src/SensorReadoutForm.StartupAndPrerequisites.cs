@@ -21,9 +21,9 @@ public sealed partial class SensorReadoutForm : Form
 
         var result = MessageBox.Show(
             this,
-            "PawnIO does not appear to be installed. Sensor Readout can still open, but motherboard sensors and fan controls may be missing." + Environment.NewLine + Environment.NewLine +
-            "Do you want to run the prerequisite installer now?",
-            "Sensor Readout prerequisites",
+            T("message.PawnIO missing", "PawnIO does not appear to be installed. Sensor Readout can still open, but motherboard sensors and fan controls may be missing.") + Environment.NewLine + Environment.NewLine +
+            T("message.Run prerequisite installer?", "Do you want to run the prerequisite installer now?"),
+            T("ui.Sensor Readout prerequisites", "Sensor Readout prerequisites"),
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Information);
 
@@ -46,7 +46,7 @@ public sealed partial class SensorReadoutForm : Form
 
         if (!System.IO.File.Exists(installerPath))
         {
-            MessageBox.Show(this, "Install-Prerequisites.cmd could not be found in the Install_Scripts folder.", "Sensor Readout prerequisites", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, T("message.Prerequisite installer missing", "Install-Prerequisites.cmd could not be found in the Install_Scripts folder."), T("ui.Sensor Readout prerequisites", "Sensor Readout prerequisites"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -61,7 +61,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Could not start prerequisite installer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, T("ui.Could not start prerequisite installer", "Could not start prerequisite installer"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

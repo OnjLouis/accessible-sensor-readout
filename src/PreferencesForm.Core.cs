@@ -29,6 +29,10 @@ public sealed partial class PreferencesForm : Form
     {
         Text = SensorReadoutForm.L("ui.Sensor Readout Preferences", "Sensor Readout Preferences");
         ApplyLanguageToControls(Controls);
+        UiMnemonics.ForControls(Controls);
+        if (preferencesTabs != null)
+            foreach (TabPage page in preferencesTabs.TabPages)
+                UiMnemonics.ForControls(page.Controls, Controls);
         ApplyFixedOptionLanguage();
         UpdateLanguageFolderStatus();
         UpdateTraySelectionStatus();

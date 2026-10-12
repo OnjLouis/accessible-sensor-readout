@@ -244,7 +244,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        hotkeysMenu.DropDownItems.Clear();
+        ClearMenuItems(hotkeysMenu.DropDownItems);
         hotkeysMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
             T("ui.Speak tray status now", "&Speak tray status now"),
             settings.SpeakTrayHotKey,
@@ -256,6 +256,7 @@ public sealed partial class SensorReadoutForm : Form
 
         hotkeysMenu.DropDownItems.Add(new ToolStripSeparator());
         hotkeysSpokenHotKeyMenuItem = CreateShortcutMenuItem("Add/remove current reading from hotkey or &tray...", Keys.Control | Keys.Shift | Keys.H, delegate { ShowSpokenHotKeyAssignmentDialog(); });
+        ApplyLanguageToToolStripItem(hotkeysSpokenHotKeyMenuItem);
         if (readingTree == null)
         {
             hotkeysSpokenHotKeyMenuItem.Visible = false;
@@ -276,10 +277,12 @@ public sealed partial class SensorReadoutForm : Form
             foreach (var profile in spokenProfiles)
             {
                 var profileForHandler = profile;
-                spokenMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+                var item = CreateConfiguredHotKeyMenuItem(
                     SpokenHotKeyMenuText(profileForHandler),
                     profileForHandler.HotKey,
-                    delegate { SpeakSpokenHotKey(profileForHandler); }));
+                    delegate { SpeakSpokenHotKey(profileForHandler); });
+                item.Tag = profile;
+                spokenMenu.DropDownItems.Add(item);
             }
             hotkeysMenu.DropDownItems.Add(spokenMenu);
         }
@@ -294,13 +297,16 @@ public sealed partial class SensorReadoutForm : Form
             foreach (var profile in fanProfiles)
             {
                 var profileForHandler = profile;
-                fanMenu.DropDownItems.Add(CreateConfiguredHotKeyMenuItem(
+                var item = CreateConfiguredHotKeyMenuItem(
                     FanProfileHotKeyMenuText(profileForHandler),
                     profileForHandler.HotKey,
-                    delegate { ApplyFanProfile(profileForHandler, true); }));
+                    delegate { ApplyFanProfile(profileForHandler, true); });
+                item.Tag = profile;
+                fanMenu.DropDownItems.Add(item);
             }
             hotkeysMenu.DropDownItems.Add(fanMenu);
         }
+        UiMnemonics.ForMenu(hotkeysMenu.DropDownItems);
     }
 
     private ToolStripMenuItem CreateConfiguredHotKeyMenuItem(string text, string hotKeyText, EventHandler handler)
@@ -687,7 +693,7 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        helpMenu.DropDownItems.Clear();
+        ClearMenuItems(helpMenu.DropDownItems);
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Help for &focused control", Keys.F1, delegate { ContextHelp.ShowFor(this); }));
         helpMenu.DropDownItems.Add(new ToolStripMenuItem("&Manual", null, delegate { ShowManual(); }));
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("&Check for updates...", Keys.Shift | Keys.F1, delegate { CheckForUpdates(); }));
@@ -703,9 +709,10 @@ public sealed partial class SensorReadoutForm : Form
         helpMenu.DropDownItems.Add("Check accessibilit&y setup...", null, delegate { ShowAccessibilitySetupCheck(); });
         helpMenu.DropDownItems.Add(CreateShortcutMenuItem("Run dia&gnostics...", Keys.Alt | Keys.F1, delegate { RunDiagnostics(); }));
         helpMenu.DropDownItems.Add("Prepare support &report...", null, delegate { PrepareSupportReport(); });
-        helpMenu.DropDownItems.Add(T("ui.Share a&nonymous community stats...", "Share a&nonymous community stats..."), null, delegate { ShowCommunityStatsDialog(); });
+        helpMenu.DropDownItems.Add("Share a&nonymous community stats...", null, delegate { ShowCommunityStatsDialog(); });
         helpMenu.DropDownItems.Add(new ToolStripSeparator());
         helpMenu.DropDownItems.Add("&About Sensor Readout", null, delegate { ShowAbout(); });
+        ApplyLanguageToToolStripItems(helpMenu.DropDownItems);
     }
 
     private void ShowAccessibilitySetupCheck()
@@ -760,7 +767,7 @@ public sealed partial class SensorReadoutForm : Form
 
     private static void AddCheckLine(List<string> lines, string label, bool ok, string value)
     {
-        lines.Add((ok ? "OK: " : "Check: ") + label + ": " + value);
+        lines.Add((ok ? T("ui.OK", "OK") : T("ui.Check", "Check")) + ": " + label + ": " + value);
     }
 
     private void AddPlugInHelpMenuItems(ToolStripMenuItem menu)
@@ -775,7 +782,8 @@ public sealed partial class SensorReadoutForm : Form
         foreach (var helpLink in links)
         {
             var link = helpLink;
-            menu.DropDownItems.Add(link.Label, null, delegate { OpenPlugInHelpLink(link); });
+            var item = menu.DropDownItems.Add(link.Label, null, delegate { OpenPlugInHelpLink(link); });
+            item.Tag = link;
         }
         menu.DropDownItems.Add(new ToolStripSeparator());
     }
@@ -787,73 +795,78 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
-        OpenExternalPage(link.Url, "Could not open " + (string.IsNullOrWhiteSpace(link.Label) ? "Plug-In help page" : link.Label.Replace("&", "")));
+        var label = string.IsNullOrWhiteSpace(link.Label) ? T("ui.Plug-In help page", "Plug-In help page") : StripMenuMnemonic(link.Label);
+        OpenExternalPage(link.Url, string.Format(T("ui.Could not open page", "Could not open {0}"), label));
     }
 
     private void ShowAbout()
     {
-        using (var dialog = new Form())
-        {
-            dialog.Text = "About Sensor Readout";
-            dialog.StartPosition = FormStartPosition.CenterParent;
-            dialog.MinimizeBox = false;
-            dialog.MaximizeBox = false;
-            dialog.ShowInTaskbar = false;
-            dialog.Size = new Size(560, 330);
-            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
-
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 2,
-                Padding = new Padding(12)
-            };
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-            var text = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
-                AccessibleName = "About Sensor Readout text",
-                Text =
-                    "Sensor Readout " + AppVersion + Environment.NewLine + Environment.NewLine +
-                    "Project page:" + Environment.NewLine +
-                    ProjectUrl + Environment.NewLine + Environment.NewLine +
-                    "Created by Codex." + Environment.NewLine +
-                    "Ideas by Andre Louis." + Environment.NewLine +
-                    "A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better." + Environment.NewLine + Environment.NewLine +
-                    "Bundled and referenced components:" + Environment.NewLine +
-                    "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Prism screen reader library, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries."
-            };
-
-            var buttons = new FlowLayoutPanel
-            {
-                AutoSize = true,
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.RightToLeft
-            };
-            var okButton = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
-            var projectButton = new Button { Text = "&Project page", AutoSize = true, AccessibleName = "Open project page" };
-            projectButton.Click += delegate { OpenProjectPage(); };
-            buttons.Controls.Add(okButton);
-            buttons.Controls.Add(projectButton);
-
-            dialog.AcceptButton = okButton;
-            dialog.CancelButton = okButton;
-            layout.Controls.Add(text, 0, 0);
-            layout.Controls.Add(buttons, 0, 1);
-            dialog.Controls.Add(layout);
+        using (var dialog = CreateAboutDialog())
             dialog.ShowDialog(this);
-        }
+    }
+
+    private Form CreateAboutDialog()
+    {
+        var dialog = new Form();
+        dialog.Text = StripMenuMnemonic(T("ui.About Sensor Readout", "About Sensor Readout"));
+        dialog.StartPosition = FormStartPosition.CenterParent;
+        dialog.MinimizeBox = false;
+        dialog.MaximizeBox = false;
+        dialog.ShowInTaskbar = false;
+        dialog.Size = new Size(560, 330);
+        dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(12)
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var text = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            AccessibleName = T("a11y.About Sensor Readout text", "About Sensor Readout text"),
+            Text =
+                "Sensor Readout " + AppVersion + Environment.NewLine + Environment.NewLine +
+                StripMenuMnemonic(T("ui.Project page", "Project page")) + ":" + Environment.NewLine +
+                ProjectUrl + Environment.NewLine + Environment.NewLine +
+                T("ui.Created by Codex.", "Created by Codex.") + Environment.NewLine +
+                T("ui.Ideas by Andre Louis.", "Ideas by Andre Louis.") + Environment.NewLine +
+                T("ui.Contributor thanks", "A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better.") + Environment.NewLine + Environment.NewLine +
+                T("ui.Bundled and referenced components:", "Bundled and referenced components:") + Environment.NewLine +
+                T("ui.Bundled components list", "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Prism screen reader library, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries.")
+        };
+
+        var buttons = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft
+        };
+        var okButton = new Button { Text = T("ui.OK", "OK"), DialogResult = DialogResult.OK, AutoSize = true };
+        var projectButton = new Button { Text = TranslateUiText("&Project page"), AutoSize = true, AccessibleName = T("a11y.Open project page", "Open project page") };
+        projectButton.Click += delegate { OpenProjectPage(); };
+        buttons.Controls.Add(okButton);
+        buttons.Controls.Add(projectButton);
+
+        dialog.AcceptButton = okButton;
+        dialog.CancelButton = okButton;
+        layout.Controls.Add(text, 0, 0);
+        layout.Controls.Add(buttons, 0, 1);
+        dialog.Controls.Add(layout);
+        return dialog;
     }
 
     private void OpenProjectPage()
     {
-        OpenExternalPage(ProjectUrl, "Could not open project page");
+        OpenExternalPage(ProjectUrl, T("ui.Could not open project page", "Could not open project page"));
     }
 
     private void OpenDonatePage()

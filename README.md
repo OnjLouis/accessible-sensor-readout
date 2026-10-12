@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.5.0.
+Current version: 6.5.1.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -774,6 +774,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.5.1
+
+- Fixed: Menus, About, installation messages, hotkey commands, and accessible control names now use the selected language consistently, including after reopening menus or switching languages. Corrected French wording and missing translations. Fixes [issue #27](https://github.com/OnjLouis/accessible-sensor-readout/issues/27).
 
 ### 6.5.0
 
