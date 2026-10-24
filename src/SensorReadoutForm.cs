@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "6.5.1";
+    public const string AppVersion = "6.5.2";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -17,8 +17,6 @@ public sealed partial class SensorReadoutForm : Form
     private const int RefreshIntervalMs = 5000;
     private static readonly TimeSpan FocusedAutoRefreshMinimumInterval = TimeSpan.Zero;
     private static readonly TimeSpan HiddenAutoRefreshMinimumInterval = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan ForegroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan BackgroundTaskRowsMinimumInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ForegroundProcessInventoryMinimumInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan BackgroundProcessInventoryMinimumInterval = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan ForegroundOemProviderRowsMinimumInterval = TimeSpan.FromSeconds(10);
@@ -184,8 +182,6 @@ public sealed partial class SensorReadoutForm : Form
     private Dictionary<int, TaskProcessSnapshot> lastTaskProcessSnapshots = new Dictionary<int, TaskProcessSnapshot>();
     private DateTime lastTaskProcessSnapshotUtc = DateTime.MinValue;
     private readonly object taskRowsCacheLock = new object();
-    private List<SensorRow> cachedTaskRows = new List<SensorRow>();
-    private DateTime cachedTaskRowsUtc = DateTime.MinValue;
     private List<SensorRow> cachedProcessInventoryRows = new List<SensorRow>();
     private DateTime cachedProcessInventoryRowsUtc = DateTime.MinValue;
     private readonly object slowRowsLock = new object();

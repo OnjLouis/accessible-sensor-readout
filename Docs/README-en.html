@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.5.1.</p>
+<p>Current version: 6.5.2.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -48,6 +48,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.5.2</h3><ul><li>Improved: Lower CPU use when monitoring GPU activity, while keeping live readings, spoken hotkeys and process watches up to date.</li><li>Fixed: Highest CPU, memory and GPU task summaries now follow the configured refresh interval, including when Sensor Readout is in the notification area.</li></ul>
 <h3>6.5.1</h3><ul><li>Fixed: Menus, About, installation messages, hotkey commands, and accessible control names now use the selected language consistently, including after reopening menus or switching languages. Corrected French wording and missing translations. Fixes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/27">issue #27</a>.</li></ul>
 <h3>6.5.0</h3><ul><li>Added: The process watcher list can open a selected process's file location with Alt+Enter or its context menu when the executable path is available. Enter still starts the configured watch.</li><li>Added: Plain F1 opens readable help for the focused control in the main window and Sensor Readout dialogs, with Copy help, Manual, and Close buttons. Escape returns to the original control without changing field values; help never displays entered passwords, tokens, or other input text. Tab navigation stays concise: names, values, states, and useful shortcuts. Detailed control instructions appear only in F1 help, not in normal descriptions or visible hints. Warnings, privacy and consent information, and live results still appear when required.</li><li>Changed: Plain F1 is reserved for control help even in hotkey-entry fields. Supported combinations such as Ctrl+Shift+F1 remain assignable; the full manual remains available from Help &gt; Manual and the Manual button in help.</li><li>Added: Performance/Overview now shows the Windows feature update name, such as 25H2, alongside the numeric Windows version and build when Windows provides it.</li></ul>
 <h3>6.4.0</h3><ul><li>Added: Polish interface text and a Polish extended manual, contributed by Paweł Podolski. Choose Polski from Options &gt; Language; Help &gt; Manual opens the Polish guide.</li></ul>

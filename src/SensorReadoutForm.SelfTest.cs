@@ -72,7 +72,8 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Formatted row cache clearing", delegate { form.SelfTestFormattedRowCacheClearing(); });
             form.RunSelfTestStep(results, "Fragile WMI row caches", delegate { form.SelfTestFragileWmiRowCaches(); });
             form.RunSelfTestStep(results, "Spoken hotkey mirror order", delegate { form.SelfTestSpokenHotKeyMirrorOrder(); });
-            form.RunSelfTestStep(results, "Task row refresh cache", delegate { form.SelfTestTaskRowRefreshCache(); });
+            form.RunSelfTestStep(results, "Live task summaries and cached inventory", delegate { form.SelfTestTaskSummaryRefresh(); });
+            form.RunSelfTestStep(results, "Bulk GPU counter sampling", SelfTestGpuCounterSampling);
             form.RunSelfTestStep(results, "Process watch report", delegate { form.SelfTestProcessWatchReport(); });
             form.RunSelfTestStep(results, "Audio latency aggregation and privacy", delegate { form.SelfTestAudioLatencyAggregationAndPrivacy(); });
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
@@ -1367,38 +1368,38 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private void SelfTestTaskRowRefreshCache()
+    private void SelfTestTaskSummaryRefresh()
     {
-        var cachedRow = new SensorRow { Type = "Tasks", Hardware = "Processes", Name = "Highest CPU process", Identifier = "self-test-cached-task", DisplayValue = "Cached: 1.0%", Source = "Self-test" };
+        var cachedRow = new SensorRow { Type = "Tasks", Hardware = "Running processes", Name = "Cached process inventory", Identifier = "self-test-cached-inventory", DisplayValue = "Cached", Source = "Self-test" };
         var cachedAt = DateTime.UtcNow;
         List<SensorRow> previousRows;
         DateTime previousUtc;
         lock (taskRowsCacheLock)
         {
-            previousRows = cachedTaskRows.ToList();
-            previousUtc = cachedTaskRowsUtc;
-            cachedTaskRows = new List<SensorRow> { cachedRow };
-            cachedTaskRowsUtc = cachedAt;
+            previousRows = cachedProcessInventoryRows.ToList();
+            previousUtc = cachedProcessInventoryRowsUtc;
+            cachedProcessInventoryRows = new List<SensorRow> { cachedRow };
+            cachedProcessInventoryRowsUtc = cachedAt;
         }
 
         try
         {
-            var rows = GetCachedTaskRows(false, false).ToList();
-            DateTime afterUtc;
-            lock (taskRowsCacheLock)
+            for (var pass = 0; pass < 2; pass++)
             {
-                afterUtc = cachedTaskRowsUtc;
+                // A stale summary must never bypass a new CPU sample, even when hidden.
+                lastTaskProcessSnapshotUtc = DateTime.MinValue;
+                var rows = GetTaskRows(false, true).ToList();
+                Require(lastTaskProcessSnapshotUtc != DateTime.MinValue, "Task summary skipped the current process CPU sample.");
+                Require(rows.Contains(cachedRow), "Live task summaries unnecessarily replaced the cached process inventory.");
+                Require(cachedProcessInventoryRowsUtc == cachedAt, "Task summary changed the inventory refresh cadence.");
             }
-
-            Require(rows.Count == 1 && string.Equals(rows[0].Identifier, cachedRow.Identifier, StringComparison.OrdinalIgnoreCase), "Immediate task refresh did not reuse cached rows.");
-            Require(afterUtc == cachedAt, "Immediate task refresh unexpectedly replaced cached task rows.");
         }
         finally
         {
             lock (taskRowsCacheLock)
             {
-                cachedTaskRows = previousRows;
-                cachedTaskRowsUtc = previousUtc;
+                cachedProcessInventoryRows = previousRows;
+                cachedProcessInventoryRowsUtc = previousUtc;
             }
         }
     }

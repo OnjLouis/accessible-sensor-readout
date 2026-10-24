@@ -581,7 +581,7 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
         AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
-        AddTimedRows(rows, "Tasks", () => GetCachedTaskRows(refreshSlowRows, backgroundRefresh), timings);
+        AddTimedRows(rows, "Tasks", () => GetTaskRows(refreshSlowRows, backgroundRefresh), timings);
         AddTimedRows(rows, "AudioLatency", GetAudioLatencyRows, timings);
         rows = TimedTransformRows(rows, "StorageDetailsAttach", AttachStorageDetailsToRows, timings);
         rows = TimedTransformRows(rows, "FanPercentAttach", AttachFanControlPercentsToFanRows, timings);

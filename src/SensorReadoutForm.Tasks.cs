@@ -36,28 +36,6 @@ public sealed partial class SensorReadoutForm : Form
         public double OriginalDedicatedBytes;
     }
 
-    private IEnumerable<SensorRow> GetCachedTaskRows(bool refreshSlowRows, bool backgroundRefresh)
-    {
-        var now = DateTime.UtcNow;
-        var minimumAge = backgroundRefresh ? BackgroundTaskRowsMinimumInterval : ForegroundTaskRowsMinimumInterval;
-        lock (taskRowsCacheLock)
-        {
-            if (!refreshSlowRows && cachedTaskRows.Count > 0 && now - cachedTaskRowsUtc < minimumAge)
-            {
-                return cachedTaskRows.ToList();
-            }
-        }
-
-        var freshRows = GetTaskRows(refreshSlowRows, backgroundRefresh).ToList();
-        lock (taskRowsCacheLock)
-        {
-            cachedTaskRows = freshRows.ToList();
-            cachedTaskRowsUtc = now;
-        }
-
-        return freshRows;
-    }
-
     private IEnumerable<SensorRow> GetTaskRows(bool refreshSlowRows, bool backgroundRefresh)
     {
         var rows = new List<SensorRow>();
@@ -511,22 +489,17 @@ public sealed partial class SensorReadoutForm : Form
         const string counterName = "Utilization Percentage";
         try
         {
-            if (!PerformanceCounterCategory.Exists(categoryName))
+            foreach (var sample in gpuCounters.ReadValues(categoryName, counterName))
             {
-                return;
-            }
-
-            var category = new PerformanceCounterCategory(categoryName);
-            foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
-            {
+                var instance = sample.Key;
                 var processId = ExtractPerformanceCounterProcessId(instance);
                 if (processId <= 0)
                 {
                     continue;
                 }
 
-                double value;
-                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value) || value <= 0)
+                var value = Math.Min(100, sample.Value);
+                if (value <= 0)
                 {
                     continue;
                 }
@@ -548,24 +521,19 @@ public sealed partial class SensorReadoutForm : Form
         const string categoryName = "GPU Process Memory";
         try
         {
-            if (!PerformanceCounterCategory.Exists(categoryName))
-            {
-                return;
-            }
-
-            var category = new PerformanceCounterCategory(categoryName);
             var dedicatedTotal = dedicated ? GetTotalGpuAdapterMemoryBytes() : 0;
             var dedicatedUsedTotal = dedicated ? ReadGpuMemoryCounterTotal("GPU Adapter Memory", "Dedicated Usage") : 0;
-            foreach (var instance in category.GetInstanceNames().Where(i => !string.IsNullOrWhiteSpace(i)))
+            foreach (var sample in gpuCounters.ReadValues(categoryName, counterName))
             {
+                var instance = sample.Key;
                 var processId = ExtractPerformanceCounterProcessId(instance);
                 if (processId <= 0)
                 {
                     continue;
                 }
 
-                double value;
-                if (!TryReadPerformanceCounter(categoryName, counterName, instance, out value) || value <= 0)
+                var value = sample.Value;
+                if (value <= 0)
                 {
                     continue;
                 }

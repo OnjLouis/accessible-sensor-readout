@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.5.1.
+Current version: 6.5.2.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -774,6 +774,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.5.2
+
+- Improved: Lower CPU use when monitoring GPU activity, while keeping live readings, spoken hotkeys and process watches up to date.
+- Fixed: Highest CPU, memory and GPU task summaries now follow the configured refresh interval, including when Sensor Readout is in the notification area.
 
 ### 6.5.1
 
