@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -49,9 +50,9 @@ public sealed partial class SensorReadoutForm
         remapping.UpdateMix(ResolveDiskActivityDevices(new[] { different, reconnected }, restored.DiskActivitySounds));
         var remapPcm = new short[DiskActivityAudio.RenderSampleCount];
         var remapSum = new int[remapPcm.Length];
-        remapping.Record(1, false, DateTime.Now);
+        remapping.Record(1, false, Stopwatch.GetTimestamp());
         Require(!remapping.Render(remapSum, remapPcm), "A replacement disk inherited the old disk's audio.");
-        remapping.Record(5, false, DateTime.Now);
+        remapping.Record(5, false, Stopwatch.GetTimestamp());
         Require(remapping.Render(remapSum, remapPcm), "The reconnected disk did not resume on its new index.");
 
         var read = DiskActivityAudio.Synthesize(setting, false);
@@ -70,8 +71,8 @@ public sealed partial class SensorReadoutForm
             { 2, new DiskSoundSetting { Enabled = true, Pan = 20 } }
         });
         var stereo = new short[DiskActivityAudio.RenderSampleCount];
-        opposing.Record(1, false, DateTime.Now);
-        opposing.Record(2, false, DateTime.Now);
+        opposing.Record(1, false, Stopwatch.GetTimestamp());
+        opposing.Record(2, false, Stopwatch.GetTimestamp());
         Require(opposing.Render(new int[stereo.Length], stereo) &&
             Enumerable.Range(0, stereo.Length / 2).Any(i => stereo[i * 2] != stereo[i * 2 + 1]),
             "Simultaneous left- and right-panned disk reads collapsed to identical channels.");
@@ -99,40 +100,52 @@ public sealed partial class SensorReadoutForm
         var audio = new DiskActivityAudio(mapped);
         var pcm = new short[DiskActivityAudio.RenderSampleCount];
         var sum = new int[pcm.Length];
-        audio.Record(1, true, DateTime.Now);
-        audio.Record(5, true, DateTime.Now.AddSeconds(-1));
-        Require(!audio.Render(sum, pcm), "An unknown disk or an old event generated a click.");
-        for (var i = 0; i < 1000; i++) audio.Record(5, false, DateTime.Now);
+        audio.Record(1, true, Stopwatch.GetTimestamp());
+        audio.Record(5, true, Stopwatch.GetTimestamp() - Stopwatch.Frequency);
+        audio.Record(5, false, Stopwatch.GetTimestamp() + Stopwatch.Frequency);
+        Require(!audio.Render(sum, pcm), "An unknown disk or an out-of-window counter generated a click.");
+        audio.Record(5, true, Stopwatch.GetTimestamp() - Stopwatch.Frequency / 100);
+        Require(audio.Render(sum, pcm) && pcm.Take(write.Length).SequenceEqual(write),
+            "A fresh ETW event should render using only the monotonic clock.");
+        for (var i = 0; i < 1000; i++) audio.Record(5, false, Stopwatch.GetTimestamp());
         Require(audio.Render(sum, pcm) && pcm.Take(read.Length).SequenceEqual(read) &&
             pcm.Skip(read.Length).All(sample => sample == 0), "A burst should produce a single click.");
         Require(!audio.Render(sum, pcm), "Old clicks accumulated after the burst.");
-        audio.Record(5, false, DateTime.Now);
-        audio.Record(5, true, DateTime.Now);
-        Require(audio.Render(sum, pcm) && pcm.Take(read.Length).Select((sample, i) => sample == read[i] + write[i]).All(same => same),
-            "Concurrent reads and writes were not mixed.");
-        audio.Record(5, false, DateTime.Now);
+        audio.Record(5, false, Stopwatch.GetTimestamp());
+        audio.Record(5, true, Stopwatch.GetTimestamp());
+        var stagger = DiskActivityAudio.ClickStaggerSamples;
+        Require(audio.Render(sum, pcm) && pcm.Select((sample, i) => sample ==
+            (i < read.Length ? read[i] : 0) + (i >= stagger && i - stagger < write.Length ? write[i - stagger] : 0)).All(same => same),
+            "Concurrent reads and writes must retain both clicks, with a short gap between their onsets.");
+        opposing.Record(1, false, Stopwatch.GetTimestamp());
+        opposing.Record(1, true, Stopwatch.GetTimestamp());
+        opposing.Record(2, false, Stopwatch.GetTimestamp());
+        opposing.Record(2, true, Stopwatch.GetTimestamp());
+        Require(opposing.Render(sum, pcm) && pcm.Any(sample => sample != 0),
+            "Staggering stereo disks and paired clicks must stay within one playback buffer.");
+        audio.Record(5, false, Stopwatch.GetTimestamp());
         audio.UpdateMix(new Dictionary<int, DiskSoundSetting> { { 5, new DiskSoundSetting { Enabled = true, Pan = 100 } } });
         Require(!audio.Render(sum, pcm), "Old pending clicks survived a live mix change.");
-        audio.Record(5, false, DateTime.Now);
+        audio.Record(5, false, Stopwatch.GetTimestamp());
         Require(audio.Render(sum, pcm) && pcm.Take(right.Length).SequenceEqual(right), "Live panning did not reach the output mix.");
         var unaffected = new DiskSoundSetting { Enabled = true, Pan = 100 };
         var tuning = new DiskActivityAudio(new Dictionary<int, DiskSoundSetting> { { 1, setting }, { 2, unaffected } });
-        tuning.Record(2, false, DateTime.Now);
+        tuning.Record(2, false, Stopwatch.GetTimestamp());
         var edited = new DiskSoundSetting { Enabled = true, Volume = 0, Pan = -100, Bass = 12, Mid = -3, Treble = 7 };
         tuning.UpdateDiskMix(1, edited);
         Require(tuning.Render(sum, pcm) && pcm.Take(right.Length).SequenceEqual(right),
             "Editing one disk dropped another disk's pending click.");
-        tuning.Record(1, false, DateTime.Now);
+        tuning.Record(1, false, Stopwatch.GetTimestamp());
         Require(!tuning.Render(sum, pcm), "Moving the selected disk to zero volume should mute it immediately.");
         edited.ResetMix();
         Require(edited.Enabled && edited.Volume == 30 && edited.Pan == 0 &&
             edited.Bass == 0 && edited.Mid == 0 && edited.Treble == 0,
             "Reset should restore only the selected disk's audio defaults.");
         tuning.UpdateDiskMix(1, edited);
-        tuning.Record(1, false, DateTime.Now);
+        tuning.Record(1, false, Stopwatch.GetTimestamp());
         Require(tuning.Render(sum, pcm) && pcm.Take(flat.Length).SequenceEqual(flat),
             "Reset audio defaults did not take effect on the next click.");
-        tuning.Record(1, false, DateTime.Now);
+        tuning.Record(1, false, Stopwatch.GetTimestamp());
         edited.Pan = 100;
         tuning.UpdateDiskMix(1, edited);
         Require(tuning.Render(sum, pcm) && pcm.Take(right.Length).SequenceEqual(right),

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 6.6.0.</p>
+<p>Aktuelle Version: 6.6.1.</p>
 <p><strong>Wichtiger Update-Hinweis:</strong> Wenn Sie Version 6.0.0 oder 6.1.0 verwenden, laden Sie die aktuelle Version einmal manuell herunter. Diese beiden Versionen können ihr eigenes signiertes Update nicht abschließen, weil im temporären Aktualisierungsprogramm eine erforderliche Programmdatei fehlte. Ihre Einstellungen bleiben erhalten, und spätere automatische Updates funktionieren wieder normal.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstützter Lüfter. Die Oberfläche ist zuerst für Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Gerät oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menüleiste.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Änderungen</h2>
+<h3>6.6.1</h3><ul><li>Behoben: Laufwerksgeräusche verstummen bei längerer Wiedergabe nicht mehr durch das Auseinanderlaufen der Zeitgeber.</li><li>Verbessert: Kürzere Laufwerksgeräusche und ein kurzer Abstand zwischen Lese- und Schreibtönen machen beide hörbar.</li><li>Verbessert: Bei angesagten Messwerten eines benannten entfernten Computers wird nur der Name vorangestellt.</li></ul>
 <h3>6.6.0</h3><ul><li>Neu: Lese- und Schreibtöne für physische Laufwerke mit individueller Lautstärke, Balance, Drei-Band-Equalizer und globaler Tastenkombination. Danke an Kara Goldfinch für die Idee.</li><li>Verbessert: Messwerte für Laufwerke, Akku und Netzwerk reagieren schneller auf Geräte-, Stromquellen- und Verbindungswechsel, ohne den normalen Aktualisierungstakt zu verkürzen.</li></ul>
 <h3>6.5.2</h3><ul><li>Verbessert: Geringere CPU-Auslastung bei der Überwachung der GPU-Aktivität. Live-Messwerte, gesprochene Tastenkürzel und Prozessüberwachung bleiben aktuell.</li><li>Behoben: Die Zusammenfassungen der Prozesse mit der höchsten CPU-, Speicher- und GPU-Nutzung folgen nun dem eingestellten Aktualisierungsintervall, auch wenn Sensor Readout im Infobereich läuft.</li></ul>
 <h3>6.5.1</h3><ul><li>Behoben: Menüs, Infofenster, Installationsmeldungen, Tastenkürzelbefehle und zugängliche Steuerelementnamen verwenden die gewählte Sprache nun durchgängig, auch nach erneutem Öffnen oder einem Sprachwechsel. Französische Formulierungen und fehlende Übersetzungen wurden korrigiert. Behebt <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/27">Problem #27</a>.</li></ul>

@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versión actual: 6.6.0.</p>
+<p>Versión actual: 6.6.1.</p>
 <p><strong>Aviso importante sobre la actualización:</strong> Si usa la versión 6.0.0 o 6.1.0, descargue manualmente la versión actual una sola vez. Esas dos versiones no pueden completar su propia actualización firmada porque al actualizador temporal le faltaba un archivo de programa necesario. Se conservan sus ajustes y las actualizaciones automáticas posteriores vuelven a funcionar con normalidad.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Crditos</a></li>
 </ul>
 <h2 id="changelog">Cambios</h2>
+<h3>6.6.1</h3><ul><li>Corregido: los sonidos de actividad de disco ya no se silencian durante sesiones largas por un desfase entre relojes.</li><li>Mejorado: los clics del disco son más cortos y se separan las lecturas y escrituras cercanas para que se oigan ambas.</li><li>Mejorado: las lecturas habladas de un equipo remoto identificado empiezan por su nombre, sin repetir «Equipo remoto».</li></ul>
 <h3>6.6.0</h3><ul><li>Añadido: clics de lectura y escritura para discos físicos, con volumen, balance, ecualizador de tres bandas y atajo global. Gracias a Kara Goldfinch por la idea.</li><li>Mejorado: Las lecturas de almacenamiento, batería y red reaccionan antes al conectar discos, cambiar de fuente de alimentación o cambiar de conexión, sin acelerar la actualización habitual.</li></ul>
 <h3>6.5.2</h3><ul><li>Mejorado: Menor uso de CPU al supervisar la actividad de la GPU, manteniendo actualizadas las lecturas en directo, los atajos hablados y la supervisión de procesos.</li><li>Corregido: Los resúmenes de los procesos con mayor uso de CPU, memoria y GPU siguen ahora el intervalo de actualización configurado, también cuando Sensor Readout está en el área de notificación.</li></ul>
 <h3>6.5.1</h3><ul><li>Corregido: Los menús, Acerca de, los mensajes de instalación, los comandos de teclas rápidas y los nombres accesibles de los controles utilizan siempre el idioma seleccionado, incluso al reabrir menús o cambiar de idioma. Corregidas expresiones en francés y traducciones ausentes. Corrige la <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/27">incidencia #27</a>.</li></ul>

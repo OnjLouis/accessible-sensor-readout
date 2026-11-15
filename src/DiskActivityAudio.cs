@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,13 +63,14 @@ internal sealed class DiskSoundSetting
 internal sealed class DiskActivityAudio
 {
     internal const int SampleRate = 48000;
-    private const int ClickMilliseconds = 15;
-    private const int SecondOnsetMilliseconds = 5;
+    private const int ClickMilliseconds = 11;
+    private const int ClickStaggerMilliseconds = 4;
     private const int FlushMilliseconds = 25;
     private const int MaximumEventAgeMilliseconds = 150;
+    private static readonly long MaximumEventAgeTicks = Stopwatch.Frequency * MaximumEventAgeMilliseconds / 1000;
     private const int SampleCount = SampleRate * ClickMilliseconds / 1000 * 2;
-    private const int SecondOnsetSamples = SampleRate * SecondOnsetMilliseconds / 1000 * 2;
-    internal const int RenderSampleCount = SampleCount + SecondOnsetSamples;
+    internal const int ClickStaggerSamples = SampleRate * ClickStaggerMilliseconds / 1000 * 2;
+    internal const int RenderSampleCount = SampleCount + 2 * ClickStaggerSamples;
 
     private sealed class PendingClicks
     {
@@ -135,8 +137,11 @@ internal sealed class DiskActivityAudio
             session.StopOnDispose = true;
             session.EnableKernelProvider(KernelTraceEventParser.Keywords.DiskIO);
             var source = session.Source;
-            source.Kernel.DiskIORead += data => Record(data.DiskNumber, false, data.TimeStamp);
-            source.Kernel.DiskIOWrite += data => Record(data.DiskNumber, true, data.TimeStamp);
+            // Absolute QPC is intentional: the age calculation compares with the local Stopwatch counter.
+#pragma warning disable 618
+            source.Kernel.DiskIORead += data => Record(data.DiskNumber, false, data.TimeStampQPC);
+            source.Kernel.DiskIOWrite += data => Record(data.DiskNumber, true, data.TimeStampQPC);
+#pragma warning restore 618
             var consume = Task.Factory.StartNew(() => source.Process(), CancellationToken.None,
                 TaskCreationOptions.LongRunning, TaskScheduler.Default);
             try
@@ -173,7 +178,7 @@ internal sealed class DiskActivityAudio
         }
     }
 
-    internal void Record(int diskNumber, bool write, DateTime timestamp)
+    internal void Record(int diskNumber, bool write, long eventQpc)
     {
         DiskMix mix;
         if (!Volatile.Read(ref disks).TryGetValue(diskNumber, out mix))
@@ -181,16 +186,15 @@ internal sealed class DiskActivityAudio
             return;
         }
 
-        if (write && Volatile.Read(ref mix.Pending.Write) == 0 &&
-            (DateTime.Now - timestamp).TotalMilliseconds <= MaximumEventAgeMilliseconds)
-        {
-            Volatile.Write(ref mix.Pending.Write, 1);
-        }
-        else if (!write && Volatile.Read(ref mix.Pending.Read) == 0 &&
-            (DateTime.Now - timestamp).TotalMilliseconds <= MaximumEventAgeMilliseconds)
-        {
-            Volatile.Write(ref mix.Pending.Read, 1);
-        }
+        if ((write ? Volatile.Read(ref mix.Pending.Write) : Volatile.Read(ref mix.Pending.Read)) != 0)
+            return;
+
+        var age = Stopwatch.GetTimestamp() - eventQpc;
+        if (age < 0 || age > MaximumEventAgeTicks)
+            return;
+
+        if (write) Volatile.Write(ref mix.Pending.Write, 1);
+        else Volatile.Write(ref mix.Pending.Read, 1);
     }
 
     internal bool Render(int[] sum, short[] pcm)
@@ -204,9 +208,10 @@ internal sealed class DiskActivityAudio
             if (!read && !write) continue;
 
             // Alternating onsets keeps opposite-panned copies of the same click from summing to mono.
-            var offset = activeDisks++ % 2 == 0 ? 0 : SecondOnsetSamples;
+            var offset = activeDisks++ % 2 == 0 ? 0 : ClickStaggerSamples;
             if (read) Add(sum, mix.Read, offset);
-            if (write) Add(sum, mix.Write, offset);
+            // A read and write on the same disk sound like two taps, not one layered tone.
+            if (write) Add(sum, mix.Write, offset + (read ? ClickStaggerSamples : 0));
         }
         if (activeDisks != 0)
         {

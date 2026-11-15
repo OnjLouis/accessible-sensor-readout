@@ -13,6 +13,44 @@ using Newtonsoft.Json;
 
 public sealed partial class SensorReadoutForm
 {
+    private void SelfTestRemoteReadingSpeech()
+    {
+        var previousLanguage = activeLanguage;
+        var previousReportView = reportViewMode;
+        var previousRemoteView = remoteViewMode;
+        var previousSnapshot = activeRemoteSnapshot;
+        var rows = new List<SensorRow>
+        {
+            new SensorRow { Type = "Performance", Hardware = "CPU", Name = "CPU usage", DisplayValue = "34%" }
+        };
+        try
+        {
+            reportViewMode = false;
+            foreach (var choice in LoadLanguageChoices())
+            {
+                ActivateLanguage(choice.FileName);
+                remoteViewMode = false;
+                var reading = BuildSpeechStatusText(rows);
+                remoteViewMode = true;
+                activeRemoteSnapshot = new RemoteMachineSnapshot { MachineName = " TEST-PC " };
+                var announcement = BuildSpeechStatusText(rows);
+                Require(announcement.EndsWith(reading, StringComparison.Ordinal) &&
+                    announcement.Substring(0, announcement.Length - reading.Length).TrimEnd(' ', ':') == "TEST-PC",
+                    "Remote speech should add only the computer name: " + choice.FileName);
+                activeRemoteSnapshot = new RemoteMachineSnapshot();
+                Require(BuildSpeechStatusText(rows) == T("speech.remoteComputerPrefix", "Remote computer:").TrimEnd() + " " + reading,
+                    "An unnamed remote computer needs a localized fallback: " + choice.FileName);
+            }
+        }
+        finally
+        {
+            activeLanguage = previousLanguage;
+            reportViewMode = previousReportView;
+            remoteViewMode = previousRemoteView;
+            activeRemoteSnapshot = previousSnapshot;
+        }
+    }
+
     private void SelfTestRemoteMonitoringCrypto()
     {
         Require(!new RemoteConnectionSetting().PublishThisComputer, "New remote connections must not share this computer until the user explicitly opts in.");
@@ -38,6 +76,7 @@ public sealed partial class SensorReadoutForm
         }
         SelfTestRemoteRefreshExpansionPreservation();
         SelfTestRemoteConnectionImportPath();
+        SelfTestRemoteReadingSpeech();
         const string password = "self-test remote password";
         const string token = "self-test server token";
         var generatedPassword = RemotePayloadCrypto.CreateMonitoringPassword();

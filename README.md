@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.6.0.
+Current version: 6.6.1.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -784,6 +784,12 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.6.1
+
+- Fixed: Disk activity sounds no longer go silent after extended listening due to clock drift.
+- Improved: Disk activity uses shorter clicks and separates closely grouped reads and writes so both can be heard.
+- Improved: Spoken readings from a named remote computer start with the name, without repeating "Remote computer".
 
 ### 6.6.0
 

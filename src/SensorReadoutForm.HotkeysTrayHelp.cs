@@ -956,7 +956,7 @@ public sealed partial class SensorReadoutForm : Form
         var machineName = activeRemoteSnapshot == null ? "" : activeRemoteSnapshot.MachineName ?? "";
         var prefix = string.IsNullOrWhiteSpace(machineName)
             ? T("speech.remoteComputerPrefix", "Remote computer:")
-            : string.Format(T("speech.remoteComputerNamedPrefix", "Remote computer {0}:"), machineName);
+            : string.Format(T("speech.remoteComputerNamedPrefix", "{0}:"), machineName.Trim());
         return prefix.TrimEnd() + " ";
     }
 

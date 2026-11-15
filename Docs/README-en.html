@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.6.0.</p>
+<p>Current version: 6.6.1.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -49,6 +49,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.6.1</h3><ul><li>Fixed: Disk activity sounds no longer go silent after extended listening due to clock drift.</li><li>Improved: Disk activity uses shorter clicks and separates closely grouped reads and writes so both can be heard.</li><li>Improved: Spoken readings from a named remote computer start with its name, without repeating &quot;Remote computer&quot;.</li></ul>
 <h3>6.6.0</h3><ul><li>Added: Disk activity sounds give local physical disks distinct read and write clicks with per-disk volume, stereo pan and three-band EQ. A configurable global hotkey toggles listening. Thanks to Kara Goldfinch for the idea.</li><li>Improved: Storage, battery and network readings react sooner to drive, power-source and network connection changes without speeding up the normal refresh.</li></ul>
 <h3>6.5.2</h3><ul><li>Improved: Lower CPU use when monitoring GPU activity, while keeping live readings, spoken hotkeys and process watches up to date.</li><li>Fixed: Highest CPU, memory and GPU task summaries now follow the configured refresh interval, including when Sensor Readout is in the notification area.</li></ul>
 <h3>6.5.1</h3><ul><li>Fixed: Menus, About, installation messages, hotkey commands, and accessible control names now use the selected language consistently, including after reopening menus or switching languages. Corrected French wording and missing translations. Fixes <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/27">issue #27</a>.</li></ul>
