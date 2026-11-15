@@ -133,6 +133,10 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var machine = ExtractMachineSettings(settings);
+        machine.DiskActivityHotKey = "";
+        machine.DiskActivityListening = false;
+        machine.DiskActivityToggleSoundFile = "";
+        machine.DiskActivitySounds.Clear();
         var includeMachine = false;
         if (!categories.Contains(TransferTray))
         {

@@ -606,7 +606,7 @@ public sealed partial class PreferencesForm : Form
         languageFolderStatusLabel.Text = SensorReadoutForm.L("ui.Languages loaded:", "Languages loaded:") + " " + languageBox.Items.Count + " (" + string.Join(", ", languageBox.Items.Cast<LanguageChoice>().Select(i => i.DisplayName).ToArray()) + ")";
     }
 
-    private static TextBox CreateHotKeyBox(string hotKey, string accessibleName)
+    internal static TextBox CreateHotKeyBox(string hotKey, string accessibleName)
     {
         var box = new TextBox
         {
@@ -649,7 +649,7 @@ public sealed partial class PreferencesForm : Form
         return box;
     }
 
-    private static void AttachNumericAutoSelect(NumericUpDown box)
+    internal static void AttachNumericAutoSelect(NumericUpDown box)
     {
         if (box == null)
         {

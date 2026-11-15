@@ -176,7 +176,6 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         AddPrinterOverviewRows(rows);
-        rows.AddRange(GetBatteryOverviewRows());
         AddAccessibilityOverviewRows(rows);
 
         return rows;

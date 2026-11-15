@@ -448,6 +448,10 @@ public sealed partial class SensorReadoutForm : Form
         value = value ?? new AppSettings();
         return new MachineAppSettings
         {
+            DiskActivityHotKey = NormalizeHotKeyText(value.DiskActivityHotKey),
+            DiskActivityListening = value.DiskActivityListening,
+            DiskActivityToggleSoundFile = System.IO.Path.GetFileName(value.DiskActivityToggleSoundFile ?? ""),
+            DiskActivitySounds = CloneDiskActivitySounds(value.DiskActivitySounds),
             RunAtStartup = value.RunAtStartup,
             PrerequisitesPromptShown = value.PrerequisitesPromptShown,
             LoggingLevel = value.LoggingLevel,
@@ -871,6 +875,9 @@ public sealed partial class SensorReadoutForm : Form
         value.PlugInsEnabled = new Dictionary<string, bool>(value.PlugInsEnabled ?? new Dictionary<string, bool>(), StringComparer.OrdinalIgnoreCase)
             .Where(i => !string.IsNullOrWhiteSpace(i.Key))
             .ToDictionary(i => i.Key.Trim(), i => i.Value, StringComparer.OrdinalIgnoreCase);
+        value.DiskActivityHotKey = NormalizeHotKeyText(value.DiskActivityHotKey);
+        value.DiskActivityToggleSoundFile = System.IO.Path.GetFileName(value.DiskActivityToggleSoundFile ?? "");
+        value.DiskActivitySounds = CloneDiskActivitySounds(value.DiskActivitySounds);
         value.TrendLoggingKeys = (value.TrendLoggingKeys ?? new List<string>())
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .Distinct(StringComparer.OrdinalIgnoreCase)

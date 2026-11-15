@@ -51,6 +51,7 @@ public sealed partial class SensorReadoutForm : Form
                 registeredFanProfileHotKeys[id] = profile;
             }
         }
+        diskActivityHotKeyRegistered = RegisterGlobalHotKey(settings.DiskActivityHotKey, DiskActivityHotKeyId, "disk activity sounds");
     }
 
     private bool RegisterGlobalHotKey(string hotKeyText, int id, string description)
@@ -94,6 +95,8 @@ public sealed partial class SensorReadoutForm : Form
 
         NativeMethods.UnregisterHotKey(hotKeyHandle, ShowHideHotKeyId);
         NativeMethods.UnregisterHotKey(hotKeyHandle, SpeakTrayHotKeyId);
+        NativeMethods.UnregisterHotKey(hotKeyHandle, DiskActivityHotKeyId);
+        diskActivityHotKeyRegistered = false;
         for (var id = SpokenHotKeyBaseId; id < SpokenHotKeyBaseId + 100; id++)
         {
             NativeMethods.UnregisterHotKey(hotKeyHandle, id);
@@ -111,6 +114,11 @@ public sealed partial class SensorReadoutForm : Form
         if (m.Msg == WmHotKey)
         {
             var id = m.WParam.ToInt32();
+            if (id == DiskActivityHotKeyId)
+            {
+                ToggleDiskActivityAudio();
+                return true;
+            }
             if (id == ShowHideHotKeyId)
             {
                 LogMessage("Debug", "Show/hide hotkey pressed.");
@@ -162,6 +170,8 @@ public sealed partial class SensorReadoutForm : Form
             return;
         }
 
+        CheckDiskActivityDeviceChange(m);
+        CheckSensorChangeNotification(m);
         base.WndProc(ref m);
     }
 
@@ -839,6 +849,7 @@ public sealed partial class SensorReadoutForm : Form
                 ProjectUrl + Environment.NewLine + Environment.NewLine +
                 T("ui.Created by Codex.", "Created by Codex.") + Environment.NewLine +
                 T("ui.Ideas by Andre Louis.", "Ideas by Andre Louis.") + Environment.NewLine +
+                T("ui.Disk activity sound idea credit", "Thanks to Kara Goldfinch for inspiring Disk Activity Sounds.") + Environment.NewLine +
                 T("ui.Contributor thanks", "A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better.") + Environment.NewLine + Environment.NewLine +
                 T("ui.Bundled and referenced components:", "Bundled and referenced components:") + Environment.NewLine +
                 T("ui.Bundled components list", "LibreHardwareMonitorLib, Newtonsoft.Json, PawnIO, HidSharp, DiskInfoToolkit, RAMSPDToolkit, BlackSharp.Core, Prism screen reader library, Tolk screen reader library, usb.ids, and Microsoft .NET Framework support libraries.")

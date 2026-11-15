@@ -4,6 +4,8 @@ public sealed partial class SensorReadoutForm : Form
 {
     protected override void Dispose(bool disposing)
     {
+        if (disposing) StopSensorChangeNotifications();
+
         if (disposing && lhmComputer != null)
         {
             lhmComputer.Close();

@@ -174,6 +174,7 @@ public sealed partial class SensorReadoutForm : Form
         }
         StopEmbeddedRemoteServer();
         StopAudioLatencyForShutdown();
+        StopDiskActivityForShutdown();
         HideTrayIconBeforeExit();
         PlaySoundFileSync(settings.ShutdownSoundFile);
         base.OnFormClosing(e);

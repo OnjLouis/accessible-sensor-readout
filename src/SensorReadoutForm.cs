@@ -8,7 +8,7 @@ using LibreHardwareMonitor.Hardware;
 
 public sealed partial class SensorReadoutForm : Form
 {
-    public const string AppVersion = "6.5.2";
+    public const string AppVersion = "6.6.0";
     private const string ProjectUrl = "https://github.com/OnjLouis/accessible-sensor-readout";
     private const string DefaultLanguageFileName = "English.txt";
     private const long MaxLogBytes = 262144;
@@ -36,6 +36,7 @@ public sealed partial class SensorReadoutForm : Form
     private static bool wmiTelemetryEnabled;
     private const int ShowHideHotKeyId = 2001;
     private const int SpeakTrayHotKeyId = 2002;
+    private const int DiskActivityHotKeyId = 2003;
     private const int SpokenHotKeyBaseId = 2100;
     private const int FanProfileHotKeyBaseId = 2200;
     private const int WmHotKey = 0x0312;
@@ -417,13 +418,22 @@ public sealed partial class SensorReadoutForm : Form
         audioLatencyMonitorMenuItem.Available = false;
         audioLatencyMonitorMenuItem.Click += delegate { ShowAudioLatencyLiveMonitor(); };
         optionsMenu.DropDownItems.Add(audioLatencyMonitorMenuItem);
+        const string diskActivityMenuCaption = "D&isk activity sounds...";
+        var diskActivityMenuItem = CreateShortcutMenuItem(T("diskAudio.menu", diskActivityMenuCaption),
+            Keys.Control | Keys.Shift | Keys.K, delegate { ShowDiskActivityDialog(); });
+        optionsMenu.DropDownItems.Add(diskActivityMenuItem);
         remoteComputersMenuItem = CreateShortcutMenuItem("Remote &computers...", Keys.Control | Keys.Shift | Keys.R, delegate { ShowRemoteMonitoringDialog(); });
         optionsMenu.DropDownItems.Add(remoteComputersMenuItem);
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("&Fan controls...", Keys.Control | Keys.L, delegate { ShowFanControlsDialog(); }));
         optionsMenu.DropDownItems.Add(CreateShortcutMenuItem("Fan cur&ves...", Keys.Control | Keys.U, delegate { ShowFanCurvesDialog(); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Spoken feedback...", "", delegate { ShowPreferences("Spoken feedback"); }));
         optionsMenu.DropDownItems.Add(CreateDisplayShortcutMenuItem("&Preferences...", "Ctrl+,", delegate { ShowPreferences(); }));
-        optionsMenu.DropDownOpening += delegate { UpdateProcessWatchMenuItem(); UpdateAudioLatencyMenuItem(); };
+        optionsMenu.DropDownOpening += delegate
+        {
+            UpdateProcessWatchMenuItem();
+            UpdateAudioLatencyMenuItem();
+            diskActivityMenuItem.Text = WithShortcutText(T("diskAudio.menu", diskActivityMenuCaption), diskActivityMenuItem.ShortcutKeyDisplayString);
+        };
 
         hotkeysMenu = new ToolStripMenuItem("Hot&keys");
         BuildHotkeysMenu();
@@ -762,6 +772,9 @@ public sealed partial class SensorReadoutForm : Form
             timer.Start();
             languageTimer.Start();
             RegisterGlobalHotKeys();
+            RegisterDiskActivityDeviceNotifications();
+            RegisterSensorChangeNotifications();
+            if (settings.DiskActivityListening) StartDiskActivityAudio(false);
             StartAutomaticUpdateChecks();
             if (startMinimizedRequested || settings.StartMinimizedToTray)
             {

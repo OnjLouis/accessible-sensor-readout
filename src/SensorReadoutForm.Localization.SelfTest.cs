@@ -57,7 +57,7 @@ public sealed partial class SensorReadoutForm
                     var text = FindControls<TextBox>(about.Controls).Single();
                     Require(about.Text == StripMenuMnemonic(L("ui.About Sensor Readout", "About Sensor Readout")), "About title was not translated.");
                     Require(text.AccessibleName == L("a11y.About Sensor Readout text", "About Sensor Readout text"), "About accessible name was not translated.");
-                    foreach (var key in new[] { "Created by Codex.", "Ideas by Andre Louis.", "Contributor thanks", "Bundled and referenced components:", "Bundled components list" })
+                    foreach (var key in new[] { "Created by Codex.", "Ideas by Andre Louis.", "Disk activity sound idea credit", "Contributor thanks", "Bundled and referenced components:", "Bundled components list" })
                         Require(text.Text.Contains(L("ui." + key, "missing-about-translation")), "About text was not translated: " + key);
                     Require(text.Text.Contains(ProjectUrl) && text.Text.Contains(AppVersion), "About lost the project URL or version.");
                     try { RequireUniqueControlMnemonics("Localized About " + choice.FileName, about.Controls); }
@@ -80,6 +80,19 @@ public sealed partial class SensorReadoutForm
                     // Run the real opening handlers without showing a desktop menu.
                     typeof(ToolStripDropDownItem).GetMethod("OnDropDownShow", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                         .Invoke(menu, new object[] { EventArgs.Empty });
+                    if (menu == menuStrip.Items[3])
+                    {
+                        var diskActivity = menu.DropDownItems.OfType<ToolStripMenuItem>()
+                            .Single(item => item.ShortcutKeys == (Keys.Control | Keys.Shift | Keys.K));
+                        var caption = T("diskAudio.menu", "");
+                        char key;
+                        Require(caption.Length != 0 && MenuLabelForLanguageTest(diskActivity.Text) == StripMenuMnemonic(caption),
+                            "Reopened Disk activity sounds command was not translated: " + choice.FileName);
+                        Require(TryGetMnemonicKey(diskActivity.Text.Split('\t')[0], out key) && key != '\0',
+                            "Disk activity sounds needs an Options menu mnemonic: " + choice.FileName);
+                        if (choice.FileName == "English.txt")
+                            Require(key == 'I', "The English Disk activity sounds menu shortcut must match the manual.");
+                    }
                     try { RequireUniqueMenuMnemonics("Localized menu " + choice.FileName + ": " + menu.Text, menu.DropDownItems); }
                     catch (InvalidOperationException error) { mnemonicErrors.Add(error.Message); }
                 }

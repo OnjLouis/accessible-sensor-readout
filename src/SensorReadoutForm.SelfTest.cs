@@ -76,6 +76,8 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Bulk GPU counter sampling", SelfTestGpuCounterSampling);
             form.RunSelfTestStep(results, "Process watch report", delegate { form.SelfTestProcessWatchReport(); });
             form.RunSelfTestStep(results, "Audio latency aggregation and privacy", delegate { form.SelfTestAudioLatencyAggregationAndPrivacy(); });
+            form.RunSelfTestStep(results, "Disk activity mix, settings and event coalescing", SelfTestDiskActivityAudio);
+            form.RunSelfTestStep(results, "Storage, power and network change refresh", SelfTestSensorChangeRefresh);
             form.RunSelfTestStep(results, "Crash log writing", delegate { form.SelfTestCrashLogWriting(); });
             form.RunSelfTestStep(results, "Installed app registration", delegate { form.SelfTestInstalledAppRegistration(outputFolder); });
             form.RunSelfTestStep(results, "Startup ownership and explicit changes", delegate { form.SelfTestStartupOwnership(); });

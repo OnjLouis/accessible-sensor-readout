@@ -8,7 +8,7 @@
 <body>
 <main>
 <h1>Sensor Readout</h1>
-<p>Wersja programu: 6.5.2.</p>
+<p>Wersja programu: 6.6.0.</p>
 <p>Polski podręcznik rozszerzony na podstawie materiałów przesłanych przez Pawła Podolskiego. Materiał jest opracowaniem społecznościowym i nie każda funkcja została przetestowana w działającym programie z NVDA. W razie rozbieżności sprawdź także <a href="README-en.html">aktualny podręcznik angielski</a>.</p>
 <p>Polski podręcznik rozszerzony</p>
 <p>Obsługa programu, klawiatura i NVDA, diagnostyka, raporty, monitorowanie zdalne, administracja Linux i wtyczki.</p>
@@ -40,6 +40,7 @@
 <li class="subsection"><a href="#15-kategorie-i-interpretowanie-odczytow">15. Kategorie i interpretowanie odczytów</a></li>
 <li class="subsection"><a href="#16-zdalne-monitorowanie">16. Zdalne monitorowanie</a></li>
 <li class="subsection"><a href="#17-network-tools-narzedzia-sieciowe">17. Network Tools: narzędzia sieciowe</a></li>
+<li class="subsection"><a href="#disk-activity-sounds">Dźwięki aktywności dysków</a></li>
 <li class="subsection"><a href="#18-audio-latency-diagnostyka-opoznien-dzwieku">18. Audio Latency: diagnostyka opóźnień dźwięku</a></li>
 <li class="subsection"><a href="#19-wentylatory-sterowanie-krzywe-i-profile">19. Wentylatory: sterowanie, krzywe i profile</a></li>
 <li class="subsection"><a href="#20-pena-diagnostyka-i-pakiet-wsparcia">20. Pełna diagnostyka i pakiet wsparcia</a></li>
@@ -90,6 +91,7 @@
 <li class="subsection"><a href="#58-licencja-mit-przekad-informacyjny">58. Licencja MIT: przekład informacyjny</a></li>
 </ul></nav>
 <h2 id="changelog">Zmiany w tej wersji</h2>
+<h3>6.6.0</h3><ul><li>Dodano dźwięki odczytu i zapisu dla dysków fizycznych z regulacją głośności, panoramy i trzech pasm oraz globalnym skrótem. Dziękujemy Kara Goldfinch za pomysł.</li><li>Ulepszono: odczyty dysków, baterii i sieci szybciej reagują na zmiany dysków, zasilania i połączeń bez zwiększania częstotliwości zwykłego odświeżania.</li></ul>
 <h3>6.5.2</h3><ul><li>Ulepszono: mniejsze użycie procesora podczas monitorowania aktywności GPU, przy zachowaniu aktualnych odczytów, skrótów głosowych i obserwacji procesów.</li><li>Poprawiono: podsumowania procesów najbardziej obciążających CPU, pamięć i GPU są teraz aktualizowane zgodnie z ustawionym interwałem, również gdy Sensor Readout działa w obszarze powiadomień.</li></ul>
 <h3>6.5.1</h3><ul><li>Poprawiono: menu, okno informacji o programie, komunikaty instalacji, polecenia skrótów oraz dostępne nazwy kontrolek używają teraz wybranego języka także po ponownym otwarciu menu lub zmianie języka. Poprawiono francuskie sformułowania i brakujące tłumaczenia. Rozwiązuje <a href="https://github.com/OnjLouis/accessible-sensor-readout/issues/27">zgłoszenie #27</a>.</li></ul>
 <h3>6.5.0</h3><p>Dodano: lista procesów w oknie obserwacji może otwierać lokalizację wybranego pliku za pomocą Alt+Enter lub menu kontekstowego, jeśli ścieżka pliku wykonywalnego jest dostępna. Enter nadal rozpoczyna skonfigurowaną obserwację.</p>
@@ -379,6 +381,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Dokumentacja dla autorów rozszerzeń znajduje się w repozytorium jako Docs\Plug-In-development.md. Nie trzeba jej czytać, aby używać dostarczonych wtyczek.</p>
 <p>Pełny polski podręcznik tworzenia wtyczek, opis bieżącego SDK i zasady dla agentów programujących znajdują się w dalszych częściach niniejszego dokumentu. Nie są już wyłączone z zakresu opracowania.</p>
 <h3 id="15-kategorie-i-interpretowanie-odczytow">15. Kategorie i interpretowanie odczytów</h3>
+<p>Jeśli automatyczne odświeżanie jest włączone, powiadomienia Windows mogą odświeżać listę dysków, odczyty baterii i stan kart sieciowych po zmianie odpowiedniego połączenia. Procesor, GPU i pozostałe odczyty zachowują swój zwykły harmonogram. Wstrzymanie oraz ustawienie odświeżania w aktywnym oknie nadal obowiązują.</p>
 <p>W Wydajność/Przegląd grupa Windows pokazuje nazwę aktualizacji funkcji, na przykład <code>25H2</code>, oddzielnie od numerycznej wersji i kompilacji, jeśli system Windows podaje tę wartość.</p>
 <p>Panel odczytów jest drzewem. Wybierz kategorię na liście po lewej i naciśnij Tab, aby przejść do jej danych po prawej. Najpierw są grupy urządzeń lub zastosowań, potem pojedyncze odczyty; czytnik nie musi dzięki temu powtarzać pełnej nazwy urządzenia przed każdą wartością. [S1, S2]</p>
 <p>Widoczność i kolejność ustala Preferences &gt; Categories lub bezpośrednio Delete, Ctrl+góra, Ctrl+dół i menu kontekstowe na głównej liście. Zmiana kategorii zmienia tylko widok: nie włącza ani nie wyłącza urządzeń. Domyślny start to Performance/Overview. Nie ma jednej strony łączącej wszystkie odczyty.</p>
@@ -448,6 +451,25 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Options &gt; Network tools albo Ctrl+Shift+T pozwala sprawdzić adres IP lub nazwę hosta. Program rozwiązuje DNS, klasyfikuje IPv4 i IPv6, próbuje odwrotnego DNS i opcjonalnie wysyła cztery żądania ping, pokazując opóźnienie i utratę pakietów. Po wpisaniu IP, jeżeli odwrotny DNS zwróci nazwę, rozwiązuje także tę nazwę i w osobnej gałęzi pokazuje związane z nią IPv4 i IPv6. [S1, S2]</p>
 <p>Dla każdego publicznego adresu może pokazać dostawcę, organizację, system autonomiczny, rodzaj połączenia i przybliżoną lokalizację. Korzysta z tej samej usługi internetowej co Network.</p>
 <p>Narzędzie działa wyłącznie na żądanie. Adresów prywatnych, lokalnych, loopback, link-local i specjalnego przeznaczenia nie wysyła do internetowej usługi metadanych. Nie mierzy prędkości łącza, nie skanuje portów, nie odpytuje w tle i nie prowadzi historii zapytań. Brak odpowiedzi ping nie dowodzi niedostępności hosta, bo niektóre systemy i sieci blokują ping.</p>
+<h3 id="disk-activity-sounds">Dźwięki aktywności dysków</h3>
+<p>Dźwięki aktywności dysków pozwalają usłyszeć pracę lokalnych dysków bez śledzenia odczytów na ekranie. Odczyt jest sygnalizowany wyższym kliknięciem, a zapis niższym. Na przykład przy kopiowaniu plików pomiędzy dwoma fizycznymi dyskami można ustawić dysk źródłowy po lewej, a docelowy po prawej. Różne litery przypisane do tego samego fizycznego dysku korzystają z tych samych ustawień dźwięku.</p>
+<h4>Jak rozpocząć nasłuch</h4>
+<ol>
+<li>Wybierz <strong>Opcje &gt; Dźwięki aktywności dysków</strong> lub naciśnij <kbd>Ctrl+Shift+K</kbd>.</li>
+<li>Wybierz dysk według litery lub modelu i zaznacz <strong>Włącz ten dysk</strong>. Powtórz dla pozostałych dysków, które chcesz słyszeć.</li>
+<li>Wybierz <strong>Uruchom</strong>. Możesz zamknąć okno i dalej pracować, a nasłuch będzie działał. Aby wyłączyć kliknięcia, ponownie otwórz okno i wybierz <strong>Zatrzymaj</strong>.</li>
+</ol>
+<h4>Jak ustawić dźwięk dysku</h4>
+<p>Wybierz dysk, którego dźwięk chcesz zmienić. Zmiany są słyszalne od razu, a przycisk <strong>Zamknij</strong> zachowuje ustawienia.</p>
+<ul>
+<li><strong>Głośność:</strong> ustala poziom dźwięku dysku względem pozostałych.</li>
+<li><strong>Panorama:</strong> umieszcza kliknięcia w przestrzeni stereo. 0 oznacza skrajną lewą stronę, 50 środek, a 100 skrajną prawą stronę.</li>
+<li><strong>Basy, tony średnie i wysokie:</strong> zmieniają barwę dźwięku. Przy 50% pasmo pozostaje bez zmian; niższe wartości je tłumią, a wyższe podbijają. W ustawieniach głośności i korektora strzałki w górę i w dół zmieniają wartość o jeden punkt, a Page Up i Page Down o dziesięć.</li>
+</ul>
+<p>Wybierz <strong>Odsłuch odczytu</strong> lub <strong>Odsłuch zapisu</strong>, aby usłyszeć dziesięć kliknięć z aktualnymi ustawieniami, nawet gdy dysk jest bezczynny. Przytrzymaj <kbd>Spację</kbd> lub lewy przycisk myszy, aby powtarzać próbkę. <strong>Przywróć miks</strong> przywraca domyślną głośność, panoramę i korekcję wybranego dysku bez wyłączania go.</p>
+<h4>Nasłuch w tle</h4>
+<p>Przypisz <strong>Globalny skrót klawiszowy</strong>, aby włączać lub wyłączać nasłuch również wtedy, gdy Sensor Readout jest w obszarze powiadomień. W ustawieniu <strong>Potwierdzenie startu i zatrzymania</strong> wybierz komunikat głosowy lub dźwięk WAV. Sensor Readout pamięta stan nasłuchu przy następnym uruchomieniu.</p>
+<p>Podłączenie innych urządzeń USB nie przerywa nasłuchu. Po podłączeniu lub odłączeniu fizycznego dysku lista monitorowanych dysków aktualizuje się automatycznie. Zdarzenia dyskowe nie są zapisywane ani wysyłane. Funkcja wymaga systemu Windows 8 lub nowszego.</p>
 <h3 id="18-audio-latency-diagnostyka-opoznien-dzwieku">18. Audio Latency: diagnostyka opóźnień dźwięku</h3>
 <p>Kategoria Audio Latency pokazuje ostatni jawnie uruchomiony test. Options &gt; Audio latency diagnostic albo Ctrl+Shift+D otwiera konfigurację czasu. Następnie odtwórz czynność powodującą przerwę, trzask, opóźnioną reakcję lub inny problem. Program zbiera czasy DPC i procedur obsługi przerwań, przypisania do sterowników, twarde błędy stronicowania według procesów i utracone zdarzenia śledzenia. [S1, S2]</p>
 <p>Opcjonalny monitor na żywo pokazuje osobne wykresy historii DPC i ISR, ostatni jednosekundowy przedział, szczyty z ostatnich 60 sekund i podsumowanie całego testu. Aktualizuje wartości w miejscu co sekundę, zachowując stabilny fokus klawiatury i czytnika.</p>
@@ -1499,6 +1521,7 @@ namespace Example
 <p>Włączaj tylko zaufane wtyczki. Skanowanie kodu i sekretów jest dodatkową kontrolą, nie gwarancją bezpieczeństwa. Automatyczne alerty zależności obejmują tylko rozpoznawane zależności; dołączone biblioteki wymagają również ręcznego przeglądu.</p>
 <h3 id="54-podziekowania-i-skadniki">54. Podziękowania i składniki</h3>
 <p>Oryginalna dokumentacja podaje: „Created by Codex. Ideas by Andre Louis”, czyli wykonanie przy użyciu Codex, pomysły Andre Louisa. Autor dziękuje wszystkim zgłaszającym problemy i propozycje zmian przez GitHub: pomagają ulepszać Sensor Readout. [S1, S2]</p>
+<p>Dziękujemy Kara Goldfinch za pomysł dźwięków aktywności dysków.</p>
 <p>Pytania i uwagi można przekazać przez Help &gt; Contact albo stronę kontaktową Andre Louisa. Program jest bezpłatny; dobrowolne wsparcie jest dostępne przez Help &gt; Donate i stronę PayPal autora. Portugalskie tłumaczenie i podręcznik przygotował Vitor Ferreira.</p>
 <p>Projekt korzysta z następujących składników lub je dołącza: LibreHardwareMonitor: czujniki sprzętowe; PawnIO i PawnIO.Setup: dostęp niskiego poziomu do obsługiwanej płyty; Newtonsoft.Json: konfiguracja; HidSharp: HID przez LibreHardwareMonitor; DiskInfoToolkit: dane nośników; RAMSPDToolkit: dane SPD pamięci; BlackSharp.Core: zależności LibreHardwareMonitor.</p>
 <p>Prism jest preferowaną biblioteką mowy czytników, Tolk: zastępczą. Microsoft TraceEvent służy do jawnie uruchamianego śledzenia ETW w Audio Latency. Framework Control udostępnia lokalne API obsługiwanych laptopów. Badania ACPI G-Helper stanowią część podstawy wtyczki ASUS.</p>

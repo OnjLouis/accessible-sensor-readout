@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.5.2.
+Current version: 6.6.0.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -460,6 +460,8 @@ For developers, the GitHub source tree includes `Docs\Plug-In-development.md`.
 
 ## Categories and Readings
 
+When automatic refresh is on, Windows notifications can refresh storage inventory, battery readings and network adapter status as soon as the relevant connection changes. CPU, GPU and other unrelated readings keep their normal schedule. Pause and the Refresh while focused setting still apply.
+
 Storage shows the file system and volume type for ready local drives, plus persistent mapped network drives with connection status, provider, remote location, and capacity when Windows exposes it. `Mapped` means Windows has stored the persistent mapping but has not exposed a reliable live connection state to Sensor Readout. SMART and Details can expose Windows disk, partition, and volume metadata such as partition style and count, allocation, sector sizes, firmware, serial number, health, access paths, and hidden or recovery partitions. For unmounted partitions, Sensor Readout can identify APFS and EXT2/EXT3/EXT4 and read limited container or superblock metadata when Windows permits read-only raw access. It does not mount those file systems, change disks, or inspect file contents; APFS support is currently container-level rather than a replacement for macOS Disk Utility.
 
 The readings pane is a tree view. Choose a category from the list on the left, then press `Tab` to move into that category's readings on the right. Categories group readings by device or purpose first, then list individual readings underneath, so screen readers do not have to announce a long device name before every value.
@@ -533,6 +535,14 @@ The relay keeps one encrypted checkpoint so computers remain visible across serv
 Use `Options` > `Network tools...` or `Ctrl+Shift+T` to look up an IP address or host name. Sensor Readout resolves DNS, classifies IPv4 and IPv6 addresses, attempts reverse DNS, and can send four ping requests to show latency and packet loss. When you enter a literal IP address and reverse DNS returns a host name, Sensor Readout also resolves that name and lists its related IPv4 and IPv6 addresses in a separate branch. For each resolved public address, it can show provider, organization, autonomous system, connection type, and approximate location inside that address's branch, using the same online lookup service as the Network category.
 
 Network Tools runs only when you request it. Private, local, loopback, link-local, and special-use addresses are not sent to the online metadata service. It does not test connection speed, scan ports, poll in the background, or keep a query history. A missing ping reply does not prove that a host is offline because some systems and networks block ping.
+
+## Disk Activity Sounds
+
+Open Options > Disk activity sounds (`Ctrl+Shift+K`). Select a physical disk by drive letter or model. Start listening and adjust the sliders to hear the changes on the next clicks. Pan is 0 hard left, 50 center and 100 hard right. In EQ, 50% is neutral; lower values cut and higher values boost each band. Tap Preview Read or Preview Write for ten clicks with the current mix, or hold Space or the left mouse button to repeat until released. Reset mix to defaults restores only the selected disk's volume, pan and EQ. Close keeps the changes. The optional global toggle is separate from the dialog shortcut. Under Start/stop feedback, choose Spoken or a WAV sound. Sensor Readout remembers whether listening was on or off and resumes without toggle feedback. Only local physical disks are monitored; events are not saved or transmitted. Windows 8 or later is required.
+
+Press `F1` on a control for its own help. In Volume and EQ, Up and Down adjust by one percentage point; Page Up and Page Down adjust by ten points. Pan is unchanged.
+
+Connecting other USB devices does not stop listening. When a physical disk is connected or removed, Sensor Readout refreshes its disk list for playback automatically.
 
 ## Audio Latency Diagnostic
 
@@ -774,6 +784,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.6.0
+
+- Added: Disk activity sounds give local physical disks distinct read and write clicks with per-disk volume, stereo pan and three-band EQ. A configurable global hotkey toggles listening. Thanks to Kara Goldfinch for the idea.
+- Improved: Storage, battery and network readings react sooner to drive, power-source and network connection changes without speeding up the normal refresh.
 
 ### 6.5.2
 
@@ -1519,6 +1534,8 @@ Sensor Readout only reads these optional support paths unless a plug-in clearly 
 ## Credits
 
 Created by Codex. Ideas by Andre Louis.
+
+Thanks to Kara Goldfinch for inspiring Disk Activity Sounds.
 
 A huge thanks to everyone who has submitted a GitHub issue or pull request. You have helped make Sensor Readout better.
 

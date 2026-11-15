@@ -515,7 +515,7 @@ public sealed partial class SensorReadoutForm : Form
         box.MouseUp += delegate { box.Select(0, box.Text.Length); };
     }
 
-    private static void PopulateProcessWatchSoundBox(ComboBox soundBox, string selectedFile)
+    private static void PopulateProcessWatchSoundBox(ComboBox soundBox, string selectedFile, string defaultLabel = null)
     {
         if (soundBox == null)
         {
@@ -523,7 +523,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         soundBox.Items.Clear();
-        soundBox.Items.Add(T("ui.(None)", "(None)"));
+        soundBox.Items.Add(defaultLabel ?? T("ui.(None)", "(None)"));
         foreach (var sound in LoadSoundFileNames())
         {
             soundBox.Items.Add(sound);

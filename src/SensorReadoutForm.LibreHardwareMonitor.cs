@@ -305,6 +305,7 @@ public sealed partial class SensorReadoutForm : Form
 
                 output.Add(new SensorRow
                 {
+                    ChangeSection = usedSpace.ChangeSection,
                     Type = usedSpace.Type,
                     Hardware = usedSpace.Hardware,
                     Name = "Used space",

@@ -45,6 +45,12 @@ public sealed partial class SensorReadoutForm : Form
 
     private IEnumerable<SensorRow> GetNetworkRows()
     {
+        return MarkSensorChangeRows(GetNetworkAdapterRows(true), SensorChange.Network)
+            .Concat(BuildInternetIpRows()).Concat(BuildListeningPortRows());
+    }
+
+    private IEnumerable<SensorRow> GetNetworkAdapterRows(bool advanceRateSample)
+    {
         var rows = new List<SensorRow>();
         var wifiInterfaces = GetWifiInterfaceInfos();
         foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces())
@@ -80,7 +86,7 @@ public sealed partial class SensorReadoutForm : Form
                     sendRate = Math.Max(0, stats.BytesSent - previous.BytesSent) / seconds;
                 }
 
-                networkSnapshots[id] = new NetworkSnapshot
+                if (advanceRateSample) networkSnapshots[id] = new NetworkSnapshot
                 {
                     BytesReceived = stats.BytesReceived,
                     BytesSent = stats.BytesSent,
@@ -131,8 +137,6 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        rows.AddRange(BuildInternetIpRows());
-        rows.AddRange(BuildListeningPortRows());
         return rows;
     }
 

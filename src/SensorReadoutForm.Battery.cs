@@ -66,7 +66,17 @@ public sealed partial class SensorReadoutForm : Form
                 });
             }
 
-            rows.AddRange(GetBatteryTimeRows(battery, wmi, hardware, i, "Battery", hardware, details));
+            var remainingTimeRows = GetBatteryTimeRows(battery, wmi, hardware, i, "Battery", hardware, details).ToList();
+            rows.AddRange(remainingTimeRows);
+            foreach (var time in remainingTimeRows)
+            {
+                var overview = CloneSensorRow(time);
+                overview.Type = "Performance";
+                overview.Hardware = "Overview";
+                overview.Name = "Battery " + char.ToLowerInvariant(time.Name[0]) + time.Name.Substring(1);
+                AddDetail(overview.Details, "Battery", hardware);
+                rows.Add(overview);
+            }
             AddBatteryCapacityRows(rows, battery, hardware, i, details);
             if (battery.CycleCount > 0)
             {
@@ -116,35 +126,6 @@ public sealed partial class SensorReadoutForm : Form
 
         rows.AddRange(GetWindowsPowerMeterRows(diagnosticsMode));
         rows.AddRange(GetDeviceBatteryRows(diagnosticsMode));
-        return rows;
-    }
-
-    private static IEnumerable<SensorRow> GetBatteryOverviewRows()
-    {
-        var rows = new List<SensorRow>();
-        var batteries = GetNativeBatteryInfo();
-        var wmiInfo = ReadWmiBatteryInfo();
-        for (var i = 0; i < batteries.Count; i++)
-        {
-            var battery = batteries[i];
-            WmiBatteryInfo wmi;
-            if (!wmiInfo.TryGetValue(i, out wmi))
-            {
-                wmi = null;
-            }
-
-            var details = BuildBatteryDetails(battery, wmi, i);
-            var hardware = string.IsNullOrWhiteSpace(battery.Name) ? "Battery " + (i + 1) : battery.Name;
-            rows.AddRange(GetBatteryTimeRows(battery, wmi, "Overview", i, "Performance", hardware, details)
-                .Select(r =>
-                {
-                    r.Name = r.Name.StartsWith("Battery ", StringComparison.OrdinalIgnoreCase)
-                        ? r.Name
-                        : "Battery " + char.ToLowerInvariant(r.Name[0]) + r.Name.Substring(1);
-                    return r;
-                }));
-        }
-
         return rows;
     }
 

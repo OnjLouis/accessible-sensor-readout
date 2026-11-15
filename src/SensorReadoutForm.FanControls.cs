@@ -201,7 +201,7 @@ public sealed partial class SensorReadoutForm : Form
         RefreshSensors(true, true, "manual");
     }
 
-    private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason)
+    private void RefreshSensors(bool updateInteractiveUi, bool refreshSlowRows, string reason, bool eventOnly = false)
     {
         if (refreshInProgress && !TrySupersedeStalledRefresh())
         {
@@ -213,13 +213,28 @@ public sealed partial class SensorReadoutForm : Form
         var generation = ++refreshGeneration;
         refreshInProgress = true;
         refreshInProgressSinceAwakeMs = ReadAwakeMilliseconds();
-        if (updateInteractiveUi)
+        if (updateInteractiveUi && !eventOnly)
         {
             statusLabel.Text = T("status.refreshingSensors", "Refreshing sensors...");
         }
 
         var backgroundRefresh = IsMinimizedOrHidden();
-        Task.Factory.StartNew(new Func<List<SensorRow>>(() => CollectSensorRows(refreshSlowRows, backgroundRefresh)))
+        var changedSections = readySensorChanges;
+        readySensorChanges = SensorChange.None;
+        var previousRows = eventOnly ? localRows.ToList() : null;
+        Task.Run(() =>
+        {
+            lock (sensorCollectionLock)
+            {
+                if (eventOnly) return CollectChangedSensorRows(changedSections, previousRows);
+                if ((changedSections & SensorChange.Storage) != 0)
+                {
+                    if (refreshSlowRows) cachedStorageTopologyDetailsUtc = DateTime.MinValue;
+                    else RefreshWindowsStorageInventory();
+                }
+                return CollectSensorRowsCore(refreshSlowRows, backgroundRefresh, false);
+            }
+        })
             .ContinueWith(delegate(Task<List<SensorRow>> task)
             {
                 try
@@ -280,9 +295,12 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         SetLatestRows(rows);
                     }
-                    LogTrendRows(rows);
-                    MigrateLegacyStoragePerformanceSettings();
-                    TryApplySavedFanControlsOnStartupAsync(rows);
+                    if (!eventOnly)
+                    {
+                        LogTrendRows(rows);
+                        MigrateLegacyStoragePerformanceSettings();
+                        TryApplySavedFanControlsOnStartupAsync(rows);
+                    }
                     if (updateInteractiveUi && openPreferencesDialog != null && !openPreferencesDialog.IsDisposed)
                     {
                         openPreferencesDialog.UpdateSensorRows(rows);
@@ -302,17 +320,17 @@ public sealed partial class SensorReadoutForm : Form
                     {
                         UpdateTrayStatus();
                     }
-                    CheckAlarms(rows);
+                    CheckAlarms(eventOnly ? rows.Where(row => (row.ChangeSection & changedSections) != 0).ToList() : rows);
 
-                    if (remoteViewMode)
+                    if (!eventOnly && remoteViewMode)
                     {
                         UpdateRemoteStatusText();
                     }
-                    else if (rows.Count == 0)
+                    else if (!eventOnly && rows.Count == 0)
                     {
                         statusLabel.Text = T("status.noSensorRows", "No sensor rows returned yet.");
                     }
-                    else
+                    else if (!eventOnly)
                     {
                         var sources = string.Join(", ", rows.Select(r => r.Source).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray());
                         statusLabel.Text = BuildRefreshStatus(rows, sources);
@@ -349,12 +367,14 @@ public sealed partial class SensorReadoutForm : Form
                         refreshStallReported = false;
                     }
 
-                    if (!IsDisposed && !reportViewMode && task.Status == TaskStatus.RanToCompletion)
+                    if (!eventOnly && !IsDisposed && !reportViewMode && task.Status == TaskStatus.RanToCompletion)
                     {
                         ApplyFanCurvesAsync(task.Result);
                     }
 
+                    var fullRefreshPending = pendingRefreshRequested;
                     RunPendingRefreshIfNeeded();
+                    if (!fullRefreshPending && !IsDisposed) TryRefreshChangedSensors();
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
     }
@@ -572,14 +592,14 @@ public sealed partial class SensorReadoutForm : Form
         AddTimedRowsWithTimeout(rows, refreshSlowRows ? "LibreHardwareMonitorFull" : "LibreHardwareMonitorLive", () => GetLibreHardwareMonitorSensors(refreshSlowRows), GetCachedLibreHardwareMonitorRowsSnapshot, refreshSlowRows ? 20000 : 2000, timings);
         AddTimedRows(rows, "CoreTemp", GetCoreTempRows, timings);
         AddTimedRows(rows, "OemProviders", () => GetOemProviderRows(diagnosticsMode, backgroundRefresh), timings);
-        AddTimedRows(rows, "Battery", () => GetBatteryRows(diagnosticsMode), timings);
+        AddTimedRows(rows, "Battery", () => MarkSensorChangeRows(GetBatteryRows(diagnosticsMode), SensorChange.Power), timings);
         AddTimedRows(rows, "SystemUptime", GetSystemUptimeRows, timings);
         AddTimedRows(rows, refreshSlowRows ? "SlowRowsRefresh" : "SlowRowsCached", () => GetCachedSlowRows(refreshSlowRows), timings);
 
         AddTimedRows(rows, "SystemPerformance", () => GetSystemPerformanceRows(backgroundRefresh), timings);
         AddTimedRows(rows, "GpuPerformance", () => GetGpuPerformanceRows(backgroundRefresh), timings);
-        AddTimedRows(rows, "LogicalDiskSpace", GetWindowsLogicalDiskRows, timings);
-        AddTimedRows(rows, "LogicalDiskPerformance", GetLogicalDiskPerformanceRows, timings);
+        AddTimedRows(rows, "LogicalDiskSpace", () => MarkSensorChangeRows(GetWindowsLogicalDiskRows(), SensorChange.Storage), timings);
+        AddTimedRows(rows, "LogicalDiskPerformance", () => MarkSensorChangeRows(GetLogicalDiskPerformanceRows(), SensorChange.Storage), timings);
         AddTimedRows(rows, "Network", GetNetworkRows, timings);
         AddTimedRows(rows, "Tasks", () => GetTaskRows(refreshSlowRows, backgroundRefresh), timings);
         AddTimedRows(rows, "AudioLatency", GetAudioLatencyRows, timings);
@@ -592,14 +612,7 @@ public sealed partial class SensorReadoutForm : Form
             .GroupBy(s => SensorDeduplicationKey(s))
             .Select(g => g.First())
             .ToList());
-        var spokenHotKeyRows = BuildSpokenHotKeyCategoryRows(result);
-        result = AddDataSourceSummaryRows(result)
-            .OrderBy(s => TypeSortIndex(s.Type))
-            .ThenBy(s => s.Hardware)
-            .ThenBy(s => ReadingSortIndex(s.Name))
-            .ThenBy(s => s.Name)
-            .ToList();
-        result.AddRange(spokenHotKeyRows);
+        result = FinishSensorRows(result);
         totalStopwatch.Stop();
         LogWmiProviderProcessSnapshot();
         if (totalStopwatch.ElapsedMilliseconds >= 1000)
@@ -736,7 +749,7 @@ public sealed partial class SensorReadoutForm : Form
             }
         }
 
-        var rows = GetWindowsSmartRows()
+        var rows = MarkSensorChangeRows(GetWindowsSmartRows(), SensorChange.Storage)
             .Concat(GetUsbRowsWithDiagnostics())
             .Concat(GetBluetoothRows())
             .Concat(GetAudioRows())
@@ -758,6 +771,18 @@ public sealed partial class SensorReadoutForm : Form
         return rows;
     }
 
+    private List<SensorRow> FinishSensorRows(List<SensorRow> rows)
+    {
+        var spokenHotKeyRows = BuildSpokenHotKeyCategoryRows(rows);
+        var sorted = AddDataSourceSummaryRows(rows)
+            .OrderBy(s => TypeSortIndex(s.Type))
+            .ThenBy(s => s.Hardware)
+            .ThenBy(s => ReadingSortIndex(s.Name))
+            .ThenBy(s => s.Name).ToList();
+        sorted.AddRange(spokenHotKeyRows);
+        return sorted;
+    }
+
     private static SensorRow CloneSensorRow(SensorRow row)
     {
         if (row == null)
@@ -767,6 +792,7 @@ public sealed partial class SensorReadoutForm : Form
 
         return new SensorRow
         {
+            ChangeSection = row.ChangeSection,
             Type = row.Type,
             Hardware = row.Hardware,
             Name = row.Name,

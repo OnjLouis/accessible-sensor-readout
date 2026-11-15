@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 
 public sealed class SensorRow
 {
+    internal SensorChange ChangeSection;
     public string Type;
     public string Hardware;
     public string Name;
@@ -37,6 +38,14 @@ public sealed class DeviceFilter
 
 public sealed class AppSettings
 {
+    [JsonProperty]
+    internal string DiskActivityHotKey = "";
+    [JsonProperty]
+    internal bool DiskActivityListening;
+    [JsonProperty]
+    internal string DiskActivityToggleSoundFile = "";
+    [JsonProperty]
+    internal Dictionary<string, DiskSoundSetting> DiskActivitySounds = new Dictionary<string, DiskSoundSetting>(StringComparer.OrdinalIgnoreCase);
     public bool AutoRefreshEnabled = true;
     public bool RefreshWhileFocused = true;
     public int RefreshIntervalSeconds = 5;
@@ -188,6 +197,14 @@ public sealed class SharedAppSettings
 
 public sealed class MachineAppSettings
 {
+    [JsonProperty]
+    internal string DiskActivityHotKey = "";
+    [JsonProperty]
+    internal bool DiskActivityListening;
+    [JsonProperty]
+    internal string DiskActivityToggleSoundFile = "";
+    [JsonProperty]
+    internal Dictionary<string, DiskSoundSetting> DiskActivitySounds = new Dictionary<string, DiskSoundSetting>(StringComparer.OrdinalIgnoreCase);
     public bool RunAtStartup = false;
     public bool PrerequisitesPromptShown = false;
     public string LoggingLevel = "Off";
