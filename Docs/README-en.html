@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.6.1.</p>
+<p>Current version: 6.6.2.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -49,6 +49,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.6.2</h3><ul><li>Added: Set separate read and write click pitches for each physical disk.</li></ul>
 <h3>6.6.1</h3><ul><li>Fixed: Disk activity sounds no longer go silent after extended listening due to clock drift.</li><li>Improved: Disk activity uses shorter clicks and separates closely grouped reads and writes so both can be heard.</li><li>Improved: Spoken readings from a named remote computer start with its name, without repeating &quot;Remote computer&quot;.</li></ul>
 <h3>6.6.0</h3><ul><li>Added: Disk activity sounds give local physical disks distinct read and write clicks with per-disk volume, stereo pan and three-band EQ. A configurable global hotkey toggles listening. Thanks to Kara Goldfinch for the idea.</li><li>Improved: Storage, battery and network readings react sooner to drive, power-source and network connection changes without speeding up the normal refresh.</li></ul>
 <h3>6.5.2</h3><ul><li>Improved: Lower CPU use when monitoring GPU activity, while keeping live readings, spoken hotkeys and process watches up to date.</li><li>Fixed: Highest CPU, memory and GPU task summaries now follow the configured refresh interval, including when Sensor Readout is in the notification area.</li></ul>
@@ -1299,9 +1300,10 @@
 <ul>
 <li><strong>Volume:</strong> Set how loud the disk is relative to the others.</li>
 <li><strong>Pan:</strong> Set where the clicks sit in stereo. 0 is full left, 50 is centre, and 100 is full right.</li>
+<li>Read pitch and Write pitch: Set the two pitches independently for the selected disk. 50% to 200%; 100% keeps the original sound.</li>
 <li><strong>Bass, Midrange and Treble:</strong> Set the tone. 50% leaves a band unchanged; lower values soften it, and higher values emphasise it. On Volume and EQ, Up and Down adjust by one point and Page Up and Page Down adjust by ten.</li>
 </ul>
-<p>Use <strong>Preview read</strong> or <strong>Preview write</strong> to hear ten clicks with the current mix, even when the disk is idle. Hold <kbd>Space</kbd> or the left mouse button to repeat the preview until you release it. <strong>Reset mix to defaults</strong> resets the selected disk’s volume, pan and EQ without disabling it.</p>
+<p>Use <strong>Preview read</strong> or <strong>Preview write</strong> to hear ten clicks with the current mix, even when the disk is idle. Hold <kbd>Space</kbd> or the left mouse button to repeat the preview until you release it. <strong>Reset mix to defaults</strong> resets the selected disk’s volume, pan, pitches and EQ without disabling it.</p>
 <h3>Listen in the Background</h3>
 <p>Assign a <strong>Global toggle hotkey</strong> to start or stop listening even when Sensor Readout is in the notification area. <strong>Start/stop feedback</strong> lets you choose a spoken confirmation or a WAV sound. Sensor Readout remembers whether listening was on or off when it next starts.</p>
 <p>Connecting other USB devices does not stop listening. Plugging in or removing a physical drive automatically updates which disks are monitored. Disk events are neither saved nor sent. This feature requires Windows 8 or later.</p>

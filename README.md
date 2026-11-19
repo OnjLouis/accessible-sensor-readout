@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.6.1.
+Current version: 6.6.2.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -538,7 +538,7 @@ Network Tools runs only when you request it. Private, local, loopback, link-loca
 
 ## Disk Activity Sounds
 
-Open Options > Disk activity sounds (`Ctrl+Shift+K`). Select a physical disk by drive letter or model. Start listening and adjust the sliders to hear the changes on the next clicks. Pan is 0 hard left, 50 center and 100 hard right. In EQ, 50% is neutral; lower values cut and higher values boost each band. Tap Preview Read or Preview Write for ten clicks with the current mix, or hold Space or the left mouse button to repeat until released. Reset mix to defaults restores only the selected disk's volume, pan and EQ. Close keeps the changes. The optional global toggle is separate from the dialog shortcut. Under Start/stop feedback, choose Spoken or a WAV sound. Sensor Readout remembers whether listening was on or off and resumes without toggle feedback. Only local physical disks are monitored; events are not saved or transmitted. Windows 8 or later is required.
+Open Options > Disk activity sounds (`Ctrl+Shift+K`). Select a physical disk by drive letter or model. Start listening and adjust the sliders to hear the changes on the next clicks. Pan is 0 hard left, 50 center and 100 hard right. Read pitch and Write pitch are independent per disk, from 50% (lower) to 200% (higher), with 100% keeping the original sounds. In EQ, 50% is neutral; lower values cut and higher values boost each band. Tap Preview Read or Preview Write for ten clicks with the current mix, or hold Space or the left mouse button to repeat until released. Reset mix to defaults restores only the selected disk's volume, pan, pitches and EQ. Close keeps the changes. The optional global toggle is separate from the dialog shortcut. Under Start/stop feedback, choose Spoken or a WAV sound. Sensor Readout remembers whether listening was on or off and resumes without toggle feedback. Only local physical disks are monitored; events are not saved or transmitted. Windows 8 or later is required.
 
 Press `F1` on a control for its own help. In Volume and EQ, Up and Down adjust by one percentage point; Page Up and Page Down adjust by ten points. Pan is unchanged.
 
@@ -784,6 +784,10 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.6.2
+
+- Added: Set separate read and write click pitches for each physical disk.
 
 ### 6.6.1
 

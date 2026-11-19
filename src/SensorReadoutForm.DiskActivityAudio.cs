@@ -384,6 +384,10 @@ public sealed partial class SensorReadoutForm
             AddDiskActivityRow(layout, enabled);
             var volume = AddDiskActivitySlider(layout, T("diskAudio.volume", "Volume (%)"), "DiskActivityVolume");
             var pan = AddDiskActivitySlider(layout, T("diskAudio.pan", "Pan"), "DiskActivityPan", true);
+            var readPitch = AddDiskActivitySlider(layout, T("diskAudio.readPitch", "Re&ad pitch (%)"), "DiskActivityReadPitch",
+                minimum: DiskSoundSetting.MinimumPitchPercent, maximum: DiskSoundSetting.MaximumPitchPercent, initialValue: DiskSoundSetting.DefaultPitchPercent);
+            var writePitch = AddDiskActivitySlider(layout, T("diskAudio.writePitch", "Wr&ite pitch (%)"), "DiskActivityWritePitch",
+                minimum: DiskSoundSetting.MinimumPitchPercent, maximum: DiskSoundSetting.MaximumPitchPercent, initialValue: DiskSoundSetting.DefaultPitchPercent);
             var bass = AddDiskActivitySlider(layout, T("diskAudio.bass", "Bass"), "DiskActivityBass");
             var mid = AddDiskActivitySlider(layout, T("diskAudio.mid", "Midrange"), "DiskActivityMid");
             var treble = AddDiskActivitySlider(layout, T("diskAudio.treble", "Treble"), "DiskActivityTreble");
@@ -447,6 +451,8 @@ public sealed partial class SensorReadoutForm
                 }
                 selected.Enabled = enabled.Checked;
                 selected.Volume = (int)volume.Value;
+                selected.ReadPitchPercent = readPitch.Value;
+                selected.WritePitchPercent = writePitch.Value;
                 settings.DiskActivitySounds[selectedKey] = selected.Copy();
                 int diskNumber;
                 if (diskAudioIndexes != null && !diskAudioStop.IsCancellationRequested &&
@@ -463,10 +469,12 @@ public sealed partial class SensorReadoutForm
                 enabled.Checked = values.Enabled;
                 volume.Value = values.Volume;
                 pan.Value = (values.Pan + 100) / 2;
+                readPitch.Value = values.ReadPitchPercent;
+                writePitch.Value = values.WritePitchPercent;
                 bass.Value = DiskSoundSetting.EqPosition(values.Bass);
                 mid.Value = DiskSoundSetting.EqPosition(values.Mid);
                 treble.Value = DiskSoundSetting.EqPosition(values.Treble);
-                foreach (var control in new Control[] { enabled, volume, pan, bass, mid, treble, previewRead, previewWrite, reset })
+                foreach (var control in new Control[] { enabled, volume, pan, readPitch, writePitch, bass, mid, treble, previewRead, previewWrite, reset })
                 {
                     control.Enabled = selected != null;
                 }
@@ -485,6 +493,8 @@ public sealed partial class SensorReadoutForm
                 showMix();
             };
             enabled.CheckedChanged += delegate { readMix(); };
+            readPitch.ValueChanged += delegate { readMix(); };
+            writePitch.ValueChanged += delegate { readMix(); };
             pan.ValueChanged += delegate
             {
                 if (!loading && selected != null)
@@ -635,14 +645,15 @@ public sealed partial class SensorReadoutForm
         }
     }
 
-    private static TrackBar AddDiskActivitySlider(TableLayoutPanel panel, string name, string helpTopic, bool pan = false)
+    private static TrackBar AddDiskActivitySlider(TableLayoutPanel panel, string name, string helpTopic,
+        bool pan = false, int minimum = 0, int maximum = 100, int initialValue = 50)
     {
         var accessibleName = StripMenuMnemonic(name);
         var slider = pan ? new TrackBar() : new DiskLevelTrackBar();
-        slider.Minimum = 0;
-        slider.Maximum = 100;
+        slider.Minimum = minimum;
+        slider.Maximum = maximum;
         slider.AccessibleName = accessibleName;
-        slider.Value = 50;
+        slider.Value = initialValue;
         slider.SmallChange = 1;
         slider.LargeChange = 10;
         slider.TickStyle = TickStyle.None;

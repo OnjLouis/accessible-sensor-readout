@@ -11,6 +11,7 @@ public sealed partial class SensorReadoutForm
     private static void SelfTestDiskActivityAudio()
     {
         SelfTestDiskActivitySliderKeys();
+        SelfTestDiskActivityPitch();
         SelfTestDiskPreviewButton();
         SelfTestDiskInterfaceNotifications();
         var original = new PhysicalStorageDevice { Index = 1, PnpDeviceId = @"USBSTOR\SampleDisk" };
@@ -291,7 +292,68 @@ public sealed partial class SensorReadoutForm
             Require(pan.Value == 40, "The pan slider's native Page Up behavior changed.");
             SendMessage(pan.Handle, keyDownMessage, (IntPtr)Keys.Up, IntPtr.Zero);
             Require(pan.Value == 39, "The pan slider's native Up behavior changed.");
+            foreach (var direction in new[] { "Read", "Write" })
+            {
+                var name = direction + " pitch (%)";
+                var pitch = AddDiskActivitySlider(panel, name, "DiskActivity" + direction + "Pitch",
+                    minimum: DiskSoundSetting.MinimumPitchPercent, maximum: DiskSoundSetting.MaximumPitchPercent, initialValue: DiskSoundSetting.DefaultPitchPercent);
+                Require(pitch.Minimum == 50 && pitch.Maximum == 200 && pitch.Value == 100 &&
+                    pitch.AccessibilityObject.Role == AccessibleRole.Slider && pitch.AccessibilityObject.Name == name,
+                    "Pitch must expose its name, default, bounds and native slider role.");
+                SendMessage(pitch.Handle, keyDownMessage, (IntPtr)Keys.Up, IntPtr.Zero);
+                Require(pitch.Value == 101, "Up Arrow must raise pitch by one point.");
+                SendMessage(pitch.Handle, keyDownMessage, (IntPtr)Keys.PageDown, IntPtr.Zero);
+                Require(pitch.Value == 91, "Page Down must lower pitch by ten points.");
+            }
         }
+    }
+
+    private static void SelfTestDiskActivityPitch()
+    {
+        var legacy = JsonConvert.DeserializeObject<DiskSoundSetting>("{\"Enabled\":true}");
+        Require(legacy.ReadPitchPercent == 100 && legacy.WritePitchPercent == 100,
+            "Existing disk settings must keep both original pitches.");
+        var defaultRead = DiskActivityAudio.Synthesize(legacy, false);
+        var defaultWrite = DiskActivityAudio.Synthesize(legacy, true);
+        var tuned = legacy.Copy();
+        tuned.ReadPitchPercent = 200;
+        var tunedRead = DiskActivityAudio.Synthesize(tuned, false);
+        Require(tunedRead.Length == defaultRead.Length &&
+            DiskClickAmplitude(tunedRead, 720) > 2 * DiskClickAmplitude(defaultRead, 720) &&
+            DiskActivityAudio.Synthesize(tuned, true).SequenceEqual(defaultWrite),
+            "Read pitch must raise the read frequency without changing timing or the write click.");
+        tuned.WritePitchPercent = 50;
+        var tunedWrite = DiskActivityAudio.Synthesize(tuned, true);
+        Require(tunedWrite.Length == defaultWrite.Length && !tunedWrite.SequenceEqual(defaultWrite) &&
+            DiskActivityAudio.Synthesize(tuned, false).SequenceEqual(tunedRead),
+            "Write pitch must not alter the read click or the playback duration.");
+        RequireDiskActivityPreview(tuned, false, tunedRead);
+        RequireDiskActivityPreview(tuned, true, tunedWrite);
+
+        var settings = new AppSettings();
+        settings.DiskActivitySounds["tuned"] = tuned;
+        settings.DiskActivitySounds["untuned"] = legacy;
+        var saved = JsonConvert.DeserializeObject<AppSettings>(JsonConvert.SerializeObject(ExtractMachineSettings(settings)));
+        Require(saved.DiskActivitySounds["tuned"].ReadPitchPercent == 200 && saved.DiskActivitySounds["tuned"].WritePitchPercent == 50 &&
+            saved.DiskActivitySounds["untuned"].ReadPitchPercent == 100 && saved.DiskActivitySounds["untuned"].WritePitchPercent == 100,
+            "Read and write pitches must persist separately per disk.");
+        var live = new DiskActivityAudio(new Dictionary<int, DiskSoundSetting> { { 1, legacy }, { 2, legacy } });
+        live.Record(1, true, Stopwatch.GetTimestamp());
+        live.UpdateDiskMix(1, tuned);
+        var pcm = new short[DiskActivityAudio.RenderSampleCount];
+        var sum = new int[pcm.Length];
+        Require(live.Render(sum, pcm) && pcm.Take(tunedWrite.Length).SequenceEqual(tunedWrite),
+            "Changing pitch must reach the next pending click without restarting the trace.");
+        live.Record(2, true, Stopwatch.GetTimestamp());
+        Require(live.Render(sum, pcm) && pcm.Take(defaultWrite.Length).SequenceEqual(defaultWrite),
+            "Changing one disk's pitch must not affect another disk.");
+
+        var invalid = new DiskSoundSetting { ReadPitchPercent = int.MinValue, WritePitchPercent = int.MaxValue }.Copy();
+        Require(invalid.ReadPitchPercent == 50 && invalid.WritePitchPercent == 200,
+            "Loaded pitch values must be bounded before synthesis and presentation.");
+        tuned.ResetMix();
+        Require(tuned.ReadPitchPercent == 100 && tuned.WritePitchPercent == 100 && tuned.Enabled,
+            "Reset must restore the original pitches without disabling the disk.");
     }
 
     private static double DiskClickAmplitude(short[] pcm, double frequency)

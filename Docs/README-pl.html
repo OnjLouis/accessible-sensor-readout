@@ -8,7 +8,7 @@
 <body>
 <main>
 <h1>Sensor Readout</h1>
-<p>Wersja programu: 6.6.1.</p>
+<p>Wersja programu: 6.6.2.</p>
 <p>Polski podręcznik rozszerzony na podstawie materiałów przesłanych przez Pawła Podolskiego. Materiał jest opracowaniem społecznościowym i nie każda funkcja została przetestowana w działającym programie z NVDA. W razie rozbieżności sprawdź także <a href="README-en.html">aktualny podręcznik angielski</a>.</p>
 <p>Polski podręcznik rozszerzony</p>
 <p>Obsługa programu, klawiatura i NVDA, diagnostyka, raporty, monitorowanie zdalne, administracja Linux i wtyczki.</p>
@@ -91,6 +91,7 @@
 <li class="subsection"><a href="#58-licencja-mit-przekad-informacyjny">58. Licencja MIT: przekład informacyjny</a></li>
 </ul></nav>
 <h2 id="changelog">Zmiany w tej wersji</h2>
+<h3>6.6.2</h3><ul><li>Dodano osobne ustawienia wysokości kliknięć odczytu i zapisu dla każdego dysku fizycznego.</li></ul>
 <h3>6.6.1</h3><ul><li>Poprawiono: dźwięki aktywności dysków nie cichną już podczas dłuższego nasłuchu z powodu rozbieżności zegarów.</li><li>Ulepszono: kliknięcia dysku są krótsze, a bliskie sobie odczyty i zapisy słychać osobno.</li><li>Ulepszono: przed odczytem z nazwanego komputera zdalnego słychać jego nazwę, bez powtarzania słów „Komputer zdalny”.</li></ul>
 <h3>6.6.0</h3><ul><li>Dodano dźwięki odczytu i zapisu dla dysków fizycznych z regulacją głośności, panoramy i trzech pasm oraz globalnym skrótem. Dziękujemy Kara Goldfinch za pomysł.</li><li>Ulepszono: odczyty dysków, baterii i sieci szybciej reagują na zmiany dysków, zasilania i połączeń bez zwiększania częstotliwości zwykłego odświeżania.</li></ul>
 <h3>6.5.2</h3><ul><li>Ulepszono: mniejsze użycie procesora podczas monitorowania aktywności GPU, przy zachowaniu aktualnych odczytów, skrótów głosowych i obserwacji procesów.</li><li>Poprawiono: podsumowania procesów najbardziej obciążających CPU, pamięć i GPU są teraz aktualizowane zgodnie z ustawionym interwałem, również gdy Sensor Readout działa w obszarze powiadomień.</li></ul>
@@ -465,9 +466,10 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <ul>
 <li><strong>Głośność:</strong> ustala poziom dźwięku dysku względem pozostałych.</li>
 <li><strong>Panorama:</strong> umieszcza kliknięcia w przestrzeni stereo. 0 oznacza skrajną lewą stronę, 50 środek, a 100 skrajną prawą stronę.</li>
+<li>Wysokość kliknięć odczytu i zapisu: ustaw obie osobno, od 50% do 200%. Przy 100% dźwięk pozostaje bez zmian.</li>
 <li><strong>Basy, tony średnie i wysokie:</strong> zmieniają barwę dźwięku. Przy 50% pasmo pozostaje bez zmian; niższe wartości je tłumią, a wyższe podbijają. W ustawieniach głośności i korektora strzałki w górę i w dół zmieniają wartość o jeden punkt, a Page Up i Page Down o dziesięć.</li>
 </ul>
-<p>Wybierz <strong>Odsłuch odczytu</strong> lub <strong>Odsłuch zapisu</strong>, aby usłyszeć dziesięć kliknięć z aktualnymi ustawieniami, nawet gdy dysk jest bezczynny. Przytrzymaj <kbd>Spację</kbd> lub lewy przycisk myszy, aby powtarzać próbkę. <strong>Przywróć miks</strong> przywraca domyślną głośność, panoramę i korekcję wybranego dysku bez wyłączania go.</p>
+<p>Wybierz <strong>Odsłuch odczytu</strong> lub <strong>Odsłuch zapisu</strong>, aby usłyszeć dziesięć kliknięć z aktualnymi ustawieniami, nawet gdy dysk jest bezczynny. Przytrzymaj <kbd>Spację</kbd> lub lewy przycisk myszy, aby powtarzać próbkę. <strong>Przywróć miks</strong> przywraca domyślną głośność, panoramę, wysokości i korekcję wybranego dysku bez wyłączania go.</p>
 <h4>Nasłuch w tle</h4>
 <p>Przypisz <strong>Globalny skrót klawiszowy</strong>, aby włączać lub wyłączać nasłuch również wtedy, gdy Sensor Readout jest w obszarze powiadomień. W ustawieniu <strong>Potwierdzenie startu i zatrzymania</strong> wybierz komunikat głosowy lub dźwięk WAV. Sensor Readout pamięta stan nasłuchu przy następnym uruchomieniu.</p>
 <p>Podłączenie innych urządzeń USB nie przerywa nasłuchu. Po podłączeniu lub odłączeniu fizycznego dysku lista monitorowanych dysków aktualizuje się automatycznie. Zdarzenia dyskowe nie są zapisywane ani wysyłane. Funkcja wymaga systemu Windows 8 lub nowszego.</p>

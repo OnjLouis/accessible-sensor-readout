@@ -12,9 +12,14 @@ internal sealed class DiskSoundSetting
     private const int DefaultVolume = 30;
     private const double MaximumEqBoost = 12;
     internal const int NeutralEqPosition = 50;
+    internal const int MinimumPitchPercent = 50;
+    internal const int DefaultPitchPercent = 100;
+    internal const int MaximumPitchPercent = 200;
     public bool Enabled;
     public int Volume = DefaultVolume;
     public int Pan;
+    public int ReadPitchPercent = DefaultPitchPercent;
+    public int WritePitchPercent = DefaultPitchPercent;
     public double Bass;
     public double Mid;
     public double Treble;
@@ -23,6 +28,7 @@ internal sealed class DiskSoundSetting
     {
         Volume = DefaultVolume;
         Pan = 0;
+        ReadPitchPercent = WritePitchPercent = DefaultPitchPercent;
         Bass = Mid = Treble = 0;
     }
 
@@ -33,6 +39,8 @@ internal sealed class DiskSoundSetting
             Enabled = Enabled,
             Volume = Clamp(Volume, 0, 100),
             Pan = Clamp(Pan, -100, 100),
+            ReadPitchPercent = Clamp(ReadPitchPercent, MinimumPitchPercent, MaximumPitchPercent),
+            WritePitchPercent = Clamp(WritePitchPercent, MinimumPitchPercent, MaximumPitchPercent),
             Bass = BoundEq(Bass),
             Mid = BoundEq(Mid),
             Treble = BoundEq(Treble)
@@ -244,7 +252,8 @@ internal sealed class DiskActivityAudio
         var bass = Math.Pow(10, setting.Bass / 20.0);
         var mid = Math.Pow(10, setting.Mid / 20.0);
         var treble = Math.Pow(10, setting.Treble / 20.0);
-        var pitch = write ? 0.68 : 1.0;
+        var pitch = (write ? 0.68 : 1.0) *
+            ((write ? setting.WritePitchPercent : setting.ReadPitchPercent) / (double)DiskSoundSetting.DefaultPitchPercent);
         // The source is synthesized in three bands, so EQ is baked into each click.
         for (var frame = 0; frame < pcm.Length / 2; frame++)
         {

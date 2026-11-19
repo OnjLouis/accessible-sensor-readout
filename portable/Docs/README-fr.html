@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle : 6.6.1.</p>
+<p>Version actuelle : 6.6.2.</p>
 <p><strong>Note importante sur la mise à jour :</strong> Si vous utilisez la version 6.0.0 ou 6.1.0, téléchargez manuellement la version actuelle une seule fois. Ces deux versions ne peuvent pas terminer leur propre mise à jour signée, car un fichier nécessaire manquait dans le programme de mise à jour temporaire. Vos réglages sont conservés et les mises à jour automatiques suivantes fonctionnent de nouveau normalement.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Changements</h2>
+<h3>6.6.2</h3><ul><li>Ajout : réglage indépendant de la hauteur des clics de lecture et d’écriture par disque physique.</li></ul>
 <h3>6.6.1</h3><ul><li>Correction : les sons d’activité des disques ne s’interrompent plus lors d’une écoute prolongée à cause d’un décalage entre les horloges.</li><li>Amélioration : les clics de disque sont plus courts et les lectures et écritures rapprochées restent distinctes.</li><li>Amélioration : les mesures annoncées pour un ordinateur distant identifié commencent par son nom, sans répéter « Ordinateur distant ».</li></ul>
 <h3>6.6.0</h3><ul><li>Ajout : sons de lecture et d’écriture par disque physique, avec volume, balance, égaliseur à trois bandes et raccourci global. Merci à Kara Goldfinch pour l’idée.</li><li>Amélioration : les lectures de stockage, de batterie et de réseau réagissent plus vite aux changements de disque, d’alimentation ou de connexion, sans accélérer l’actualisation habituelle.</li></ul>
 <h3>6.5.2</h3><ul><li>Amélioration : utilisation réduite du processeur lors du suivi de l'activité du GPU, tout en gardant les relevés en direct, les raccourcis vocaux et la surveillance des processus à jour.</li><li>Correction : les résumés des processus utilisant le plus de processeur, de mémoire et de GPU suivent désormais l'intervalle d'actualisation configuré, même lorsque Sensor Readout est dans la zone de notification.</li></ul>
@@ -1115,9 +1116,10 @@
 <ul>
 <li><strong>Volume :</strong> règle le niveau sonore du disque par rapport aux autres.</li>
 <li><strong>Balance :</strong> place les clics dans l’espace stéréo. 0 correspond à la gauche, 50 au centre et 100 à la droite.</li>
+<li>Hauteurs des clics de lecture et d’écriture : réglez-les séparément, de 50 % à 200 %. À 100 %, le son d’origine est conservé.</li>
 <li><strong>Graves, médiums et aigus :</strong> modifient le timbre. À 50 %, la bande reste inchangée. En dessous, elle est atténuée ; au-dessus, elle est renforcée. Pour le volume et l’égaliseur, Haut et Bas modifient la valeur d’un point, Page précédente et Page suivante de dix.</li>
 </ul>
-<p>Avec <strong>Écouter la lecture</strong> ou <strong>Écouter l’écriture</strong>, vous entendez dix clics avec les réglages actuels, même si le disque est inactif. Maintenez <kbd>Espace</kbd> ou le bouton gauche de la souris pour répéter l’aperçu. <strong>Réinitialiser le mixage</strong> rétablit le volume, la balance et l’égaliseur par défaut du disque sélectionné sans le désactiver.</p>
+<p>Avec <strong>Écouter la lecture</strong> ou <strong>Écouter l’écriture</strong>, vous entendez dix clics avec les réglages actuels, même si le disque est inactif. Maintenez <kbd>Espace</kbd> ou le bouton gauche de la souris pour répéter l’aperçu. <strong>Réinitialiser le mixage</strong> rétablit le volume, la balance, les hauteurs et l’égaliseur par défaut du disque sélectionné sans le désactiver.</p>
 <h3>Écouter en arrière-plan</h3>
 <p>Attribuez un <strong>Raccourci global</strong> pour démarrer ou arrêter l’écoute même lorsque Sensor Readout se trouve dans la zone de notification. La <strong>Confirmation du démarrage et de l’arrêt</strong> peut être vocale ou utiliser un son WAV. L’état de l’écoute est conservé au prochain démarrage.</p>
 <p>Le branchement d’autres périphériques USB n’interrompt pas l’écoute. Lorsqu’un disque physique est ajouté ou retiré, la liste des disques surveillés est actualisée automatiquement. Les événements ne sont ni enregistrés ni transmis. Cette fonction nécessite Windows 8 ou une version ultérieure.</p>

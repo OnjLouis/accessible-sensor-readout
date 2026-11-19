@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 6.6.1.</p>
+<p>Aktuelle Version: 6.6.2.</p>
 <p><strong>Wichtiger Update-Hinweis:</strong> Wenn Sie Version 6.0.0 oder 6.1.0 verwenden, laden Sie die aktuelle Version einmal manuell herunter. Diese beiden Versionen können ihr eigenes signiertes Update nicht abschließen, weil im temporären Aktualisierungsprogramm eine erforderliche Programmdatei fehlte. Ihre Einstellungen bleiben erhalten, und spätere automatische Updates funktionieren wieder normal.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstützter Lüfter. Die Oberfläche ist zuerst für Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Gerät oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menüleiste.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Änderungen</h2>
+<h3>6.6.2</h3><ul><li>Neu: Getrennte Tonhöhen für Lese- und Schreibklicks pro physischem Laufwerk.</li></ul>
 <h3>6.6.1</h3><ul><li>Behoben: Laufwerksgeräusche verstummen bei längerer Wiedergabe nicht mehr durch das Auseinanderlaufen der Zeitgeber.</li><li>Verbessert: Kürzere Laufwerksgeräusche und ein kurzer Abstand zwischen Lese- und Schreibtönen machen beide hörbar.</li><li>Verbessert: Bei angesagten Messwerten eines benannten entfernten Computers wird nur der Name vorangestellt.</li></ul>
 <h3>6.6.0</h3><ul><li>Neu: Lese- und Schreibtöne für physische Laufwerke mit individueller Lautstärke, Balance, Drei-Band-Equalizer und globaler Tastenkombination. Danke an Kara Goldfinch für die Idee.</li><li>Verbessert: Messwerte für Laufwerke, Akku und Netzwerk reagieren schneller auf Geräte-, Stromquellen- und Verbindungswechsel, ohne den normalen Aktualisierungstakt zu verkürzen.</li></ul>
 <h3>6.5.2</h3><ul><li>Verbessert: Geringere CPU-Auslastung bei der Überwachung der GPU-Aktivität. Live-Messwerte, gesprochene Tastenkürzel und Prozessüberwachung bleiben aktuell.</li><li>Behoben: Die Zusammenfassungen der Prozesse mit der höchsten CPU-, Speicher- und GPU-Nutzung folgen nun dem eingestellten Aktualisierungsintervall, auch wenn Sensor Readout im Infobereich läuft.</li></ul>
@@ -1120,9 +1121,10 @@
 <ul>
 <li><strong>Lautstärke:</strong> Legt fest, wie laut dieses Laufwerk im Vergleich zu den anderen klingt.</li>
 <li><strong>Balance:</strong> Verteilt das Signal im Stereo-Panorama. 0 ist ganz links, 50 mittig und 100 ganz rechts.</li>
+<li>Tonhöhe beim Lesen und Schreiben: getrennt einstellbar von 50 bis 200 %. Bei 100 % bleibt der Originalklang.</li>
 <li><strong>Bässe, Mitten und Höhen:</strong> Stellen die Klangfarbe ein. 50 % lässt das jeweilige Band unverändert. Niedrigere Werte dämpfen es, höhere betonen es. Bei Lautstärke und EQ ändern die Pfeiltasten nach oben und unten den Wert um einen Punkt, Bild auf und Bild ab um zehn.</li>
 </ul>
-<p>Mit <strong>Leseton testen</strong> und <strong>Schreibton testen</strong> hören Sie zehn Klicks mit den aktuellen Einstellungen, auch wenn das Laufwerk gerade nichts tut. Halten Sie die <kbd>Leertaste</kbd> oder die linke Maustaste gedrückt, um die Vorschau zu wiederholen. <strong>Klang zurücksetzen</strong> setzt Lautstärke, Balance und EQ für das gewählte Laufwerk zurück, ohne es zu deaktivieren.</p>
+<p>Mit <strong>Leseton testen</strong> und <strong>Schreibton testen</strong> hören Sie zehn Klicks mit den aktuellen Einstellungen, auch wenn das Laufwerk gerade nichts tut. Halten Sie die <kbd>Leertaste</kbd> oder die linke Maustaste gedrückt, um die Vorschau zu wiederholen. <strong>Klang zurücksetzen</strong> setzt Lautstärke, Balance, Tonhöhen und EQ für das gewählte Laufwerk zurück, ohne es zu deaktivieren.</p>
 <h3>Im Hintergrund weiterhören</h3>
 <p>Mit einer <strong>Globalen Tastenkombination</strong> können Sie die Wiedergabe auch im Infobereich starten oder stoppen. Unter <strong>Start/Stopp-Feedback</strong> wählen Sie eine Sprachbestätigung oder einen WAV-Ton. Sensor Readout merkt sich den Wiedergabestatus für den nächsten Start.</p>
 <p>Andere USB-Geräte unterbrechen die Wiedergabe nicht. Beim An- oder Abstecken eines physischen Datenträgers aktualisiert Sensor Readout die überwachten Laufwerke automatisch. Zugriffsereignisse werden weder gespeichert noch übertragen. Die Funktion erfordert Windows 8 oder neuer.</p>

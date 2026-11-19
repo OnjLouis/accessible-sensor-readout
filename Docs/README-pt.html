@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versão atual: 6.6.1.</p>
+<p>Versão atual: 6.6.2.</p>
 <p><strong>Aviso importante sobre a atualização:</strong> Se utiliza a versão 6.0.0 ou 6.1.0, transfira manualmente a versão atual uma única vez. Essas duas versões não conseguem concluir a sua própria atualização assinada porque faltava um ficheiro necessário no atualizador temporário. As suas definições são preservadas e as atualizações automáticas posteriores voltam a funcionar normalmente.</p>
 <h2 id="contents">Conteúdo</h2>
 <ul>
@@ -50,6 +50,7 @@
 <li><a href="#license">Licença</a></li>
 </ul>
 <h2 id="changelog">Registro de alterações</h2>
+<h3>6.6.2</h3><ul><li>Adicionado: ajuste separado dos tons dos cliques de leitura e escrita para cada disco físico.</li></ul>
 <h3>6.6.1</h3><ul><li>Corrigido: os sons de atividade dos discos deixam de se interromper durante uma escuta prolongada devido à diferença entre relógios.</li><li>Melhorado: os cliques dos discos são mais curtos e as leituras e escritas próximas ouvem-se separadamente.</li><li>Melhorado: as leituras faladas de um computador remoto identificado começam pelo nome, sem repetir «Computador remoto».</li></ul>
 <h3>6.6.0</h3><ul><li>Adicionados sons de leitura e escrita por disco físico, com volume, balanço, equalizador de três bandas e atalho global. Obrigado a Kara Goldfinch pela ideia.</li><li>Melhorado: as leituras dos discos, da bateria e da rede reagem mais depressa a alterações dos discos, da alimentação e da ligação, sem acelerar a atualização normal.</li></ul>
 <h3>6.5.2</h3><ul><li>Melhorado: menor utilização do processador ao monitorizar a atividade da GPU, mantendo atualizadas as leituras em direto, os atalhos falados e a monitorização de processos.</li><li>Corrigido: os resumos dos processos com maior utilização de CPU, memória e GPU seguem agora o intervalo de atualização definido, mesmo quando o Sensor Readout está na área de notificação.</li></ul>
@@ -1286,9 +1287,10 @@
 <ul>
 <li><strong>Volume:</strong> regula o nível do disco em relação aos restantes.</li>
 <li><strong>Balanço:</strong> posiciona os cliques no campo estéreo. 0 corresponde à esquerda, 50 ao centro e 100 à direita.</li>
+<li>Tons de leitura e escrita: ajuste-os separadamente, de 50% a 200%. A 100% mantém o som original.</li>
 <li><strong>Graves, médios e agudos:</strong> ajustam o timbre. A 50%, a banda fica inalterada; valores inferiores atenuam-na e valores superiores reforçam-na. Em Volume e EQ, as setas para cima e para baixo ajustam um ponto e Page Up e Page Down ajustam dez.</li>
 </ul>
-<p>Use <strong>Prévia de leitura</strong> ou <strong>Prévia de escrita</strong> para ouvir dez cliques com as definições atuais, mesmo quando o disco está inativo. Mantenha a barra de <kbd>Espaço</kbd> ou o botão esquerdo do rato premido para repetir. <strong>Repor a mistura</strong> repõe o volume, o balanço e o EQ do disco selecionado sem o desativar.</p>
+<p>Use <strong>Prévia de leitura</strong> ou <strong>Prévia de escrita</strong> para ouvir dez cliques com as definições atuais, mesmo quando o disco está inativo. Mantenha a barra de <kbd>Espaço</kbd> ou o botão esquerdo do rato premido para repetir. <strong>Repor a mistura</strong> repõe o volume, o balanço, os tons e o EQ do disco selecionado sem o desativar.</p>
 <h3>Escutar em segundo plano</h3>
 <p>Atribua um <strong>Atalho global de alternância</strong> para iniciar ou parar a escuta mesmo quando o Sensor Readout está na área de notificação. Em <strong>Confirmação de início e paragem</strong>, pode escolher voz ou um som WAV. O Sensor Readout lembra-se do estado da escuta no próximo arranque.</p>
 <p>Ligar outros dispositivos USB não interrompe a escuta. Ao ligar ou remover um disco físico, a lista de discos monitorizados é atualizada automaticamente. Os eventos de disco não são guardados nem enviados. Esta funcionalidade requer Windows 8 ou posterior.</p>

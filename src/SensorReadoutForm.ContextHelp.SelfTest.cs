@@ -46,7 +46,7 @@ public sealed partial class SensorReadoutForm
                     Require(entries.ContainsKey(entry.Key) && !string.IsNullOrWhiteSpace(entries[entry.Key]), "Missing control-help translation: " + choice.FileName + ": " + entry.Key);
                 var diskHelp = ControlHelpCatalog.EnglishEntries().Keys
                     .Where(key => key.StartsWith("help.DiskActivity", StringComparison.Ordinal)).ToArray();
-                Require(diskHelp.Length == 15 && diskHelp.Select(key => entries[key]).Distinct().Count() == diskHelp.Length,
+                Require(diskHelp.Length == 17 && diskHelp.Select(key => entries[key]).Distinct().Count() == diskHelp.Length,
                     "Disk activity controls must have distinct localized help: " + choice.FileName);
 
                 using (var category = new ListBox { AccessibleName = L("a11y.Reading section", "Reading section") })

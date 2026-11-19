@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Versión actual: 6.6.1.</p>
+<p>Versión actual: 6.6.2.</p>
 <p><strong>Aviso importante sobre la actualización:</strong> Si usa la versión 6.0.0 o 6.1.0, descargue manualmente la versión actual una sola vez. Esas dos versiones no pueden completar su propia actualización firmada porque al actualizador temporal le faltaba un archivo de programa necesario. Se conservan sus ajustes y las actualizaciones automáticas posteriores vuelven a funcionar con normalidad.</p>
 <p>Sensor Readout es una utilidad de Windows para leer sensores de hardware y controlar ventiladores compatibles con una interfaz pensada primero para teclado y lectores de pantalla.</p>
 <p>A la izquierda muestra categoras principales, a la derecha una vista de rbol con lecturas agrupadas por dispositivo o finalidad, y los comandos comunes estn en una barra de mens normal.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Crditos</a></li>
 </ul>
 <h2 id="changelog">Cambios</h2>
+<h3>6.6.2</h3><ul><li>Añadido: tonos de lectura y escritura ajustables por separado para cada disco físico.</li></ul>
 <h3>6.6.1</h3><ul><li>Corregido: los sonidos de actividad de disco ya no se silencian durante sesiones largas por un desfase entre relojes.</li><li>Mejorado: los clics del disco son más cortos y se separan las lecturas y escrituras cercanas para que se oigan ambas.</li><li>Mejorado: las lecturas habladas de un equipo remoto identificado empiezan por su nombre, sin repetir «Equipo remoto».</li></ul>
 <h3>6.6.0</h3><ul><li>Añadido: clics de lectura y escritura para discos físicos, con volumen, balance, ecualizador de tres bandas y atajo global. Gracias a Kara Goldfinch por la idea.</li><li>Mejorado: Las lecturas de almacenamiento, batería y red reaccionan antes al conectar discos, cambiar de fuente de alimentación o cambiar de conexión, sin acelerar la actualización habitual.</li></ul>
 <h3>6.5.2</h3><ul><li>Mejorado: Menor uso de CPU al supervisar la actividad de la GPU, manteniendo actualizadas las lecturas en directo, los atajos hablados y la supervisión de procesos.</li><li>Corregido: Los resúmenes de los procesos con mayor uso de CPU, memoria y GPU siguen ahora el intervalo de actualización configurado, también cuando Sensor Readout está en el área de notificación.</li></ul>
@@ -1117,9 +1118,10 @@
 <ul>
 <li><strong>Volumen:</strong> Ajusta la intensidad de este disco con respecto a los demás.</li>
 <li><strong>Balance:</strong> Sitúa los clics en el campo estéreo. 0 es totalmente a la izquierda, 50 en el centro y 100 totalmente a la derecha.</li>
+<li>Tonos de lectura y escritura: ajuste ambos por separado, del 50 % al 200 %. El 100 % conserva el sonido original.</li>
 <li><strong>Graves, medios y agudos:</strong> Ajustan el tono. El 50 % deja la banda sin cambios; los valores inferiores la atenúan y los superiores la realzan. En Volumen y EQ, las flechas arriba y abajo ajustan un punto, y Re Pág y Av Pág ajustan diez.</li>
 </ul>
-<p>Use <strong>Probar lectura</strong> o <strong>Probar escritura</strong> para oír diez clics con los ajustes actuales, incluso si el disco está inactivo. Mantenga pulsada la tecla <kbd>Espacio</kbd> o el botón izquierdo del ratón para repetir la muestra. <strong>Restaurar la mezcla</strong> restablece el volumen, el balance y el EQ del disco seleccionado sin desactivarlo.</p>
+<p>Use <strong>Probar lectura</strong> o <strong>Probar escritura</strong> para oír diez clics con los ajustes actuales, incluso si el disco está inactivo. Mantenga pulsada la tecla <kbd>Espacio</kbd> o el botón izquierdo del ratón para repetir la muestra. <strong>Restaurar la mezcla</strong> restablece el volumen, el balance, los tonos y el EQ del disco seleccionado sin desactivarlo.</p>
 <h3>Escuchar en segundo plano</h3>
 <p>Asigne un <strong>Atajo global</strong> para iniciar o detener la escucha aunque Sensor Readout esté en el área de notificación. En <strong>Confirmación de inicio y parada</strong> puede elegir voz o un sonido WAV. Sensor Readout recuerda el estado de la escucha al volver a iniciarse.</p>
 <p>Conectar otros dispositivos USB no detiene la escucha. Al conectar o quitar un disco físico, la lista de discos supervisados se actualiza automáticamente. Los eventos de disco no se guardan ni se envían. Se requiere Windows 8 o posterior.</p>
