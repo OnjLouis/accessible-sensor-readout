@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 public sealed partial class SensorReadoutForm : Form
 {
@@ -94,7 +95,7 @@ public sealed partial class SensorReadoutForm : Form
             var available = AvailableImportCategories(package);
             var categories = ChooseSettingsTransferCategories(
                 "Import settings and profiles",
-                "Choose what to import. Global hotkeys, fan controls, and fan curves are imported without active bindings so they can be assigned safely on this computer.",
+                "Choose what to import. Imported fan profiles and curves need to be configured on this computer.",
                 available,
                 package);
             if (categories == null || categories.Count == 0)
@@ -104,7 +105,16 @@ public sealed partial class SensorReadoutForm : Form
 
             try
             {
-                var summary = ApplySettingsTransferPackage(package, categories);
+                var restore = categories.Contains(TransferSpokenHotKeys)
+                    ? ConfirmSpokenHotKeyImport(this, package.MachineSettings.SpokenHotKeys)
+                    : DialogResult.No;
+                if (restore == DialogResult.Cancel)
+                {
+                    return;
+                }
+
+                var shortcuts = restore == DialogResult.Yes ? CreateSpokenHotKeyImport(true) : null;
+                var summary = ApplySettingsTransferPackage(package, categories, shortcuts);
                 SaveSettings(settings);
                 RefreshAfterSettingsTransferImport();
                 MessageBox.Show(this, summary, L("ui.Import settings and profiles", "Import settings and profiles"), MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -117,15 +127,58 @@ public sealed partial class SensorReadoutForm : Form
         }
     }
 
-    private SettingsTransferPackage BuildSettingsTransferPackage(HashSet<string> categories)
+    private static SettingsTransferPackage CreateSettingsTransferPackage()
     {
-        var package = new SettingsTransferPackage
+        return new SettingsTransferPackage
         {
             Format = SettingsTransferFormat,
             AppVersion = AppVersion,
             MachineName = Environment.MachineName,
             ExportedAtUtc = DateTime.UtcNow.ToString("o")
         };
+    }
+
+    internal static SettingsTransferPackage BuildSpokenHotKeyTransferPackage(List<SpokenHotKeySetting> profiles, Dictionary<string, string> labels)
+    {
+        var package = CreateSettingsTransferPackage();
+        package.MachineSettings = new MachineAppSettings { SpokenHotKeys = profiles };
+        var keys = new HashSet<string>(profiles.SelectMany(p => p.ReadingKeys), StringComparer.OrdinalIgnoreCase);
+        var usedLabels = labels.Where(item => keys.Contains(item.Key))
+            .ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
+        if (usedLabels.Count > 0)
+        {
+            // Keep these separate from tray labels so other importers cannot mistake them for the tray section.
+            package.SpokenReadingSpeechLabels = usedLabels;
+        }
+
+        return package;
+    }
+
+    internal static MachineAppSettings ReadSpokenHotKeyTransfer(string text)
+    {
+        var json = JObject.Parse(text);
+        var format = json.GetValue("Format", StringComparison.OrdinalIgnoreCase);
+        if (format == null)
+        {
+            return json.ToObject<MachineAppSettings>();
+        }
+        if (format.Type != JTokenType.String || !string.Equals((string)format, SettingsTransferFormat, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(L("message.This is not a Sensor Readout settings package.", "This is not a Sensor Readout settings package."));
+        }
+
+        var package = json.ToObject<SettingsTransferPackage>();
+        var machine = package.MachineSettings ?? new MachineAppSettings();
+        if (package.SpokenReadingSpeechLabels != null)
+        {
+            machine.ReadingSpeechLabels = package.SpokenReadingSpeechLabels;
+        }
+        return machine;
+    }
+
+    private SettingsTransferPackage BuildSettingsTransferPackage(HashSet<string> categories)
+    {
+        var package = CreateSettingsTransferPackage();
 
         if (categories.Contains(TransferGeneral))
         {
@@ -221,7 +274,7 @@ public sealed partial class SensorReadoutForm : Form
         return package;
     }
 
-    private string ApplySettingsTransferPackage(SettingsTransferPackage package, HashSet<string> categories)
+    private string ApplySettingsTransferPackage(SettingsTransferPackage package, HashSet<string> categories, SpokenHotKeyImport shortcuts = null)
     {
         var lines = new List<string>();
         var machine = package.MachineSettings ?? new MachineAppSettings();
@@ -230,10 +283,12 @@ public sealed partial class SensorReadoutForm : Form
         {
             var shared = package.SharedSettings;
             NormalizeSharedSettings(shared);
+            var showHideKey = settings.ShowHideHotKey;
+            var speakTrayKey = settings.SpeakTrayHotKey;
             ApplySharedSettings(settings, shared);
-            settings.ShowHideHotKey = "";
-            settings.SpeakTrayHotKey = "";
-            lines.Add(L("message.Imported general preferences. Global hotkeys were left unassigned.", "Imported general preferences. Global hotkeys were left unassigned."));
+            settings.ShowHideHotKey = showHideKey;
+            settings.SpeakTrayHotKey = speakTrayKey;
+            lines.Add(L("message.Imported general preferences. Local show/hide and notification area shortcuts were kept.", "Imported general preferences. Local show/hide and notification area shortcuts were kept."));
         }
 
         if (categories.Contains(TransferTray))
@@ -247,6 +302,7 @@ public sealed partial class SensorReadoutForm : Form
         if (categories.Contains(TransferSpokenHotKeys))
         {
             var importedProfiles = new List<SpokenHotKeySetting>();
+            var speechLabels = package.SpokenReadingSpeechLabels ?? machine.ReadingSpeechLabels;
             var skippedReadings = 0;
             var equivalentReadings = 0;
             if (settings.ReadingSpeechLabels == null)
@@ -278,7 +334,7 @@ public sealed partial class SensorReadoutForm : Form
                             equivalentReadings++;
                         }
 
-                        var importedLabel = ImportedSpeechLabel(machine.ReadingSpeechLabels, key);
+                        var importedLabel = ImportedSpeechLabel(speechLabels, key);
                         if (!string.IsNullOrWhiteSpace(importedLabel))
                         {
                             settings.ReadingSpeechLabels[match] = importedLabel;
@@ -286,17 +342,22 @@ public sealed partial class SensorReadoutForm : Form
                     }
                 }
 
+                var name = string.IsNullOrWhiteSpace(profile.Name) ? "Imported spoken hotkey" : profile.Name.Trim();
                 importedProfiles.Add(new SpokenHotKeySetting
                 {
-                    Name = string.IsNullOrWhiteSpace(profile.Name) ? "Imported spoken hotkey" : profile.Name.Trim(),
-                    HotKey = "",
+                    Name = name,
+                    HotKey = shortcuts == null ? "" : shortcuts.Assign(name, profile.HotKey, importedProfiles.Count, resolved.Count > 0),
                     SkipUnavailableReadings = profile.SkipUnavailableReadings,
                     ReadingKeys = resolved
                 });
             }
 
             settings.SpokenHotKeys = importedProfiles;
-            lines.Add(L("message.Imported spoken hotkey profiles with key assignments left blank:", "Imported spoken hotkey profiles with key assignments left blank:") + " " + importedProfiles.Count + ". " + L("message.Matched equivalent readings:", "Matched equivalent readings:") + " " + equivalentReadings + ". " + L("message.Skipped readings:", "Skipped readings:") + " " + skippedReadings + ".");
+            lines.Add(L("message.Imported spoken hotkey profiles:", "Imported spoken hotkey profiles:") + " " + importedProfiles.Count + ". " + L("message.Matched equivalent readings:", "Matched equivalent readings:") + " " + equivalentReadings + ". " + L("message.Skipped readings:", "Skipped readings:") + " " + skippedReadings + ".");
+            if (shortcuts != null)
+            {
+                lines.Add(shortcuts.Summary());
+            }
         }
 
         if (categories.Contains(TransferFanProfiles))
@@ -579,7 +640,7 @@ public sealed partial class SensorReadoutForm : Form
         return match == null ? "" : RowSettingsKey(match);
     }
 
-    private static string ImportedSpeechLabel(Dictionary<string, string> labels, string key)
+    internal static string ImportedSpeechLabel(Dictionary<string, string> labels, string key)
     {
         if (labels == null || string.IsNullOrWhiteSpace(key))
         {
@@ -620,6 +681,7 @@ public sealed partial class SensorReadoutForm : Form
         BuildLanguageMenu();
         ApplyLanguage();
         RegisterGlobalHotKeys();
+        BuildHotkeysMenu();
         ApplyTimerSettings();
         StartAutomaticUpdateChecks();
         ClearFormattedSensorRowCaches();

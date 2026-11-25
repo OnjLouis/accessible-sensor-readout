@@ -49,6 +49,8 @@ public sealed partial class SensorReadoutForm : Form
             form.RunSelfTestStep(results, "Context help and F1 hotkey capture", delegate { form.SelfTestContextHelp(); });
             form.RunSelfTestStep(results, "Localized menus and dialogs", delegate { form.SelfTestLocalizedMenusAndDialogs(); });
             form.RunSelfTestStep(results, "Portable spoken hotkey resolution", delegate { form.SelfTestPortableReadingKeyResolution(); });
+            form.RunSelfTestStep(results, "Spoken shortcut import conflicts", delegate { form.SelfTestSpokenShortcutImportConflicts(); });
+            form.RunSelfTestStep(results, "Spoken hotkey export", delegate { form.SelfTestSpokenHotKeyExport(); });
             form.RunSelfTestStep(results, "Sensor collection", delegate { form.SelfTestSensorCollection(); });
             form.RunSelfTestStep(results, "Storage inventory parsers and privacy", delegate { form.SelfTestStorageInventoryParsersAndPrivacy(); });
             form.RunSelfTestStep(results, "PCIe slot summary wording", delegate { form.SelfTestPciSlotSummaryWording(); });

@@ -8,7 +8,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Current version: 6.6.2.</p>
+<p>Current version: 6.6.3.</p>
 <p><strong>Important update note:</strong> If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.</p>
 <h2 id="contents">Contents</h2>
 <ul>
@@ -49,6 +49,7 @@
 <li><a href="#license">License</a></li>
 </ul>
 <h2 id="changelog">Changelog</h2>
+<h3>6.6.3</h3><ul><li>Fixed: Spoken hotkey imports can restore available shortcuts.</li><li>Added: Export only spoken hotkeys directly from the Hotkeys tab.</li></ul>
 <h3>6.6.2</h3><ul><li>Added: Set separate read and write click pitches for each physical disk.</li></ul>
 <h3>6.6.1</h3><ul><li>Fixed: Disk activity sounds no longer go silent after extended listening due to clock drift.</li><li>Improved: Disk activity uses shorter clicks and separates closely grouped reads and writes so both can be heard.</li><li>Improved: Spoken readings from a named remote computer start with its name, without repeating &quot;Remote computer&quot;.</li></ul>
 <h3>6.6.0</h3><ul><li>Added: Disk activity sounds give local physical disks distinct read and write clicks with per-disk volume, stereo pan and three-band EQ. A configurable global hotkey toggles listening. Thanks to Kara Goldfinch for the idea.</li><li>Improved: Storage, battery and network readings react sooner to drive, power-source and network connection changes without speeding up the normal refresh.</li></ul>
@@ -1012,7 +1013,12 @@
 <td>
 <code>Alt+I</code>
 </td>
-<td>In Hotkeys, import spoken hotkey profiles from another machine config.</td>
+<td>In Hotkeys, import spoken profiles from a settings package or machine configuration.</td>
+</tr>
+<tr>
+<td>Preferences</td>
+<td><code>Alt+E</code></td>
+<td>In Hotkeys, export only spoken hotkey profiles.</td>
 </tr>
 <tr>
 <td>Preferences</td>
@@ -1223,7 +1229,8 @@
 <li>Spoken hotkey profiles: create extra global hotkeys, each with its own name, key combination, and ordered reading list.</li>
 <li>Spoken labels: rename selected readings for shorter speech, such as changing <code>Receive rate</code> to <code>Rx</code>.</li>
 </ul>
-<p>Spoken hotkey profiles can be imported from another machine's <code>Config\&lt;ComputerName&gt;.json</code>. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.</p>
+<p>On the Hotkeys tab, press <kbd>Alt+E</kbd> or choose <strong>Export...</strong> to save a <code>&lt;ComputerName&gt; Hotkeys.srsettings.json</code> file. It contains spoken profiles, shortcuts, and their custom reading labels, not notification area readings or other settings. Open it with <strong>Import...</strong> (<kbd>Alt+I</kbd>) on the same tab.</p>
+<p>Spoken hotkey profiles can be imported from another machine's <code>Config\&lt;ComputerName&gt;.json</code>. Choose Yes to restore available shortcuts. Conflicting or invalid shortcuts are listed and left unassigned; matching readings are still imported. Choose No to import without assigning shortcuts.</p>
 <h3>Spoken and Visual Feedback (<code>Ctrl+4</code>)</h3><p>The Spoken and visual feedback tab controls routine category speech and optional visual output for spoken hotkeys.</p><ul><li>Category speech: choose full category guidance, brief category-and-shortcut announcements, or off.</li><li>Speak categories through Windows speech when no screen reader is detected: lets sighted or partially sighted users opt into category-change speech from Windows speech. That fallback speech interrupts itself so rapid category movement does not queue old messages.</li><li>Show visual spoken hotkey feedback: show spoken hotkey output in a temporary floating Sensor Readout window even when a screen reader is running.</li><li>Visual feedback placement and timeout: choose where the floating feedback window appears and how long it stays visible.</li></ul><h3>Fan Profiles (<code>Ctrl+5</code>)</h3>
 <p>The Fan profiles tab builds named groups of fan actions. The layout matches the Hotkeys tab: create a profile, assign an optional global hotkey, add fan controls to the profile, then choose whether each fan should be set to a manual percentage or returned to automatic/default control.</p>
 <p>Fan profiles can be toggles. With that option enabled, pressing the profile hotkey once applies the profile, and pressing the same hotkey again returns those fans to automatic/default control. Each profile can speak a custom message and/or play a chosen sound when it is applied.</p>
@@ -1372,7 +1379,8 @@
 <h3>Reading History</h3>
 <p>Use <code>Options</code> &gt; <code>Enable reading history logging</code> to turn short-term CSV logging on or off. Select a reading and use <code>Edit</code> &gt; <code>Add to history log</code> or <code>Ctrl+Shift+G</code> to include it. Sensor Readout writes the selected readings to <code>Logs\ReadingHistory-&lt;ComputerName&gt;-&lt;Date&gt;.csv</code> during normal refreshes. This is intended for temporary troubleshooting rather than permanent background monitoring.</p>
 <h2 id="settings-transfer">Settings Transfer</h2>
-<p>Use <code>File</code> &gt; <code>Export settings and profiles...</code> or <code>Ctrl+E</code> to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include. Use <code>File</code> &gt; <code>Import settings and profiles...</code> or <code>Ctrl+I</code> to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Spoken hotkey readings are matched by stable identity where possible, so an exact drive letter remains exact even when its volume label changes, while common CPU, GPU, memory, battery, network, overview, and task readings can move cautiously to an equivalent sensor on another computer. The same matching keeps configured hotkeys useful while viewing a loaded report or remote computer. Custom spoken labels accompany imported hotkey readings. Ambiguous or hardware-specific matches are skipped rather than guessed; global hotkey assignments are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.</p>
+<p>Use <code>File</code> &gt; <code>Export settings and profiles...</code> or <code>Ctrl+E</code> to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include. Use <code>File</code> &gt; <code>Import settings and profiles...</code> or <code>Ctrl+I</code> to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Spoken hotkey readings are matched by stable identity where possible, so an exact drive letter remains exact even when its volume label changes, while common CPU, GPU, memory, battery, network, overview, and task readings can move cautiously to an equivalent sensor on another computer. The same matching keeps configured hotkeys useful while viewing a loaded report or remote computer. Custom spoken labels accompany imported hotkey readings. Ambiguous or hardware-specific matches are skipped rather than guessed; fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.</p>
+<p>Choose Yes to restore available shortcuts. Conflicting or invalid shortcuts are listed and left unassigned; matching readings are still imported. Choose No to import without assigning shortcuts. Local show/hide and notification area shortcuts are kept.</p>
 <p>Use <code>File</code> &gt; <code>Export portable copy...</code> or <code>Ctrl+Shift+E</code> when you want the whole customized app as a ZIP. It includes Sensor Readout, <code>Config</code>, Plug-Ins, language files, custom sounds, and the other files needed to run from another folder or another PC. Reports and logs are optional checkboxes because they can be large or private.</p>
 <h2 id="files">Files</h2>
 <p>Portable build:</p>

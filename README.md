@@ -1,6 +1,6 @@
 # Sensor Readout
 
-Current version: 6.6.2.
+Current version: 6.6.3.
 
 **Important update note:** If you are running 6.0.0 or 6.1.0, download the current release manually once. Those two versions cannot complete their own signed update because the temporary updater omitted a required program file. Your settings are preserved, and later automatic updates work normally.
 
@@ -259,7 +259,8 @@ Plain `F1` is reserved for help, including in hotkey-entry fields; it does not r
 | Preferences | `Alt+U` | In Startup and Install, uninstall from this PC when running from the installed copy. |
 | Preferences | `Alt+I` | In Plug-Ins, import a plug-in ZIP. |
 | Preferences | `Alt+N` | In Hotkeys, create a new spoken hotkey profile. |
-| Preferences | `Alt+I` | In Hotkeys, import spoken hotkey profiles from another machine config. |
+| Preferences | `Alt+I` | In Hotkeys, import spoken profiles from a settings package or machine configuration. |
+| Preferences | `Alt+E` | In Hotkeys, export only spoken hotkey profiles. |
 | Preferences | `Alt+P` | In Hotkeys or Alarms, open presets. |
 | Preferences | `Alt+R` | In Hotkeys, remove the selected spoken hotkey profile. Notification area status is permanent and cannot be removed. |
 | Preferences | `Alt+A` | In Hotkeys, add the selected reading to notification area status or the selected spoken hotkey profile. |
@@ -366,7 +367,9 @@ The Hotkeys tab controls notification-area speech and spoken hotkey profiles. Sp
 - Copy, cut, and paste readings: use `Ctrl+C`, `Ctrl+X`, and `Ctrl+V`, or the matching buttons, to copy readings between notification area status and spoken hotkey profiles without rebuilding each list from scratch.
 - Import spoken hotkeys: Sensor Readout keeps drive letters exact and cautiously matches equivalent CPU, GPU, memory, battery, network, system, task, and other portable readings when the source computer uses different hardware names. The same matching is used while viewing loaded reports and remote computers. Custom spoken labels follow matched readings, while ambiguous choices remain unavailable instead of being guessed.
 
-Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Imported profiles do not keep their old key assignments, so they cannot steal keys already used on the current machine. Readings are kept only when Sensor Readout can match them safely on the current computer.
+On the Hotkeys tab, press `Alt+E` or choose **Export...** to save `<ComputerName> Hotkeys.srsettings.json`. The file contains spoken profiles, shortcuts, and custom reading labels, not notification area readings or other settings. Open it with **Import...** (`Alt+I`) on the same tab.
+
+Spoken hotkey profiles can be imported from another machine's `Config\<ComputerName>.json`. Choose Yes to restore available shortcuts, or No to import without assigning shortcuts. Conflicting or invalid shortcuts are listed and left unassigned. Matching readings are still imported.
 
 Each spoken hotkey profile also has `Skip unavailable readings for this hotkey`, so one profile can stay strict while another profile only announces active readings such as connected drives or adapters that are currently up.
 
@@ -689,7 +692,7 @@ Use `Options` > `Enable reading history logging` to turn short-term CSV logging 
 
 Use `File` > `Export settings and profiles...` or `Ctrl+E` to create a settings package. Sensor Readout shows a checklist first, so you can choose exactly what to include: general preferences, notification area readings, spoken hotkey profiles, fan profiles, fan curves, alarms, hidden items and category order, or plug-in choices.
 
-Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Spoken hotkeys keep drive letters exact and cautiously match equivalent CPU, GPU, memory, battery, network, system, task, and other portable readings when hardware names differ. This same matching helps configured hotkeys follow corresponding readings in loaded reports and remote computers. Custom spoken labels follow matched readings, while ambiguous choices remain unavailable rather than being guessed. Other hardware-specific items that could be unsafe or wrong on another computer remain cautious: global hotkeys are left blank, fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
+Use `File` > `Import settings and profiles...` or `Ctrl+I` to bring settings back in. Import shows the same kind of checklist, limited to the sections found in the selected package. Spoken hotkeys keep drive letters exact and cautiously match equivalent CPU, GPU, memory, battery, network, system, task, and other portable readings when hardware names differ. This same matching helps configured hotkeys follow corresponding readings in loaded reports and remote computers. Custom spoken labels follow matched readings, while ambiguous choices remain unavailable rather than being guessed. When importing spoken profiles, choose Yes to restore available shortcuts or No to import without shortcuts. Conflicts are listed and left unassigned, and existing local show/hide and notification area shortcuts are kept. Fan profile actions are not bound, fan curves are disabled until a fan control is chosen, and alarms are disabled for review.
 
 Use `File` > `Export portable copy...` or `Ctrl+Shift+E` when you want the whole customized app as a ZIP. It includes Sensor Readout, `Config`, Plug-Ins, language files, custom sounds, and the other files needed to run from another folder or another PC. Reports and logs are optional checkboxes because they can be large or private.
 
@@ -784,6 +787,11 @@ These tools are outside Sensor Readout; use the vendor or project pages and only
 Sensor Readout only reads these optional support paths unless a plug-in clearly says otherwise. It does not flash firmware or replace the laptop maker's own setup tools.
 
 ## Changelog
+
+### 6.6.3
+
+- Fixed: Spoken hotkey imports can restore available shortcuts and report conflicts without losing matched readings.
+- Added: Export only spoken hotkey profiles directly from the Hotkeys tab with Alt+E.
 
 ### 6.6.2
 

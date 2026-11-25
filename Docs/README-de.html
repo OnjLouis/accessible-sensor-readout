@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Aktuelle Version: 6.6.2.</p>
+<p>Aktuelle Version: 6.6.3.</p>
 <p><strong>Wichtiger Update-Hinweis:</strong> Wenn Sie Version 6.0.0 oder 6.1.0 verwenden, laden Sie die aktuelle Version einmal manuell herunter. Diese beiden Versionen können ihr eigenes signiertes Update nicht abschließen, weil im temporären Aktualisierungsprogramm eine erforderliche Programmdatei fehlte. Ihre Einstellungen bleiben erhalten, und spätere automatische Updates funktionieren wieder normal.</p>
 <p>Sensor Readout ist ein Windows-Werkzeug zum Lesen von Hardware-Sensoren und zum Steuern unterstützter Lüfter. Die Oberfläche ist zuerst für Tastatur und Screenreader gebaut.</p>
 <p>Links stehen die Hauptbereiche, rechts eine Baumansicht mit Messwerten nach Gerät oder Zweck. Die wichtigsten Befehle liegen in einer normalen Menüleiste.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Änderungen</h2>
+<h3>6.6.3</h3><ul><li>Behoben: Beim Import gesprochener Hotkey-Profile lassen sich freie Tastenkombinationen wiederherstellen.</li><li>Neu: Gesprochene Hotkeys können direkt aus dem Tab Hotkeys exportiert werden.</li></ul>
 <h3>6.6.2</h3><ul><li>Neu: Getrennte Tonhöhen für Lese- und Schreibklicks pro physischem Laufwerk.</li></ul>
 <h3>6.6.1</h3><ul><li>Behoben: Laufwerksgeräusche verstummen bei längerer Wiedergabe nicht mehr durch das Auseinanderlaufen der Zeitgeber.</li><li>Verbessert: Kürzere Laufwerksgeräusche und ein kurzer Abstand zwischen Lese- und Schreibtönen machen beide hörbar.</li><li>Verbessert: Bei angesagten Messwerten eines benannten entfernten Computers wird nur der Name vorangestellt.</li></ul>
 <h3>6.6.0</h3><ul><li>Neu: Lese- und Schreibtöne für physische Laufwerke mit individueller Lautstärke, Balance, Drei-Band-Equalizer und globaler Tastenkombination. Danke an Kara Goldfinch für die Idee.</li><li>Verbessert: Messwerte für Laufwerke, Akku und Netzwerk reagieren schneller auf Geräte-, Stromquellen- und Verbindungswechsel, ohne den normalen Aktualisierungstakt zu verkürzen.</li></ul>
@@ -890,7 +891,12 @@
 <td>
 <code>Alt+I</code>
 </td>
-<td>In Hotkeys, import spoken hotkey profiles from another machine config.</td>
+<td>Im Tab Hotkeys gesprochene Profile aus einem Einstellungspaket oder einer Computerkonfiguration importieren.</td>
+</tr>
+<tr>
+<td>Einstellungen</td>
+<td><code>Alt+E</code></td>
+<td>Im Tab Hotkeys nur gesprochene Hotkey-Profile exportieren.</td>
 </tr>
 <tr>
 <td>Einstellungen</td>
@@ -1083,7 +1089,8 @@
 <p>Sprachdateien bearbeiten oder neue Sprachdateien aus Englisch erstellen. Fehlende Einträge fallen auf Englisch zurück.</p>
 <p>Wenn Infobereich-Status aktiv ist, blendet Minimieren Sensor Readout aus Taskleiste und Alt+Tab aus. Öffnen Sie es wieder über das Infobereich-Symbol. <code>Alt+F4</code> beendet die App.</p>
 <p id="notification-area-readings">Infobereich-Messwerte werden aus einer verfügbaren Liste in eine Reihenfolge verschoben. Bis zu acht Messwerte können im Infobereich und in der gesprochenen Statusausgabe ausgewählt werden. Ein Messwert erscheint nur in einer Liste. Nutzen Sie Schaltflächen oder Strg-Pfeile. Einträge stehen als Gerät, Messwert und Kategorie, z. B. <code>Ethernet - Rx: Netzwerk</code>.</p>
-<p>Der Hotkeys-Tab kann gesprochene Hotkey-Profile aus einer anderen Computer-Konfiguration importieren. Importierte Profile behalten ihre alten Tastenkombinationen nicht, damit sie keine Tasten auf diesem Computer belegen. Messwerte werden nur behalten, wenn Sensor Readout sie auf dem aktuellen Computer sicher zuordnen kann.</p>
+<p>Drücken Sie im Tab Hotkeys <kbd>Alt+E</kbd> oder wählen Sie <strong>Exportieren...</strong>, um <code>&lt;ComputerName&gt; Hotkeys.srsettings.json</code> zu speichern. Die Datei enthält gesprochene Profile, Tastenkombinationen und eigene Messwertbezeichnungen, aber keine Infobereich-Messwerte oder sonstigen Einstellungen. Öffnen Sie sie über <strong>Importieren...</strong> (<kbd>Alt+I</kbd>) im selben Tab.</p>
+<p>Im Tab Hotkeys können Sie gesprochene Hotkey-Profile aus der Konfiguration eines anderen Computers importieren. Wählen Sie Ja, um freie Tastenkombinationen wiederherzustellen. Belegte oder ungültige Kombinationen werden aufgelistet und nicht zugewiesen. Passende Messwerte werden trotzdem importiert. Wählen Sie Nein für den Import ohne Tastenkombinationen.</p>
 <h2 id="categories-and-readings">Kategorien und Messwerte</h2>
 <p>Bei automatischer Aktualisierung können Windows-Meldungen die Anzeige von Laufwerken, Akku und Netzwerkadaptern bei einem Anschluss- oder Verbindungswechsel auffrischen. CPU, GPU und andere Messwerte behalten ihren normalen Takt. Die Pause und die Einstellung für das Fenster mit Fokus gelten weiterhin.</p>
 
@@ -1189,7 +1196,8 @@
 <p>Details und Kopierbefehle funktionieren weiterhin, wenn der Bericht die passenden Felder enthält. Das ist hilfreich, wenn jemand USB-, Audio-, Anzeige-, Netzwerk-, Lüfter-, Batterie- oder SMART-Daten schickt und Sie einzelne Zeilen prüfen möchten, ohne die ganze Datei manuell zu lesen.</p>
 <p>Mit <code>Datei</code> &gt; <code>Zurück zu Live-Messwerten</code> oder <code>Strg+R</code> kehren Sie zum aktuellen Computer zurück. HTML-Berichte ab Sensor Readout 2.0 enthalten für den besten Import eine versteckte maschinenlesbare Momentaufnahme. TXT-Berichte sind nur zum Lesen gedacht und werden nicht zurück in Sensor Readout importiert.</p>
 <h2 id="settings-transfer">Einstellungen übertragen</h2>
-<p>Mit <code>Datei</code> &gt; <code>Einstellungen und Profile exportieren...</code> oder <code>Strg+E</code> erstellen Sie ein Einstellungspaket. Sensor Readout zeigt zuerst eine Checkliste, damit Sie genau auswählen können, was enthalten sein soll. Mit <code>Datei</code> &gt; <code>Einstellungen und Profile importieren...</code> oder <code>Strg+I</code> bringen Sie Einstellungen wieder herein. Beim Import erscheint dieselbe Art Checkliste, beschränkt auf die Abschnitte im gewählten Paket. Gesprochene Hotkey-Messwerte werden nach Möglichkeit anhand ihrer stabilen Identität zugeordnet: Ein genauer Laufwerksbuchstabe bleibt auch bei einer anderen Volume-Bezeichnung genau, während häufige CPU-, GPU-, Speicher-, Akku-, Netzwerk-, Übersichts- und Aufgabenwerte vorsichtig einem entsprechenden Sensor auf einem anderen Computer zugeordnet werden können. Dieselbe Zuordnung hält konfigurierte Hotkeys beim Anzeigen eines geladenen Berichts oder entfernten Computers nützlich. Benutzerdefinierte gesprochene Bezeichnungen werden mit importierten Hotkey-Messwerten übernommen. Mehrdeutige oder hardwarespezifische Treffer werden übersprungen statt erraten; globale Hotkey-Zuweisungen bleiben leer, Lüfterprofil-Aktionen werden nicht gebunden, Lüfterkurven bleiben deaktiviert, bis eine Lüftersteuerung gewählt ist, und Alarme bleiben zur Prüfung deaktiviert.</p>
+<p>Mit <code>Datei</code> &gt; <code>Einstellungen und Profile exportieren...</code> oder <code>Strg+E</code> erstellen Sie ein Einstellungspaket. Sensor Readout zeigt zuerst eine Checkliste, damit Sie genau auswählen können, was enthalten sein soll. Mit <code>Datei</code> &gt; <code>Einstellungen und Profile importieren...</code> oder <code>Strg+I</code> bringen Sie Einstellungen wieder herein. Beim Import erscheint dieselbe Art Checkliste, beschränkt auf die Abschnitte im gewählten Paket. Gesprochene Hotkey-Messwerte werden nach Möglichkeit anhand ihrer stabilen Identität zugeordnet: Ein genauer Laufwerksbuchstabe bleibt auch bei einer anderen Volume-Bezeichnung genau, während häufige CPU-, GPU-, Speicher-, Akku-, Netzwerk-, Übersichts- und Aufgabenwerte vorsichtig einem entsprechenden Sensor auf einem anderen Computer zugeordnet werden können. Dieselbe Zuordnung hält konfigurierte Hotkeys beim Anzeigen eines geladenen Berichts oder entfernten Computers nützlich. Benutzerdefinierte gesprochene Bezeichnungen werden mit importierten Hotkey-Messwerten übernommen. Mehrdeutige oder hardwarespezifische Treffer werden übersprungen statt erraten; Lüfterprofil-Aktionen werden nicht gebunden, Lüfterkurven bleiben deaktiviert, bis eine Lüftersteuerung gewählt ist, und Alarme bleiben zur Prüfung deaktiviert.</p>
+<p>Wählen Sie Ja, um freie Tastenkombinationen wiederherzustellen. Belegte oder ungültige Kombinationen werden aufgelistet und nicht zugewiesen. Passende Messwerte werden trotzdem importiert. Wählen Sie Nein für den Import ohne Tastenkombinationen. Die lokalen Tastenkombinationen zum Ein- und Ausblenden und für den Infobereich bleiben erhalten.</p>
 <p>Verwenden Sie <code>Datei</code> &gt; <code>Portable Kopie exportieren...</code> oder <code>Strg+Umschalt+E</code>, wenn Sie die ganze angepasste App als ZIP speichern möchten. Enthalten sind Sensor Readout, <code>Config</code>, Plug-Ins, Sprachdateien, eigene Klänge und die anderen Dateien, die zum Ausführen aus einem anderen Ordner oder auf einem anderen PC nötig sind. Reports und Logs sind optionale Kontrollkaestchen, weil sie groß oder privat sein können.</p>
 <h2 id="files">Dateien</h2>
 <p>Portable Build:</p>

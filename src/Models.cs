@@ -242,6 +242,8 @@ public sealed class SettingsTransferPackage
     public string ExportedAtUtc = "";
     public SharedAppSettings SharedSettings;
     public MachineAppSettings MachineSettings;
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    internal Dictionary<string, string> SpokenReadingSpeechLabels;
 }
 
 public sealed class PlugInPreferenceInfo

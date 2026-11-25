@@ -9,7 +9,7 @@
 </head>
 <body>
 <h1>Sensor Readout</h1>
-<p>Version actuelle : 6.6.2.</p>
+<p>Version actuelle : 6.6.3.</p>
 <p><strong>Note importante sur la mise à jour :</strong> Si vous utilisez la version 6.0.0 ou 6.1.0, téléchargez manuellement la version actuelle une seule fois. Ces deux versions ne peuvent pas terminer leur propre mise à jour signée, car un fichier nécessaire manquait dans le programme de mise à jour temporaire. Vos réglages sont conservés et les mises à jour automatiques suivantes fonctionnent de nouveau normalement.</p>
 <p>Sensor Readout est un utilitaire Windows pour lire les capteurs materiels et controler les ventilateurs compatibles, avec une interface concue d'abord pour le clavier et les lecteurs d'ecran.</p>
 <p>Les categories principales sont a gauche, les mesures groupees par appareil ou usage sont dans une arborescence a droite, et les commandes communes sont dans une barre de menus standard.</p>
@@ -53,6 +53,7 @@
 <li><a href="#credits">Credits</a></li>
 </ul>
 <h2 id="changelog">Changements</h2>
+<h3>6.6.3</h3><ul><li>Corrigé : l’importation de profils de raccourcis parlés peut rétablir les combinaisons disponibles.</li><li>Ajout : export direct des raccourcis parlés depuis l’onglet Raccourcis.</li></ul>
 <h3>6.6.2</h3><ul><li>Ajout : réglage indépendant de la hauteur des clics de lecture et d’écriture par disque physique.</li></ul>
 <h3>6.6.1</h3><ul><li>Correction : les sons d’activité des disques ne s’interrompent plus lors d’une écoute prolongée à cause d’un décalage entre les horloges.</li><li>Amélioration : les clics de disque sont plus courts et les lectures et écritures rapprochées restent distinctes.</li><li>Amélioration : les mesures annoncées pour un ordinateur distant identifié commencent par son nom, sans répéter « Ordinateur distant ».</li></ul>
 <h3>6.6.0</h3><ul><li>Ajout : sons de lecture et d’écriture par disque physique, avec volume, balance, égaliseur à trois bandes et raccourci global. Merci à Kara Goldfinch pour l’idée.</li><li>Amélioration : les lectures de stockage, de batterie et de réseau réagissent plus vite aux changements de disque, d’alimentation ou de connexion, sans accélérer l’actualisation habituelle.</li></ul>
@@ -885,7 +886,12 @@
 <td>
 <code>Alt+I</code>
 </td>
-<td>In Hotkeys, import spoken hotkey profiles from another machine config.</td>
+<td>Dans Raccourcis, importer les profils parlés depuis un paquet de paramètres ou une configuration.</td>
+</tr>
+<tr>
+<td>Préférences</td>
+<td><code>Alt+E</code></td>
+<td>Dans Raccourcis, exporter uniquement les profils parlés.</td>
 </tr>
 <tr>
 <td>Préférences</td>
@@ -1078,7 +1084,8 @@
 <p>Modifier les fichiers de langue ou en creer un depuis l anglais. Les chaines manquantes retombent sur l anglais.</p>
 <p>Quand l etat de notification est active, reduire Sensor Readout le retire de la barre des taches et de Alt+Tab. Rouvrez-le depuis l icone. <code>Alt+F4</code> quitte l application.</p>
 <p id="notification-area-readings">Les mesures de la zone de notification passent d une liste disponible a une liste d ordre. La limite est de quatre car les info-bulles Windows sont courtes. Une mesure n apparait que dans une liste. Utilisez les boutons ou Ctrl+fleches. Les elements affichent appareil, nom et categorie, par exemple <code>Ethernet - Rx: Reseau</code>.</p>
-<p>L onglet Raccourcis peut importer des profils de raccourcis parles depuis une autre configuration de machine. Les profils importes ne gardent pas leurs anciennes touches, afin de ne pas voler des touches deja utilisees sur cette machine. Les lectures sont conservees seulement quand Sensor Readout peut les faire correspondre sans risque sur l ordinateur actuel.</p>
+<p>Dans l’onglet Raccourcis, appuyez sur <kbd>Alt+E</kbd> ou choisissez <strong>Exporter...</strong> pour enregistrer <code>&lt;ComputerName&gt; Hotkeys.srsettings.json</code>. Le fichier contient les profils parlés, leurs combinaisons et libellés personnalisés, sans les lectures de la zone de notification ni les autres paramètres. Ouvrez-le avec <strong>Importer...</strong> (<kbd>Alt+I</kbd>) dans le même onglet.</p>
+<p>L’onglet Raccourcis peut importer des profils de raccourcis parlés depuis la configuration d’un autre ordinateur. Choisissez Oui pour rétablir les combinaisons disponibles. Les combinaisons occupées ou non valides sont listées et restent non attribuées. Les lectures compatibles sont tout de même importées. Choisissez Non pour importer sans combinaisons.</p>
 <h2 id="categories-and-readings">Catégories et lectures</h2>
 <p>Lorsque l’actualisation automatique est active, les notifications Windows peuvent actualiser le stockage, la batterie et les cartes réseau lors d’un changement de connexion. Le processeur, le GPU et les autres lectures gardent leur fréquence habituelle. La pause et le réglage d’actualisation avec le focus restent respectés.</p>
 
@@ -1184,7 +1191,8 @@
 <p>Les details et commandes de copie fonctionnent encore lorsque le rapport contient les champs necessaires. C est utile si quelqu un envoie des donnees USB, audio, affichage, reseau, ventilateur, batterie ou SMART et que vous voulez verifier des lignes precises sans lire tout le fichier a la main.</p>
 <p>Utilisez <code>Fichier</code> &gt; <code>Revenir aux lectures en direct</code> ou <code>Ctrl+R</code> pour revenir a l ordinateur actuel. Les rapports HTML crees par Sensor Readout 2.0 ou plus recent contiennent un instantane masque lisible par l application pour la meilleure importation. Les rapports TXT restent en texte simple et sont ouverts au mieux.</p>
 <h2 id="settings-transfer">Transfert des parametres</h2>
-<p>Utilisez <code>Fichier</code> &gt; <code>Exporter les paramètres et profils...</code> ou <code>Ctrl+E</code> pour créer un paquet. Sensor Readout affiche d’abord une liste afin de choisir exactement quoi inclure. Utilisez <code>Fichier</code> &gt; <code>Importer les paramètres et profils...</code> ou <code>Ctrl+I</code> pour les importer. Les lectures des raccourcis parlés sont associées par leur identité stable lorsque c’est possible : une lettre de lecteur exacte reste exacte même si le nom du volume change, tandis que les lectures courantes de processeur, GPU, mémoire, batterie, réseau, aperçu et tâches peuvent être associées prudemment à un capteur équivalent sur un autre ordinateur. La même association garde les raccourcis configurés utiles pendant la consultation d’un rapport chargé ou d’un ordinateur distant. Les libellés parlés personnalisés accompagnent les lectures importées. Les correspondances ambiguës ou propres au matériel sont ignorées plutôt que devinées ; les affectations globales restent vides, les actions des profils de ventilation ne sont pas liées, les courbes restent désactivées jusqu’au choix d’une commande et les alarmes restent désactivées pour vérification.</p>
+<p>Utilisez <code>Fichier</code> &gt; <code>Exporter les paramètres et profils...</code> ou <code>Ctrl+E</code> pour créer un paquet. Sensor Readout affiche d’abord une liste afin de choisir exactement quoi inclure. Utilisez <code>Fichier</code> &gt; <code>Importer les paramètres et profils...</code> ou <code>Ctrl+I</code> pour les importer. Les lectures des raccourcis parlés sont associées par leur identité stable lorsque c’est possible : une lettre de lecteur exacte reste exacte même si le nom du volume change, tandis que les lectures courantes de processeur, GPU, mémoire, batterie, réseau, aperçu et tâches peuvent être associées prudemment à un capteur équivalent sur un autre ordinateur. La même association garde les raccourcis configurés utiles pendant la consultation d’un rapport chargé ou d’un ordinateur distant. Les libellés parlés personnalisés accompagnent les lectures importées. Les correspondances ambiguës ou propres au matériel sont ignorées plutôt que devinées ; les actions des profils de ventilation ne sont pas liées, les courbes restent désactivées jusqu’au choix d’une commande et les alarmes restent désactivées pour vérification.</p>
+<p>Choisissez Oui pour rétablir les combinaisons disponibles. Les combinaisons occupées ou non valides sont listées et restent non attribuées. Les lectures compatibles sont tout de même importées. Choisissez Non pour importer sans combinaisons. Les raccourcis locaux d’affichage et de zone de notification sont conservés.</p>
 <h2 id="files">Fichiers</h2>
 <p>Version portable :</p>
 <ul>

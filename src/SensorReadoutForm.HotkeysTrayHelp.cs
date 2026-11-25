@@ -11,6 +11,8 @@ public sealed partial class SensorReadoutForm : Form
 {
     private const int WinFormsTrayTooltipTextLimit = 63;
     private const int ExtendedTrayTooltipTextLimit = 127;
+    private const int MaxGlobalHotKeyProfiles = 100;
+    private const int ImportedHotKeyProbeId = 2004;
 
     private void RegisterGlobalHotKeys()
     {
@@ -21,7 +23,7 @@ public sealed partial class SensorReadoutForm : Form
         RegisterGlobalHotKey(settings.ShowHideHotKey, ShowHideHotKeyId, "show/hide");
         RegisterGlobalHotKey(settings.SpeakTrayHotKey, SpeakTrayHotKeyId, "speak tray status");
         var profiles = settings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
-        for (var i = 0; i < profiles.Count && i < 100; i++)
+        for (var i = 0; i < profiles.Count && i < MaxGlobalHotKeyProfiles; i++)
         {
             var profile = profiles[i];
             if (profile == null || string.IsNullOrWhiteSpace(profile.HotKey))
@@ -37,7 +39,7 @@ public sealed partial class SensorReadoutForm : Form
         }
 
         var fanProfiles = settings.FanProfiles ?? new List<FanProfileSetting>();
-        for (var i = 0; i < fanProfiles.Count && i < 100; i++)
+        for (var i = 0; i < fanProfiles.Count && i < MaxGlobalHotKeyProfiles; i++)
         {
             var profile = fanProfiles[i];
             if (profile == null || string.IsNullOrWhiteSpace(profile.HotKey))
@@ -85,6 +87,20 @@ public sealed partial class SensorReadoutForm : Form
         return modifiers | NativeMethods.ModNoRepeat;
     }
 
+    private static bool CanRegisterImportedHotKey(string text)
+    {
+        var hotKey = ParseHotKey(text);
+        // A null window registers against this thread, not the application's hotkey window.
+        if (hotKey == null || !hotKey.IsValid ||
+            !NativeMethods.RegisterHotKey(IntPtr.Zero, ImportedHotKeyProbeId, GlobalHotKeyRegistrationModifiers(hotKey.Modifiers), (uint)hotKey.Key))
+        {
+            return false;
+        }
+
+        NativeMethods.UnregisterHotKey(IntPtr.Zero, ImportedHotKeyProbeId);
+        return true;
+    }
+
     private void UnregisterGlobalHotKeys()
     {
         var hotKeyHandle = hotKeyWindow == null ? (IsHandleCreated ? Handle : IntPtr.Zero) : hotKeyWindow.Handle;
@@ -97,11 +113,11 @@ public sealed partial class SensorReadoutForm : Form
         NativeMethods.UnregisterHotKey(hotKeyHandle, SpeakTrayHotKeyId);
         NativeMethods.UnregisterHotKey(hotKeyHandle, DiskActivityHotKeyId);
         diskActivityHotKeyRegistered = false;
-        for (var id = SpokenHotKeyBaseId; id < SpokenHotKeyBaseId + 100; id++)
+        for (var id = SpokenHotKeyBaseId; id < SpokenHotKeyBaseId + MaxGlobalHotKeyProfiles; id++)
         {
             NativeMethods.UnregisterHotKey(hotKeyHandle, id);
         }
-        for (var id = FanProfileHotKeyBaseId; id < FanProfileHotKeyBaseId + 100; id++)
+        for (var id = FanProfileHotKeyBaseId; id < FanProfileHotKeyBaseId + MaxGlobalHotKeyProfiles; id++)
         {
             NativeMethods.UnregisterHotKey(hotKeyHandle, id);
         }

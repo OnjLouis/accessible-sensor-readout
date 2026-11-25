@@ -392,13 +392,17 @@ public sealed partial class PreferencesForm : Form
         var addProfileButton = CreateShortcutButton("&New...", "Alt+N", Keys.N);
         addProfileButton.Click += delegate { AddSpokenHotKeyProfile(); };
         var importProfileButton = CreateShortcutButton("&Import...", "Alt+I", Keys.I);
-        importProfileButton.Click += delegate { ImportSpokenHotKeysFromConfig(); };
+        importProfileButton.Click += delegate { ImportSpokenHotKeys(); };
+        var exportProfileButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Export...", "&Export..."), "Alt+E", Keys.E);
+        ControlHelpCatalog.Bind(exportProfileButton, "ExportSpokenHotkeys");
+        exportProfileButton.Click += delegate { ExportSpokenHotKeys(); };
         var presetProfileButton = CreateShortcutButton(SensorReadoutForm.L("ui.&Presets...", "&Presets..."), "Alt+P", Keys.P);
         presetProfileButton.Click += delegate { ShowSpokenHotKeyPresetsDialog(); };
         removeSpokenHotKeyProfileButton = CreateShortcutButton("Remove profi&le", "Alt+L", Keys.L);
         removeSpokenHotKeyProfileButton.Click += delegate { RemoveSelectedSpokenHotKeyProfile(); };
         profileButtons.Controls.Add(addProfileButton);
         profileButtons.Controls.Add(importProfileButton);
+        profileButtons.Controls.Add(exportProfileButton);
         profileButtons.Controls.Add(presetProfileButton);
         profileButtons.Controls.Add(removeSpokenHotKeyProfileButton);
         profilePanel.Controls.Add(profileButtons, 0, 2);

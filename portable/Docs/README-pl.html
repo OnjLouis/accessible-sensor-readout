@@ -8,7 +8,7 @@
 <body>
 <main>
 <h1>Sensor Readout</h1>
-<p>Wersja programu: 6.6.2.</p>
+<p>Wersja programu: 6.6.3.</p>
 <p>Polski podręcznik rozszerzony na podstawie materiałów przesłanych przez Pawła Podolskiego. Materiał jest opracowaniem społecznościowym i nie każda funkcja została przetestowana w działającym programie z NVDA. W razie rozbieżności sprawdź także <a href="README-en.html">aktualny podręcznik angielski</a>.</p>
 <p>Polski podręcznik rozszerzony</p>
 <p>Obsługa programu, klawiatura i NVDA, diagnostyka, raporty, monitorowanie zdalne, administracja Linux i wtyczki.</p>
@@ -91,6 +91,7 @@
 <li class="subsection"><a href="#58-licencja-mit-przekad-informacyjny">58. Licencja MIT: przekład informacyjny</a></li>
 </ul></nav>
 <h2 id="changelog">Zmiany w tej wersji</h2>
+<h3>6.6.3</h3><ul><li>Naprawiono: podczas importu profili odczytu można przywrócić dostępne skróty klawiaturowe.</li><li>Dodano: skróty odczytu można eksportować bezpośrednio z karty skrótów.</li></ul>
 <h3>6.6.2</h3><ul><li>Dodano osobne ustawienia wysokości kliknięć odczytu i zapisu dla każdego dysku fizycznego.</li></ul>
 <h3>6.6.1</h3><ul><li>Poprawiono: dźwięki aktywności dysków nie cichną już podczas dłuższego nasłuchu z powodu rozbieżności zegarów.</li><li>Ulepszono: kliknięcia dysku są krótsze, a bliskie sobie odczyty i zapisy słychać osobno.</li><li>Ulepszono: przed odczytem z nazwanego komputera zdalnego słychać jego nazwę, bez powtarzania słów „Komputer zdalny”.</li></ul>
 <h3>6.6.0</h3><ul><li>Dodano dźwięki odczytu i zapisu dla dysków fizycznych z regulacją głośności, panoramy i trzech pasm oraz globalnym skrótem. Dziękujemy Kara Goldfinch za pomysł.</li><li>Ulepszono: odczyty dysków, baterii i sieci szybciej reagują na zmiany dysków, zasilania i połączeń bez zwiększania częstotliwości zwykłego odświeżania.</li></ul>
@@ -254,7 +255,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Ctrl+strzałka w górę lub w dół: przesuń odczyt obszaru powiadomień, odczyt profilu, działanie profilu wentylatorów albo kategorię wcześniej lub później.</p>
 <p>Alt+I w Startup and Install: zainstaluj na tym komputerze. Alt+U w tej zakładce: odinstaluj, gdy uruchomiona jest zainstalowana kopia.</p>
 <p>Alt+I w Plug-Ins: importuj ZIP wtyczki.</p>
-<p>Alt+N w Hotkeys: nowy profil mówiony. Alt+I w Hotkeys: importuj profile z konfiguracji innego komputera.</p>
+<p>Alt+N w Hotkeys: nowy profil odczytu. Alt+I: importuj profile z pakietu lub konfiguracji komputera. Alt+E: eksportuj tylko profile odczytu.</p>
 <p>Alt+P w Hotkeys lub Alarms: otwórz wzorce. Alt+L w Hotkeys: usuń wybrany profil; stałego profilu obszaru powiadomień nie można usunąć.</p>
 <p>Alt+A w Hotkeys: dodaj odczyt do wybranego zestawu. Alt+M: usuń odczyt z zestawu.</p>
 <p>Ctrl+C, Ctrl+X i Ctrl+V w Hotkeys: kopiuj, wytnij i wklej odczyt między profilem obszaru powiadomień a innymi profilami mówionymi.</p>
@@ -342,7 +343,8 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <p>Spoken hotkey profiles pozwala tworzyć dodatkowe globalne skróty z nazwą, kombinacją klawiszy i uporządkowaną listą odczytów. Spoken hotkey presets tworzy zestawy systemu, pamięci, aktywności C, Tasks, sieci, GPU, baterii i chłodzenia. Wzorce nie mają przypisanych klawiszy: trzeba nadać własne. Alt+P otwiera Presets tutaj i w Alarms.</p>
 <p>Spoken labels pozwala skrócić wypowiedź, np. zmienić Receive rate na Rx. Ctrl+C, Ctrl+X i Ctrl+V oraz odpowiadające przyciski kopiują, wycinają i wklejają odczyty między profilami, bez budowania list od nowa.</p>
 <p>Import zachowuje dokładne litery dysków i ostrożnie dopasowuje równoważne odczyty CPU, GPU, RAM, baterii, sieci, systemu i zadań przy innych nazwach sprzętu. Takie samo dopasowanie działa dla raportów i komputerów zdalnych. Własne etykiety przechodzą razem z dopasowanym odczytem; niejednoznaczna pozycja pozostaje niedostępna zamiast zgadywania.</p>
-<p>Profile można importować z Config\&lt;ComputerName&gt;.json innego komputera. Stare kombinacje klawiszy nie są zachowywane, aby nie przejąć istniejących skrótów. Odczyty pozostają tylko przy bezpiecznym dopasowaniu. Każdy profil ma własne Skip unavailable readings for this hotkey: jeden może wymagać pełnego zestawu, inny mówić wyłącznie o podłączonych dyskach lub działających kartach sieciowych.</p>
+<p>Na karcie skrótów naciśnij <kbd>Alt+E</kbd> lub wybierz <strong>Eksportuj...</strong>, aby zapisać <code>&lt;ComputerName&gt; Hotkeys.srsettings.json</code>. Plik zawiera profile odczytu, ich kombinacje i własne etykiety, ale nie odczyty obszaru powiadomień ani inne ustawienia. Otwórz go przyciskiem <strong>Importuj...</strong> (<kbd>Alt+I</kbd>) na tej samej karcie.</p>
+<p>Profile można importować z pliku <code>Config\&lt;ComputerName&gt;.json</code> innego komputera. Wybierz Tak, aby przywrócić dostępne skróty. Zajęte lub nieprawidłowe skróty zostaną wyświetlone na liście i pozostaną nieprzypisane. Pasujące odczyty nadal zostaną zaimportowane. Wybierz Nie, aby importować bez przypisań. Każdy profil ma własne ustawienie pomijania niedostępnych odczytów.</p>
 <h4 id="spoken-and-visual-feedback-mowa-i-informacja-wizualna-ctrl-4">Spoken and visual feedback: Mowa i informacja wizualna, Ctrl+4</h4>
 <p>Category speech wybiera pełne wskazówki kategorii, krótką nazwę ze skrótem albo wyłączenie. Speak categories through Windows speech when no screen reader is detected pozwala świadomie włączyć mowę Windows, gdy nie wykryto czytnika. Ta mowa przerywa poprzedni własny komunikat, aby szybkie przechodzenie po kategoriach nie tworzyło kolejki nieaktualnych wypowiedzi.</p>
 <p>Show visual spoken hotkey feedback pokazuje treść skrótu mówionego w tymczasowym, pływającym oknie także przy działającym czytniku. Visual feedback placement and timeout określa miejsce i czas widoczności okna.</p>
@@ -538,6 +540,7 @@ winget install --id namazso.PawnIO -e --source winget</code></pre>
 <h3 id="22-przenoszenie-ustawien-i-przenosna-kopia">22. Przenoszenie ustawień i przenośna kopia</h3>
 <p>File &gt; Export settings and profiles lub Ctrl+E otwiera listę wyboru zawartości: ogólne preferencje, odczyty obszaru powiadomień, profile mówione, profile wentylatorów, krzywe, alarmy, ukryte elementy i kolejność kategorii oraz wybory wtyczek. [S1, S2]</p>
 <p>File &gt; Import settings and profiles lub Ctrl+I pokazuje analogiczną listę ograniczoną do sekcji obecnych w pakiecie. Dopasowanie odczytów zachowuje litery dysków i ostrożnie szuka równoważnych CPU, GPU, RAM, baterii, sieci, systemu, procesów i innych przenośnych informacji mimo różnych nazw sprzętu. To samo pomaga profilom przy raportach i zdalnym podglądzie.</p>
+<p>Wybierz Tak, aby przywrócić dostępne skróty. Zajęte lub nieprawidłowe skróty zostaną wyświetlone na liście i pozostaną nieprzypisane. Pasujące odczyty nadal zostaną zaimportowane. Wybierz Nie, aby importować bez przypisań. Lokalne skróty pokazywania i ukrywania aplikacji oraz obsługi obszaru powiadomień pozostają bez zmian.</p>
 <p>Własne etykiety przechodzą z dopasowanym odczytem; niejednoznaczne pozostają niedostępne. Elementy potencjalnie niebezpieczne na innym sprzęcie pozostają nieaktywne: globalne skróty są puste, działania profili wentylatorów niepowiązane, krzywe wyłączone do wyboru kontrolera, a alarmy wyłączone do sprawdzenia.</p>
 <p>File &gt; Export portable copy albo Ctrl+Shift+E pakuje cały dostosowany program do ZIP: Sensor Readout, Config, wtyczki, języki, własne dźwięki i inne pliki potrzebne do uruchomienia z innego folderu lub komputera. Reports i Logs są opcjonalne, bo mogą być duże i prywatne.</p>
 <h3 id="23-pliki-foldery-i-jezyki">23. Pliki, foldery i języki</h3>

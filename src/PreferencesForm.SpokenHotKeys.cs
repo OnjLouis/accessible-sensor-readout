@@ -515,12 +515,28 @@ public sealed partial class PreferencesForm : Form
         }
     }
 
-    private void ImportSpokenHotKeysFromConfig()
+    internal static string SpokenHotKeysExportFileName(string machineName)
     {
-        using (var dialog = new OpenFileDialog())
+        return machineName + " Hotkeys.srsettings.json";
+    }
+
+    private void ExportSpokenHotKeys()
+    {
+        var title = SensorReadoutForm.L("ui.Export spoken hotkeys", "Export spoken hotkeys");
+        var profiles = CurrentSpokenHotKeys();
+        if (profiles.Count == 0)
         {
-            dialog.Title = "Import spoken hotkeys";
-            dialog.Filter = "Sensor Readout config (*.json)|*.json|All files (*.*)|*.*";
+            MessageBox.Show(this, SensorReadoutForm.L("message.No spoken hotkey profiles to export.", "No spoken hotkey profiles to export."),
+                title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using (var dialog = new SaveFileDialog())
+        {
+            dialog.Title = title;
+            dialog.Filter = "Sensor Readout settings package (*.srsettings.json)|*.srsettings.json";
+            dialog.DefaultExt = "srsettings.json";
+            dialog.FileName = SpokenHotKeysExportFileName(Environment.MachineName);
             dialog.InitialDirectory = SensorReadoutForm.GetConfigFolderPath();
             if (dialog.ShowDialog(this) != DialogResult.OK)
             {
@@ -529,9 +545,44 @@ public sealed partial class PreferencesForm : Form
 
             try
             {
-                var importedSettings = JsonConvert.DeserializeObject<MachineAppSettings>(File.ReadAllText(dialog.FileName));
+                var package = SensorReadoutForm.BuildSpokenHotKeyTransferPackage(profiles, CurrentReadingSpeechLabels());
+                File.WriteAllText(dialog.FileName, JsonConvert.SerializeObject(package, Formatting.Indented));
+                UpdateSpokenSelectionStatus(SensorReadoutForm.L("message.Exported spoken hotkeys.", "Exported spoken hotkeys."));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, SensorReadoutForm.L("message.Could not export settings package:", "Could not export settings package:") +
+                    " " + ex.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private void ImportSpokenHotKeys()
+    {
+        using (var dialog = new OpenFileDialog())
+        {
+            dialog.Title = SensorReadoutForm.L("ui.Import spoken hotkeys", "Import spoken hotkeys");
+            dialog.Filter = "Sensor Readout config or settings package (*.json)|*.json|All files (*.*)|*.*";
+            dialog.InitialDirectory = SensorReadoutForm.GetConfigFolderPath();
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            try
+            {
+                var importedSettings = SensorReadoutForm.ReadSpokenHotKeyTransfer(File.ReadAllText(dialog.FileName));
                 var importedProfiles = importedSettings == null ? new List<SpokenHotKeySetting>() : importedSettings.SpokenHotKeys ?? new List<SpokenHotKeySetting>();
+                var restore = SensorReadoutForm.ConfirmSpokenHotKeyImport(this, importedProfiles);
+                if (restore == DialogResult.Cancel)
+                {
+                    return;
+                }
+
+                var mainWindow = Owner as SensorReadoutForm;
+                var shortcuts = restore == DialogResult.Yes && mainWindow != null ? mainWindow.CreateSpokenHotKeyImport(false) : null;
                 var added = 0;
+                SpokenHotKeySetting selected = null;
                 var skippedProfiles = 0;
                 var skippedReadings = 0;
                 foreach (var imported in importedProfiles.Where(p => p != null))
@@ -552,39 +603,61 @@ public sealed partial class PreferencesForm : Form
                             resolvedKeys.Add(resolved);
                         }
 
-                        string customLabel;
-                        if (importedSettings.ReadingSpeechLabels != null &&
-                            importedSettings.ReadingSpeechLabels.TryGetValue(key, out customLabel) &&
-                            !string.IsNullOrWhiteSpace(customLabel))
+                        var customLabel = SensorReadoutForm.ImportedSpeechLabel(importedSettings.ReadingSpeechLabels, key);
+                        if (!string.IsNullOrWhiteSpace(customLabel))
                         {
-                            readingSpeechLabels[resolved] = customLabel.Trim();
+                            readingSpeechLabels[resolved] = customLabel;
                         }
                     }
 
                     if (resolvedKeys.Count == 0)
                     {
+                        if (shortcuts != null) shortcuts.Assign(imported.Name ?? "", imported.HotKey, spokenHotKeys.Count, false);
                         skippedProfiles++;
                         continue;
                     }
 
-        var profile = new SpokenHotKeySetting
-        {
-            Name = UniqueSpokenHotKeyName(imported.Name),
-            HotKey = "",
-            SkipUnavailableReadings = imported.SkipUnavailableReadings,
-            ReadingKeys = resolvedKeys
-        };
-                    spokenHotKeys.Add(profile);
+                    var name = (imported.Name ?? "").Trim();
+                    var matchIndex = shortcuts == null ? -1 : spokenHotKeys.FindIndex(profile => profile != null &&
+                        string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                        (profile.ReadingKeys ?? new List<string>()).SequenceEqual(resolvedKeys, StringComparer.OrdinalIgnoreCase) &&
+                        (string.IsNullOrWhiteSpace(profile.HotKey) ||
+                            string.Equals(profile.HotKey, SensorReadoutForm.NormalizeHotKeyText(imported.HotKey), StringComparison.OrdinalIgnoreCase)));
+                    if (matchIndex >= 0)
+                    {
+                        selected = spokenHotKeys[matchIndex];
+                        if (string.IsNullOrWhiteSpace(selected.HotKey))
+                        {
+                            selected.HotKey = shortcuts.Assign(selected.Name, imported.HotKey, matchIndex, true);
+                        }
+                    }
+                    else
+                    {
+                        var uniqueName = UniqueSpokenHotKeyName(imported.Name);
+                        selected = new SpokenHotKeySetting
+                        {
+                            Name = uniqueName,
+                            HotKey = shortcuts == null ? "" : shortcuts.Assign(uniqueName, imported.HotKey, spokenHotKeys.Count, true),
+                            SkipUnavailableReadings = imported.SkipUnavailableReadings,
+                            ReadingKeys = resolvedKeys
+                        };
+                        spokenHotKeys.Add(selected);
+                    }
                     added++;
                 }
 
                 if (added > 0)
                 {
-                    RebuildSpokenHotKeyProfileList(spokenHotKeys.LastOrDefault());
+                    RebuildSpokenHotKeyProfileList(selected);
                     SaveLivePreferences();
                 }
 
                 UpdateSpokenSelectionStatus("Imported " + added + " spoken hotkey" + (added == 1 ? "" : "s") + ". " + skippedProfiles + " profile" + (skippedProfiles == 1 ? "" : "s") + " and " + skippedReadings + " reading" + (skippedReadings == 1 ? "" : "s") + " skipped.");
+                if (shortcuts != null)
+                {
+                    MessageBox.Show(this, shortcuts.Summary(), SensorReadoutForm.L("ui.Import spoken hotkeys", "Import spoken hotkeys"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception ex)
             {
